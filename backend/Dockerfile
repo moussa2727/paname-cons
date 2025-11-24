@@ -2,15 +2,14 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy package files
+# Copy ONLY les fichiers essentiels d'abord
 COPY package*.json ./
 COPY tsconfig.json ./
-COPY nest-cli.json ./
 
 # Install dependencies
 RUN npm install
 
-# Copy ALL files (au lieu de src/ spécifiquement)
+# Copy TOUT le reste du code
 COPY . .
 
 # Build application
