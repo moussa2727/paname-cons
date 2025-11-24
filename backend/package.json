@@ -6,9 +6,9 @@
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "tsc -p tsconfig.json",
-    "prod": "node -r tsconfig-paths/register -r module-alias/register dist/main.js",
+    "start:prod": "node -r tsconfig-paths/register -r module-alias/register dist/main.js",
     "start": "nest start",
-    "dev": "nest start --watch --verbose",
+    "start:dev": "nest start --watch --verbose",
     "debug": "nest start --debug --watch",
     "test": "jest",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",

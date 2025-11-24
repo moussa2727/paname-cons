@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard,
@@ -25,7 +25,6 @@ interface AdminSidebarProps {
 const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
   const { logout, user, token } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
@@ -121,7 +120,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
 
   // Déconnexion simple - session actuelle uniquement
   const handleLogout = () => {
-    logout('/', false);
+    logout(); // ✅ Laisser le contexte gérer la redirection
   };
 
   // Déconnexion de toutes les sessions (admin seulement)
@@ -151,11 +150,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
       const result = await response.json();
       console.log('Déconnexion globale réussie:', result);
       
-      logout('/', false);
+      logout(); // ✅ Laisser le contexte gérer la redirection
       
     } catch (error) {
       console.error('Erreur lors de la déconnexion globale:', error);
-      logout('/', false);
+      logout(); // ✅ Laisser le contexte gérer la redirection même en cas d'erreur
     } finally {
       setIsLogoutAllOpen(false);
     }
@@ -193,8 +192,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
             <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
               {!isCollapsed && (
                 <div className='flex items-center space-x-3'>
-                  <Link to='/' className='w-8 h-8 bg-gradient-to-br from-blue-500 to-sky-400 rounded-full flex items-center justify-center text-white text-sm font-semibold'>
-                     <SettingsIcon className='w-5 h-5' />
+                  <Link 
+                    to='/' 
+                    className='w-8 h-8 bg-gradient-to-br from-blue-500 to-sky-400 rounded-full flex items-center justify-center text-white text-sm font-semibold hover:rotate-90 transition-transform duration-300 ease-in-out'
+                  >
+                    <SettingsIcon className='w-5 h-5' />
                   </Link>
                   <div>
                     <h1 className='text-lg font-bold text-white'>Gestionnaire</h1>
@@ -329,16 +331,17 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
             <div className='flex justify-between items-center h-16'>
               {/* Logo et titre */}
               <div className='flex items-center space-x-3'>
-                <Link to='/' className='w-8 h-8 bg-gradient-to-br from-blue-500 to-sky-400 rounded-full flex items-center justify-center text-white text-sm font-semibold'>
-                     <SettingsIcon className='w-5 h-5' />
-                  </Link>
+                <Link 
+                  to='/' 
+                  className='w-8 h-8 bg-gradient-to-br from-blue-500 to-sky-400 rounded-full flex items-center justify-center text-white text-sm font-semibold hover:rotate-90 transition-transform duration-300 ease-in-out'
+                >
+                  <SettingsIcon className='w-5 h-5' />
+                </Link>
                 <h1 className='text-lg font-bold text-slate-800'>Gestionnaire</h1>
               </div>
 
               {/* Boutons côté droit */}
               <div className='flex items-center space-x-2'>
-               
-
                 {/* Menu Mobile Toggle */}
                 <button
                   onClick={toggleMobileMenu}
