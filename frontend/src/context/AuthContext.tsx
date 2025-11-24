@@ -100,8 +100,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshTimeoutRef = useRef<number | null>(null);
   const sessionCheckRef = useRef<number | null>(null);
 
-  // ✅ CORRECTION : URL API cohérente avec le backend
+  // ✅ CONSERVATION DU PRÉFIXE /api
   const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const API_BASE = `${VITE_API_URL}/api/auth`;
 
   // ===== FONCTIONS UTILITAIRES =====
   const safeJsonParse = <T,>(jsonString: string | null, defaultValue: T): T => {
@@ -232,8 +233,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), SESSION_CONFIG.API_TIMEOUT);
 
-      // ✅ CORRECTION : Endpoint cohérent avec auth.controller.ts
-      const response = await fetch(`${VITE_API_URL}/api/auth/me`, {
+      // ✅ ENDPOINT AVEC /api
+      const response = await fetch(`${API_BASE}/me`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${userToken}`,
@@ -270,7 +271,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (err: any) {
       throw err;
     }
-  }, [VITE_API_URL]);
+  }, [API_BASE]);
 
   const isSessionExpired = useCallback((decoded: JwtPayload): boolean => {
     const tokenIssuedAt = decoded.iat * 1000;
@@ -316,22 +317,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const refreshPromise = (async (): Promise<boolean> => {
       try {
+        // ✅ RÉCUPÉRATION DES TOKENS DANS TOUS LES STOCKAGES
         let refreshToken: string | null = getCookie('refresh_token');
+        const storedRefreshToken = localStorage.getItem('refresh_token');
+        
+        // Priorité: cookie > localStorage
+        if (!refreshToken && storedRefreshToken) {
+          refreshToken = storedRefreshToken;
+        }
         
         if (!refreshToken) {
-          console.warn('❌ Refresh token manquant dans les cookies');
+          console.warn('❌ Refresh token manquant dans les cookies et localStorage');
           await logout('/', true);
           return false;
         }
 
-        // ✅ CORRECTION : Endpoint cohérent avec backend
-        const response = await fetch(`${VITE_API_URL}/api/auth/refresh`, {
+        // ✅ ENDPOINT AVEC /api ET DOUBLE CANAL (body + cookies)
+        const response = await fetch(`${API_BASE}/refresh`, {
           method: 'POST',
-          credentials: 'include',
+          credentials: 'include', // ✅ Envoie automatique des cookies
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ refreshToken })
+          body: JSON.stringify({ refreshToken }) // ✅ Double canal pour sécurité
         });
 
         if (!response.ok) {
@@ -357,7 +365,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         const data = await response.json();
         
-        // ✅ CORRECTION : Validation cohérente avec la réponse du backend
+        // ✅ VALIDATION COHÉRENTE AVEC BACKEND
         if (data.loggedOut || data.sessionExpired || !data.accessToken) {
           await logout('/', true);
           return false;
@@ -365,15 +373,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         const decoded = jwtDecode<JwtPayload>(data.accessToken);
         
-        // ✅ VERIFICATION SESSION 25 MINUTES
+        // ✅ VÉRIFICATION SESSION 25 MINUTES
         if (isSessionExpired(decoded)) {
           toast.info('Votre session a expiré après 25 minutes', { toastId: 'session-expired' });
           await logout('/', true);
           return false;
         }
         
-        // ✅ MISE A JOUR COHERENTE
+        // ✅ MISE À JOUR COMPLÈTE DES TOKENS DANS TOUS LES STOCKAGES
         localStorage.setItem('token', data.accessToken);
+        if (data.refreshToken) {
+          localStorage.setItem('refresh_token', data.refreshToken);
+        }
+        
         setToken(data.accessToken);
         
         await fetchUserData(data.accessToken);
@@ -397,7 +409,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       refreshInFlightRef.current = null;
     }
-  }, [VITE_API_URL, fetchUserData, setupTokenRefresh, getCookie, isSessionExpired]);
+  }, [API_BASE, fetchUserData, setupTokenRefresh, getCookie, isSessionExpired]);
 
   const logout = useCallback(async (redirectPath?: string, silent?: boolean): Promise<void> => {
     if (refreshTimeoutRef.current) {
@@ -409,10 +421,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       sessionCheckRef.current = null;
     }
 
-    // ✅ CORRECTION : Appel cohérent avec le backend
+    // ✅ APPEL BACKEND AVEC /api
     if (token) {
       try {
-        const response = await fetch(`${VITE_API_URL}/api/auth/logout`, {
+        const response = await fetch(`${API_BASE}/logout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -429,7 +441,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     }
 
-    // ✅ NETTOYAGE COHERENT AVEC LE BACKEND
+    // ✅ NETTOYAGE COMPLET DES TOKENS DANS TOUS LES STOCKAGES
     const ALL_TOKENS = ['token', 'access_token', 'refresh_token', 'auth_token'];
     ALL_TOKENS.forEach(tokenName => {
       localStorage.removeItem(tokenName);
@@ -438,14 +450,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     clearSession();
 
-    // ✅ NETTOYAGE COOKIES COHERENT
+    // ✅ NETTOYAGE COMPLET DES COOKIES
     const cookiesToClear = ['refresh_token', 'access_token'];
     const hostname = window.location.hostname;
     
     cookiesToClear.forEach(cookieName => {
+      // Nettoyage standard
       document.cookie = `${cookieName}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;`;
       document.cookie = `${cookieName}=; Path=/; Domain=${hostname}; Expires=Thu, 01 Jan 1970 00:00:01 GMT;`;
       
+      // Nettoyage pour les sous-domaines
       if (hostname.includes('.')) {
         const domainParts = hostname.split('.');
         if (domainParts.length > 2) {
@@ -477,7 +491,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }, 100);
       }
     }, 150);
-  }, [navigate, clearSession, token, VITE_API_URL]);
+  }, [navigate, clearSession, token, API_BASE]);
 
   const logoutAll = useCallback(async (): Promise<void> => {
     if (!token || !user?.isAdmin) {
@@ -488,8 +502,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
 
     try {
-      // ✅ CORRECTION : Endpoint cohérent avec backend
-      const response = await fetch(`${VITE_API_URL}/api/auth/logout-all`, {
+      // ✅ ENDPOINT AVEC /api
+      const response = await fetch(`${API_BASE}/logout-all`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -521,7 +535,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [VITE_API_URL, token, user]);
+  }, [API_BASE, token, user]);
 
   const login = useCallback(async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
@@ -533,14 +547,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         password: password
       };
 
-      // ✅ CORRECTION : Endpoint cohérent avec backend
-      const response = await fetch(`${VITE_API_URL}/api/auth/login`, {
+      // ✅ ENDPOINT AVEC /api
+      const response = await fetch(`${API_BASE}/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(loginData),
-        credentials: 'include'
+        credentials: 'include' // ✅ IMPORTANT: pour recevoir les cookies
       });
 
       if (!response.ok) {
@@ -558,13 +572,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       const data = await response.json();
 
+      // ✅ STOCKAGE MULTI-CANAL DES TOKENS
+      localStorage.setItem('token', data.accessToken);
+      if (data.refreshToken) {
+        localStorage.setItem('refresh_token', data.refreshToken);
+      }
+
       const userWithRole: User = {
         ...data.user,
         isActive: true,
         isAdmin: data.user.role === 'admin' || data.user.isAdmin === true
       };
 
-      localStorage.setItem('token', data.accessToken);
       setToken(data.accessToken);
       setUser(userWithRole);
 
@@ -583,7 +602,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [VITE_API_URL, navigate, setupTokenRefresh, saveToSession, getRoleBasedRedirect]);
+  }, [API_BASE, navigate, setupTokenRefresh, saveToSession, getRoleBasedRedirect]);
 
   const startSessionMonitoring = useCallback(() => {
     if (sessionCheckRef.current) {
@@ -615,8 +634,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(errorMsg);
       }
 
-      // ✅ CORRECTION : Endpoint cohérent avec backend
-      const response = await fetch(`${VITE_API_URL}/api/auth/register`, {
+      // ✅ ENDPOINT AVEC /api
+      const response = await fetch(`${API_BASE}/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -639,7 +658,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(errorMsg);
       }
 
-      await login(formData.email, formData.password);
+      // ✅ STOCKAGE DES TOKENS APRÈS INSCRIPTION
+      localStorage.setItem('token', data.access_token);
+      if (data.refreshToken) {
+        localStorage.setItem('refresh_token', data.refreshToken);
+      }
+
+      setToken(data.access_token);
+      
+      const userWithRole: User = {
+        ...data.user,
+        isActive: true,
+        isAdmin: data.user.role === 'admin' || data.user.isAdmin === true
+      };
+      setUser(userWithRole);
+
+      const decoded = jwtDecode<JwtPayload>(data.access_token);
+      saveToSession(ALLOWED_SESSION_KEYS.SESSION_START, decoded.iat * 1000);
+      
+      setupTokenRefresh(decoded.exp);
+      startSessionMonitoring();
+
+      const redirectPath = getRoleBasedRedirect(userWithRole);
+      navigate(redirectPath, { replace: true });
+      
       toast.success('Inscription réussie ! Bienvenue !', { toastId: 'register-success' });
       
     } catch (err: any) {
@@ -654,15 +696,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [VITE_API_URL, login]);
+  }, [API_BASE, navigate, setupTokenRefresh, saveToSession, getRoleBasedRedirect]);
 
   const forgotPassword = useCallback(async (email: string): Promise<void> => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // ✅ CORRECTION : Endpoint cohérent avec backend
-      const response = await fetch(`${VITE_API_URL}/api/auth/forgot-password`, {
+      // ✅ ENDPOINT AVEC /api
+      const response = await fetch(`${API_BASE}/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -686,53 +728,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [VITE_API_URL, navigate]);
-
+  }, [API_BASE, navigate]);
 
   const resetPassword = useCallback(async (resetToken: string, newPassword: string): Promise<void> => {
-  setIsLoading(true);
-  setError(null);
+    setIsLoading(true);
+    setError(null);
 
-  try {
-    console.log('🔧 Tentative de réinitialisation avec token:', resetToken.substring(0, 10) + '...'); // ✅ Évite les logs sensibles
-    
-    const response = await fetch(`${VITE_API_URL}/api/auth/reset-password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        token: resetToken, 
-        newPassword: newPassword,
-        confirmPassword: newPassword 
-      }),
-    });
+    try {
+      console.log('🔧 Tentative de réinitialisation avec token:', resetToken.substring(0, 10) + '...');
+      
+      // ✅ ENDPOINT AVEC /api ET STRUCTURE BACKEND CORRECTE
+      const response = await fetch(`${API_BASE}/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          token: resetToken, 
+          newPassword: newPassword
+          // ❌ PAS DE confirmPassword - cohérent avec backend
+        }),
+      });
 
-    console.log('🔧 Statut de la réponse:', response.status);
+      console.log('🔧 Statut de la réponse:', response.status);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('🔧 Erreur détaillée:', errorData.message || `Erreur ${response.status}`);
-      throw new Error(errorData.message || `Erreur ${response.status} lors de la réinitialisation`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('🔧 Erreur détaillée:', errorData.message || `Erreur ${response.status}`);
+        throw new Error(errorData.message || `Erreur ${response.status} lors de la réinitialisation`);
+      }
+
+      const result = await response.json();
+      console.log('🔧 Réinitialisation réussie');
+      
+      toast.success('Mot de passe réinitialisé avec succès');
+      navigate('/connexion');
+      
+    } catch (err: any) {
+      console.error('🔧 Erreur réinitialisation:', err.message);
+      const errorMessage = err.message || 'Erreur lors de la réinitialisation';
+      toast.error(errorMessage);
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
     }
-
-    const result = await response.json();
-    console.log('🔧 Réinitialisation réussie');
-    
-    toast.success('Mot de passe réinitialisé avec succès');
-    navigate('/connexion');
-    
-  } catch (err: any) {
-    console.error('🔧 Erreur réinitialisation:', err.message); // ✅ Log seulement le message
-    const errorMessage = err.message || 'Erreur lors de la réinitialisation';
-    toast.error(errorMessage);
-    setError(errorMessage);
-    throw err;
-  } finally {
-    setIsLoading(false);
-  }
-}, [VITE_API_URL, logout,navigate]);
-
+  }, [API_BASE, navigate]);
 
   const updateUserProfile = useCallback((updates: Partial<User>): void => {
     setUser(prev => prev ? { ...prev, ...updates } : null);
@@ -748,15 +789,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [token, fetchUserData]);
 
   const checkAuth = useCallback(async (): Promise<void> => {
+    // ✅ VÉRIFICATION MULTI-SOURCE DES TOKENS
     const savedToken = localStorage.getItem('token');
+    const cookieToken = getCookie('access_token');
     
-    if (!savedToken) {
+    // Priorité: localStorage > cookie
+    const effectiveToken = savedToken || cookieToken;
+    
+    if (!effectiveToken) {
       setIsLoading(false);
       return;
     }
 
     try {
-      const decoded = jwtDecode<JwtPayload>(savedToken);
+      const decoded = jwtDecode<JwtPayload>(effectiveToken);
       
       if (isSessionExpired(decoded)) {
         await logout('/', true);
@@ -769,7 +815,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const refreshed = await refreshTokenFunction();
         if (!refreshed) return;
       } else {
-        await fetchUserData(savedToken);
+        // ✅ SYNCHRONISATION SI TOKEN COOKIE MAIS PAS LOCALSTORAGE
+        if (!savedToken && cookieToken) {
+          localStorage.setItem('token', cookieToken);
+          setToken(cookieToken);
+        }
+        
+        await fetchUserData(effectiveToken);
         setupTokenRefresh(decoded.exp);
         startSessionMonitoring();
       }
@@ -778,7 +830,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [fetchUserData, refreshTokenFunction, setupTokenRefresh, logout, isSessionExpired, startSessionMonitoring]);
+  }, [fetchUserData, refreshTokenFunction, setupTokenRefresh, logout, isSessionExpired, startSessionMonitoring, getCookie]);
 
   useEffect(() => {
     let isMounted = true;

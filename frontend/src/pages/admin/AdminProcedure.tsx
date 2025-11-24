@@ -263,7 +263,7 @@ const AdminProcedures: React.FC = () => {
 
     <>
       <Helmet>
-          <title>Admin - Gestion des Procédures | Paname Consulting</title>
+          <title>Gestion des Procédures | Paname Consulting</title>
           <meta
             name="description"
             content="Interface d'administration pour gérer les procédures des étudiants sur Paname Consulting. Accès réservé aux administrateurs."
