@@ -1,0 +1,21 @@
+.vercel
+# Environment files - NE JAMAIS COMMITTER
+.env
+.env.*
+!.env.example
+
+# Backend
+backend/node_modules/
+backend/dist/
+backend/logs/
+
+# Frontend  
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
