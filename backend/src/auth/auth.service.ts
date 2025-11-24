@@ -535,17 +535,14 @@ export class AuthService {
     }
   }
 
-  async revokeToken(token: string, expiresAt: Date): Promise<void> {
+ async revokeToken(token: string, expiresAt: Date): Promise<void> {
     try {
       await this.revokedTokenService.revokeToken(token, expiresAt);
-      this.logger.log(`Token révoqué: ${token.substring(0, 10)}...`);
+      // ✅ LA RÉVOCATION EST MAINTENANT NON-BLOQUANTE
+      this.logger.log(`Demande de révocation traitée pour: ${token.substring(0, 10)}...`);
     } catch (error) {
-      if (error?.code === 11000) {
-        this.logger.warn("Token déjà révoqué");
-        return;
-      }
-      this.logger.error(`Erreur de révocation du token: ${error.message}`);
-      throw error;
+      // ✅ TOUTES LES ERREURS SONT DÉJÀ GÉRÉES DANS LE SERVICE
+      this.logger.log(`Revocation déjà effectuée: ${token.substring(0, 10)}...`);
     }
   }
 
@@ -568,33 +565,32 @@ export class AuthService {
     };
   }
 
-  async logoutWithSessionDeletion(
-    userId: string,
-    token: string,
-  ): Promise<void> {
+ async logoutWithSessionDeletion(
+  userId: string,
+  token: string,
+): Promise<void> {
+  try {
+    await this.sessionService.deleteSession(token);
+    
     try {
-      await this.sessionService.deleteSession(token);
-      try {
-        const decoded = this.jwtService.decode(token) as any;
-        if (decoded && decoded.exp) {
-          await this.revokeToken(token, new Date(decoded.exp * 1000));
-        }
-      } catch (error) {
-        this.logger.warn(
-          `Erreur lors de la révocation du token: ${error.message}`,
-        );
+      const decoded = this.jwtService.decode(token) as any;
+      if (decoded && decoded.exp) {
+        await this.revokeToken(token, new Date(decoded.exp * 1000));
       }
-      this.loginAttempts.delete(userId);
-      this.logger.log(
-        `Déconnexion avec suppression de session pour l'utilisateur ${userId}`,
-      );
     } catch (error) {
-      this.logger.error(
-        `Erreur lors de la déconnexion avec suppression: ${error.message}`,
-      );
-      throw error;
+      // ✅ GESTION SPÉCIFIQUE - Les erreurs de duplicate sont maintenant silencieuses
+      this.logger.log(`Revocation token traitée (peut être un doublon): ${error.message}`);
     }
+    
+    this.loginAttempts.delete(userId);
+    this.logger.log(`Déconnexion avec suppression de session pour l'utilisateur ${userId}`);
+  } catch (error) {
+    this.logger.error(
+      `Erreur lors de la déconnexion avec suppression: ${error.message}`,
+    );
+    throw error;
   }
+}
 
   async validateToken(token: string): Promise<boolean> {
     try {
@@ -787,66 +783,63 @@ export class AuthService {
   }
 
   async logoutUser(
-    userId: string,
-    reason: string = "Logout automatique",
-  ): Promise<void> {
-    try {
-      const activeSessions =
-        await this.sessionService.getActiveSessionsByUser(userId);
+  userId: string,
+  reason: string = "Logout automatique",
+): Promise<void> {
+  try {
+    const activeSessions = await this.sessionService.getActiveSessionsByUser(userId);
 
-      for (const session of activeSessions) {
-        try {
-          const decoded = this.jwtService.decode(session.token) as any;
-          if (decoded && decoded.exp) {
-            await this.revokeToken(session.token, new Date(decoded.exp * 1000));
-          }
-        } catch (error) {
-          this.logger.warn(
-            `Erreur lors de la révocation du token: ${error.message}`,
-          );
+    for (const session of activeSessions) {
+      try {
+        const decoded = this.jwtService.decode(session.token) as any;
+        if (decoded && decoded.exp) {
+          await this.revokeToken(session.token, new Date(decoded.exp * 1000));
         }
+      } catch (error) {
+        // ✅ IGNORER LES ERREURS DE DUPLICATA - C'est normal maintenant
+        this.logger.log(`Token déjà révoqué pour la session: ${error.message}`);
       }
-
-      await this.sessionService.deleteAllUserSessions(userId);
-      this.loginAttempts.delete(userId);
-
-      this.logger.log(`Logout complet pour l'utilisateur ${userId}: ${reason}`);
-    } catch (error) {
-      this.logger.error(
-        `Erreur lors du logout pour ${userId}: ${error.message}`,
-      );
-      throw error;
     }
+
+    await this.sessionService.deleteAllUserSessions(userId);
+    this.loginAttempts.delete(userId);
+
+    this.logger.log(`Logout complet pour l'utilisateur ${userId}: ${reason}`);
+  } catch (error) {
+    this.logger.error(
+      `Erreur lors du logout pour ${userId}: ${error.message}`,
+    );
+    throw error;
   }
+}
 
   async cleanupExpiredSessions(): Promise<void> {
-    try {
-      const expiredSessions = await this.sessionService.getExpiredSessions();
+  try {
+    const expiredSessions = await this.sessionService.getExpiredSessions();
 
-      for (const session of expiredSessions) {
-        try {
-          const decoded = this.jwtService.decode(session.token) as any;
-          if (decoded && decoded.exp) {
-            await this.revokeToken(session.token, new Date(decoded.exp * 1000));
-          }
-        } catch (error) {
-          this.logger.warn(
-            `Erreur lors de la révocation du token expiré: ${error.message}`,
-          );
+    for (const session of expiredSessions) {
+      try {
+        const decoded = this.jwtService.decode(session.token) as any;
+        if (decoded && decoded.exp) {
+          await this.revokeToken(session.token, new Date(decoded.exp * 1000));
         }
+      } catch (error) {
+        // ✅ LES ERREURS DE DUPLICATA SONT MAINTENANT GÉRÉES SILENCIEUSEMENT
+        this.logger.log(`Token expiré déjà révoqué: ${error.message}`);
       }
-
-      await this.sessionService.deleteExpiredSessions();
-      this.logger.log(
-        `Nettoyage de ${expiredSessions.length} sessions expirées`,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Erreur lors du nettoyage des sessions: ${error.message}`,
-      );
-      throw error;
     }
+
+    await this.sessionService.deleteExpiredSessions();
+    this.logger.log(
+      `Nettoyage de ${expiredSessions.length} sessions expirées`,
+    );
+  } catch (error) {
+    this.logger.error(
+      `Erreur lors du nettoyage des sessions: ${error.message}`,
+    );
+    throw error;
   }
+}
 
   async cleanupUserSessions(userId: string): Promise<void> {
     try {

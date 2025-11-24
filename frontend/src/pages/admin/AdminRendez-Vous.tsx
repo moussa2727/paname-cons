@@ -21,6 +21,7 @@ import {
   MoreVertical
 } from 'lucide-react';
 import { useAdminRendezVousService, Rendezvous, CreateRendezVousData } from '../../api/admin/AdminRendezVousService';
+import { Helmet } from 'react-helmet-async';
 
 // Interface pour les destinations de l'API
 interface Destination {
@@ -339,6 +340,25 @@ const AdminRendezVous = () => {
   ];
 
   return (
+
+    <>
+      <Helmet>
+          <title>Gestion des Rendez-vous - Paname Consulting</title>
+          <meta
+            name="description"  
+            content="Interface d'administration pour gérer les rendez-vous des utilisateurs sur Paname Consulting. Accès réservé aux administrateurs."
+          />
+            <meta name="robots" content="noindex, nofollow" />
+        <meta name="googlebot" content="noindex, nofollow" />
+        <meta name="bingbot" content="noindex, nofollow" />
+        <meta name="yandexbot" content="noindex, nofollow" />
+        <meta name="duckduckbot" content="noindex, nofollow" />
+        <meta name="baidu" content="noindex, nofollow" />
+        <meta name="naver" content="noindex, nofollow" />
+        <meta name="seznam" content="noindex, nofollow" />
+
+      </Helmet>
+      
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
       {/* Modal de confirmation de suppression */}
       {showDeleteModal && (
@@ -1121,6 +1141,8 @@ const AdminRendezVous = () => {
         </div>
       </div>
     </div>
+    </>
+
   );
 };
 

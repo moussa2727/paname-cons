@@ -1,53 +1,65 @@
-# Étape de build
+# ============ ÉTAPE DE BUILD ============
 FROM node:18-alpine AS builder
 
-# Installer pnpm
+# Installation et configuration de pnpm
 RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
+# Définition du répertoire de travail
 WORKDIR /app
 
-# Copier les fichiers de configuration
-COPY package.json pnpm-lock.yaml* tsconfig.json tsconfig.build.json nest-cli.json ./
+# Copie des fichiers de configuration en premier (optimisation du cache Docker)
+COPY package.json pnpm-lock.yaml* tsconfig.json nest-cli.json ./
 
-# Installer toutes les dépendances (y compris devDependencies pour la compilation)
-RUN pnpm install --frozen-lockfile
+# Installation de toutes les dépendances (développement + production)
+RUN pnpm install --frozen-lockfile --prefer-offline
 
-# Copier les sources
+# Copie des sources de l'application
 COPY src/ ./src/
 
-# Builder l'application
+# Construction de l'application
 RUN pnpm run build
 
-# Étape de production
+# ============ ÉTAPE DE PRODUCTION ============
 FROM node:18-alpine AS production
 
-WORKDIR /app
+# Arguments de build
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
 
-# Installer pnpm
+# Installation et configuration de pnpm
 RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
-# Copier les fichiers de package
+# Définition du répertoire de travail
+WORKDIR /app
+
+# Copie des fichiers de package
 COPY package.json pnpm-lock.yaml* ./
 
-# Installer uniquement les dépendances de production
-RUN pnpm install --prod --frozen-lockfile
+# Installation UNIQUEMENT des dépendances de production
+RUN pnpm install --prod --frozen-lockfile --prefer-offline
 
-# Copier les fichiers compilés depuis le builder
+# Copie des fichiers compilés depuis l'étape builder
 COPY --from=builder /app/dist ./dist
 
-# Sécurité : utilisateur non-root
+# Création des dossiers nécessaires
+RUN mkdir -p /app/uploads && \
+    mkdir -p /app/logs
+
+# ============ SÉCURITÉ ============
+# Création d'un utilisateur non-root pour plus de sécurité
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001 && \
     chown -R nestjs:nodejs /app
 
+# Passage à l'utilisateur non-root
 USER nestjs
 
-# Port exposé (identique à votre configuration NestJS)
+# Exposition du port de l'application
 EXPOSE 3000
 
-# Health check (adapté pour votre endpoint de santé)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+# Variables d'environnement par défaut
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
-# Commande de démarrage
+# Commande de démarrage de l'application
 CMD ["node", "dist/main.js"]

@@ -64,38 +64,87 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
       name: 'Tableau de bord',
       path: '/gestionnaire',
       icon: <LayoutDashboard className='w-5 h-5' />,
+      basePath: '/gestionnaire' // ✅ Spécifier le chemin de base
     },
     {
       name: 'Utilisateurs',
       path: '/gestionnaire/utilisateurs',
       icon: <Users className='w-5 h-5' />,
+      basePath: '/gestionnaire/utilisateurs'
     },
     {
       name: 'Messages',
       path: '/gestionnaire/messages',
       icon: <MessageSquare className='w-5 h-5' />,
+      basePath: '/gestionnaire/messages'
     },
     {
       name: 'Rendez-vous',
       path: '/gestionnaire/rendez-vous',
       icon: <Calendar className='w-5 h-5' />,
+      basePath: '/gestionnaire/rendez-vous'
     },
     {
       name: 'Procédures',
       path: '/gestionnaire/procedures',
       icon: <FileText className='w-5 h-5' />,
+      basePath: '/gestionnaire/procedures'
     },
     {
       name: 'Destinations',
       path: '/gestionnaire/destinations',
       icon: <MapPin className='w-5 h-5' />,
+      basePath: '/gestionnaire/destinations'
     },
     {
       name: 'Mon Profil',
       path: '/gestionnaire/profil',
       icon: <User className='w-5 h-5' />,
+      basePath: '/gestionnaire/profil'
     },
   ];
+
+  // ✅ DÉTECTION AMÉLIORÉE DES LIENS ACTIFS AVEC SOUS-ROUTES
+  const isActivePath = (basePath: string): boolean => {
+    const currentPath = location.pathname;
+    
+    // Cas spécial pour la racine '/gestionnaire'
+    if (basePath === '/gestionnaire') {
+      return currentPath === '/gestionnaire' || 
+             currentPath.startsWith('/gestionnaire/statistiques') ||
+             currentPath.startsWith('/gestionnaire/analytics') ||
+             (currentPath.startsWith('/gestionnaire/') && 
+              !menuItems.some(item => 
+                item.basePath !== '/gestionnaire' && 
+                currentPath.startsWith(item.basePath)
+              ));
+    }
+    
+    // Pour les autres routes, vérifier si le chemin commence par basePath
+    return currentPath.startsWith(basePath);
+  };
+
+  // ✅ DÉTECTION POUR LE SURBRILLANCE VISUELLE
+  const getActiveItemClass = (basePath: string): string => {
+    const isActive = isActivePath(basePath);
+    
+    if (isActive) {
+      return 'bg-blue-500 text-white shadow-lg shadow-blue-500/25';
+    }
+    
+    return 'text-slate-600 hover:bg-slate-100 hover:text-slate-800';
+  };
+
+  // ✅ DÉTECTION POUR LES ICÔNES
+  const getActiveIconClass = (basePath: string): string => {
+    const isActive = isActivePath(basePath);
+    
+    if (isActive) {
+      return 'text-white';
+    }
+    
+    return 'text-slate-500 group-hover:text-slate-700';
+  };
 
   // Fonction pour obtenir le nom d'affichage sécurisé selon AuthContext
   const getDisplayName = (): string => {
@@ -168,14 +217,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
     setIsCollapsed(!isCollapsed);
   };
 
-  const isActivePath = (path: string) => {
-    return location.pathname === path;
-  };
-
   // Ne rien afficher si pas admin
   if (!user || user.role !== 'admin') {
     return null;
   }
+
 
   return (
     <>

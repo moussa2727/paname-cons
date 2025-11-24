@@ -7,7 +7,7 @@ import {
   FiUser,
 } from 'react-icons/fi';
 
-// Types pour TypeScript
+// Types pour TypeScript - CORRIGÉS selon le backend
 interface FormData {
   firstName: string;
   lastName: string;
@@ -34,8 +34,8 @@ const Form = () => {
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
   const formRef = useRef<HTMLFormElement>(null);
   
-  // Gestion sécurisée des variables d'environnement
-  const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+  // ✅ CORRECTION STRICTE : URL API cohérente avec le backend
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
   // Effet de nettoyage avec gestion d'erreur
   useEffect(() => {
@@ -83,7 +83,7 @@ const Form = () => {
     setErrors((prev) => ({ ...prev, [name]: validateField(name, value) }));
   }, [validateField]);
 
-  // Gestion de la soumission avec validation complète
+  // ✅ CORRECTION : Gestion de soumission STRICTEMENT conforme au backend
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -92,11 +92,13 @@ const Form = () => {
     setIsSubmitting(true);
 
     const formData = new FormData(formRef.current);
+    
+    // ✅ STRUCTURE EXACTE comme CreateContactDto du backend
     const data: FormData = {
-      firstName: (formData.get('firstName') as string) || '',
-      lastName: (formData.get('lastName') as string) || '',
-      email: (formData.get('email') as string) || '',
-      message: (formData.get('message') as string) || '',
+      firstName: (formData.get('firstName') as string)?.trim() || '',
+      lastName: (formData.get('lastName') as string)?.trim() || '',
+      email: (formData.get('email') as string)?.trim() || '',
+      message: (formData.get('message') as string)?.trim() || '',
     };
 
     // Validation complète avant soumission
@@ -123,13 +125,18 @@ const Form = () => {
     }
 
     try {
+      // ✅ VÉRIFICATION STRICTE DE L'URL API
       if (!API_URL) {
-        throw new Error('URL API non configurée');
+        throw new Error('URL API non configurée - Vérifiez VITE_API_URL dans .env');
       }
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // Timeout de 10s
+      console.log('🔧 Envoi vers:', `${API_URL}/api/contact`);
+      console.log('🔧 Données envoyées:', data);
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // Timeout de 15s
+
+      // ✅ REQUÊTE STRICTEMENT CONFORME au backend NestJS
       const response = await fetch(`${API_URL}/api/contact`, {
         method: 'POST',
         headers: { 
@@ -137,33 +144,50 @@ const Form = () => {
           'Accept': 'application/json'
         },
         body: JSON.stringify(data),
-        signal: controller.signal
+        signal: controller.signal,
+        credentials: 'include' // ✅ Important pour les cookies
       });
 
       clearTimeout(timeoutId);
 
+      console.log('🔧 Statut réponse:', response.status);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erreur HTTP: ${response.status}`);
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { message: `Erreur HTTP: ${response.status}` };
+        }
+        
+        console.error('🔧 Erreur backend:', errorData);
+        throw new Error(errorData.message || `Erreur serveur: ${response.status}`);
       }
 
+      const result = await response.json();
+      console.log('🔧 Réponse backend:', result);
+
+      // ✅ RÉPONSE CONFORME au format du backend
       setSubmitStatus({
         success: true,
-        message: 'Message envoyé ! Vous recevrez une confirmation par email.',
+        message: result.message || 'Message envoyé avec succès',
       });
+      
       formRef.current.reset();
       setTouchedFields(new Set());
       
     } catch (error) {
-      console.error('Erreur soumission formulaire:', error);
+      console.error('❌ Erreur soumission formulaire:', error);
       
       let errorMessage = "Erreur lors de l'envoi. Veuillez réessayer.";
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           errorMessage = "La requête a pris trop de temps. Veuillez réessayer.";
+        } else if (error.message.includes('fetch')) {
+          errorMessage = "Impossible de contacter le serveur. Vérifiez votre connexion.";
         } else {
-          errorMessage = error.message || errorMessage;
+          errorMessage = error.message;
         }
       }
 
@@ -361,6 +385,7 @@ const Form = () => {
     </main>
   );
 };
+
 
 // Composants avec typage TypeScript
 interface ContactInfoProps {

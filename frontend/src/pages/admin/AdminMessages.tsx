@@ -18,6 +18,7 @@ import {
   XMarkIcon
 } from '@heroicons/react/24/outline';
 import { FiSend } from 'react-icons/fi';
+import { Helmet } from 'react-helmet-async';
 
 const AdminMessages: React.FC = () => {
   const { user } = useAuth();
@@ -214,7 +215,26 @@ const AdminMessages: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-3">
+   
+    <>
+      <Helmet>
+          <title>Gestion des Messages - Paname Consulting</title>
+          <meta
+            name="description"
+            content="Interface d'administration pour gérer les messages des utilisateurs sur Paname Consulting. Accès réservé aux administrateurs."
+          />
+          <meta name="robots" content="noindex, nofollow" />
+          <meta name="googlebot" content="noindex, nofollow" />
+        <meta name="bingbot" content="noindex, nofollow" />
+        <meta name="yandexbot" content="noindex, nofollow" />
+        <meta name="duckduckbot" content="noindex, nofollow" />
+        <meta name="baidu" content="noindex, nofollow" />
+        <meta name="naver" content="noindex, nofollow" />
+        <meta name="seznam" content="noindex, nofollow" />
+      </Helmet>
+
+      
+   <div className="min-h-screen bg-slate-50 p-3">
       {/* En-tête */}
       <div className="mb-4">
         <h1 className="text-xl font-bold text-blue-600 mb-1">
@@ -607,6 +627,10 @@ const AdminMessages: React.FC = () => {
         </div>
       )}
     </div>
+
+    </>
+
+
   );
 };
 

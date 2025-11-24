@@ -36,40 +36,79 @@ const AdminProfile: React.FC = () => {
   const allRulesMet = passwordRules.every(rule => rule.met);
 
   // Fonction de mise à jour du mot de passe
-  const updatePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
-    setIsLoading(true);
-    setMessage(null);
+ // Remplacer la fonction updatePassword par :
+const updatePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
+  setIsLoading(true);
+  setMessage(null);
 
-    try {
-      const VITE_API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const token = localStorage.getItem('token');
+  try {
+    const VITE_API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    const token = localStorage.getItem('token');
 
-      const response = await fetch(`${VITE_API_URL}/api/auth/update-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ currentPassword, newPassword }),
-        credentials: 'include'
-      });
+    // ✅ CORRECTION : Format cohérent avec le backend
+    const requestBody = {
+      currentPassword,
+      newPassword,
+      confirmNewPassword: newPassword // ⚠️ Le backend attend "confirmNewPassword" et non "confirmPassword"
+    };
 
-      const data = await response.json();
+    console.log('🔧 Données envoyées:', { 
+      currentPassword: currentPassword ? '***' : 'empty',
+      newPassword: newPassword ? '***' : 'empty',
+      confirmNewPassword: newPassword ? '***' : 'empty'
+    });
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Erreur lors de la mise à jour du mot de passe');
+    const response = await fetch(`${VITE_API_URL}/api/auth/update-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(requestBody),
+      credentials: 'include'
+    });
+
+    console.log('🔧 Statut réponse:', response.status);
+
+    if (!response.ok) {
+      let errorMessage = 'Erreur lors de la mise à jour du mot de passe';
+      
+      try {
+        const errorData = await response.json();
+        console.log('🔧 Données erreur:', errorData);
+        errorMessage = errorData.message || errorMessage;
+        
+        // ✅ Gestion spécifique des erreurs 400
+        if (response.status === 400) {
+          if (errorMessage.includes('correspondent pas')) {
+            errorMessage = 'Les mots de passe ne correspondent pas';
+          } else if (errorMessage.includes('actuel incorrect')) {
+            errorMessage = 'Le mot de passe actuel est incorrect';
+          }
+        }
+      } catch {
+        // Si la réponse n'est pas du JSON
+        errorMessage = `Erreur ${response.status}: ${response.statusText}`;
       }
-
-      setMessage({ type: 'success', text: 'Mot de passe mis à jour avec succès' });
-      setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Une erreur est survenue';
-      setMessage({ type: 'error', text: errorMessage });
-      throw err;
-    } finally {
-      setIsLoading(false);
+      
+      throw new Error(errorMessage);
     }
-  };
+
+    const data = await response.json();
+    console.log('🔧 Réponse succès:', data);
+
+    setMessage({ type: 'success', text: data.message || 'Mot de passe mis à jour avec succès' });
+    setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    
+  } catch (err) {
+    console.error('❌ Erreur détaillée:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Une erreur est survenue';
+    setMessage({ type: 'error', text: errorMessage });
+    throw err;
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,18 +136,18 @@ const AdminProfile: React.FC = () => {
 
     <>
     <Helmet>
-      <title>Profil Administrateur - Paname Consulting</title>
-      <meta name="description" content="Gestion sécurisée du mot de passe administrateur" />
-      <meta name="keywords" content="Profil administrateur, mot de passe, sécurité" />
-      <meta name="author" content="Paname Consulting" />
-      <meta name="robots" content="noindex, nofollow" />
-      <meta name="googlebot" content="noindex, nofollow" />
-      <meta name="bingbot" content="noindex, nofollow" />
-      <meta name="yandexbot" content="noindex, nofollow" />
-      <meta name="duckduckbot" content="noindex, nofollow" />
-      <meta name="baidu" content="noindex, nofollow" />
-      <meta name="naver" content="noindex, nofollow" />
-      <meta name="seznam" content="noindex, nofollow" />
+        <title>Profil Administrateur - Paname Consulting</title>
+        <meta name="description" content="Gestion sécurisée du mot de passe administrateur" />
+        <meta name="keywords" content="Profil administrateur, mot de passe, sécurité" />
+        <meta name="author" content="Paname Consulting" />
+        <meta name="robots" content="noindex, nofollow" />
+        <meta name="googlebot" content="noindex, nofollow" />
+        <meta name="bingbot" content="noindex, nofollow" />
+        <meta name="yandexbot" content="noindex, nofollow" />
+        <meta name="duckduckbot" content="noindex, nofollow" />
+        <meta name="baidu" content="noindex, nofollow" />
+        <meta name="naver" content="noindex, nofollow" />
+        <meta name="seznam" content="noindex, nofollow" />
       </Helmet>
     <div className="min-h-screen px-4 sm:px-6 lg:px-8">
       <div className="max-w-md mx-auto">

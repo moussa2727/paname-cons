@@ -4,28 +4,74 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: panameconsultingbackend:latest
+      # Cache des layers pour builds plus rapides
+      args:
+        NODE_ENV: production
+    
+    # Nom de l'image personnalisé
+    image: panameconsulting:latest
+    
+    # Ports exposés (host:container)
     ports:
       - "3000:3000"
+    
+    # Variables d'environnement essentielles
     environment:
       - NODE_ENV=production
-      - MONGODB_URI=${MONGODB_URI}
+      - PORT=3000
+      - MONGODB_SERVER_SELECTION_TIMEOUT=30000
+      - MONGODB_SOCKET_TIMEOUT=45000
+      - TZ=Europe/Paris  # Ajout du fuseau horaire
+    
+    # Fichier de variables sensibles (à garder dans .gitignore)
     env_file:
       - .env
+    
+    # Politique de redémarrage automatique
     restart: unless-stopped
+    
+    # Serveurs DNS pour la résolution de noms
     dns:
       - 1.1.1.1
       - 8.8.8.8
     
-    # Vérifie si l'API répond bien
+    # Health check pour surveiller l'état de l'application
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s  # Délai avant premier check
+    
+    # Configuration des logs
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "10m"   # Taille max par fichier
+        max-file: "3"     # Nombre max de fichiers
+    
+    # Réseau dédié pour l'application
+    networks:
+      - backend-network
+    
+    # Volumes pour la persistance des données
+    volumes:
+      # Mount des dossiers critiques (assurez-vous qu'ils existent sur l'hôte)
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      
+      # Volume pour les node_modules (évite les conflits avec l'hôte)
+      - node_modules:/app/node_modules
+
+# Déclaration des ressources partagées
+volumes:
+  node_modules:
+    driver: local
+
+networks:
+  backend-network:
+    driver: bridge
+    # Configuration optionnelle du réseau
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

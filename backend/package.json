@@ -7,7 +7,7 @@
     "prebuild": "rimraf dist",
     "build": "nest build",
     "start": "node dist/main.js",
-    "start:dev": "nest start --watch --verbose",
+    "dev": "nest start --watch --verbose",
     "debug": "nest start --debug --watch",
     "test": "jest",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
