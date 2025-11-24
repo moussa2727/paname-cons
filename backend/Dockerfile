@@ -10,8 +10,8 @@ COPY nest-cli.json ./
 # Install dependencies
 RUN npm install
 
-# Copy source code
-COPY src/ ./src/
+# Copy ALL files (au lieu de src/ spécifiquement)
+COPY . .
 
 # Build application
 RUN npm run build
