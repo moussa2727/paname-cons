@@ -2,21 +2,22 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy ONLY les fichiers essentiels d'abord
+# Copier tous les fichiers de configuration d'abord
 COPY package*.json ./
 COPY tsconfig.json ./
+COPY nest-cli.json ./
 
-# Install dependencies
+# Installer les dépendances
 RUN npm install
 
-# Copy TOUT le reste du code
+# Copier tout le code source
 COPY . .
 
-# Build application
+# Builder l'application
 RUN npm run build
 
-# Expose port
+# Exposer le port
 EXPOSE 3000
 
-# Start application
+# Démarrer l'application
 CMD ["node", "dist/main.js"]
