@@ -37,60 +37,104 @@ export class AuthController {
   constructor(
     private authService: AuthService,
     private usersService: UsersService,
+    
   ) {}
 
   // ==================== 🔐 ENDPOINTS D'AUTHENTIFICATION ====================
+  private getCookieOptions(req?: any): any {
+  const isProduction = process.env.NODE_ENV === "production";
+  
+  let domain: string | undefined;
+  let secure: boolean;
+  let sameSite: 'none' | 'lax' | 'strict';
+
+  // ✅ Récupération correcte de l'origine depuis les headers
+  const origin = req?.headers?.origin || req?.headers?.['origin'];
+  
+  console.log('🌍 Origine de la requête:', origin);
+  console.log('🔧 Environnement:', process.env.NODE_ENV);
+
+  const isVercelDomain = origin?.includes('panameconsulting.vercel.app');
+  const isProductionDomain = origin?.includes('panameconsulting.com');
+  const isLocalhost = origin?.includes('localhost') || origin?.includes('127.0.0.1');
+
+  if (isProduction || isVercelDomain || isProductionDomain) {
+    domain = ".panameconsulting.com";
+    secure = true;
+    sameSite = "none";
+    console.log('🚀 Configuration PRODUCTION/Vercel');
+  } else if (isLocalhost) {
+    // ✅ Développement local - pas de domaine pour localhost
+    domain = undefined;
+    secure = false;
+    sameSite = "lax";
+    console.log('💻 Configuration DÉVELOPPEMENT localhost');
+  } else {
+    // ✅ Fallback sécurisé
+    domain = isProduction ? ".panameconsulting.com" : undefined;
+    secure = isProduction;
+    sameSite = isProduction ? "none" : "lax";
+    console.log('⚡ Configuration FALLBACK');
+  }
+
+  console.log('🍪 Options cookies:', { domain, secure, sameSite });
+
+  return {
+    httpOnly: true,
+    secure,
+    sameSite,
+    domain,
+    path: "/",
+  };
+}
 
   @Post("login")
   @UseGuards(ThrottleGuard, LocalAuthGuard)
   @ApiOperation({ summary: "Connexion utilisateur" })
   @ApiResponse({ status: 200, description: "Connexion réussie" })
   @ApiResponse({ status: 401, description: "Identifiants invalides" })
-  async login(
-    @Body() loginDto: LoginDto,
-    @Request() req: { user: any },
-    @Res() res: Response,
-  ) {
-    console.log("🔐 Tentative de connexion");
+  @Post("login")
+@UseGuards(ThrottleGuard, LocalAuthGuard)
+@ApiOperation({ summary: "Connexion utilisateur" })
+@ApiResponse({ status: 200, description: "Connexion réussie" })
+@ApiResponse({ status: 401, description: "Identifiants invalides" })
+async login(@Body() loginDto: LoginDto, @Request() req: { user: any }, @Res() res: Response) {
+  console.log("🔐 Tentative de connexion");
 
-    const result = await this.authService.login(req.user);
+  const result = await this.authService.login(req.user);
+  const cookieOptions = this.getCookieOptions(req);
 
-    const cookieOptions: any = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      domain:
-        process.env.NODE_ENV === "production"
-          ? ".panameconsulting.com"
-          : undefined,
-    };
+  // ✅ Access Token
+  res.cookie("access_token", result.access_token, { // ✅ Changé pour access_token
+    ...cookieOptions,
+    httpOnly: false,
+    maxAge: 15 * 60 * 1000,
+  });
 
-    res.cookie("refresh_token", result.refreshToken, {
-      ...cookieOptions,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+  // ✅ Refresh Token
+  res.cookie("refresh_token", result.refreshToken, {
+    ...cookieOptions,
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
 
-    res.cookie("access_token", result.accessToken, {
-      ...cookieOptions,
-      httpOnly: false,
-      maxAge: 15 * 60 * 1000,
-    });
+  console.log("✅ Connexion réussie - cookies définis");
 
-    console.log("✅ Connexion réussie.");
-
-    return res.json({
-      accessToken: result.accessToken,
-      user: {
-        id: result.user.id,
-        email: result.user.email,
-        firstName: result.user.firstName,
-        lastName: result.user.lastName,
-        role: result.user.role,
-        isAdmin: result.user.role === UserRole.ADMIN,
-      },
-      message: "Connexion réussie",
-    });
-  }
+  return res.json({
+    access_token: result.access_token, // ✅ Cohérence avec le backend
+    refreshToken: result.refreshToken,
+    user: {
+      id: result.user.id,
+      email: result.user.email,
+      firstName: result.user.firstName,
+      lastName: result.user.lastName,
+      role: result.user.role,
+      isAdmin: result.user.isAdmin,
+      isActive: result.user.isActive, // ✅ Ajouté
+    },
+    message: "Connexion réussie",
+  });
+}
 
   @Post("refresh")
   @ApiOperation({ summary: "Rafraîchir le token" })
@@ -149,7 +193,7 @@ export class AuthController {
       if (result.refreshToken) {
         res.cookie("refresh_token", result.refreshToken, {
           ...cookieOptions,
-          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
+          maxAge: 7 * 24 * 60 * 60 * 1000,
         });
         console.log("✅ Refresh token cookie mis à jour");
       }
@@ -157,18 +201,18 @@ export class AuthController {
       // ✅ MISE À JOUR COOKIE ACCESS TOKEN
       res.cookie("access_token", result.accessToken, {
         ...cookieOptions,
-        httpOnly: false, // Accessible par le frontend
-        maxAge: 15 * 60 * 1000, // 15 minutes
+        httpOnly: false,
+        maxAge: 15 * 60 * 1000,
       });
 
       console.log("✅ Tokens rafraîchis avec succès");
 
       // ✅ RÉPONSE STANDARDISÉE
       return res.json({
-        accessToken: result.accessToken,
+        access_token: result.accessToken,
         refreshToken: result.refreshToken,
         message: "Tokens rafraîchis avec succès",
-        expiresIn: 15 * 60, // 15 minutes en secondes
+        expiresIn: 15 * 60,
       });
     } catch (error: any) {
       console.error("❌ Erreur rafraîchissement:", error.message);
@@ -200,20 +244,44 @@ export class AuthController {
     }
   }
 
-  @Post("register")
-  @ApiOperation({ summary: "Inscription utilisateur" })
-  @ApiResponse({ status: 201, description: "Utilisateur créé" })
-  @ApiResponse({ status: 400, description: "Données invalides" })
-  async register(@Body() registerDto: RegisterDto) {
+ 
+@Post("register")
+@ApiOperation({ summary: "Inscription utilisateur" })
+@ApiResponse({ status: 201, description: "Utilisateur créé" })
+@ApiResponse({ status: 400, description: "Données invalides" })
+async register(@Body() registerDto: RegisterDto, @Res() res: Response) {
     console.log("📝 Tentative d'inscription pour:", registerDto.email);
 
     try {
       const result = await this.authService.register(registerDto);
 
-      console.log("✅ Inscription réussie .");
+      console.log("✅ Inscription réussie");
 
-      return {
+      // ✅ Récupération de la configuration des cookies
+      const cookieOptions = this.getCookieOptions();
+
+      // ✅ Définition des cookies comme dans la méthode login
+      res.cookie("access_token", result.access_token, {
+        ...cookieOptions,
+        httpOnly: false,
+        maxAge: 15 * 60 * 1000,
+      });
+
+      // ✅ Si un refresh token est généré dans register, l'ajouter aussi
+      if (result.refreshToken) {
+        res.cookie("refresh_token", result.refreshToken, {
+          ...cookieOptions,
+          httpOnly: true,
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      console.log("✅ Cookies définis après inscription");
+
+      // ✅ Retourner la réponse avec les cookies définis
+      return res.status(201).json({
         access_token: result.access_token,
+        refreshToken: result.refreshToken,
         user: {
           id: result.user.id,
           email: result.user.email,
@@ -224,7 +292,8 @@ export class AuthController {
           isActive: result.user.isActive,
         },
         message: "Inscription réussie",
-      };
+      });
+
     } catch (error: any) {
       console.error("❌ Erreur inscription:", error.message);
 
@@ -256,11 +325,11 @@ export class AuthController {
     return res.json({ message: "Déconnexion réussie" });
   }
 
-  @Post("logout-all")
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: "Déconnexion de tous les utilisateurs non-admin" })
-  async logoutAll(@Request() req: any, @Res() res: Response) {
+@Post("logout-all")
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
+@ApiOperation({ summary: "Déconnexion de tous les utilisateurs non-admin" })
+async logoutAll(@Request() req: any, @Res() res: Response) {
     const currentAdmin = req.user;
     console.log("🛡️ Admin initie une déconnexion globale:", currentAdmin.email);
 
@@ -273,8 +342,9 @@ export class AuthController {
         success: true,
         message: result.message,
         stats: {
-          usersLoggedOut: result.loggedOutCount,
-          adminPreserved: true,
+          tokensRevoked: result.stats.tokensRevoked,
+          sessionsCleared: result.stats.sessionsCleared,
+          usersLoggedOut: result.stats.usersLoggedOut,
         },
       });
     } catch (error: any) {
