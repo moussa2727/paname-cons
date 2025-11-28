@@ -27,7 +27,7 @@ services:
       - MONGODB_URI=${MONGODB_URI}
       # Variables pour le développement local (simulent Railway)
       - RAILWAY_STATIC_URL=https://panameconsulting.up.railway.app
-      - FRONTEND_URL=http://panameconsulting.vercerl.app
+      - FRONTEND_URL=http://panameconsulting.vercel.app
       
     # Fichier de variables sensibles
     env_file:
@@ -43,7 +43,7 @@ services:
     
     # Health check pour surveiller l'état de l'application
     healthcheck:
-      test: ["CMD", "curl", "-f", "https://panameconsulting.up.railway.app/health"]
+      test: ["CMD", "curl", "-f", "https://panameconsulting.up.railway.app/api"]
       interval: 30s
       timeout: 10s
       retries: 3
