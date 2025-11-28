@@ -2,7 +2,7 @@ services:
   backend:
     container_name: panameconsultingbackend
     build:
-      context: ./backend
+      context: ./backend  # ✅ Contexte correct
       dockerfile: Dockerfile
       args:
         NODE_ENV: production
@@ -23,7 +23,7 @@ services:
       - RAILWAY_STATIC_URL=https://panameconsulting.up.railway.app
     
     env_file:
-      - .env
+      - .env 
     
     restart: unless-stopped
     
@@ -36,6 +36,14 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    
+    # ✅ Health check ajouté
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "https://panameconsulting.up.railway.app/api"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     
     networks:
       - backend-network
