@@ -3,9 +3,12 @@ import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module";
 import { json, urlencoded } from "express";
+import express from "express";
 import helmet from "helmet";
 import compression from "compression";
 import { Request, Response, NextFunction } from 'express';
+import * as fs from 'fs';
+import { join } from 'path';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -36,7 +39,7 @@ async function bootstrap() {
       },
     }));
 
-    // Compression Gzip - utilisation correcte
+    // Compression Gzip
     app.use(compression());
 
     // Limite de taille des requêtes
@@ -93,6 +96,41 @@ async function bootstrap() {
       credentials: true,
       preflightContinue: false,
       optionsSuccessStatus: 204
+    });
+
+    // =====================
+    // CONFIGURATION DES FICHIERS STATIQUES
+    // =====================
+
+    // Création du dossier uploads s'il n'existe pas
+    const uploadsDir = join(__dirname, '..', 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      logger.log(`📁 Dossier uploads créé: ${uploadsDir}`);
+    }
+
+    // Servir les fichiers statiques
+    app.use('/uploads', (req: Request, res: Response, next: NextFunction) => {
+      express.static(uploadsDir, {
+        maxAge: '30d',
+        setHeaders: (res: Response, path: string) => {
+          const ext = path.toLowerCase().split('.').pop();
+          const mimeTypes: { [key: string]: string } = {
+            'png': 'image/png',
+            'jpg': 'image/jpeg', 
+            'jpeg': 'image/jpeg',
+            'webp': 'image/webp',
+            'gif': 'image/gif',
+            'svg': 'image/svg+xml',
+            'pdf': 'application/pdf',
+            'txt': 'text/plain',
+          };
+          
+          if (ext && mimeTypes[ext]) {
+            res.setHeader('Content-Type', mimeTypes[ext]);
+          }
+        },
+      })(req, res, next);
     });
 
     // =====================
@@ -153,11 +191,11 @@ async function bootstrap() {
     );
 
     // =====================
-    // GESTIONNAIRES DE ROUTES AVEC NESTJS
+    // GESTIONNAIRES DE ROUTES
     // =====================
     
     // Route health check (accessible sans origin)
-    const healthHandler = (_req: Request, res: Response) => {
+    const healthHandler = (req: Request, res: Response) => {
       const health = {
         status: 'OK',
         timestamp: new Date().toISOString(),
@@ -173,7 +211,7 @@ async function bootstrap() {
     };
 
     // Route racine (accessible sans origin)
-    const rootHandler = (_req: Request, res: Response) => {
+    const rootHandler = (req: Request, res: Response) => {
       res.json({
         message: '🚀 Paname Consulting API',
         version: '1.0',
