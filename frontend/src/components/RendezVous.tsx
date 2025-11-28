@@ -129,33 +129,53 @@ const RendezVous: React.FC = () => {
     return selectedTime < today;
   };
 
-  const fetchAvailableDates = useCallback(async () => {
-    setLoadingDates(true);
-    try {
-      const response = await fetch(`${API_URL}/api/rendezvous/available-dates`);
-      
-      if (!response.ok) {
-        throw new Error(`Erreur ${response.status} lors du chargement des dates`);
-      }
-      
-      const dates = await response.json();
-      
-      const today = new Date().toISOString().split('T')[0];
-      const filteredDates = dates
-        .filter((date: string) => !isDatePassed(date))
-        .sort((a: string, b: string) => new Date(a).getTime() - new Date(b).getTime());
-      
-      setAvailableDates(filteredDates.map((date: string) => ({ 
-        date, 
-        available: true 
-      })));
-    } catch (error) {
-      console.error('Erreur chargement dates:', error);
-      toast.error('Impossible de charger les dates disponibles');
-    } finally {
-      setLoadingDates(false);
+const fetchAvailableDates = useCallback(async () => {
+  setLoadingDates(true);
+  try {
+    console.log('🔍 Fetching dates from:', `${API_URL}/api/rendezvous/available-dates`);
+    
+    const response = await fetch(`${API_URL}/api/rendezvous/available-dates`);
+    
+    // Vérifier le content-type
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('❌ Réponse non-JSON reçue:', text.substring(0, 200));
+      throw new Error(`Le serveur a renvoyé du HTML au lieu de JSON. Vérifiez l'URL de l'API.`);
     }
-  }, []);
+    
+    if (!response.ok) {
+      throw new Error(`Erreur ${response.status} lors du chargement des dates`);
+    }
+    
+    const dates = await response.json();
+    console.log('✅ Dates reçues:', dates);
+    
+    const today = new Date().toISOString().split('T')[0];
+    const filteredDates = dates
+      .filter((date: string) => !isDatePassed(date))
+      .sort((a: string, b: string) => new Date(a).getTime() - new Date(b).getTime());
+    
+    setAvailableDates(filteredDates.map((date: string) => ({ 
+      date, 
+      available: true 
+    })));
+  } catch (error:any) {
+    console.error('❌ Erreur chargement dates:', error);
+    
+    // Message d'erreur plus informatif
+    if (error.message.includes('HTML')) {
+      toast.error('Problème de connexion avec le serveur. Vérifiez la configuration.');
+    } else {
+      toast.error('Impossible de charger les dates disponibles');
+    }
+    
+    // Fallback: dates par défaut pour éviter le blocage
+    setAvailableDates([]);
+  } finally {
+    setLoadingDates(false);
+  }
+}, []);
 
   const fetchAvailableSlots = useCallback(async (date: string) => {
     if (!date) return;
