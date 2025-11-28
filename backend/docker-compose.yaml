@@ -17,6 +17,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=10000
+      - HOST=0.0.0.0
+
       - MONGODB_SERVER_SELECTION_TIMEOUT=30000
       - MONGODB_SOCKET_TIMEOUT=45000
       - TZ=Europe/Paris
@@ -40,14 +42,6 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    
-    # Health check pour surveiller l'état de l'application
-    healthcheck:
-      test: ["CMD", "curl", "-f", "https://panameconsulting.up.railway.app/api"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
     
     # Configuration des logs
     logging:
