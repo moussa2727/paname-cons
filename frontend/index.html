@@ -48,6 +48,13 @@
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#0ea5e9" />
   
+  <!-- PWA Meta Tags corrigés -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="application-name" content="Paname Consulting" />
+  <meta name="apple-mobile-web-app-title" content="Paname Consulting" />
+
   <!-- Préchargement et optimisation des polices -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -113,11 +120,8 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   <meta name="format-detection" content="telephone=no" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
-  <!-- Préchargement des ressources critiques -->
-  <link rel="preload" as="script" href="/src/main.jsx" />
+  <!-- Préchargement des ressources critiques - CORRIGÉ -->
   <link rel="preload" as="image" href="/paname-consulting.png" />
 
   <!-- Fallback CSS optimisé -->
@@ -182,10 +186,20 @@
       0% { transform: translate(-50%, -50%) rotate(0deg); }
       100% { transform: translate(-50%, -50%) rotate(360deg); }
     }
+
+    /* Cache temporairement le contenu pendant le chargement */
+    .js-loading #root {
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    .js-loaded #root {
+      opacity: 1;
+    }
   </style>
 </head>
 
-<body class="antialiased">
+<body class="antialiased js-loading">
   <div id="root"></div>
 
   <!-- Script principal avec defer pour performance -->
@@ -218,11 +232,27 @@
     <style>
       #root { display: none !important; }
       body { background: #ffffff; }
+      .js-loading { background: #ffffff; }
     </style>
   </noscript>
 
-  <!-- Fallback navigateurs anciens avec meilleure UX -->
+  <!-- Script de gestion du chargement - CORRIGÉ -->
   <script>
+    // Gestion du statut de chargement
+    document.addEventListener('DOMContentLoaded', function() {
+      // Marque l'app comme chargée une fois le JS exécuté
+      window.addEventListener('load', function() {
+        document.body.classList.remove('js-loading');
+        document.body.classList.add('js-loaded');
+      });
+
+      // Fallback au cas où l'événement load ne se déclenche pas
+      setTimeout(function() {
+        document.body.classList.remove('js-loading');
+        document.body.classList.add('js-loaded');
+      }, 3000);
+    });
+
     // Vérification des fonctionnalités modernes
     if (!window.Promise || !window.fetch || !window.Symbol) {
       document.getElementById('root').innerHTML = 
@@ -231,20 +261,16 @@
           '<p>Votre navigateur est obsolète et ne supporte pas les fonctionnalités nécessaires.</p>' +
           '<p>Veuillez mettre à jour votre navigateur ou utiliser une version récente de Chrome, Firefox, Safari ou Edge.</p>' +
         '</div>';
+      
+      document.body.classList.remove('js-loading');
+      document.body.classList.add('js-loaded');
     }
 
     // Gestion des erreurs de chargement globales
     window.addEventListener('error', function(e) {
       console.error('Erreur globale:', e.error);
-    });
-
-    // Amélioration du temps perçu de chargement
-    window.addEventListener('load', function() {
-      // Masquer l'animation de chargement une fois l'app chargée
-      const root = document.getElementById('root');
-      if (root && root.children.length > 0) {
-        document.body.style.overflow = 'auto';
-      }
+      document.body.classList.remove('js-loading');
+      document.body.classList.add('js-loaded');
     });
   </script>
 </body>
