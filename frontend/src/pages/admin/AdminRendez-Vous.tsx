@@ -21,10 +21,7 @@ import {
   MoreVertical
 } from 'lucide-react';
 import { useAdminRendezVousService, Rendezvous, CreateRendezVousData } from '../../api/admin/AdminRendezVousService';
-<<<<<<< HEAD
 import { Helmet } from 'react-helmet-async';
-=======
->>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
 
 // Interface pour les destinations de l'API
 interface Destination {
@@ -343,7 +340,6 @@ const AdminRendezVous = () => {
   ];
 
   return (
-<<<<<<< HEAD
 
     <>
       <Helmet>
@@ -363,8 +359,6 @@ const AdminRendezVous = () => {
 
       </Helmet>
       
-=======
->>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
       {/* Modal de confirmation de suppression */}
       {showDeleteModal && (
@@ -1147,11 +1141,7 @@ const AdminRendezVous = () => {
         </div>
       </div>
     </div>
-<<<<<<< HEAD
     </>
-
-=======
->>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
   );
 };
 

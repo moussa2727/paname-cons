@@ -37,11 +37,7 @@ const AdminRendezVous = lazy(() => import('./pages/admin/AdminRendez-Vous'));
 // Restrictions admin
 import RequireAdmin from './context/RequireAdmin';
 
-<<<<<<< HEAD
 import MesRendezVous from './pages/user/MesRendezVous';
-=======
-import MesRendezVous from './pages/user/rendezvous/MesRendezVous';
->>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
 import UserProfile from './pages/user/UserProfile';
 import UserProcedure from './pages/user/UserProcedure';
 import ResetPassword from './components/auth/ResetPassword';
@@ -257,24 +253,11 @@ function App() {
             <Route path='rendez-vous' element={<AdminRendezVous />} />
           </Route>
 
-<<<<<<< HEAD
           {/* Routes spécifiques pour /admin/ qui doivent être NotFound */}
           <Route path='/admin' element={<NotFound />} />
           <Route path='/admin/*' element={<NotFound />} />
 
           {/* Route de protection contre accès non autorisé ou fausses routes */}
-=======
-          {/* Redirections pour compatibilité */}
-          <Route path='/user-rendez-vous' element={<Navigate to="/mes-rendez-vous" replace />} />
-          <Route path='/user-profile' element={<Navigate to="/mon-profil" replace />} />
-          <Route path='/user-procedure' element={<Navigate to="/ma-procedure" replace />} />
-          
-          {/* Redirection admin vers le dashboard */}
-          <Route path='/admin' element={<Navigate to="/gestionnaire/statistiques" replace />} />
-          <Route path='/gestionnaire' element={<Navigate to="/gestionnaire/statistiques" replace />} />
-
-          {/* Route 404 */}
->>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
           <Route path='*' element={<NotFound />} />
         </Routes>
       </div>

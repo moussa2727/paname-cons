@@ -1,4 +1,3 @@
-// AdminMessages.tsx - Version Mobile
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import AdminContactService, { Contact, ContactStats } from '../../api/admin/AdminContactService';
@@ -18,10 +17,7 @@ import {
   XMarkIcon
 } from '@heroicons/react/24/outline';
 import { FiSend } from 'react-icons/fi';
-<<<<<<< HEAD
 import { Helmet } from 'react-helmet-async';
-=======
->>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
 
 const AdminMessages: React.FC = () => {
   const { user } = useAuth();
@@ -218,7 +214,6 @@ const AdminMessages: React.FC = () => {
   }
 
   return (
-<<<<<<< HEAD
    
     <>
       <Helmet>
@@ -239,9 +234,6 @@ const AdminMessages: React.FC = () => {
 
       
    <div className="min-h-screen bg-slate-50 p-3">
-=======
-    <div className="min-h-screen bg-slate-50 p-3">
->>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
       {/* En-tête */}
       <div className="mb-4">
         <h1 className="text-xl font-bold text-blue-600 mb-1">

@@ -1,6 +1,5 @@
 @tailwind base;
 @tailwind components;
-<<<<<<< HEAD
 @tailwind utilities;
 
 /* Custom animations for Hero component */
@@ -73,6 +72,3 @@ html {
 body {
   overflow-x: hidden;
 }
-=======
-@tailwind utilities;
->>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
