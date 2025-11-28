@@ -35,14 +35,13 @@ async function bootstrap() {
 app.enableCors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, origin || true);
-    } else {
-      callback(new Error("CORS blocked"), false);
+      return callback(null, origin ?? true); 
     }
+    return callback(new Error("Not allowed by CORS"));
   },
-  credentials: true,
-  allowedHeaders: "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+  credentials: true, 
   methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS",
+  allowedHeaders: "Origin,Content-Type,Accept,Authorization",
 });
 
   // Création du dossier uploads
