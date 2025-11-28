@@ -15,6 +15,9 @@ RUN pnpm install --frozen-lockfile --prefer-offline
 # Copie du code source
 COPY backend/ ./
 
+# Suppression du cache existant avant le build
+RUN rm -rf dist && rm -rf node_modules/.cache
+
 # Construction
 RUN npx nest build
 
