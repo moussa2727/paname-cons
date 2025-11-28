@@ -46,27 +46,28 @@ export class AuthController {
   // ==================== 🔐 ENDPOINTS D'AUTHENTIFICATION ====================
 
   private getCookieOptions(req?: any): any {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isLocalhost = req?.headers?.host?.includes('localhost') || 
-                       req?.headers?.origin?.includes('localhost');
-    
-    if (!isProduction || isLocalhost) {
-      return {
-        httpOnly: true,
-        secure: false,
-        sameSite: 'lax',
-        path: '/',
-      };
-    }
-
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isLocalhost = req?.headers?.host?.includes('localhost') || 
+                     req?.headers?.origin?.includes('localhost');
+  
+  // Pour Railway + Vercel, utiliser cette configuration
+  if (isProduction) {
     return {
       httpOnly: true,
       secure: true,
-      sameSite: 'none',
-      domain: '.panameconsulting.vercel.app',
+      sameSite: 'none', // Important pour cross-domain
       path: '/',
+      // ⚠️ NE PAS spécifier de domaine pour cross-domain
     };
   }
+
+  return {
+    httpOnly: true,
+    secure: false,
+    sameSite: 'lax',
+    path: '/',
+  };
+}
 
   @Post("login")
   @UseGuards(ThrottleGuard, LocalAuthGuard)

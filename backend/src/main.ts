@@ -53,6 +53,7 @@ async function bootstrap() {
     const allowedOrigins = [
       "https://panameconsulting.vercel.app",
       "https://panameconsulting-*.vercel.app",
+      "https://panameconsulting.up.railway.app" ,
       "http://localhost:5173",
       "http://localhost:3000"
     ];
