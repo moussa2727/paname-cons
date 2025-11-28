@@ -73,33 +73,28 @@ async function bootstrap() {
     optionsSuccessStatus: 204,
     maxAge: 86400, // 24 heures de cache pour les pré-vols
   });
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const allowedOrigins = [
+    "https://panameconsulting.com",
+    "https://www.panameconsulting.com",
+    "https://panameconsulting.vercel.app",
+    "https://panameconsulting.up.railway.app",
+  ];
 
-  // Middleware CORS additionnel pour plus de sécurité
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    const origin = req.headers.origin as string;
-    
-    // Vérifier et définir l'origine seulement si autorisée
-    if (origin && allowedOrigins.includes(origin)) {
-      res.header('Access-Control-Allow-Origin', origin);
-    }
-    
-    res.header(
-      'Access-Control-Allow-Headers',
-      'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-API-Key'
-    );
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('X-Content-Type-Options', 'nosniff');
-    res.header('X-Frame-Options', 'DENY');
-    res.header('X-XSS-Protection', '1; mode=block');
-    
-    // Gérer les requêtes OPTIONS (preflight)
-    if (req.method === 'OPTIONS') {
-      return res.status(204).send();
-    }
-    
-    next();
-  });
+  const origin = req.headers.origin;
+
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+
 
   // Création du dossier uploads
   const uploadsDir = join(__dirname, '..', 'uploads');
