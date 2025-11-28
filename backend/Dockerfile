@@ -13,7 +13,7 @@ COPY backend/package.json backend/pnpm-lock.yaml* ./
 RUN pnpm install --frozen-lockfile --prefer-offline
 
 # Copie du code source
-COPY . ./
+COPY backend/ ./
 
 # Suppression du cache existant avant le build
 RUN rm -rf dist && rm -rf node_modules/.cache
