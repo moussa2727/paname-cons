@@ -42,12 +42,7 @@ import { ProcedureModule } from "./procedure/procedure.module";
           throw new Error('MONGODB_URI is not defined in environment variables');
         }
 
-        // Masquer le mot de passe dans les logs
-        const maskedUri = uri.replace(
-          /mongodb\+srv:\/\/([^:]+):([^@]+)@/, 
-          'mongodb+srv://$1:****@'
-        );
-        logger.log(`🔐 Tentative de connexion à: ${maskedUri}`);
+        logger.log(`🔐 Tentative de connexion à la base de données en ligne.`);
 
         return {
           uri,
