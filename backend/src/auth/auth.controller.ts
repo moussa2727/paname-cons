@@ -47,7 +47,6 @@ export class AuthController {
 
   private getCookieOptions(req?: any): any {
   const isProduction = process.env.NODE_ENV === 'production';
-  const isLocalhost = req?.headers?.host?.includes('localhost') || 
                      req?.headers?.origin?.includes('localhost');
   
   // Pour Railway + Vercel, utiliser cette configuration

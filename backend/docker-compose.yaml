@@ -2,7 +2,7 @@ services:
   backend:
     container_name: panameconsultingbackend
     build:
-      context: ./backend  # ✅ Contexte correct
+      context: .
       dockerfile: Dockerfile
       args:
         NODE_ENV: production
