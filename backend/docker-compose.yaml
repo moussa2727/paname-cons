@@ -14,7 +14,7 @@ services:
     
     environment:
       - NODE_ENV=production
-      - PORT=10000
+      - PORT=${{PORT}} 
       - HOST=0.0.0.0
       - TZ=Europe/Paris
       - RATE_LIMITING=true

@@ -7,13 +7,13 @@ RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 WORKDIR /app
 
 # Copie des fichiers de configuration d'abord (pour meilleur cache Docker)
-COPY package.json pnpm-lock.yaml* ./
+COPY backend/package.json backend/pnpm-lock.yaml* ./
 
 # Installation des dépendances
 RUN pnpm install --frozen-lockfile --prefer-offline
 
 # Copie du code source
-COPY . ./
+COPY backend/ ./
 
 # Suppression du cache existant avant le build
 RUN rm -rf dist && rm -rf node_modules/.cache
@@ -33,7 +33,7 @@ RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 WORKDIR /app
 
 # Copie des fichiers de package
-COPY package.json pnpm-lock.yaml* ./
+COPY backend/package.json backend/pnpm-lock.yaml* ./
 
 # Installation des dépendances de production
 RUN pnpm install --prod --frozen-lockfile --prefer-offline
