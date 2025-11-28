@@ -94,7 +94,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshTimeoutRef = useRef<number | null>(null);
   const checkIntervalRef = useRef<number | null>(null);
 
-  const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const VITE_API_URL = 'https://panameconsulting.up.railway.app';
 
   // === FONCTIONS SESSIONSTORAGE SÉCURISÉES ===
 
