@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
   Req,
+  Logger,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "@/shared/guards/jwt-auth.guard";
 import { RolesGuard } from "@/shared/guards/roles.guard";
@@ -21,12 +22,17 @@ import { Roles } from "@/shared/decorators/roles.decorator";
 
 @Controller("rendezvous")
 export class RendezvousController {
+  private readonly logger = new Logger(RendezvousController.name);
+
   constructor(private readonly rendezvousService: RendezvousService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.USER)
-  create(@Body() createDto: CreateRendezvousDto, @Req() _req: any) {
+  create(@Body() createDto: CreateRendezvousDto, @Req() req: any) {
+    const maskedEmail = this.maskEmail(req.user?.email);
+    this.logger.log(`Création rendez-vous par: ${maskedEmail}`);
+    
     return this.rendezvousService.create(createDto);
   }
 
@@ -34,13 +40,16 @@ export class RendezvousController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   findAll(
-    @Req() _req: any,
+    @Req() req: any,
     @Query("page") page: number = 1,
     @Query("limit") limit: number = 10,
     @Query("status") status?: string,
     @Query("date") date?: string,
     @Query("search") search?: string,
   ) {
+    const maskedEmail = this.maskEmail(req.user?.email);
+    this.logger.log(`Liste rendez-vous admin - Page: ${page}, Limit: ${limit}, Filtres: ${JSON.stringify({ status, date, search: search ? 'avec recherche' : 'sans recherche' })} par: ${maskedEmail}`);
+    
     return this.rendezvousService.findAll(page, limit, status, date, search);
   }
 
@@ -52,17 +61,28 @@ export class RendezvousController {
     @Query("limit") limit: number = 10,
     @Query("status") status?: string,
   ) {
+    const maskedEmail = this.maskEmail(email);
+    this.logger.log(`Liste rendez-vous utilisateur - Email: ${maskedEmail}, Page: ${page}, Limit: ${limit}, Statut: ${status || 'tous'}`);
+    
     return this.rendezvousService.findByUser(email, page, limit, status);
   }
 
   @Get("available-slots")
   getAvailableSlots(@Query("date") date: string) {
+    this.logger.log(`Récupération créneaux disponibles pour: ${date}`);
+    
     return this.rendezvousService.getAvailableSlots(date);
   }
 
   @Get("available-dates")
   async getAvailableDates() {
-    return this.rendezvousService.getAvailableDates();
+    this.logger.log("Récupération dates disponibles");
+    
+    const dates = await this.rendezvousService.getAvailableDates();
+    
+    this.logger.log(`Dates disponibles récupérées: ${dates.length} dates`);
+    
+    return dates;
   }
 
   @Get(":id")
@@ -71,7 +91,15 @@ export class RendezvousController {
     if (id === "stats") {
       throw new BadRequestException("Invalid rendezvous ID");
     }
-    return this.rendezvousService.findOne(id);
+    
+    const maskedId = this.maskId(id);
+    this.logger.log(`Consultation rendez-vous: ${maskedId}`);
+    
+    const rendezvous = await this.rendezvousService.findOne(id);
+    
+    this.logger.log(`Rendez-vous consulté: ${maskedId}`);
+    
+    return rendezvous;
   }
 
   @Put(":id")
@@ -79,9 +107,13 @@ export class RendezvousController {
   update(
     @Param("id") id: string,
     @Body() updateDto: UpdateRendezvousDto,
-    @Req() _req: any,
+    @Req() req: any,
   ) {
-    return this.rendezvousService.update(id, updateDto, _req.user);
+    const maskedId = this.maskId(id);
+    const maskedEmail = this.maskEmail(req.user?.email);
+    this.logger.log(`Modification rendez-vous: ${maskedId} par: ${maskedEmail}`);
+    
+    return this.rendezvousService.update(id, updateDto, req.user);
   }
 
   @Put(":id/status")
@@ -91,25 +123,57 @@ export class RendezvousController {
     @Param("id") id: string,
     @Body("status") status: string,
     @Body("avisAdmin") avisAdmin?: string,
-    @Req() _req?: any,
+    @Req() req?: any,
   ) {
+    const maskedId = this.maskId(id);
+    const maskedEmail = this.maskEmail(req?.user?.email);
+    this.logger.log(`Changement statut rendez-vous: ${maskedId} - Nouveau statut: ${status} par: ${maskedEmail}`);
+    
     return this.rendezvousService.updateStatus(
       id,
       status,
       avisAdmin,
-      _req.user,
+      req.user,
     );
   }
 
   @Delete(":id")
   @UseGuards(JwtAuthGuard)
-  remove(@Param("id") id: string, @Req() _req: any) {
-    return this.rendezvousService.removeWithPolicy(id, _req.user);
+  remove(@Param("id") id: string, @Req() req: any) {
+    const maskedId = this.maskId(id);
+    const maskedEmail = this.maskEmail(req.user?.email);
+    this.logger.log(`Suppression rendez-vous: ${maskedId} par: ${maskedEmail}`);
+    
+    return this.rendezvousService.removeWithPolicy(id, req.user);
   }
 
   @Put(":id/confirm")
   @UseGuards(JwtAuthGuard)
-  async confirmRendezvous(@Param("id") id: string, @Req() _req: any) {
-    return this.rendezvousService.confirmByUser(id, _req.user);
+  async confirmRendezvous(@Param("id") id: string, @Req() req: any) {
+    const maskedId = this.maskId(id);
+    const maskedEmail = this.maskEmail(req.user?.email);
+    this.logger.log(`Confirmation rendez-vous: ${maskedId} par: ${maskedEmail}`);
+    
+    return this.rendezvousService.confirmByUser(id, req.user);
+  }
+
+  // ==================== UTILITY METHODS ====================
+
+  private maskEmail(email: string): string {
+    if (!email) return "***";
+    const [name, domain] = email.split("@");
+    if (!name || !domain) return "***";
+
+    const maskedName =
+      name.length > 2
+        ? name.substring(0, 2) + "*".repeat(Math.max(name.length - 2, 1))
+        : "*".repeat(name.length);
+
+    return `${maskedName}@${domain}`;
+  }
+
+  private maskId(id: string): string {
+    if (!id || id.length < 8) return "***";
+    return id.substring(0, 4) + "***" + id.substring(id.length - 4);
   }
 }

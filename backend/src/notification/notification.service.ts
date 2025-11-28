@@ -41,13 +41,12 @@ export class NotificationService {
           rejectUnauthorized: this.configService.get('NODE_ENV') === 'production',
           ciphers: 'SSLv3'
         },
-        connectionTimeout: 30000, // 30 secondes
-        greetingTimeout: 15000,   // 15 secondes  
-        socketTimeout: 30000,     // 30 secondes
+        connectionTimeout: 30000,
+        greetingTimeout: 15000,
+        socketTimeout: 30000,
       });
 
-      // Tester la connexion
-        this.testConnection().then(success => {
+      this.testConnection().then(success => {
           this.emailServiceAvailable = success;
           }).catch(() => {
             this.emailServiceAvailable = false;
@@ -56,7 +55,7 @@ export class NotificationService {
     } catch (error) {
       this.logger.error(
         "Erreur initialisation service notification email",
-        error,
+        error.stack,
       );
       this.emailServiceAvailable = false;
     }
@@ -69,6 +68,7 @@ export class NotificationService {
 
     try {
       await this.transporter.verify();
+      this.logger.log('Service notification email initialisé avec succès');
       return true;
     } catch (error) {
       this.logger.error(
@@ -117,8 +117,10 @@ export class NotificationService {
     context: string,
     replyTo?: string
 ): Promise<void> {
+    const maskedEmail = this.maskEmail(to);
+    
     if (!this.emailServiceAvailable || !this.transporter) {
-        this.logger.log(`Notification "${subject}" pour: ${to} (service email indisponible)`);
+        this.logger.log(`Notification "${context}" pour: ${maskedEmail} (service email indisponible)`);
         return;
     }
 
@@ -130,13 +132,12 @@ export class NotificationService {
             html: html
         };
 
-        // Ajouter replyTo si fourni
         if (replyTo) {
             mailOptions.replyTo = replyTo;
         }
 
         await this.transporter.sendMail(mailOptions);
-        this.logger.log(`Email ${context} envoyé à: ${to}`);
+        this.logger.log(`Email ${context} envoyé à: ${maskedEmail}`);
     } catch (error) {
         this.logger.error(`Erreur envoi ${context}: ${error.message}`);
         if (error.message.includes('BadCredentials') || error.message.includes('Invalid login')) {
@@ -146,7 +147,6 @@ export class NotificationService {
     }
 }
 
-  // Send confirmation email to user when rendezvous is confirmed
   async sendConfirmation(rendezvous: Rendezvous): Promise<void> {
     const content = `
       <p>Votre rendez-vous a été confirmé avec succès.</p>
@@ -172,7 +172,6 @@ export class NotificationService {
     );
   }
 
-  // Send reminder email to user the day before rendezvous
   async sendReminder(rendezvous: Rendezvous): Promise<void> {
     const content = `
       <p>Rappel : Vous avez un rendez-vous aujourd'hui !</p>
@@ -276,7 +275,6 @@ export class NotificationService {
     }
   }
 
-  // Send procedure update email to user when procedure status changes
   async sendProcedureUpdate(procedure: Procedure): Promise<void> {
     const currentStep = procedure.steps.find(
       (s) => s.statut === StepStatus.IN_PROGRESS,
@@ -327,7 +325,6 @@ export class NotificationService {
     );
   }
 
-  // Send procedure creation email to user when procedure is created
   async sendProcedureCreation(
     procedure: Procedure,
     _rendezvous: Rendezvous,
@@ -357,7 +354,6 @@ export class NotificationService {
     );
   }
 
-  // Send contact reply email to user when contact is replied
   async sendContactReply(contact: Contact, reply: string): Promise<void> {
     const emailContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -390,7 +386,6 @@ export class NotificationService {
     );
   }
 
-  // Send contact notification email to admin when contact is sent
   async sendContactNotification(contact: Contact): Promise<void> {
     const adminEmail = this.configService.get("EMAIL_USER");
     if (!adminEmail) {
@@ -409,14 +404,8 @@ export class NotificationService {
           <h3 style="color: #333; margin-top: 0;">Nouveau message de contact reçu :</h3>
           <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
             <p><strong>De :</strong> ${contact.firstName} ${contact.lastName}</p>
-            <p><strong>Email :</strong> ${contact.email}</p> 
-            <p><strong>Email :</strong> ${contact.email}</p> 
+            <p><strong>Email :</strong> ${contact.email}</p>
             <p><strong>Message :</strong><br/>${contact.message}</p>
-          </div>
-          <div style="margin-top: 20px; padding: 15px; background: #e8f4fd; border-radius: 8px;">
-            <p style="margin: 0; color: #0369a1; font-size: 14px;">
-              <strong>💡 Pour répondre :</strong> Cliquez simplement sur "Répondre" dans votre client email
-            </p>
           </div>
           <div style="margin-top: 20px; padding: 15px; background: #e8f4fd; border-radius: 8px;">
             <p style="margin: 0; color: #0369a1; font-size: 14px;">
@@ -432,10 +421,10 @@ export class NotificationService {
         'Nouveau message de contact - Paname Consulting',
         emailContent,
         'notification contact admin',
-        contact.email // replyTo parameter
+        contact.email
     );
 }
-  // Send contact confirmation email to user when contact is sent
+
   async sendContactConfirmation(contact: Contact): Promise<void> {
     const emailContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -474,7 +463,6 @@ export class NotificationService {
     );
   }
 
-  // Send cancellation notification email to user when procedure is cancelled
   async sendCancellationNotification(_procedure: Procedure): Promise<void> {
     const emailContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -490,5 +478,12 @@ export class NotificationService {
       emailContent,
       "notification annulation",
     );
+  }
+
+  private maskEmail(email: string): string {
+    if (!email || !email.includes('@')) return '***@***';
+    const [name, domain] = email.split('@');
+    if (name.length <= 2) return `***@${domain}`;
+    return `${name.substring(0, 2)}***@${domain}`;
   }
 }

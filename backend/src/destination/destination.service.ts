@@ -66,12 +66,12 @@ export class DestinationService {
       const count = await this.destinationModel.countDocuments();
       if (count === 0) {
         await this.destinationModel.insertMany(defaultDestinations);
-        this.logger.log("✅ Destinations par défaut insérées avec succès");
+        this.logger.log("Destinations par défaut insérées avec succès");
       }
     } catch (error) {
       this.logger.error(
-        "❌ Erreur lors de l'initialisation des destinations:",
-        error,
+        "Erreur lors de l'initialisation des destinations:",
+        error.stack,
       );
     }
   }
@@ -83,7 +83,7 @@ export class DestinationService {
     createDestinationDto: CreateDestinationDto,
     imageFile: Express.Multer.File,
   ): Promise<Destination> {
-    this.logger.log(`🔄 Tentative création destination.`);
+    this.logger.log(`Tentative de création destination: ${createDestinationDto.country}`);
 
     try {
       // Validation des données d'entrée
@@ -105,34 +105,34 @@ export class DestinationService {
       });
 
       if (existingDestination) {
-        this.logger.warn(`🚨 Destination déjà existante.`);
+        this.logger.warn(`Destination déjà existante: ${createDestinationDto.country}`);
         throw new ConflictException("Cette destination existe déjà");
       }
 
-      // Upload de l'image - CORRECTION ICI
+      // Upload de l'image
       const fileName = await this.storageService.uploadFile(imageFile);
-      const imagePath = `uploads/${fileName}`; // ← Ajouter le préfixe 'uploads/'
+      const imagePath = `uploads/${fileName}`;
 
       // Création de la destination
       const createdDestination = new this.destinationModel({
         country: createDestinationDto.country.trim(),
         text: createDestinationDto.text.trim(),
-        imagePath, // ← Maintenant avec le bon format
+        imagePath,
       });
 
       const savedDestination = await createdDestination.save();
 
-      this.logger.log(`✅ Destination créée.`);
+      this.logger.log(`Destination créée: ${savedDestination.country} (ID: ${savedDestination._id})`);
       return savedDestination;
     } catch (error) {
-      this.logger.error(`❌ Erreur création destination: ${error.message}`);
+      this.logger.error(`Erreur création destination ${createDestinationDto.country}: ${error.message}`, error.stack);
 
       // Nettoyage en cas d'erreur
       if (imageFile) {
         try {
           await this.storageService.deleteFile(`uploads/${imageFile.filename}`);
         } catch (cleanupError) {
-          this.logger.error("Erreur nettoyage fichier:", cleanupError);
+          this.logger.error("Erreur nettoyage fichier:", cleanupError.stack);
         }
       }
 
@@ -148,6 +148,7 @@ export class DestinationService {
       );
     }
   }
+
   /**
    * Récupérer toutes les destinations avec pagination (Public)
    */
@@ -165,6 +166,8 @@ export class DestinationService {
     hasPrev: boolean;
   }> {
     try {
+      this.logger.debug(`Récupération destinations - Page: ${page}, Limit: ${limit}, Search: ${search || 'aucun'}`);
+
       const skip = (page - 1) * limit;
 
       // Construction des filtres de recherche
@@ -184,12 +187,13 @@ export class DestinationService {
           .skip(skip)
           .limit(limit)
           .sort({ country: 1 })
-          .lean()
           .exec(),
         this.destinationModel.countDocuments(filters),
       ]);
 
       const totalPages = Math.ceil(total / limit);
+
+      this.logger.debug(`Récupération destinations réussie: ${data.length} sur ${total}`);
 
       return {
         data,
@@ -202,7 +206,8 @@ export class DestinationService {
       };
     } catch (error) {
       this.logger.error(
-        `❌ Erreur récupération destinations: ${error.message}`,
+        `Erreur récupération destinations: ${error.message}`,
+        error.stack,
       );
       throw new InternalServerErrorException(
         "Erreur lors de la récupération des destinations",
@@ -215,15 +220,21 @@ export class DestinationService {
    */
   async findAllWithoutPagination(): Promise<Destination[]> {
     try {
-      return await this.destinationModel
+      this.logger.debug(`Récupération de toutes les destinations sans pagination`);
+      
+      const destinations = await this.destinationModel
         .find()
         .select("country imagePath text createdAt updatedAt")
         .sort({ country: 1 })
-        .lean()
         .exec();
+
+      this.logger.debug(`Récupération réussie: ${destinations.length} destinations`);
+      
+      return destinations;
     } catch (error) {
       this.logger.error(
-        `❌ Erreur récupération toutes destinations: ${error.message}`,
+        `Erreur récupération toutes destinations: ${error.message}`,
+        error.stack,
       );
       throw new InternalServerErrorException(
         "Erreur lors de la récupération des destinations",
@@ -236,6 +247,8 @@ export class DestinationService {
    */
   async findOne(id: string): Promise<Destination> {
     try {
+      this.logger.debug(`Recherche destination ID: ${id}`);
+
       if (!id || id.length !== 24) {
         throw new BadRequestException("ID de destination invalide");
       }
@@ -243,13 +256,14 @@ export class DestinationService {
       const destination = await this.destinationModel
         .findById(id)
         .select("country imagePath text createdAt updatedAt")
-        .lean()
         .exec();
 
       if (!destination) {
+        this.logger.warn(`Destination non trouvée: ${id}`);
         throw new NotFoundException(`Destination avec ID ${id} non trouvée`);
       }
 
+      this.logger.debug(`Destination trouvée: ${destination.country} (ID: ${id})`);
       return destination;
     } catch (error) {
       if (
@@ -260,7 +274,8 @@ export class DestinationService {
       }
 
       this.logger.error(
-        `❌ Erreur récupération destination ${id}: ${error.message}`,
+        `Erreur récupération destination ${id}: ${error.message}`,
+        error.stack,
       );
       throw new InternalServerErrorException(
         "Erreur lors de la récupération de la destination",
@@ -273,14 +288,21 @@ export class DestinationService {
    */
   async findByCountry(country: string): Promise<Destination | null> {
     try {
-      return await this.destinationModel
+      this.logger.debug(`Recherche destination par pays: ${country}`);
+      
+      const destination = await this.destinationModel
         .findOne({
           country: { $regex: `^${country.trim()}$`, $options: "i" },
         })
         .exec();
+
+      this.logger.debug(`Recherche par pays ${country}: ${destination ? 'trouvée' : 'non trouvée'}`);
+      
+      return destination;
     } catch (error) {
       this.logger.error(
-        `❌ Erreur recherche par pays ${country}: ${error.message}`,
+        `Erreur recherche par pays ${country}: ${error.message}`,
+        error.stack,
       );
       throw error;
     }
@@ -294,7 +316,7 @@ export class DestinationService {
     updateDestinationDto: UpdateDestinationDto,
     imageFile?: Express.Multer.File,
   ): Promise<Destination> {
-    this.logger.log(`🔄 Tentative mise à jour destination: ${id}`);
+    this.logger.log(`Tentative mise à jour destination: ${id}`);
 
     try {
       // Validation de l'ID
@@ -305,6 +327,7 @@ export class DestinationService {
       // Vérifier que la destination existe
       const existingDestination = await this.destinationModel.findById(id);
       if (!existingDestination) {
+        this.logger.warn(`Destination non trouvée pour mise à jour: ${id}`);
         throw new NotFoundException(`Destination avec ID ${id} non trouvée`);
       }
 
@@ -326,6 +349,7 @@ export class DestinationService {
         });
 
         if (countryConflict) {
+          this.logger.warn(`Conflit de nom pour la destination: ${updateDestinationDto.country}`);
           throw new ConflictException(
             "Une destination avec ce nom existe déjà",
           );
@@ -365,12 +389,12 @@ export class DestinationService {
         .findByIdAndUpdate(id, updateData, {
           new: true,
           runValidators: true,
-          lean: true,
         })
         .select("country imagePath text createdAt updatedAt")
         .exec();
 
       if (!updatedDestination) {
+        this.logger.error(`Destination non trouvée après mise à jour: ${id}`);
         throw new NotFoundException(
           `Destination avec ID ${id} non trouvée après mise à jour`,
         );
@@ -380,21 +404,22 @@ export class DestinationService {
       if (oldImagePath) {
         try {
           await this.storageService.deleteFile(oldImagePath);
-          this.logger.log(`🗑️ Ancienne image supprimée: ${oldImagePath}`);
+          this.logger.log(`Ancienne image supprimée: ${oldImagePath}`);
         } catch (cleanupError) {
           this.logger.warn(
-            `⚠️ Impossible de supprimer l'ancienne image: ${cleanupError.message}`,
+            `Impossible de supprimer l'ancienne image: ${cleanupError.message}`,
           );
         }
       }
 
       this.logger.log(
-        `✅ Destination mise à jour: ${updatedDestination.country}`,
+        `Destination mise à jour: ${updatedDestination.country} (ID: ${id})`,
       );
       return updatedDestination;
     } catch (error) {
       this.logger.error(
-        `❌ Erreur mise à jour destination ${id}: ${error.message}`,
+        `Erreur mise à jour destination ${id}: ${error.message}`,
+        error.stack,
       );
 
       // Nettoyage en cas d'erreur
@@ -402,7 +427,7 @@ export class DestinationService {
         try {
           await this.storageService.deleteFile(`uploads/${imageFile.filename}`);
         } catch (cleanupError) {
-          this.logger.error("Erreur nettoyage fichier:", cleanupError);
+          this.logger.error("Erreur nettoyage fichier:", cleanupError.stack);
         }
       }
 
@@ -426,7 +451,7 @@ export class DestinationService {
   async remove(
     id: string,
   ): Promise<{ message: string; deletedDestination: Destination }> {
-    this.logger.log(`🔄 Tentative suppression destination`);
+    this.logger.log(`Tentative suppression destination: ${id}`);
 
     try {
       // Validation de l'ID
@@ -437,37 +462,38 @@ export class DestinationService {
       // Récupérer la destination avec toutes les données
       const destination = await this.destinationModel.findById(id);
       if (!destination) {
+        this.logger.warn(`Destination non trouvée pour suppression: ${id}`);
         throw new NotFoundException(`Destination avec ID ${id} non trouvée`);
       }
 
       // Supprimer l'image associée si elle existe
       if (destination.imagePath) {
         await this.storageService.deleteFile(destination.imagePath);
-        this.logger.log(`🗑️ Image supprimée: ${destination.imagePath}`);
+        this.logger.log(`Image supprimée: ${destination.imagePath}`);
       }
 
       // Supprimer la destination de la base
       const deletedDestination = await this.destinationModel
         .findByIdAndDelete(id)
-        .lean()
         .exec();
 
       if (!deletedDestination) {
+        this.logger.error(`Destination non trouvée lors de la suppression: ${id}`);
         throw new NotFoundException(
           `Destination avec ID ${id} non trouvée lors de la suppression`,
         );
       }
 
       this.logger.log(
-        `✅ Destination supprimée: ${destination.country} (ID: ${id})`,
+        `Destination supprimée: ${destination.country} (ID: ${id})`,
       );
 
       return {
         message: "Destination supprimée avec succès",
-        deletedDestination: deletedDestination as Destination,
+        deletedDestination,
       };
     } catch (error) {
-      this.logger.error(`❌ Erreur suppression destination: ${error.message}`);
+      this.logger.error(`Erreur suppression destination ${id}: ${error.message}`, error.stack);
 
       if (
         error instanceof BadRequestException ||
@@ -487,9 +513,15 @@ export class DestinationService {
    */
   async count(filters: any = {}): Promise<number> {
     try {
-      return await this.destinationModel.countDocuments(filters).exec();
+      this.logger.debug(`Comptage des destinations avec filtres: ${JSON.stringify(filters)}`);
+      
+      const count = await this.destinationModel.countDocuments(filters).exec();
+      
+      this.logger.debug(`Comptage terminé: ${count} destinations`);
+      
+      return count;
     } catch (error) {
-      this.logger.error(`❌ Erreur comptage destinations: ${error.message}`);
+      this.logger.error(`Erreur comptage destinations: ${error.message}`, error.stack);
       throw new InternalServerErrorException(
         "Erreur lors du comptage des destinations",
       );
@@ -505,7 +537,7 @@ export class DestinationService {
       const count = await this.destinationModel.countDocuments({ _id: id });
       return count > 0;
     } catch (error) {
-      this.logger.error(`❌ Erreur vérification existence: ${error.message}`);
+      this.logger.error(`Erreur vérification existence ${id}: ${error.message}`, error.stack);
       return false;
     }
   }
@@ -519,29 +551,35 @@ export class DestinationService {
     lastUpdated: Date | null;
   }> {
     try {
+      this.logger.debug(`Calcul des statistiques des destinations`);
+      
       const [total, lastDestination, allDestinations] = await Promise.all([
         this.count(),
         this.destinationModel
           .findOne()
           .sort({ updatedAt: -1 })
           .select("updatedAt")
-          .lean()
           .exec(),
-        this.destinationModel.find().select("country").lean().exec(),
+        this.destinationModel.find().select("country").exec(),
       ]);
 
       const uniqueCountries = new Set(
         allDestinations.map((dest) => dest.country.toLowerCase().trim()),
       );
 
-      return {
+      const stats = {
         total,
         countries: uniqueCountries.size,
         lastUpdated: lastDestination?.updatedAt || null,
       };
+
+      this.logger.debug(`Statistiques calculées: ${JSON.stringify(stats)}`);
+      
+      return stats;
     } catch (error) {
       this.logger.error(
-        `❌ Erreur récupération statistiques: ${error.message}`,
+        `Erreur récupération statistiques: ${error.message}`,
+        error.stack,
       );
       throw new InternalServerErrorException(
         "Erreur lors de la récupération des statistiques",

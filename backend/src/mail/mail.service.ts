@@ -14,7 +14,7 @@ export class MailService {
 
  private initializeTransporter() {
      if(!this.configService.get('EMAIL_HOST') || !this.configService.get('EMAIL_USER') || !this.configService.get('EMAIL_PASS')) {
-       this.logger.warn('Configuration email incomplète - service email désactivées');
+       this.logger.warn('Configuration email incomplète - service email désactivé');
        this.emailServiceAvailable = false;
        return;
      }
@@ -32,20 +32,19 @@ export class MailService {
            rejectUnauthorized: this.configService.get('NODE_ENV') === 'production',
            ciphers: 'SSLv3'
          },
-         connectionTimeout: 30000, // 30 secondes
-         greetingTimeout: 15000,   // 15 secondes  
-         socketTimeout: 30000,     // 30 secondes
+         connectionTimeout: 30000,
+         greetingTimeout: 15000,
+         socketTimeout: 30000,
        });
  
-       // Tester la connexion
-         this.testConnection().then(success => {
+       this.testConnection().then(success => {
            this.emailServiceAvailable = success;
            }).catch(() => {
              this.emailServiceAvailable = false;
          });
  
      } catch (error) {
-       this.logger.error('Erreur initialisation service  email', error);
+       this.logger.error('Erreur initialisation service email', error.stack);
        this.emailServiceAvailable = false;
      }
    }
@@ -57,6 +56,7 @@ export class MailService {
  
      try {
        await this.transporter.verify();
+       this.logger.log('Service email initialisé avec succès');
        return true;
      } catch (error) {
        this.logger.error(`Test connexion service email échoué: ${error.message}`);
@@ -65,12 +65,10 @@ export class MailService {
    }
 
   async sendPasswordResetEmail(email: string, resetUrl: string): Promise<void> {
-    // Logger le token pour le développement
-    this.logger.log(`Token réinitialisation.`);
+    const maskedEmail = this.maskEmail(email);
 
-    // Si le service email n'est pas disponible
     if (!this.emailServiceAvailable || !this.transporter) {
-      this.logger.log(`Lien réinitialisation.`);
+      this.logger.log(`Envoi lien réinitialisation à: ${maskedEmail} (service email indisponible)`);
       return;
     }
 
@@ -116,11 +114,10 @@ export class MailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Email réinitialisation envoyé.`);
+      this.logger.log(`Email réinitialisation envoyé à: ${maskedEmail}`);
     } catch (error) {
-      this.logger.error(`Erreur envoi email : ${error.message}`);
-      this.logger.log(`Lien réinitialisation  - Service email indisponible.`);
-      // Désactiver le service après une erreur d'authentification
+      this.logger.error(`Erreur envoi email réinitialisation: ${error.message}`);
+      
       if (
         error.message.includes("BadCredentials") ||
         error.message.includes("Invalid login")
@@ -132,8 +129,10 @@ export class MailService {
   }
 
   async sendWelcomeEmail(email: string, firstName: string): Promise<void> {
+    const maskedEmail = this.maskEmail(email);
+
     if (!this.emailServiceAvailable || !this.transporter) {
-      this.logger.log(`Email bienvenue pour ${firstName} (${email})`);
+      this.logger.log(`Email bienvenue pour: ${maskedEmail} (service email indisponible)`);
       return;
     }
 
@@ -170,10 +169,16 @@ export class MailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Email bienvenue envoyé.`);
+      this.logger.log(`Email bienvenue envoyé à: ${maskedEmail}`);
     } catch (error) {
-      this.logger.error(`Erreur envoi email bienvenue`, error.stack);
-      this.logger.log(`Email bienvenue - Service email indisponible.`);
+      this.logger.error(`Erreur envoi email bienvenue: ${error.message}`);
     }
+  }
+
+  private maskEmail(email: string): string {
+    if (!email || !email.includes('@')) return '***@***';
+    const [name, domain] = email.split('@');
+    if (name.length <= 2) return `***@${domain}`;
+    return `${name.substring(0, 2)}***@${domain}`;
   }
 }

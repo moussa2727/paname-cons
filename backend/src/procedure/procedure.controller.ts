@@ -44,7 +44,7 @@ export class ProcedureController {
   })
   async createFromRendezvous(@Body() createDto: CreateProcedureDto) {
     this.logger.log(
-      `Création procédure - RendezVous: ${createDto.rendezVousId}`,
+      `Création procédure depuis rendez-vous ID: ${this.maskId(createDto.rendezVousId)}`,
     );
     return this.procedureService.createFromRendezvous(createDto);
   }
@@ -80,7 +80,7 @@ export class ProcedureController {
     @Param("id") id: string,
     @Body("reason") reason: string,
   ) {
-    this.logger.log(`Rejet procédure - ID: ${id}`);
+    this.logger.log(`Rejet procédure - ID: ${this.maskId(id)}`);
     return this.procedureService.rejectProcedure(id, reason);
   }
 
@@ -92,7 +92,7 @@ export class ProcedureController {
     @Param("id") id: string,
     @Body() updateDto: UpdateProcedureDto,
   ) {
-    this.logger.log(`Modification procédure - ID: ${id}`);
+    this.logger.log(`Modification procédure - ID: ${this.maskId(id)}`);
     return this.procedureService.updateProcedure(id, updateDto);
   }
 
@@ -106,7 +106,7 @@ export class ProcedureController {
     @Body() updateDto: UpdateStepDto,
   ) {
     this.logger.log(
-      `Modification étape - Procédure: ${id}, Étape: ${stepName}`,
+      `Modification étape - Procédure: ${this.maskId(id)}, Étape: ${stepName}`,
     );
     return this.procedureService.updateStep(id, stepName, updateDto);
   }
@@ -119,7 +119,7 @@ export class ProcedureController {
     @Param("id") id: string,
     @Body("reason") reason?: string,
   ) {
-    this.logger.log(`Suppression procédure - ID: ${id}`);
+    this.logger.log(`Suppression procédure - ID: ${this.maskId(id)}`);
     return this.procedureService.softDelete(id, reason);
   }
 
@@ -162,7 +162,7 @@ export class ProcedureController {
   @Roles(UserRole.USER, UserRole.ADMIN)
   @ApiOperation({ summary: "Détails d'une procédure" })
   async getProcedureDetails(@Param("id") id: string, @Req() req: any) {
-    this.logger.log(`Détails procédure - ID: ${id}`);
+    this.logger.log(`Détails procédure - ID: ${this.maskId(id)}`);
     return this.procedureService.getProcedureDetails(id, req.user);
   }
 
@@ -175,7 +175,7 @@ export class ProcedureController {
     @Req() req: any,
     @Body() cancelDto: CancelProcedureDto,
   ) {
-    this.logger.log(`Annulation procédure - ID: ${id}`);
+    this.logger.log(`Annulation procédure - ID: ${this.maskId(id)}`);
     return this.procedureService.cancelProcedure(
       id,
       req.user.email,
@@ -196,5 +196,10 @@ export class ProcedureController {
         : "*".repeat(name.length);
 
     return `${maskedName}@${domain}`;
+  }
+
+  private maskId(id: string): string {
+    if (!id || id.length < 8) return "***";
+    return id.substring(0, 4) + "***" + id.substring(id.length - 4);
   }
 }

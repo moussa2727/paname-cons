@@ -58,7 +58,7 @@ export interface ProcedureMethods {
 }
 
 // Interface pour les méthodes statiques
-export interface ProcedureModel extends Model<Procedure, {}, ProcedureMethods> {
+export interface ProcedureModel extends Model<Procedure, object, ProcedureMethods> {
   findByRendezvousId(rendezVousId: Types.ObjectId): Promise<Procedure>;
   findByUserEmail(email: string): Promise<Procedure[]>;
 }

@@ -1,5 +1,5 @@
 // jwt.strategy.ts - VERSION HYPER SÉCURISÉE
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { Injectable, UnauthorizedException, Logger } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
 import { UsersService } from "../../users/users.service";
@@ -7,6 +7,8 @@ import { Types } from "mongoose";
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly logger = new Logger(JwtStrategy.name);
+
   constructor(private usersService: UsersService) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
@@ -26,21 +28,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: any) {
     // ✅ Log sécurisé
     const maskedId = this.maskSensitiveData(payload.sub);
-    console.log(`Validation token - User: ${maskedId}`);
+    this.logger.log(`Validation token - User: ${maskedId}`);
 
     const user = await this.usersService.findById(payload.sub);
 
     if (!user) {
-      console.log(`User not found - ID: ${maskedId}`);
+      this.logger.warn(`User not found - ID: ${maskedId}`);
       throw new UnauthorizedException("Utilisateur non trouvé");
     }
 
     if (!user.isActive) {
-      console.log(`Inactive account - ID: ${maskedId}`);
+      this.logger.warn(`Inactive account - ID: ${maskedId}`);
       throw new UnauthorizedException("Compte utilisateur inactif");
     }
 
-    console.log(`User validated - ID: ${maskedId}, Role: ${user.role}`);
+    this.logger.log(`User validated - ID: ${maskedId}, Role: ${user.role}`);
 
     // ✅ Retourner sub pour compatibilité
     return {

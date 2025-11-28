@@ -47,7 +47,4 @@ export class Destination extends Document {
 }
 
 export const DestinationSchema = SchemaFactory.createForClass(Destination);
-
-// Index pour optimiser les recherches
-DestinationSchema.index({ country: 1 });
 DestinationSchema.index({ createdAt: -1 });

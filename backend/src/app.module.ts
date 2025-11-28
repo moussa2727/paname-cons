@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, Logger } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { MongooseModule } from "@nestjs/mongoose";
 import { ServeStaticModule } from "@nestjs/serve-static";
@@ -22,20 +22,60 @@ import { ProcedureModule } from "./procedure/procedure.module";
     ConfigModule.forRoot({
       load: [configuration],
       isGlobal: true,
+      envFilePath: '.env', // ← AJOUTÉ
     }),
 
-    // 2. Base de données
+    // 2. Base de données - CONFIGURATION AMÉLIORÉE
     MongooseModule.forRootAsync({
-      useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>("MONGODB_URI"),
-      }),
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => {
+        const logger = new Logger('MongooseModule');
+        const uri = configService.get<string>("MONGODB_URI");
+
+        // Logs détaillés pour le débogage
+        logger.log(`🔗 Configuration MongoDB...`);
+        logger.log(`📊 MONGODB_URI: ${uri ? 'Définie' : 'NON DÉFINIE'}`);
+        
+        if (!uri) {
+          logger.error('❌ MONGODB_URI est non définie dans les variables d\'environnement');
+          logger.error('💡 Vérifiez les variables dans Railway: MONGODB_URI, NODE_ENV, PORT');
+          throw new Error('MONGODB_URI is not defined in environment variables');
+        }
+
+        // Masquer le mot de passe dans les logs
+        const maskedUri = uri.replace(
+          /mongodb\+srv:\/\/([^:]+):([^@]+)@/, 
+          'mongodb+srv://$1:****@'
+        );
+        logger.log(`🔐 Tentative de connexion à: ${maskedUri}`);
+
+        return {
+          uri,
+          retryAttempts: 5, // ← AJOUTÉ
+          retryDelay: 3000, // ← AJOUTÉ
+          serverSelectionTimeoutMS: 30000, // ← AJOUTÉ
+          socketTimeoutMS: 45000, // ← AJOUTÉ
+          bufferCommands: false, // ← AJOUTÉ
+          connectTimeoutMS: 30000, // ← AJOUTÉ
+          // Options supplémentaires pour la stabilité
+          maxPoolSize: 10,
+          minPoolSize: 1,
+          heartbeatFrequencyMS: 10000,
+        };
+      },
       inject: [ConfigService],
     }),
 
-    // 3. Fichiers statiques
+    // 3. Serveur de fichiers statiques
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, "..", "uploads"),
       serveRoot: "/uploads",
+      serveStaticOptions: {
+        index: false,           // Désactive l'indexation
+        dotfiles: 'deny',       // Bloque les fichiers cachés (.env, etc.)
+        cacheControl: true,
+        maxAge: 2592000000, // 30 jours en ms
+      },
     }),
 
     // 4. Modules fonctionnels
@@ -49,5 +89,21 @@ import { ProcedureModule } from "./procedure/procedure.module";
     NotificationModule, // Notifications
   ],
   controllers: [AppController],
+  providers: [
+    {
+      provide: 'INITIALIZE_DATABASE',
+      useFactory: async (configService: ConfigService) => {
+        const logger = new Logger('DatabaseInit');
+        const uri = configService.get<string>("MONGODB_URI");
+        
+        if (!uri) {
+          logger.error('🚨 MONGODB_URI manquante au démarrage');
+        } else {
+          logger.log('✅ Configuration MongoDB chargée');
+        }
+      },
+      inject: [ConfigService],
+    },
+  ],
 })
 export class AppModule {}
