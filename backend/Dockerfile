@@ -19,7 +19,7 @@ COPY backend/ ./
 RUN rm -rf dist && rm -rf node_modules/.cache
 
 # Construction
-RUN npx nest build
+RUN pnpm run build
 
 # ============ ÉTAPE DE PRODUCTION ============
 FROM node:18-alpine AS production

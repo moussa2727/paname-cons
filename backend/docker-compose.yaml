@@ -14,11 +14,14 @@ services:
     
     environment:
       - NODE_ENV=production
-      # PORT sera utilisé depuis .env ou la valeur par défaut
+      - PORT=10000
       - HOST=0.0.0.0
       - TZ=Europe/Paris
-      # Les autres variables sensibles via env_file
       - RATE_LIMITING=true
+      # Variables pour CORS
+      - FRONTEND_URL=https://panameconsulting.vercel.app
+      - RAILWAY_STATIC_URL=https://panameconsulting.up.railway.app
+    
     env_file:
       - .env
     
