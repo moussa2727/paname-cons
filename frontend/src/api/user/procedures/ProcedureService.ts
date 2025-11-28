@@ -61,7 +61,6 @@ export interface UserProcedure {
   dateDerniereModification?: Date;
   createdAt: Date;
   updatedAt: Date;
-  // ❌ SUPPRIMÉ: isDeleted, deletedAt, deletionReason, telephone
 }
 
 export interface PaginatedUserProcedures {

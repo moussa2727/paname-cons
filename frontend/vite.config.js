@@ -37,7 +37,7 @@ export default defineConfig(({ mode }) => ({
   server: mode === 'development' ? {
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'https://panameconsulting.up.railway.app',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/api/, ''),
