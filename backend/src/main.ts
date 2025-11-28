@@ -26,23 +26,42 @@ async function bootstrap() {
 
   // 🔒 Configuration CORS STRICTE pour la PRODUCTION
   const allowedOrigins = [
-  "https://panameconsulting.vercel.app",
-  "https://panameconsulting.com",
-  "https://www.panameconsulting.com",
-  "https://panameconsulting.up.railway.app",
-];
+    "https://panameconsulting.vercel.app",
+    "https://panameconsulting.com",
+    "https://www.panameconsulting.com",
+    "https://panameconsulting.up.railway.app",
+    "http://localhost:3000", // Ajout pour le développement
+  ];
 
-app.enableCors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, origin ?? true); 
+  app.enableCors({
+    origin: (origin, callback) => {
+      // Autoriser les requêtes sans origin (mobile apps, curl, postman)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      console.log(`🚫 CORS bloqué: ${origin}`);
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true, 
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
+    allowedHeaders: "Origin,X-Requested-With,Content-Type,Accept,Authorization",
+    preflightContinue: false,
+    optionsSuccessStatus: 204
+  });
+
+  // Gestion globale des requêtes OPTIONS (preflight)
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method === 'OPTIONS') {
+      res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
+      res.status(204).send();
+    } else {
+      next();
     }
-    return callback(new Error("Not allowed by CORS"));
-  },
-  credentials: true, 
-  methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS",
-  allowedHeaders: "Origin,Content-Type,Accept,Authorization",
-});
+  });
 
   // Création du dossier uploads
   const uploadsDir = join(__dirname, '..', 'uploads');
@@ -51,7 +70,7 @@ app.enableCors({
     console.log(`📁 Dossier uploads créé: ${uploadsDir}`);
   }
 
-  // Configuration des fichiers statiques
+  // Configuration des fichiers statiques (SANS en-têtes CORS manuels)
   app.use(
     '/uploads',
     express.static(uploadsDir, {
@@ -73,8 +92,8 @@ app.enableCors({
           res.setHeader('Content-Type', mimeTypes[ext]);
         }
         
-        // Headers CORS pour les fichiers statiques
-        res.setHeader('Access-Control-Allow-Origin', allowedOrigins.join(', '));
+        // ⚠️ SUPPRIMÉ: Les en-têtes CORS sont gérés par la configuration globale
+        // Ne pas ajouter manuellement Access-Control-Allow-Origin ici
       },
     }),
   );
@@ -89,6 +108,7 @@ app.enableCors({
   console.log(`🌐 URL: https://panameconsulting.up.railway.app`);
   console.log(`🔗 API: https://panameconsulting.up.railway.app/api`);
   console.log(`🔒 CORS activé pour: ${allowedOrigins.join(', ')}`);
+  console.log(`📁 Dossier uploads: ${uploadsDir}`);
 }
 
 bootstrap().catch((error) => {
