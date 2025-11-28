@@ -48,6 +48,6 @@ RUN mkdir -p /app/uploads /app/logs && \
 
 USER node
 
-EXPOSE $PORT
+EXPOSE 10000
 
 CMD ["node", "dist/main.js"]

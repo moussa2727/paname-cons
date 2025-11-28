@@ -1,0 +1,14 @@
+[build]
+builder = "./backend/Dockerfile"
+
+[deploy]
+startCommand = "cd backend && node dist/main.js"
+
+[[services]]
+name = "web"
+httpPort = 10000
+internalPort = 10000
+
+[services.env]
+NODE_ENV = "production"
+PORT = "10000"
