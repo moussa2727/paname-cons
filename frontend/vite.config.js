@@ -13,43 +13,50 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     
-    // Configuration de build optimisée
+    // Configuration de build optimisée et SÉCURISÉE
     build: {
       outDir: 'dist',
-      sourcemap: mode === 'development',
+      sourcemap: mode === 'development', // Source maps uniquement en dev
       rollupOptions: {
         output: {
           manualChunks: {
             'react-vendor': ['react', 'react-dom', 'react-router-dom'],
             'ui-vendor': ['lucide-react', 'react-toastify'],
             'utils-vendor': ['date-fns', 'date-fns/locale/fr', 'jwt-decode'],
-            'admin-chunk': [
-              './src/pages/admin/AdminDashboard.tsx',
-              './src/pages/admin/UsersManagement.tsx',
-              './src/pages/admin/AdminMessages.tsx'
-            ]
-          }
+          },
+          // Optimisation pour éviter les erreurs de taille
+          chunkFileNames: 'assets/js/[name]-[hash].js',
+          entryFileNames: 'assets/js/[name]-[hash].js',
+          assetFileNames: 'assets/[ext]/[name]-[hash].[ext]'
         }
       },
-      chunkSizeWarningLimit: 800,
-      minify: mode === 'production' ? 'terser' : false,
+      chunkSizeWarningLimit: 1000, // Augmenter la limite
+      // ✅ CORRECTION : Configuration Terser simplifiée
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: mode === 'production', // Supprimer console.log en prod
+        },
+        format: {
+          comments: false, // Supprimer les commentaires
+        }
+      }
     },
     
     // Optimisation des dépendances
     optimizeDeps: {
       include: [
         'react',
-        'react-dom',
+        'react-dom', 
         'react-router-dom',
         'lucide-react'
-      ],
-      exclude: ['lazy-loaded-components']
+      ]
     },
     
     // Base URL
     base: '/',
     
-    // ✅ Proxy UNIQUEMENT en développement avec types corrects
+    // ✅ Proxy UNIQUEMENT en développement
     server: mode === 'development' ? {
       port: 5173,
       host: true,
@@ -57,15 +64,7 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: apiTarget,
           changeOrigin: true,
-          secure: false,
-          configure: (proxy, _options) => {
-            proxy.on('error', (err, _req, _res) => {
-              console.log('Proxy error:', err);
-            });
-            proxy.on('proxyReq', (proxyReq, req, _res) => {
-              console.log('Proxying request:', req.method, req.url);
-            });
-          }
+          secure: false
         }
       }
     } : undefined,
