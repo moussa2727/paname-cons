@@ -18,7 +18,8 @@ services:
       - HOST=0.0.0.0
       - TZ=Europe/Paris
       # Les autres variables sensibles via env_file
-    
+      - CORS_ORIGIN=https://panameconsulting.vercel.app
+      - RATE_LIMITING=true
     env_file:
       - .env
     
