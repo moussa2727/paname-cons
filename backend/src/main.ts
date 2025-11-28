@@ -179,35 +179,41 @@ async function bootstrap() {
 
     // Configuration CORS pour Railway - STRICT
     const allowedOrigins = [
-      "http://localhost:5173",
-      "http://localhost:3000", 
-      "http://localhost:10000",
-      "https://panameconsulting.com",
-      "https://www.panameconsulting.com",
-      "https://panameconsulting.vercel.app",
-      "https://panameconsulting.up.railway.app",
-      process.env.RAILWAY_STATIC_URL,
-      process.env.FRONTEND_URL,
-    ].filter((origin): origin is string => origin !== undefined && origin !== null);
+        "http://localhost:5173",
+        "http://localhost:3000", 
+        "http://localhost:10000",
+        "https://panameconsulting.com",
+        "https://www.panameconsulting.com",
+        "https://panameconsulting.vercel.app", // ← VOTRE DOMAINE VERCEL
+        "https://panameconsulting.up.railway.app",
+        process.env.RAILWAY_STATIC_URL,
+        process.env.FRONTEND_URL,
+        "https://*.vercel.app", // ← TOUS LES SOUS-DOMAINES VERCEL
+      ].filter((origin): origin is string => origin !== undefined && origin !== null);
 
-    logger.log(`🌐 Origins CORS autorisés: ${allowedOrigins.join(', ')}`);
-
-   app.enableCors({
-  origin: (origin, callback) => {
-    // 🔒 REFUSER les requêtes sans origin (sauf pour health checks)
-    if (!origin) {
-      // ✅ Dans ce contexte, on ne peut pas vérifier l'URL de la requête
-      // On autorise les requêtes sans origin pour les health checks systèmes
-      return callback(null, true);
-    }
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      logger.warn(`🚫 Origin non autorisé: ${origin}`);
-      callback(new Error('Not allowed by CORS'), false);
-    }
-  },
+      app.enableCors({
+        origin: (origin, callback) => {
+          // 🔒 REFUSER les requêtes sans origin comme vous le souhaitez
+          if (!origin) {
+            logger.warn('🚫 Requête sans origin refusée');
+            return callback(new Error('No origin provided'), false);
+          }
+          
+          // ✅ Vérifier les origines autorisées
+          if (allowedOrigins.some(allowed => {
+            // Gestion des wildcards comme *.vercel.app
+            if (allowed.includes('*')) {
+              const domain = allowed.replace('*.', '');
+              return origin.endsWith(domain);
+            }
+            return origin === allowed;
+          })) {
+            callback(null, true);
+          } else {
+            logger.warn(`🚫 Origin non autorisé: ${origin}`);
+            callback(new Error('Not allowed by CORS'), false);
+          }
+        },
   methods: ["GET", "POST", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: [
     "Content-Type",
