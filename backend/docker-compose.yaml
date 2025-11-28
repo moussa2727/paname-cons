@@ -1,29 +1,35 @@
 services:
   backend:
-    container_name: backend
+    container_name: panameconsultingbackend
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-      # Cache des layers pour builds plus rapides
       args:
         NODE_ENV: production
     
-    # Nom de l'image personnalisé
     image: panameconsulting:latest
     
     # Ports exposés (host:container)
     ports:
-      - "3000:3000"
+      - "10000:10000"
     
     # Variables d'environnement essentielles
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=10000
       - MONGODB_SERVER_SELECTION_TIMEOUT=30000
       - MONGODB_SOCKET_TIMEOUT=45000
-      - TZ=Europe/Paris  # Ajout du fuseau horaire
-    
-    # Fichier de variables sensibles (à garder dans .gitignore)
+      - TZ=Europe/Paris
+      - JWT_SECRET=${JWT_SECRET}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - MONGODB_URI=${MONGODB_URI}
+      # Variables pour le développement local (simulent Railway)
+      - RAILWAY_STATIC_URL=https://panameconsulting.up.railway.app
+      - FRONTEND_URL=http://panameconsulting.vercerl.app
+      
+    # Fichier de variables sensibles
     env_file:
       - .env
     
@@ -37,18 +43,18 @@ services:
     
     # Health check pour surveiller l'état de l'application
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "curl", "-f", "https://panameconsulting.up.railway.app/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s  # Délai avant premier check
+      start_period: 60s
     
     # Configuration des logs
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"   # Taille max par fichier
-        max-file: "3"     # Nombre max de fichiers
+        max-size: "10m"
+        max-file: "3"
     
     # Réseau dédié pour l'application
     networks:
@@ -56,7 +62,7 @@ services:
     
     # Volumes pour la persistance des données
     volumes:
-      # Mount des dossiers critiques (assurez-vous qu'ils existent sur l'hôte)
+      # Mount des dossiers critiques
       - ./uploads:/app/uploads
       - ./logs:/app/logs
       

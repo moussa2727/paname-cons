@@ -12,60 +12,57 @@ export class MailService {
     this.initializeTransporter();
   }
 
-  private initializeTransporter() {
-    // Vérifier si la configuration email est complète
-    if (
-      !this.configService.get("EMAIL_HOST") ||
-      !this.configService.get("EMAIL_USER") ||
-      !this.configService.get("EMAIL_PASS")
-    ) {
-      this.logger.warn("Service email non configuré");
-      this.emailServiceAvailable = false;
-      return;
-    }
-
-    try {
-      this.transporter = nodemailer.createTransport({
-        host: this.configService.get("EMAIL_HOST"),
-        port: this.configService.get("EMAIL_PORT"),
-        secure: false,
-        auth: {
-          user: this.configService.get("EMAIL_USER"),
-          pass: this.configService.get("EMAIL_PASS"),
-        },
-        tls: {
-          rejectUnauthorized: false,
-        },
-      });
-
-      // Tester la connexion
-      this.testConnection().then((success) => {
-        this.emailServiceAvailable = success;
-        if (success) {
-          this.logger.log("Service email initialisé avec succès");
-        } else {
-          this.logger.warn("Service email initialisé mais connexion échouée");
-        }
-      });
-    } catch (error) {
-      this.logger.error("Erreur initialisation service email", error);
-      this.emailServiceAvailable = false;
-    }
-  }
-
-  private async testConnection(): Promise<boolean> {
-    if (!this.transporter) {
-      return false;
-    }
-
-    try {
-      await this.transporter.verify();
-      return true;
-    } catch (error) {
-      this.logger.error(`Test connexion email échoué: ${error.message}`);
-      return false;
-    }
-  }
+ private initializeTransporter() {
+     if(!this.configService.get('EMAIL_HOST') || !this.configService.get('EMAIL_USER') || !this.configService.get('EMAIL_PASS')) {
+       this.logger.warn('Configuration email incomplète - service email désactivées');
+       this.emailServiceAvailable = false;
+       return;
+     }
+ 
+     try {
+       this.transporter = nodemailer.createTransport({
+         host: this.configService.get('EMAIL_HOST'),
+         port: this.configService.get('EMAIL_PORT'),
+         secure: this.configService.get('EMAIL_SECURE') === 'true',
+         auth: {
+           user: this.configService.get('EMAIL_USER'),
+           pass: this.configService.get('EMAIL_PASS'),
+         },
+         tls: {
+           rejectUnauthorized: this.configService.get('NODE_ENV') === 'production',
+           ciphers: 'SSLv3'
+         },
+         connectionTimeout: 30000, // 30 secondes
+         greetingTimeout: 15000,   // 15 secondes  
+         socketTimeout: 30000,     // 30 secondes
+       });
+ 
+       // Tester la connexion
+         this.testConnection().then(success => {
+           this.emailServiceAvailable = success;
+           }).catch(() => {
+             this.emailServiceAvailable = false;
+         });
+ 
+     } catch (error) {
+       this.logger.error('Erreur initialisation service  email', error);
+       this.emailServiceAvailable = false;
+     }
+   }
+ 
+   private async testConnection(): Promise<boolean> {
+     if (!this.transporter) {
+       return false;
+     }
+ 
+     try {
+       await this.transporter.verify();
+       return true;
+     } catch (error) {
+       this.logger.error(`Test connexion service email échoué: ${error.message}`);
+       return false;
+     }
+   }
 
   async sendPasswordResetEmail(email: string, resetUrl: string): Promise<void> {
     // Logger le token pour le développement

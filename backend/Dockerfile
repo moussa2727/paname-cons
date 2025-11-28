@@ -1,65 +1,42 @@
 # ============ ÉTAPE DE BUILD ============
 FROM node:18-alpine AS builder
 
-# Installation et configuration de pnpm
 RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
-# Définition du répertoire de travail
 WORKDIR /app
 
-# Copie des fichiers de configuration en premier (optimisation du cache Docker)
-COPY package.json pnpm-lock.yaml* tsconfig.json nest-cli.json ./
+# Copie de tout le backend
+COPY backend/ ./
 
-# Installation de toutes les dépendances (développement + production)
+# Installation
 RUN pnpm install --frozen-lockfile --prefer-offline
 
-# Copie des sources de l'application
-COPY src/ ./src/
-
-# Construction de l'application
-RUN pnpm run build
+# Construction forcée avec configuration modifiée
+RUN sed -i 's/"skipLibCheck": false/"skipLibCheck": true/g' tsconfig.json || true
+RUN npx nest build --tsc-skip-lib-check
 
 # ============ ÉTAPE DE PRODUCTION ============
 FROM node:18-alpine AS production
 
-# Arguments de build
 ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
+ENV PORT=10000
 
-# Installation et configuration de pnpm
 RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
-# Définition du répertoire de travail
 WORKDIR /app
 
-# Copie des fichiers de package
-COPY package.json pnpm-lock.yaml* ./
+COPY backend/package.json backend/pnpm-lock.yaml* ./
 
-# Installation UNIQUEMENT des dépendances de production
 RUN pnpm install --prod --frozen-lockfile --prefer-offline
 
-# Copie des fichiers compilés depuis l'étape builder
 COPY --from=builder /app/dist ./dist
 
-# Création des dossiers nécessaires
-RUN mkdir -p /app/uploads && \
-    mkdir -p /app/logs
+RUN mkdir -p /app/uploads /app/logs && \
+    chown -R node:node /app
 
-# ============ SÉCURITÉ ============
-# Création d'un utilisateur non-root pour plus de sécurité
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nestjs -u 1001 && \
-    chown -R nestjs:nodejs /app
+USER node
 
-# Passage à l'utilisateur non-root
-USER nestjs
+EXPOSE $PORT
 
-# Exposition du port de l'application
-EXPOSE 3000
-
-# Variables d'environnement par défaut
-ENV PORT=3000
-ENV HOSTNAME=0.0.0.0
-
-# Commande de démarrage de l'application
 CMD ["node", "dist/main.js"]

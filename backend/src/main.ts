@@ -11,7 +11,6 @@ import * as fs from "fs";
 import helmet from "helmet";
 import { join } from "path";
 import { AppModule } from "./app.module";
-import "module-alias/register";
 
 function useContainer(
   appContext: INestApplicationContext,
@@ -114,17 +113,20 @@ async function bootstrap() {
     },
   );
 
-  // Rate limiting ajusté
-  app.use(
-    rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 500,
-      message: "Too many requests from this IP, please try again later.",
-      skip: (req) => req.method === "OPTIONS",
-    }),
-  );
+  // CORS (MUST come before rate limiting)
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://panameconsulting.com',
+    'https://www.panameconsulting.com',
+    'https://panameconsulting.vercel.app',
+    'https://www.panameconsulting.vercel.app',
+  ];
+  const netlifyPreviewRegex = /^https?:\/\/([a-z0-9-]+--)?panameconsulting\.netlify\.app$/i;
+  const localhostRegex = /^http:\/\/localhost:\d+$/i;
+  const isAllowedOrigin = (o: string) =>
+    allowedOrigins.includes(o) || netlifyPreviewRegex.test(o) || localhostRegex.test(o);
 
-  // CORS
   app.enableCors({
     origin: [
       "http://localhost:5173",
@@ -203,28 +205,19 @@ async function bootstrap() {
     }),
   );
 
-  app.useStaticAssets(join(__dirname, "..", "uploads"), {
-    prefix: "/uploads",
-    maxAge: "30d",
-  });
-  app.use(
-    (
-      req: { path: string | string[]; headers: { authorization: any } },
-      res: {
-        status: (arg0: number) => {
-          (): any;
-          new (): any;
-          json: { (arg0: { message: string }): any; new (): any };
-        };
-      },
-      next: () => void,
-    ) => {
-      if (req.path.includes("/stats") && !req.headers.authorization) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-      next();
-    },
-  );
+
+  app.use((req: { path: string | string[]; headers: { authorization: any; }; }, res: { status: (arg0: number) => { (): any; new(): any; json: { (arg0: { message: string; }): any; new(): any; }; }; }, next: () => void) => {
+  // Allow CORS preflight to pass without Authorization
+  // so browsers can complete OPTIONS before sending actual request
+  // and avoid false 401 causing CORS errors.
+  if ((req as any).method === 'OPTIONS') {
+    return next();
+  }
+  if (req.path.includes('/stats') && !req.headers.authorization) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+  next();
+});
 
   // Préfixe global API
   app.setGlobalPrefix("api");

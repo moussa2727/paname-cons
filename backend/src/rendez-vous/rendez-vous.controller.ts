@@ -11,13 +11,13 @@ import {
   UseGuards,
   Req,
 } from "@nestjs/common";
-import { JwtAuthGuard } from '../shared/guards/jwt-auth.guard';
-import { RolesGuard } from "../shared/guards/roles.guard";
+import { JwtAuthGuard } from "@/shared/guards/jwt-auth.guard";
+import { RolesGuard } from "@/shared/guards/roles.guard";
 import { CreateRendezvousDto } from "./dto/create-rendezvous.dto";
 import { UpdateRendezvousDto } from "./dto/update-rendezvous.dto";
 import { RendezvousService } from "./rendez-vous.service";
-import { UserRole } from "../schemas/user.schema";
-import { Roles } from "../shared/decorators/roles.decorator";
+import { UserRole } from "@/schemas/user.schema";
+import { Roles } from "@/shared/decorators/roles.decorator";
 
 @Controller("rendezvous")
 export class RendezvousController {

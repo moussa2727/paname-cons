@@ -20,7 +20,7 @@ import { CreateProcedureDto } from "./dto/create-procedure.dto";
 import { UpdateProcedureDto } from "./dto/update-procedure.dto";
 import { UpdateStepDto } from "./dto/update-step.dto";
 import { NotificationService } from "../notification/notification.service";
-import { UserRole } from "../schemas/user.schema";
+import { UserRole } from "@/schemas/user.schema";
 
 @Injectable()
 export class ProcedureService {

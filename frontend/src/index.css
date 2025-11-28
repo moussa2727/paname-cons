@@ -1,3 +1,78 @@
 @tailwind base;
 @tailwind components;
+<<<<<<< HEAD
 @tailwind utilities;
+
+/* Custom animations for Hero component */
+@keyframes slideIn {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Ensure AOS elements are visible on mobile */
+@media (max-width: 767px) {
+  [data-aos] {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+  
+  /* Fallback for AOS animations on mobile */
+  [data-aos="fade-up"] {
+    animation: none !important;
+  }
+  
+  [data-aos="fade-in"] {
+    animation: none !important;
+  }
+}
+
+/* Additional responsive utilities */
+@media (max-width: 640px) {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .hero-text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Smooth scrolling for better UX */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Prevent horizontal overflow on mobile */
+body {
+  overflow-x: hidden;
+}
+=======
+@tailwind utilities;
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059

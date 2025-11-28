@@ -13,8 +13,8 @@ import { NotificationService } from "../notification/notification.service";
 import { Rendezvous } from "../schemas/rendezvous.schema";
 import { CreateRendezvousDto } from "./dto/create-rendezvous.dto";
 import { UpdateRendezvousDto } from "./dto/update-rendezvous.dto";
-import { UserRole } from "../schemas/user.schema";
-import { CreateProcedureDto } from "../procedure/dto/create-procedure.dto";
+import { UserRole } from "@/schemas/user.schema";
+import { CreateProcedureDto } from "@/procedure/dto/create-procedure.dto";
 
 const HOLIDAYS_2025 = [
   "2025-01-01",

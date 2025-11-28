@@ -2,7 +2,10 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { HelmetProvider } from 'react-helmet-async';
 import { BrowserRouter } from 'react-router-dom';
+<<<<<<< HEAD
+=======
 import { ToastContainer } from 'react-toastify';
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
 import { AuthProvider } from './context/AuthContext';
 import App from './App';
 import './index.css';

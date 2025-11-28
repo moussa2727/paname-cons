@@ -24,18 +24,10 @@ import { ProcedureModule } from "./procedure/procedure.module";
       isGlobal: true,
     }),
 
-    // 2. Base de données - CONFIGURATION CORRIGÉE
+    // 2. Base de données
     MongooseModule.forRootAsync({
       useFactory: async (configService: ConfigService) => ({
         uri: configService.get<string>("MONGODB_URI"),
-        // Options de connexion pour Docker
-        retryAttempts: 5,
-        retryDelay: 3000,
-        serverSelectionTimeoutMS: 30000,
-        socketTimeoutMS: 45000,
-        bufferCommands: false,
-        // Pour les connexions depuis Docker
-        appName: "PanameConsulting",
       }),
       inject: [ConfigService],
     }),
@@ -47,14 +39,14 @@ import { ProcedureModule } from "./procedure/procedure.module";
     }),
 
     // 4. Modules fonctionnels
-    AuthModule,
-    UsersModule,
-    DestinationModule,
-    ContactModule,
-    MailModule,
-    ProcedureModule,
-    RendezvousModule,
-    NotificationModule,
+    AuthModule, // Module d'authentification (doit être avant les modules protégés)
+    UsersModule, // Gestion des utilisateurs
+    DestinationModule, // Destinations phares
+    ContactModule, // Formulaire de contact
+    MailModule, // Envoi d'emails
+    ProcedureModule, // Gestion des procédures
+    RendezvousModule, // Gestion des rendez-vous
+    NotificationModule, // Notifications
   ],
   controllers: [AppController],
 })

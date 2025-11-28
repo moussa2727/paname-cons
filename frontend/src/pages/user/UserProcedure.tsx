@@ -35,6 +35,7 @@ import {
   Filter
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 
 // === FONCTION D'ICÔNES LOCALE ===
 const getStepStatusIcon = (statut: StepStatus): JSX.Element => {
@@ -197,6 +198,18 @@ const UserProcedure = (): JSX.Element => {
   const totalPages = paginatedProcedures?.totalPages || 1;
 
   return (
+
+
+              <>
+              
+         <Helmet>
+            <title>Procédures Utilisateurs - Paname Consulting</title>
+            <meta name="description" content="Prenez rendez-vous avec un conseiller Paname Consulting pour discuter de votre projet d'études à l'étranger." />
+            <meta name="keywords" content="rendez-vous, études à l'étranger, conseiller, orientation" />
+            <link rel="canonical" href="https://panameconsulting.vercel.app/user-procedures" />
+            <meta name="robots" content="noindex, nofollow" />
+    
+          </Helmet>
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-50">
         <div className="px-4 py-3">
@@ -925,6 +938,9 @@ const UserProcedure = (): JSX.Element => {
         </button>
       </div>
     </div>
+              </>
+
+
   );
 };
 

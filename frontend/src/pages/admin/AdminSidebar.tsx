@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
+<<<<<<< HEAD
 import { Link, useLocation } from 'react-router-dom';
+=======
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
 import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard,
@@ -76,7 +80,10 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
       name: 'Messages',
       path: '/gestionnaire/messages',
       icon: <MessageSquare className='w-5 h-5' />,
+<<<<<<< HEAD
       basePath: '/gestionnaire/messages'
+=======
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
     },
     {
       name: 'Rendez-vous',
@@ -88,18 +95,25 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
       name: 'Procédures',
       path: '/gestionnaire/procedures',
       icon: <FileText className='w-5 h-5' />,
+<<<<<<< HEAD
       basePath: '/gestionnaire/procedures'
+=======
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
     },
     {
       name: 'Destinations',
       path: '/gestionnaire/destinations',
       icon: <MapPin className='w-5 h-5' />,
+<<<<<<< HEAD
       basePath: '/gestionnaire/destinations'
+=======
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
     },
     {
       name: 'Mon Profil',
       path: '/gestionnaire/profil',
       icon: <User className='w-5 h-5' />,
+<<<<<<< HEAD
       basePath: '/gestionnaire/profil'
     },
   ];
@@ -146,6 +160,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
     return 'text-slate-500 group-hover:text-slate-700';
   };
 
+=======
+    },
+  ];
+
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
   // Fonction pour obtenir le nom d'affichage sécurisé selon AuthContext
   const getDisplayName = (): string => {
     if (!user) return 'Administrateur';
@@ -169,7 +188,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
 
   // Déconnexion simple - session actuelle uniquement
   const handleLogout = () => {
+<<<<<<< HEAD
     logout(); // ✅ Laisser le contexte gérer la redirection
+=======
+    logout('/', false);
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
   };
 
   // Déconnexion de toutes les sessions (admin seulement)
@@ -199,11 +222,19 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
       const result = await response.json();
       console.log('Déconnexion globale réussie:', result);
       
+<<<<<<< HEAD
       logout(); // ✅ Laisser le contexte gérer la redirection
       
     } catch (error) {
       console.error('Erreur lors de la déconnexion globale:', error);
       logout(); // ✅ Laisser le contexte gérer la redirection même en cas d'erreur
+=======
+      logout('/', false);
+      
+    } catch (error) {
+      console.error('Erreur lors de la déconnexion globale:', error);
+      logout('/', false);
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
     } finally {
       setIsLogoutAllOpen(false);
     }
@@ -217,6 +248,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
     setIsCollapsed(!isCollapsed);
   };
 
+<<<<<<< HEAD
+=======
+  const isActivePath = (path: string) => {
+    return location.pathname === path;
+  };
+
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
   // Ne rien afficher si pas admin
   if (!user || user.role !== 'admin') {
     return null;
@@ -238,11 +276,16 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
             <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
               {!isCollapsed && (
                 <div className='flex items-center space-x-3'>
+<<<<<<< HEAD
                   <Link 
                     to='/' 
                     className='w-8 h-8 bg-gradient-to-br from-blue-500 to-sky-400 rounded-full flex items-center justify-center text-white text-sm font-semibold hover:rotate-90 transition-transform duration-300 ease-in-out'
                   >
                     <SettingsIcon className='w-5 h-5' />
+=======
+                  <Link to='/' className='w-8 h-8 bg-gradient-to-br from-blue-500 to-sky-400 rounded-full flex items-center justify-center text-white text-sm font-semibold'>
+                     <SettingsIcon className='w-5 h-5' />
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
                   </Link>
                   <div>
                     <h1 className='text-lg font-bold text-white'>Gestionnaire</h1>
@@ -377,17 +420,28 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
             <div className='flex justify-between items-center h-16'>
               {/* Logo et titre */}
               <div className='flex items-center space-x-3'>
+<<<<<<< HEAD
                 <Link 
                   to='/' 
                   className='w-8 h-8 bg-gradient-to-br from-blue-500 to-sky-400 rounded-full flex items-center justify-center text-white text-sm font-semibold hover:rotate-90 transition-transform duration-300 ease-in-out'
                 >
                   <SettingsIcon className='w-5 h-5' />
                 </Link>
+=======
+                <Link to='/' className='w-8 h-8 bg-gradient-to-br from-blue-500 to-sky-400 rounded-full flex items-center justify-center text-white text-sm font-semibold'>
+                     <SettingsIcon className='w-5 h-5' />
+                  </Link>
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
                 <h1 className='text-lg font-bold text-slate-800'>Gestionnaire</h1>
               </div>
 
               {/* Boutons côté droit */}
               <div className='flex items-center space-x-2'>
+<<<<<<< HEAD
+=======
+               
+
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
                 {/* Menu Mobile Toggle */}
                 <button
                   onClick={toggleMobileMenu}

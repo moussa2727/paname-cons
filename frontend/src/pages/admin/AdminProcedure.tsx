@@ -16,7 +16,10 @@ import {
 import { useAdminProcedureApi, Procedure, ProcedureStatus, StepStatus, StepName } from '../../api/admin/AdminProcedureService';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
+<<<<<<< HEAD
 import { Helmet } from 'react-helmet-async';
+=======
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
 
 const AdminProcedures: React.FC = () => {
   const { user } = useAuth();
@@ -260,6 +263,7 @@ const AdminProcedures: React.FC = () => {
   }
 
   return (
+<<<<<<< HEAD
 
     <>
       <Helmet>
@@ -279,6 +283,8 @@ const AdminProcedures: React.FC = () => {
       </Helmet>
 
       
+=======
+>>>>>>> f7d8d7e9870d391ca5e99729cc66eec90d465059
     <div className="min-h-screen bg-slate-50 p-3">
       {/* En-tête */}
       <div className="mb-4">

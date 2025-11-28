@@ -126,7 +126,7 @@ const Hero = () => {
         <div className="absolute inset-0 bg-sky-900/70"></div>
         
         {/* Contenu du Hero */}
-        <div className="relative z-10 container mx-auto px-4 min-h-screen flex items-center py-4">
+        <div className="relative z-10 container mx-auto px-3 sm:px-4 min-h-screen flex items-center py-4">
           <div className="max-w-6xl mx-auto w-full">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-8">
               {/* Texte principal - Gauche */}
@@ -145,13 +145,13 @@ const Hero = () => {
                 </div>
                 
                 {/* Tagline principale */}
-                <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 leading-tight">
-                  LE CAP VERS<br />
+                <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 leading-tight text-balance hero-text-shadow">
+                  LE CAP VERS<br className="hidden xs:block" />
                   <span className="text-sky-300">L'EXCELLENCE</span>
                 </h2>
                 
                 {/* Sous-titre */}
-                <p className="text-sm sm:text-base mb-6 leading-relaxed opacity-95 max-w-xl lg:max-w-none">
+                <p className="text-sm sm:text-base mb-6 leading-relaxed opacity-95 max-w-xl lg:max-w-none text-balance">
                   Depuis {startYear}, notre équipe multiculturelle accompagne les étudiants ambitieux vers les meilleures universités du monde. 
                   De la sélection du programme jusqu'à votre installation, nous transformons vos ambitions en réussites concrètes.
                 </p>
@@ -192,11 +192,11 @@ const Hero = () => {
                   </div>
                   
                   {/* Grille de stats responsive */}
-                  <div className="grid grid-cols-2 gap-4 sm:gap-6">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4 md:gap-6">
                     {stats.map((stat, index) => (
                       <div 
                         key={index}
-                        className="group bg-white/5 rounded-xl p-4 sm:p-5 border border-white/10 hover:bg-white/10 transition-all duration-300 hover:scale-105 cursor-pointer"
+                        className="group bg-white/5 rounded-xl p-3 sm:p-4 md:p-5 border border-white/10 hover:bg-white/10 transition-all duration-300 hover:scale-105 cursor-pointer"
                       >
                         {/* Icone et nombre */}
                         <div className="flex items-center justify-between mb-2">
@@ -249,21 +249,21 @@ const Hero = () => {
       </div>
 
       {/* Countries Section */}
-      <section className="py-8 sm:py-12 bg-gradient-to-r from-sky-500 to-sky-600">
-        <div className="container mx-auto px-4">
-          <h2 className="text-xl sm:text-2xl font-bold text-center text-white mb-3">
+      <section className="py-6 sm:py-8 md:py-12 bg-gradient-to-r from-sky-500 to-sky-600">
+        <div className="container mx-auto px-3 sm:px-4">
+          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-center text-white mb-2 md:mb-3">
             Explorez nos Destinations
           </h2>
-          <p className="text-center text-sky-100 mb-6 text-xs sm:text-sm max-w-2xl mx-auto">
+          <p className="text-center text-sky-100 mb-4 md:mb-6 text-xs sm:text-sm max-w-2xl mx-auto">
             Découvrez les opportunités d'études dans nos pays partenaires
           </p>
           
-          <div className="flex flex-wrap justify-center gap-2">
+          <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2 md:gap-3">
             {countries.map((country, index) => (
               <button
                 key={index}
                 onClick={() => handleDestinationClick(country.slug)}
-                className="bg-white/20 text-white px-3 sm:px-4 py-2 rounded-full font-medium backdrop-blur-sm hover:bg-white/30 transition-all duration-300 hover:scale-105 cursor-pointer border border-white/30 text-xs sm:text-sm group"
+                className="bg-white/20 text-white px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-full font-medium backdrop-blur-sm hover:bg-white/30 transition-all duration-300 hover:scale-105 cursor-pointer border border-white/30 text-xs sm:text-sm group"
               >
                 <span className="flex items-center gap-1">
                   {country.name}

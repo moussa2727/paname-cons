@@ -1,0 +1,10 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "backend/Dockerfile"
+
+[build.env]
+NODE_ENV = "production"
+
+[env]
+PORT = "10000"
+NODE_ENV = "production"

@@ -125,8 +125,6 @@ export class UsersController {
       );
     }
 
-    
-
     // Validation de l'email si fourni
     if (updateUserDto.email !== undefined) {
       if (updateUserDto.email.trim() === "") {

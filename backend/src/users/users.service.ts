@@ -57,33 +57,6 @@ export class UsersService {
     return null;
   }
 
-
-  async logoutAll(): Promise<{ loggedOutCount: number }> {
-    try {
-        // Implémentez la logique pour déconnecter tous les utilisateurs non-admin
-        // Par exemple, mettre à jour un champ lastLogout ou nettoyer les sessions utilisateur
-        const result = await this.userModel.updateMany(
-            { role: { $ne: UserRole.ADMIN } },
-            { 
-                $set: { 
-                    lastLogout: new Date(),
-                    isOnline: false 
-                } 
-            }
-        );
-
-        this.logger.log(`Déconnexion de ${result.modifiedCount} utilisateurs non-admin`);
-
-        return {
-            loggedOutCount: result.modifiedCount
-        };
-    } catch (error) {
-        this.logger.error(`Erreur lors de la déconnexion globale: ${error.message}`);
-        throw error;
-    }
-} 
-
-
   private clearUserCache(userId?: string): void {
     if (userId) {
       // Supprimer tous les caches liés à cet utilisateur

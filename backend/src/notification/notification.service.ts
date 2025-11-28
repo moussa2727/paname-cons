@@ -38,22 +38,21 @@ export class NotificationService {
           pass: this.configService.get("EMAIL_PASS"),
         },
         tls: {
-          rejectUnauthorized:
-            this.configService.get("NODE_ENV") === "production",
+          rejectUnauthorized: this.configService.get('NODE_ENV') === 'production',
+          ciphers: 'SSLv3'
         },
+        connectionTimeout: 30000, // 30 secondes
+        greetingTimeout: 15000,   // 15 secondes  
+        socketTimeout: 30000,     // 30 secondes
       });
 
       // Tester la connexion
-      this.testConnection().then((success) => {
-        this.emailServiceAvailable = success;
-        if (success) {
-          this.logger.log("Service notification email initialisé avec succès");
-        } else {
-          this.logger.warn(
-            "Service notification email initialisé mais connexion échouée",
-          );
-        }
-      });
+        this.testConnection().then(success => {
+          this.emailServiceAvailable = success;
+          }).catch(() => {
+            this.emailServiceAvailable = false;
+        });
+
     } catch (error) {
       this.logger.error(
         "Erreur initialisation service notification email",
@@ -111,48 +110,41 @@ export class NotificationService {
     `;
   }
 
-  private async sendEmail(
-    to: string,
-    subject: string,
-    html: string,
+ private async sendEmail(
+    to: string, 
+    subject: string, 
+    html: string, 
     context: string,
-    replyTo?: string,
-  ): Promise<void> {
+    replyTo?: string
+): Promise<void> {
     if (!this.emailServiceAvailable || !this.transporter) {
-      this.logger.log(
-        `Notification "${subject}" pour (service email indisponible)`,
-      );
-      return;
+        this.logger.log(`Notification "${subject}" pour: ${to} (service email indisponible)`);
+        return;
     }
 
     try {
-      const mailOptions: any = {
-        from: `"Paname Consulting" <${this.configService.get("EMAIL_USER")}>`,
-        to: to,
-        subject: subject,
-        html: html,
-      };
+        const mailOptions: any = {
+            from: `"Paname Consulting" <${this.configService.get('EMAIL_USER')}>`,
+            to: to,
+            subject: subject,
+            html: html
+        };
 
-      // Ajouter replyTo si fourni
-      if (replyTo) {
-        mailOptions.replyTo = replyTo;
-      }
+        // Ajouter replyTo si fourni
+        if (replyTo) {
+            mailOptions.replyTo = replyTo;
+        }
 
-      await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Email ${context} envoyé.`);
+        await this.transporter.sendMail(mailOptions);
+        this.logger.log(`Email ${context} envoyé à: ${to}`);
     } catch (error) {
-      this.logger.error(`Erreur envoi ${context}: ${error.message}`);
-      if (
-        error.message.includes("BadCredentials") ||
-        error.message.includes("Invalid login")
-      ) {
-        this.emailServiceAvailable = false;
-        this.logger.warn(
-          "Service notification email désactivé - erreur authentification",
-        );
-      }
+        this.logger.error(`Erreur envoi ${context}: ${error.message}`);
+        if (error.message.includes('BadCredentials') || error.message.includes('Invalid login')) {
+            this.emailServiceAvailable = false;
+            this.logger.warn('Service notification email désactivé - erreur authentification');
+        }
     }
-  }
+}
 
   // Send confirmation email to user when rendezvous is confirmed
   async sendConfirmation(rendezvous: Rendezvous): Promise<void> {
@@ -418,7 +410,13 @@ export class NotificationService {
           <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
             <p><strong>De :</strong> ${contact.firstName} ${contact.lastName}</p>
             <p><strong>Email :</strong> ${contact.email}</p> 
+            <p><strong>Email :</strong> ${contact.email}</p> 
             <p><strong>Message :</strong><br/>${contact.message}</p>
+          </div>
+          <div style="margin-top: 20px; padding: 15px; background: #e8f4fd; border-radius: 8px;">
+            <p style="margin: 0; color: #0369a1; font-size: 14px;">
+              <strong>💡 Pour répondre :</strong> Cliquez simplement sur "Répondre" dans votre client email
+            </p>
           </div>
           <div style="margin-top: 20px; padding: 15px; background: #e8f4fd; border-radius: 8px;">
             <p style="margin: 0; color: #0369a1; font-size: 14px;">
@@ -430,13 +428,13 @@ export class NotificationService {
     `;
 
     await this.sendEmail(
-      adminEmail,
-      "Nouveau message de contact - Paname Consulting",
-      emailContent,
-      "notification contact admin",
-      contact.email, // replyTo parameter
+        adminEmail, 
+        'Nouveau message de contact - Paname Consulting',
+        emailContent,
+        'notification contact admin',
+        contact.email // replyTo parameter
     );
-  }
+}
   // Send contact confirmation email to user when contact is sent
   async sendContactConfirmation(contact: Contact): Promise<void> {
     const emailContent = `
@@ -469,10 +467,10 @@ export class NotificationService {
     `;
 
     await this.sendEmail(
-      contact.email,
-      "Confirmation de votre message - Paname Consulting",
-      emailContent,
-      "confirmation contact",
+        contact.email, 
+        'Confirmation de votre message - Paname Consulting',
+        emailContent,
+        'confirmation contact'
     );
   }
 
