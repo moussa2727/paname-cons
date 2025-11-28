@@ -25,7 +25,7 @@
   <meta property="og:title" content="Paname Consulting - Services d'Accompagnement Étudiants, Organisation de Voyages d'Affaires et Demandes de Visa" />
   <meta property="og:description"
     content="Services professionnels d'accompagnement pour études à l'étranger, voyages d'affaires et démarches de visa" />
-  <meta property="og:image" content="/paname-consulting.png" />
+  <meta property="og:image" content="https://panameconsulting.vercel.app/paname-consulting.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Paname Consulting - Services d'Accompagnement Étudiants, Organisation de Voyages d'Affaires et Demandes de Visa" />
@@ -38,7 +38,7 @@
   <meta name="twitter:title" content="Paname Consulting - Services d'Accompagnement Étudiants, Organisation de Voyages d'Affaires et Demandes de Visa" />
   <meta name="twitter:description"
     content="Expert en accompagnement étudiant, voyages d'affaires et demandes de visa" />
-  <meta name="twitter:image" content="/paname-consulting.png" />
+  <meta name="twitter:image" content="https://panameconsulting.vercel.app/paname-consulting.png" />
   <meta name="twitter:image:alt" content="Paname Consulting - Votre partenaire international" />
 
   <!-- Favicons et icônes -->
@@ -47,9 +47,12 @@
   <link rel="apple-touch-icon" href="/paname-consulting.png" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#0ea5e9" />
+  
+  <!-- Préchargement et optimisation des polices -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="dns-prefetch" href="https://maps.googleapis.com" />
+  <link rel="dns-prefetch" href="https://panameconsulting.up.railway.app" />
 
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
@@ -57,63 +60,69 @@
   <noscript>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
   </noscript>
+
   <!-- Canonical URL -->
   <link rel="canonical" href="https://panameconsulting.vercel.app" />
 
   <!-- Resource Hints supplémentaires -->
-<link rel="dns-prefetch" href="https://panameconsulting.onrender.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link rel="dns-prefetch" href="https://panameconsulting.up.railway.app" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 
-  <!-- Structured Data JSON-LD -->
- <!-- Structured Data JSON-LD amélioré -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@graph": [
+  <!-- Structured Data JSON-LD amélioré -->
+  <script type="application/ld+json">
     {
-      "@type": "ProfessionalService",
-      "@id": "https://panameconsulting.vercel.app/#organization",
-      "name": "Paname Consulting",
-      "description": "Services d'accompagnement pour études à l'étranger, voyages d'affaires et demandes de visa",
-      "url": "https://panameconsulting.vercel.app",
-      "telephone": "+223-91-83-09-41",
-      "email": "panameconsulting906@gmail.com",
-      "address": {
-        "@type": "PostalAddress",
-        "streetAddress": "Kalaban Coura, Imm.Bore en face de l'hôtel Wassulu",
-        "addressLocality": "Bamako",
-        "addressCountry": "ML"
-      },
-      "openingHours": "Mo-Fr 09:00-18:00",
-      "serviceType": ["Student Counseling", "Visa Services", "Business Travel"],
-      "areaServed": ["ML", "FR", "CA", "US"],
-      "sameAs": [
-        "https://www.facebook.com/panameconsulting",
-        "https://www.linkedin.com/company/panameconsulting"
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "ProfessionalService",
+          "@id": "https://panameconsulting.vercel.app/#organization",
+          "name": "Paname Consulting",
+          "description": "Services d'accompagnement pour études à l'étranger, voyages d'affaires et demandes de visa",
+          "url": "https://panameconsulting.vercel.app",
+          "telephone": "+223-91-83-09-41",
+          "email": "panameconsulting906@gmail.com",
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "Kalaban Coura, Imm.Bore en face de l'hôtel Wassulu",
+            "addressLocality": "Bamako",
+            "addressCountry": "ML"
+          },
+          "openingHours": "Mo-Fr 09:00-18:00",
+          "serviceType": ["Student Counseling", "Visa Services", "Business Travel"],
+          "areaServed": ["ML", "FR", "CA", "US"],
+          "sameAs": [
+            "https://www.facebook.com/panameconsulting",
+            "https://www.linkedin.com/company/panameconsulting"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://panameconsulting.vercel.app/#website",
+          "url": "https://panameconsulting.vercel.app",
+          "name": "Paname Consulting",
+          "description": "Services d'accompagnement étudiant et professionnel à l'international",
+          "publisher": {
+            "@id": "https://panameconsulting.vercel.app/#organization"
+          }
+        }
       ]
-    },
-    {
-      "@type": "WebSite",
-      "@id": "https://panameconsulting.vercel.app/#website",
-      "url": "https://panameconsulting.vercel.app",
-      "name": "Paname Consulting",
-      "description": "Services d'accompagnement étudiant et professionnel à l'international",
-      "publisher": {
-        "@id": "https://panameconsulting.vercel.app/#organization"
-      }
     }
-  ]
-}
-</script>
+  </script>
 
   <!-- Sécurité et performances -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   <meta name="format-detection" content="telephone=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
+  <!-- Préchargement des ressources critiques -->
+  <link rel="preload" as="script" href="/src/main.jsx" />
+  <link rel="preload" as="image" href="/paname-consulting.png" />
 
-  <!-- Fallback CSS  -->
+  <!-- Fallback CSS optimisé -->
   <style>
+    /* Font fallback optimisé */
     @font-face {
       font-family: 'Inter Fallback';
       src: local('Arial');
@@ -123,11 +132,55 @@
       size-adjust: 107%;
     }
 
+    /* Styles de base optimisés */
     body {
       font-family: 'Inter Fallback', system-ui, -apple-system, sans-serif;
       margin: 0;
       padding: 0;
       background: #f8fafc;
+      line-height: 1.6;
+      color: #1e293b;
+    }
+
+    /* Amélioration du contraste pour l'accessibilité */
+    .noscript-message {
+      padding: 2rem;
+      text-align: center;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #ffffff;
+      border-radius: 8px;
+      margin: 2rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .noscript-message a {
+      color: #0ea5e9;
+      text-decoration: none;
+    }
+
+    .noscript-message a:hover {
+      text-decoration: underline;
+    }
+
+    /* Animation de chargement subtile */
+    #root:empty::before {
+      content: '';
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 40px;
+      height: 40px;
+      border: 3px solid #f3f4f6;
+      border-top: 3px solid #0ea5e9;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      z-index: 9999;
+    }
+
+    @keyframes spin {
+      0% { transform: translate(-50%, -50%) rotate(0deg); }
+      100% { transform: translate(-50%, -50%) rotate(360deg); }
     }
   </style>
 </head>
@@ -135,27 +188,64 @@
 <body class="antialiased">
   <div id="root"></div>
 
+  <!-- Script principal avec defer pour performance -->
   <script type="module" src="/src/main.jsx" defer></script>
 
-  <!-- Noscript Message -->
+  <!-- Noscript Message amélioré -->
   <noscript>
-    <div style="padding: 2rem; text-align: center; font-family: system-ui, sans-serif;">
-      <h1>JavaScript Requis</h1>
-      <p>Pour une expérience optimale sur notre site, veuillez activer JavaScript dans votre navigateur.</p>
-      <p>Contactez-nous directement :</p>
-      <p>
-        <strong>Téléphone :</strong> <a href="tel:+22391830941">+223 91 83 09 41</a><br>
-        <strong>Email :</strong> <a href="mailto:panameconsulting906@gmail.com">panameconsulting906@gmail.com</a>
+    <div class="noscript-message">
+      <h1 style="color: #1e293b; margin-bottom: 1rem;">JavaScript Requis</h1>
+      <p style="color: #475569; margin-bottom: 1.5rem;">
+        Pour une expérience optimale sur notre site, veuillez activer JavaScript dans votre navigateur.
       </p>
+      <p style="color: #475569; margin-bottom: 1.5rem;">Contactez-nous directement :</p>
+      <div style="color: #475569;">
+        <p style="margin: 0.5rem 0;">
+          <strong>📞 Téléphone :</strong> 
+          <a href="tel:+22391830941" style="color: #0ea5e9; text-decoration: none;">+223 91 83 09 41</a>
+        </p>
+        <p style="margin: 0.5rem 0;">
+          <strong>📧 Email :</strong> 
+          <a href="mailto:panameconsulting906@gmail.com" style="color: #0ea5e9; text-decoration: none;">
+            panameconsulting906@gmail.com
+          </a>
+        </p>
+        <p style="margin: 0.5rem 0;">
+          <strong>📍 Adresse :</strong> Kalaban Coura, Imm.Bore en face de l'hôtel Wassulu, Bamako, Mali
+        </p>
+      </div>
     </div>
-    <style>#root { display: none; }</style>
+    <style>
+      #root { display: none !important; }
+      body { background: #ffffff; }
+    </style>
   </noscript>
-  <!-- Fallback navigateurs anciens -->
+
+  <!-- Fallback navigateurs anciens avec meilleure UX -->
   <script>
+    // Vérification des fonctionnalités modernes
     if (!window.Promise || !window.fetch || !window.Symbol) {
       document.getElementById('root').innerHTML = 
-        '<div style="padding: 2rem; text-align: center; font-family: system-ui, sans-serif;"><p>Votre navigateur n\'est pas supporté. Veuillez le mettre à jour.</p></div>';
+        '<div class="noscript-message">' +
+          '<h2 style="color: #dc2626;">Navigateur non supporté</h2>' +
+          '<p>Votre navigateur est obsolète et ne supporte pas les fonctionnalités nécessaires.</p>' +
+          '<p>Veuillez mettre à jour votre navigateur ou utiliser une version récente de Chrome, Firefox, Safari ou Edge.</p>' +
+        '</div>';
     }
+
+    // Gestion des erreurs de chargement globales
+    window.addEventListener('error', function(e) {
+      console.error('Erreur globale:', e.error);
+    });
+
+    // Amélioration du temps perçu de chargement
+    window.addEventListener('load', function() {
+      // Masquer l'animation de chargement une fois l'app chargée
+      const root = document.getElementById('root');
+      if (root && root.children.length > 0) {
+        document.body.style.overflow = 'auto';
+      }
+    });
   </script>
 </body>
 </html>
