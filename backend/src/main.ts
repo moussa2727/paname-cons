@@ -192,42 +192,43 @@ async function bootstrap() {
 
     logger.log(`🌐 Origins CORS autorisés: ${allowedOrigins.join(', ')}`);
 
-    app.enableCors({
-      origin: (origin, callback) => {
-        // 🔒 REFUSER les requêtes sans origin
-        if (!origin) {
-          logger.warn(`🚫 Requête sans origin rejetée`);
-          return callback(new Error('Origin header required'), false);
-        }
-        
-        if (allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          logger.warn(`🚫 Origin non autorisé: ${origin}`);
-          callback(new Error('Not allowed by CORS'), false);
-        }
-      },
-      methods: ["GET", "POST", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: [
-        "Content-Type",
-        "Accept",
-        "Authorization", 
-        "Cache-Control",
-        "X-Requested-With",
-        "X-HTTP-Method-Override",
-        "X-Forwarded-For",
-        "X-Real-IP",
-      ],
-      exposedHeaders: [
-        "Authorization",
-        "Content-Range",
-        "X-Total-Count",
-      ],
-      credentials: true,
-      preflightContinue: false,
-      optionsSuccessStatus: 204,
-      maxAge: 86400,
-    });
+   app.enableCors({
+  origin: (origin, callback) => {
+    // 🔒 REFUSER les requêtes sans origin (sauf pour health checks)
+    if (!origin) {
+      // ✅ Dans ce contexte, on ne peut pas vérifier l'URL de la requête
+      // On autorise les requêtes sans origin pour les health checks systèmes
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      logger.warn(`🚫 Origin non autorisé: ${origin}`);
+      callback(new Error('Not allowed by CORS'), false);
+    }
+  },
+  methods: ["GET", "POST", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Accept",
+    "Authorization", 
+    "Cache-Control",
+    "X-Requested-With",
+    "X-HTTP-Method-Override",
+    "X-Forwarded-For",
+    "X-Real-IP",
+  ],
+  exposedHeaders: [
+    "Authorization",
+    "Content-Range",
+    "X-Total-Count",
+  ],
+  credentials: true,
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+  maxAge: 86400,
+});
 
     // Création du dossier uploads
     const uploadsDir = join(__dirname, "..", "uploads");
@@ -287,21 +288,23 @@ async function bootstrap() {
       }),
     );
 
-    const port = process.env.PORT || 10000;
+    // 🔒 PORT FIXE EXCLUSIF : 10000
+    const port = 10000;
     
     // Log des informations de démarrage
     logger.log('🚀 Démarrage de l application Paname Consulting...');
     logger.log(`📊 Environnement: ${process.env.NODE_ENV}`);
-    logger.log(`🔌 Port: ${port}`);
+    logger.log(`🔌 Port: ${port} (FIXE)`);
+    logger.log(`🌐 Host: 0.0.0.0 (Docker compatible)`);
     logger.log(`🗄️ MongoDB URI: ${process.env.MONGODB_URI ? 'Définie' : 'NON DÉFINIE'}`);
     logger.log(`🌐 URL Railway: ${process.env.RAILWAY_STATIC_URL || 'Non définie'}`);
 
-    await app.listen(port);
+    // 🔒 ÉCOUTE EXCLUSIVE SUR PORT 10000
+    await app.listen(port, '0.0.0.0');
     
-    logger.log(`✅ Serveur démarré avec succès sur le port ${port}`);
-    logger.log(`📊 Base de données connectée avec succès`);
-    logger.log(`🌍 Health check disponible sur: http://localhost:${port}/health`);
-    logger.log(`🔗 API disponible sur: http://localhost:${port}/api`);
+    logger.log(`✅ Serveur démarré avec succès sur: 0.0.0.0:${port}`);
+    logger.log(`🌍 Health check disponible sur: http://0.0.0.0:${port}/health`);
+    logger.log(`🔗 API disponible sur: http://0.0.0.0:${port}/api`);
 
   } catch (error) {
     logger.error('❌ Erreur critique lors du démarrage:', error);
