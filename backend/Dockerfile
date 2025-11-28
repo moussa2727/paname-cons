@@ -11,9 +11,8 @@ COPY backend/ ./
 # Installation
 RUN pnpm install --frozen-lockfile --prefer-offline
 
-# Construction forcée avec configuration modifiée
-RUN sed -i 's/"skipLibCheck": false/"skipLibCheck": true/g' tsconfig.json || true
-RUN npx nest build --tsc-skip-lib-check
+# Construction (le skipLibCheck est déjà dans tsconfig.json)
+RUN npx nest build
 
 # ============ ÉTAPE DE PRODUCTION ============
 FROM node:18-alpine AS production
