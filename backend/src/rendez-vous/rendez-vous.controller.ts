@@ -32,7 +32,7 @@ export class RendezvousController {
   create(@Body() createDto: CreateRendezvousDto, @Req() req: any) {
     const maskedEmail = this.maskEmail(req.user?.email);
     this.logger.log(`Création rendez-vous par: ${maskedEmail}`);
-    
+
     return this.rendezvousService.create(createDto);
   }
 
@@ -48,8 +48,10 @@ export class RendezvousController {
     @Query("search") search?: string,
   ) {
     const maskedEmail = this.maskEmail(req.user?.email);
-    this.logger.log(`Liste rendez-vous admin - Page: ${page}, Limit: ${limit}, Filtres: ${JSON.stringify({ status, date, search: search ? 'avec recherche' : 'sans recherche' })} par: ${maskedEmail}`);
-    
+    this.logger.log(
+      `Liste rendez-vous admin - Page: ${page}, Limit: ${limit}, Filtres: ${JSON.stringify({ status, date, search: search ? "avec recherche" : "sans recherche" })} par: ${maskedEmail}`,
+    );
+
     return this.rendezvousService.findAll(page, limit, status, date, search);
   }
 
@@ -62,26 +64,28 @@ export class RendezvousController {
     @Query("status") status?: string,
   ) {
     const maskedEmail = this.maskEmail(email);
-    this.logger.log(`Liste rendez-vous utilisateur - Email: ${maskedEmail}, Page: ${page}, Limit: ${limit}, Statut: ${status || 'tous'}`);
-    
+    this.logger.log(
+      `Liste rendez-vous utilisateur - Email: ${maskedEmail}, Page: ${page}, Limit: ${limit}, Statut: ${status || "tous"}`,
+    );
+
     return this.rendezvousService.findByUser(email, page, limit, status);
   }
 
   @Get("available-slots")
   getAvailableSlots(@Query("date") date: string) {
     this.logger.log(`Récupération créneaux disponibles pour: ${date}`);
-    
+
     return this.rendezvousService.getAvailableSlots(date);
   }
 
   @Get("available-dates")
   async getAvailableDates() {
     this.logger.log("Récupération dates disponibles");
-    
+
     const dates = await this.rendezvousService.getAvailableDates();
-    
+
     this.logger.log(`Dates disponibles récupérées: ${dates.length} dates`);
-    
+
     return dates;
   }
 
@@ -91,14 +95,14 @@ export class RendezvousController {
     if (id === "stats") {
       throw new BadRequestException("Invalid rendezvous ID");
     }
-    
+
     const maskedId = this.maskId(id);
     this.logger.log(`Consultation rendez-vous: ${maskedId}`);
-    
+
     const rendezvous = await this.rendezvousService.findOne(id);
-    
+
     this.logger.log(`Rendez-vous consulté: ${maskedId}`);
-    
+
     return rendezvous;
   }
 
@@ -111,8 +115,10 @@ export class RendezvousController {
   ) {
     const maskedId = this.maskId(id);
     const maskedEmail = this.maskEmail(req.user?.email);
-    this.logger.log(`Modification rendez-vous: ${maskedId} par: ${maskedEmail}`);
-    
+    this.logger.log(
+      `Modification rendez-vous: ${maskedId} par: ${maskedEmail}`,
+    );
+
     return this.rendezvousService.update(id, updateDto, req.user);
   }
 
@@ -127,14 +133,11 @@ export class RendezvousController {
   ) {
     const maskedId = this.maskId(id);
     const maskedEmail = this.maskEmail(req?.user?.email);
-    this.logger.log(`Changement statut rendez-vous: ${maskedId} - Nouveau statut: ${status} par: ${maskedEmail}`);
-    
-    return this.rendezvousService.updateStatus(
-      id,
-      status,
-      avisAdmin,
-      req.user,
+    this.logger.log(
+      `Changement statut rendez-vous: ${maskedId} - Nouveau statut: ${status} par: ${maskedEmail}`,
     );
+
+    return this.rendezvousService.updateStatus(id, status, avisAdmin, req.user);
   }
 
   @Delete(":id")
@@ -143,7 +146,7 @@ export class RendezvousController {
     const maskedId = this.maskId(id);
     const maskedEmail = this.maskEmail(req.user?.email);
     this.logger.log(`Suppression rendez-vous: ${maskedId} par: ${maskedEmail}`);
-    
+
     return this.rendezvousService.removeWithPolicy(id, req.user);
   }
 
@@ -152,8 +155,10 @@ export class RendezvousController {
   async confirmRendezvous(@Param("id") id: string, @Req() req: any) {
     const maskedId = this.maskId(id);
     const maskedEmail = this.maskEmail(req.user?.email);
-    this.logger.log(`Confirmation rendez-vous: ${maskedId} par: ${maskedEmail}`);
-    
+    this.logger.log(
+      `Confirmation rendez-vous: ${maskedId} par: ${maskedEmail}`,
+    );
+
     return this.rendezvousService.confirmByUser(id, req.user);
   }
 

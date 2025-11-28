@@ -18,7 +18,7 @@ export class RefreshTokenService {
     expiresAt: Date,
   ): Promise<RefreshToken> {
     this.logger.log(`Creating refresh token for user ${userId}`);
-    
+
     const refreshToken = await this.refreshTokenModel.create({
       user: userId,
       token,
@@ -32,17 +32,19 @@ export class RefreshTokenService {
 
   async deactivateAllForUser(userId: string): Promise<void> {
     this.logger.log(`Deactivating all refresh tokens for user ${userId}`);
-    
+
     const result = await this.refreshTokenModel
       .updateMany({ user: userId }, { isActive: false })
       .exec();
 
-    this.logger.log(`Deactivated ${result.modifiedCount} refresh tokens for user ${userId}`);
+    this.logger.log(
+      `Deactivated ${result.modifiedCount} refresh tokens for user ${userId}`,
+    );
   }
 
   async isValid(token: string): Promise<boolean> {
     this.logger.debug(`Validating refresh token: ${token.substring(0, 10)}...`);
-    
+
     const doc = await this.refreshTokenModel
       .findOne({
         token,
@@ -53,41 +55,53 @@ export class RefreshTokenService {
 
     const isValid = !!doc;
     this.logger.debug(`Refresh token validation result: ${isValid}`);
-    
+
     return isValid;
   }
 
   async deactivateByToken(token: string): Promise<void> {
     this.logger.log(`Deactivating refresh token: ${token.substring(0, 10)}...`);
-    
+
     const result = await this.refreshTokenModel
       .updateOne({ token }, { isActive: false })
       .exec();
 
     if (result.modifiedCount > 0) {
-      this.logger.log(`Successfully deactivated refresh token: ${token.substring(0, 10)}...`);
+      this.logger.log(
+        `Successfully deactivated refresh token: ${token.substring(0, 10)}...`,
+      );
     } else {
-      this.logger.warn(`No refresh token found to deactivate: ${token.substring(0, 10)}...`);
+      this.logger.warn(
+        `No refresh token found to deactivate: ${token.substring(0, 10)}...`,
+      );
     }
   }
 
   async deleteByToken(token: string): Promise<void> {
     this.logger.log(`Deleting refresh token: ${token.substring(0, 10)}...`);
-    
+
     const result = await this.refreshTokenModel.deleteOne({ token }).exec();
 
     if (result.deletedCount > 0) {
-      this.logger.log(`Successfully deleted refresh token: ${token.substring(0, 10)}...`);
+      this.logger.log(
+        `Successfully deleted refresh token: ${token.substring(0, 10)}...`,
+      );
     } else {
-      this.logger.warn(`No refresh token found to delete: ${token.substring(0, 10)}...`);
+      this.logger.warn(
+        `No refresh token found to delete: ${token.substring(0, 10)}...`,
+      );
     }
   }
 
   async deleteAllForUser(userId: string): Promise<void> {
     this.logger.log(`Deleting all refresh tokens for user ${userId}`);
-    
-    const result = await this.refreshTokenModel.deleteMany({ user: userId }).exec();
 
-    this.logger.log(`Deleted ${result.deletedCount} refresh tokens for user ${userId}`);
+    const result = await this.refreshTokenModel
+      .deleteMany({ user: userId })
+      .exec();
+
+    this.logger.log(
+      `Deleted ${result.deletedCount} refresh tokens for user ${userId}`,
+    );
   }
 }

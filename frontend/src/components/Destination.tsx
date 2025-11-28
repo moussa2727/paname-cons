@@ -48,7 +48,7 @@ const defaultDestinations: Destination[] = [
   }
 ];
 
-const VITE_API_URL = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:3000';
+const VITE_API_URL = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:10000';
 
 const Destination = () => {
   const [destinations, setDestinations] = useState<Destination[]>(defaultDestinations);
@@ -79,21 +79,26 @@ const Destination = () => {
 };
 
 
-  const fetchDestinations = async () => {
+const fetchDestinations = async () => {
   try {
     setLoading(true);
     const response = await fetch(`${VITE_API_URL}/api/destinations`, {
-      credentials: 'include',
-      headers: { Accept: 'application/json' }
+      method: 'GET',
+      headers: { 
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+      // ✅ Pas de credentials pour les routes publiques
     });
 
     if (!response.ok) {
+      console.warn('Failed to fetch destinations:', response.status);
+      setDestinations(defaultDestinations);
       return;
     }
 
     const result = await response.json();
     
-    // Utiliser les données du serveur si disponibles
     if (result?.data && result.data.length > 0) {
       setDestinations(
         result.data.map((dest: any) => ({
@@ -102,11 +107,11 @@ const Destination = () => {
         }))
       );
     } else {
-      // Si aucune donnée, utiliser les valeurs par défaut
       setDestinations(defaultDestinations);
     }
   } catch (err) {
-    // Silently fallback to default data on error
+    console.warn('Network error, using default destinations');
+    setDestinations(defaultDestinations);
   } finally {
     setLoading(false);
   }

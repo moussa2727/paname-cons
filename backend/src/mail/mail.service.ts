@@ -12,93 +12,100 @@ export class MailService {
     this.initializeTransporter();
   }
 
- // Updated initializeTransporter() method for both services
-private initializeTransporter() {
-  if (
-    !this.configService.get('EMAIL_HOST') ||
-    !this.configService.get('EMAIL_USER') ||
-    !this.configService.get('EMAIL_PASS')
-  ) {
-    this.logger.warn('Configuration email incomplète - service email désactivé');
-    this.emailServiceAvailable = false;
-    return;
+  // Updated initializeTransporter() method for both services
+  private initializeTransporter() {
+    if (
+      !this.configService.get("EMAIL_HOST") ||
+      !this.configService.get("EMAIL_USER") ||
+      !this.configService.get("EMAIL_PASS")
+    ) {
+      this.logger.warn(
+        "Configuration email incomplète - service email désactivé",
+      );
+      this.emailServiceAvailable = false;
+      return;
+    }
+
+    try {
+      const isProduction = this.configService.get("NODE_ENV") === "production";
+      const port = this.configService.get("EMAIL_PORT") || 587;
+      const isSecure = this.configService.get("EMAIL_SECURE") === "true";
+
+      this.transporter = nodemailer.createTransport({
+        host: this.configService.get("EMAIL_HOST"),
+        port: port,
+        secure: isSecure, // true for 465, false for other ports
+        auth: {
+          user: this.configService.get("EMAIL_USER"),
+          pass: this.configService.get("EMAIL_PASS"),
+        },
+        // Remove SSLv3 cipher - use modern TLS instead
+        tls: {
+          rejectUnauthorized: isProduction,
+          // Let the system negotiate the best available cipher
+          minVersion: "TLSv1.2",
+        },
+        // Connection pooling
+        pool: true,
+        maxConnections: 5,
+        maxMessages: 100,
+
+        // Timeout configurations
+        connectionTimeout: 30000, // 30 seconds
+        greetingTimeout: 15000, // 15 seconds
+        socketTimeout: 45000, // 45 seconds (increased)
+
+        // Logging for debugging (remove in production)
+        logger: !isProduction,
+        debug: !isProduction,
+      });
+
+      // Single connection test with proper error handling
+      this.verifyConnection();
+    } catch (error) {
+      this.logger.error("Erreur initialisation service email", error.stack);
+      this.emailServiceAvailable = false;
+    }
   }
 
-  try {
-    const isProduction = this.configService.get('NODE_ENV') === 'production';
-    const port = this.configService.get('EMAIL_PORT') || 587;
-    const isSecure = this.configService.get('EMAIL_SECURE') === 'true';
+  // Separated verification method to avoid multiple calls
+  private async verifyConnection(): Promise<void> {
+    if (!this.transporter) {
+      this.emailServiceAvailable = false;
+      return;
+    }
 
-    this.transporter = nodemailer.createTransport({
-      host: this.configService.get('EMAIL_HOST'),
-      port: port,
-      secure: isSecure, // true for 465, false for other ports
-      auth: {
-        user: this.configService.get('EMAIL_USER'),
-        pass: this.configService.get('EMAIL_PASS'),
-      },
-      // Remove SSLv3 cipher - use modern TLS instead
-      tls: {
-        rejectUnauthorized: isProduction,
-        // Let the system negotiate the best available cipher
-        minVersion: 'TLSv1.2',
-      },
-      // Connection pooling
-      pool: true,
-      maxConnections: 5,
-      maxMessages: 100,
-      
-      // Timeout configurations
-      connectionTimeout: 30000,  // 30 seconds
-      greetingTimeout: 15000,    // 15 seconds
-      socketTimeout: 45000,      // 45 seconds (increased)
-      
-      // Logging for debugging (remove in production)
-      logger: !isProduction,
-      debug: !isProduction,
-    });
+    try {
+      await this.transporter.verify();
+      this.emailServiceAvailable = true;
+      this.logger.log("✓ Service email initialisé avec succès");
+    } catch (error) {
+      this.emailServiceAvailable = false;
+      this.logger.error(
+        `✗ Test connexion service email échoué: ${error.message}`,
+      );
 
-    // Single connection test with proper error handling
-    this.verifyConnection();
-
-  } catch (error) {
-    this.logger.error('Erreur initialisation service email', error.stack);
-    this.emailServiceAvailable = false;
-  }
-}
-
-// Separated verification method to avoid multiple calls
-private async verifyConnection(): Promise<void> {
-  if (!this.transporter) {
-    this.emailServiceAvailable = false;
-    return;
+      // Provide helpful debugging info
+      this.logger.debug(
+        `Configuration: ${this.configService.get("EMAIL_HOST")}:${this.configService.get("EMAIL_PORT")}`,
+      );
+    }
   }
 
-  try {
-    await this.transporter.verify();
-    this.emailServiceAvailable = true;
-    this.logger.log('✓ Service email initialisé avec succès');
-  } catch (error) {
-    this.emailServiceAvailable = false;
-    this.logger.error(`✗ Test connexion service email échoué: ${error.message}`);
-    
-    // Provide helpful debugging info
-    this.logger.debug(`Configuration: ${this.configService.get('EMAIL_HOST')}:${this.configService.get('EMAIL_PORT')}`);
+  // Optional: Add a method to retry connection
+  async retryConnection(): Promise<boolean> {
+    this.logger.log("Tentative de reconnexion au service email...");
+    await this.verifyConnection();
+    return this.emailServiceAvailable;
   }
-}
-
-// Optional: Add a method to retry connection
-async retryConnection(): Promise<boolean> {
-  this.logger.log('Tentative de reconnexion au service email...');
-  await this.verifyConnection();
-  return this.emailServiceAvailable;
-}
 
   async sendPasswordResetEmail(email: string, resetUrl: string): Promise<void> {
     const maskedEmail = this.maskEmail(email);
 
     if (!this.emailServiceAvailable || !this.transporter) {
-      this.logger.log(`Envoi lien réinitialisation à: ${maskedEmail} (service email indisponible)`);
+      this.logger.log(
+        `Envoi lien réinitialisation à: ${maskedEmail} (service email indisponible)`,
+      );
       return;
     }
 
@@ -146,8 +153,10 @@ async retryConnection(): Promise<boolean> {
       await this.transporter.sendMail(mailOptions);
       this.logger.log(`Email réinitialisation envoyé à: ${maskedEmail}`);
     } catch (error) {
-      this.logger.error(`Erreur envoi email réinitialisation: ${error.message}`);
-      
+      this.logger.error(
+        `Erreur envoi email réinitialisation: ${error.message}`,
+      );
+
       if (
         error.message.includes("BadCredentials") ||
         error.message.includes("Invalid login")
@@ -162,7 +171,9 @@ async retryConnection(): Promise<boolean> {
     const maskedEmail = this.maskEmail(email);
 
     if (!this.emailServiceAvailable || !this.transporter) {
-      this.logger.log(`Email bienvenue pour: ${maskedEmail} (service email indisponible)`);
+      this.logger.log(
+        `Email bienvenue pour: ${maskedEmail} (service email indisponible)`,
+      );
       return;
     }
 
@@ -206,8 +217,8 @@ async retryConnection(): Promise<boolean> {
   }
 
   private maskEmail(email: string): string {
-    if (!email || !email.includes('@')) return '***@***';
-    const [name, domain] = email.split('@');
+    if (!email || !email.includes("@")) return "***@***";
+    const [name, domain] = email.split("@");
     if (name.length <= 2) return `***@${domain}`;
     return `${name.substring(0, 2)}***@${domain}`;
   }

@@ -15,11 +15,18 @@ export class CleanupService {
   @Cron(CronExpression.EVERY_HOUR)
   async handleCleanupExpiredSessions() {
     try {
-      this.logger.log("🔄 Début du nettoyage automatique des sessions expirées");
+      this.logger.log(
+        "🔄 Début du nettoyage automatique des sessions expirées",
+      );
       await this.authService.cleanupExpiredSessions();
-      this.logger.log("✅ Nettoyage automatique des sessions terminé avec succès");
+      this.logger.log(
+        "✅ Nettoyage automatique des sessions terminé avec succès",
+      );
     } catch (error) {
-      this.logger.error(`❌ Erreur lors du nettoyage automatique des sessions: ${error.message}`, error.stack);
+      this.logger.error(
+        `❌ Erreur lors du nettoyage automatique des sessions: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -28,9 +35,14 @@ export class CleanupService {
     try {
       this.logger.log("🌅 Début du nettoyage quotidien des sessions");
       await this.authService.cleanupExpiredSessions();
-      this.logger.log("✅ Nettoyage quotidien des sessions terminé avec succès");
+      this.logger.log(
+        "✅ Nettoyage quotidien des sessions terminé avec succès",
+      );
     } catch (error) {
-      this.logger.error(`❌ Erreur lors du nettoyage quotidien des sessions: ${error.message}`, error.stack);
+      this.logger.error(
+        `❌ Erreur lors du nettoyage quotidien des sessions: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -39,9 +51,14 @@ export class CleanupService {
     try {
       this.logger.log("🧹 Début du nettoyage des tokens révoqués expirés");
       await this.revokedToken.cleanupExpiredTokens();
-      this.logger.log("✅ Nettoyage des tokens révoqués expirés terminé avec succès");
+      this.logger.log(
+        "✅ Nettoyage des tokens révoqués expirés terminé avec succès",
+      );
     } catch (error) {
-      this.logger.error(`❌ Erreur lors du nettoyage des tokens révoqués: ${error.message}`, error.stack);
+      this.logger.error(
+        `❌ Erreur lors du nettoyage des tokens révoqués: ${error.message}`,
+        error.stack,
+      );
     }
   }
 }

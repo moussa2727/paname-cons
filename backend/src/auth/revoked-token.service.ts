@@ -17,7 +17,7 @@ export class RevokedTokenService {
   async revokeToken(token: string, expiresAt: Date): Promise<void> {
     try {
       this.logger.log(`Revoking token for user`);
-      
+
       const decoded = this.jwtService.decode(token) as any;
       const userId = decoded?.sub;
 
@@ -35,16 +35,19 @@ export class RevokedTokenService {
         this.logger.debug(`Token was already revoked for user ${userId}`);
       }
     } catch (error) {
-      this.logger.error(`Erreur revocation token: ${error.message}`, error.stack);
+      this.logger.error(
+        `Erreur revocation token: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
   async isTokenRevoked(token: string): Promise<boolean> {
     this.logger.debug(`Checking if token is revoked`);
-    
+
     const found = await this.revokedTokenModel.findOne({ token }).exec();
     const isRevoked = !!found;
-    
+
     this.logger.debug(`Token revocation check result: ${isRevoked}`);
     return isRevoked;
   }
@@ -54,12 +57,16 @@ export class RevokedTokenService {
     message: string;
     revokedCount: number;
   }> {
-    this.logger.warn(`Revoking ALL tokens - this will clear the entire revoked tokens collection`);
-    
+    this.logger.warn(
+      `Revoking ALL tokens - this will clear the entire revoked tokens collection`,
+    );
+
     const result = await this.revokedTokenModel.deleteMany({}).exec();
-    
-    this.logger.log(`Successfully revoked all tokens: ${result.deletedCount} tokens removed`);
-    
+
+    this.logger.log(
+      `Successfully revoked all tokens: ${result.deletedCount} tokens removed`,
+    );
+
     return {
       message: `${result.deletedCount} tokens révoqués`,
       revokedCount: result.deletedCount,
@@ -68,7 +75,7 @@ export class RevokedTokenService {
 
   async cleanupExpiredTokens(): Promise<void> {
     this.logger.log(`Cleaning up expired revoked tokens`);
-    
+
     const result = await this.revokedTokenModel
       .deleteMany({
         expiresAt: { $lt: new Date() },
@@ -80,9 +87,9 @@ export class RevokedTokenService {
 
   async revokeTokensForUser(userId: string): Promise<void> {
     this.logger.log(`Revoking all tokens for user ${userId}`);
-    
+
     const result = await this.revokedTokenModel.deleteMany({ userId }).exec();
-    
+
     this.logger.log(`Revoked ${result.deletedCount} tokens for user ${userId}`);
   }
 }

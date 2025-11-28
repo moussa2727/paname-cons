@@ -8,6 +8,7 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "dev": "nest start --watch --verbose",
+    "start:prod": "node dist/main.js",
     "debug": "nest start --debug --watch",
     "test": "jest",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",

@@ -16,16 +16,22 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
 
   async validate(email: string, password: string): Promise<any> {
     try {
-      this.logger.log(`Attempting local authentication for email: ${this.maskEmail(email)}`);
+      this.logger.log(
+        `Attempting local authentication for email: ${this.maskEmail(email)}`,
+      );
 
       const user = await this.authService.validateUser(email, password);
 
       if (!user) {
-        this.logger.warn(`Authentication failed for email: ${this.maskEmail(email)}`);
+        this.logger.warn(
+          `Authentication failed for email: ${this.maskEmail(email)}`,
+        );
         throw new UnauthorizedException("Email ou mot de passe incorrect");
       }
 
-      this.logger.log(`Local authentication successful for user: ${user.email}`);
+      this.logger.log(
+        `Local authentication successful for user: ${user.email}`,
+      );
       return user;
     } catch (error) {
       // 🚨 PROPAGER LES ERREURS SPÉCIFIQUES COMME "COMPTE_DESACTIVE"
@@ -35,15 +41,18 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
       }
 
       // ✅ AJOUTER UN LOG POUR DIAGNOSTIQUER
-      this.logger.error(`LocalStrategy error for ${this.maskEmail(email)}: ${error.message}`, error.stack);
+      this.logger.error(
+        `LocalStrategy error for ${this.maskEmail(email)}: ${error.message}`,
+        error.stack,
+      );
 
       throw error;
     }
   }
 
   private maskEmail(email: string): string {
-    if (!email || !email.includes('@')) return '***@***';
-    const [name, domain] = email.split('@');
+    if (!email || !email.includes("@")) return "***@***";
+    const [name, domain] = email.split("@");
     if (name.length <= 2) return `***@${domain}`;
     return `${name.substring(0, 2)}***@${domain}`;
   }

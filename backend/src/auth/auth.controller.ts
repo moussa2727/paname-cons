@@ -46,38 +46,42 @@ export class AuthController {
   // ==================== 🔐 ENDPOINTS D'AUTHENTIFICATION ====================
 
   private getCookieOptions(req?: any): any {
-  const isProduction = process.env.NODE_ENV === 'production';
-                     req?.headers?.origin?.includes('localhost');
-  
-  // Pour Railway + Vercel, utiliser cette configuration
-  if (isProduction) {
+    const isProduction = process.env.NODE_ENV === "production";
+    req?.headers?.origin?.includes("localhost");
+
+    // Pour Railway + Vercel, utiliser cette configuration
+    if (isProduction) {
+      return {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none", // Important pour cross-domain
+        path: "/",
+        // ⚠️ NE PAS spécifier de domaine pour cross-domain
+      };
+    }
+
     return {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none', // Important pour cross-domain
-      path: '/',
-      // ⚠️ NE PAS spécifier de domaine pour cross-domain
+      secure: false,
+      sameSite: "lax",
+      path: "/",
     };
   }
-
-  return {
-    httpOnly: true,
-    secure: false,
-    sameSite: 'lax',
-    path: '/',
-  };
-}
 
   @Post("login")
   @UseGuards(ThrottleGuard, LocalAuthGuard)
   @ApiOperation({ summary: "Connexion utilisateur" })
   @ApiResponse({ status: 200, description: "Connexion réussie" })
   @ApiResponse({ status: 401, description: "Identifiants invalides" })
-  async login(@Body() loginDto: LoginDto, @Request() req: { user: any }, @Res() res: Response) {
+  async login(
+    @Body() loginDto: LoginDto,
+    @Request() req: { user: any },
+    @Res() res: Response,
+  ) {
     this.logger.log(`🔐 Tentative de connexion pour: ${loginDto.email}`);
-    
+
     const result = await this.authService.login(req.user);
-    
+
     const cookieOptions = this.getCookieOptions(req);
 
     res.cookie("refresh_token", result.refreshToken, {
@@ -171,7 +175,6 @@ export class AuthController {
         message: "Tokens rafraîchis avec succès",
         expiresIn: 15 * 60,
       });
-
     } catch (error: any) {
       this.logger.error(`❌ Erreur rafraîchissement: ${error.message}`);
       this.clearAuthCookies(res);
@@ -229,9 +232,10 @@ export class AuthController {
         },
         message: "Inscription réussie",
       });
-
     } catch (error: any) {
-      this.logger.error(`❌ Erreur inscription pour ${registerDto.email}: ${error.message}`);
+      this.logger.error(
+        `❌ Erreur inscription pour ${registerDto.email}: ${error.message}`,
+      );
 
       if (error instanceof BadRequestException) {
         throw error;
@@ -269,12 +273,16 @@ export class AuthController {
   @ApiOperation({ summary: "Déconnexion de tous les utilisateurs non-admin" })
   async logoutAll(@Request() req: any, @Res() res: Response) {
     const currentAdmin = req.user;
-    this.logger.log(`🛡️ Admin initie une déconnexion globale: ${currentAdmin.email}`);
+    this.logger.log(
+      `🛡️ Admin initie une déconnexion globale: ${currentAdmin.email}`,
+    );
 
     try {
       const result = await this.authService.logoutAll();
 
-      this.logger.log(`✅ Déconnexion globale réussie: ${result.loggedOutCount} utilisateurs déconnectés`);
+      this.logger.log(
+        `✅ Déconnexion globale réussie: ${result.loggedOutCount} utilisateurs déconnectés`,
+      );
 
       return res.json({
         success: true,
@@ -306,7 +314,9 @@ export class AuthController {
       throw new BadRequestException("ID utilisateur manquant dans le token");
     }
 
-    this.logger.log(`📋 Récupération du profil pour l'utilisateur ID: ${userId}`);
+    this.logger.log(
+      `📋 Récupération du profil pour l'utilisateur ID: ${userId}`,
+    );
 
     try {
       const user = await this.authService.getProfile(userId);
@@ -324,7 +334,9 @@ export class AuthController {
         isActive: user.isActive,
       };
     } catch (error: any) {
-      this.logger.error(`❌ Erreur récupération profil pour ID ${userId}: ${error.message}`);
+      this.logger.error(
+        `❌ Erreur récupération profil pour ID ${userId}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -343,7 +355,9 @@ export class AuthController {
   ) {
     const userId = req.user?.sub || req.user?.userId;
 
-    this.logger.log(`🔑 Mise à jour mot de passe pour l'utilisateur ID: ${userId}`);
+    this.logger.log(
+      `🔑 Mise à jour mot de passe pour l'utilisateur ID: ${userId}`,
+    );
 
     if (body.newPassword !== body.confirmNewPassword) {
       this.logger.warn("❌ Les mots de passe ne correspondent pas");
@@ -356,7 +370,9 @@ export class AuthController {
       confirmNewPassword: body.confirmNewPassword,
     });
 
-    this.logger.log(`✅ Mot de passe mis à jour avec succès pour l'utilisateur ID: ${userId}`);
+    this.logger.log(
+      `✅ Mot de passe mis à jour avec succès pour l'utilisateur ID: ${userId}`,
+    );
 
     return { message: "Mot de passe mis à jour avec succès" };
   }
@@ -364,14 +380,19 @@ export class AuthController {
   @Post("forgot-password")
   @ApiOperation({ summary: "Demande de réinitialisation de mot de passe" })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
-    this.logger.log(`📧 Demande de réinitialisation pour: ${forgotPasswordDto.email}`);
+    this.logger.log(
+      `📧 Demande de réinitialisation pour: ${forgotPasswordDto.email}`,
+    );
 
     await this.authService.sendPasswordResetEmail(forgotPasswordDto.email);
 
-    this.logger.log(`✅ Email de réinitialisation envoyé à: ${forgotPasswordDto.email}`);
+    this.logger.log(
+      `✅ Email de réinitialisation envoyé à: ${forgotPasswordDto.email}`,
+    );
 
     return {
-      message: "Si votre email est enregistré, vous recevrez un lien de réinitialisation",
+      message:
+        "Si votre email est enregistré, vous recevrez un lien de réinitialisation",
     };
   }
 
@@ -393,26 +414,26 @@ export class AuthController {
   // ==================== 🔧 MÉTHODES UTILITAIRES PRIVÉES ====================
 
   private clearAuthCookies(res: Response): void {
-    const isProduction = process.env.NODE_ENV === 'production';
-    
+    const isProduction = process.env.NODE_ENV === "production";
+
     const cookieOptions: any = {
       httpOnly: true,
-      path: '/',
+      path: "/",
     };
 
     if (isProduction) {
       cookieOptions.secure = true;
-      cookieOptions.sameSite = 'none';
-      cookieOptions.domain = '.panameconsulting.com';
+      cookieOptions.sameSite = "none";
+      cookieOptions.domain = ".panameconsulting.com";
     } else {
       cookieOptions.secure = false;
-      cookieOptions.sameSite = 'lax';
+      cookieOptions.sameSite = "lax";
     }
 
     res.clearCookie("refresh_token", cookieOptions);
-    res.clearCookie("access_token", { 
-      ...cookieOptions, 
-      httpOnly: false 
+    res.clearCookie("access_token", {
+      ...cookieOptions,
+      httpOnly: false,
     });
 
     this.logger.log("🍪 Cookies d'authentification nettoyés");

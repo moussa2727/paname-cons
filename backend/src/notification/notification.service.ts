@@ -16,86 +16,96 @@ export class NotificationService {
   }
 
   // Updated initializeTransporter() method for both services
-private initializeTransporter() {
-  if (
-    !this.configService.get('EMAIL_HOST') ||
-    !this.configService.get('EMAIL_USER') ||
-    !this.configService.get('EMAIL_PASS')
-  ) {
-    this.logger.warn('Configuration email incomplète - service email de notication désactivé');
-    this.emailServiceAvailable = false;
-    return;
+  private initializeTransporter() {
+    if (
+      !this.configService.get("EMAIL_HOST") ||
+      !this.configService.get("EMAIL_USER") ||
+      !this.configService.get("EMAIL_PASS")
+    ) {
+      this.logger.warn(
+        "Configuration email incomplète - service email de notication désactivé",
+      );
+      this.emailServiceAvailable = false;
+      return;
+    }
+
+    try {
+      const isProduction = this.configService.get("NODE_ENV") === "production";
+      const port = this.configService.get("EMAIL_PORT") || 587;
+      const isSecure = this.configService.get("EMAIL_SECURE") === "true";
+
+      this.transporter = nodemailer.createTransport({
+        host: this.configService.get("EMAIL_HOST"),
+        port: port,
+        secure: isSecure, // true for 465, false for other ports
+        auth: {
+          user: this.configService.get("EMAIL_USER"),
+          pass: this.configService.get("EMAIL_PASS"),
+        },
+        // Remove SSLv3 cipher - use modern TLS instead
+        tls: {
+          rejectUnauthorized: isProduction,
+          // Let the system negotiate the best available cipher
+          minVersion: "TLSv1.2",
+        },
+        // Connection pooling
+        pool: true,
+        maxConnections: 5,
+        maxMessages: 100,
+
+        // Timeout configurations
+        connectionTimeout: 30000, // 30 seconds
+        greetingTimeout: 15000, // 15 seconds
+        socketTimeout: 45000, // 45 seconds (increased)
+
+        // Logging for debugging (remove in production)
+        logger: !isProduction,
+        debug: !isProduction,
+      });
+
+      // Single connection test with proper error handling
+      this.verifyConnection();
+    } catch (error) {
+      this.logger.error(
+        "Erreur initialisation service email de notification",
+        error.stack,
+      );
+      this.emailServiceAvailable = false;
+    }
   }
 
-  try {
-    const isProduction = this.configService.get('NODE_ENV') === 'production';
-    const port = this.configService.get('EMAIL_PORT') || 587;
-    const isSecure = this.configService.get('EMAIL_SECURE') === 'true';
+  // Separated verification method to avoid multiple calls
+  private async verifyConnection(): Promise<void> {
+    if (!this.transporter) {
+      this.emailServiceAvailable = false;
+      return;
+    }
 
-    this.transporter = nodemailer.createTransport({
-      host: this.configService.get('EMAIL_HOST'),
-      port: port,
-      secure: isSecure, // true for 465, false for other ports
-      auth: {
-        user: this.configService.get('EMAIL_USER'),
-        pass: this.configService.get('EMAIL_PASS'),
-      },
-      // Remove SSLv3 cipher - use modern TLS instead
-      tls: {
-        rejectUnauthorized: isProduction,
-        // Let the system negotiate the best available cipher
-        minVersion: 'TLSv1.2',
-      },
-      // Connection pooling
-      pool: true,
-      maxConnections: 5,
-      maxMessages: 100,
-      
-      // Timeout configurations
-      connectionTimeout: 30000,  // 30 seconds
-      greetingTimeout: 15000,    // 15 seconds
-      socketTimeout: 45000,      // 45 seconds (increased)
-      
-      // Logging for debugging (remove in production)
-      logger: !isProduction,
-      debug: !isProduction,
-    });
+    try {
+      await this.transporter.verify();
+      this.emailServiceAvailable = true;
+      this.logger.log(
+        "✓ Service email initialisé pour la notification avec succès",
+      );
+    } catch (error) {
+      this.emailServiceAvailable = false;
+      this.logger.error(
+        `✗ Test connexion service email de notifications échoué: ${error.message}`,
+      );
 
-    // Single connection test with proper error handling
-    this.verifyConnection();
-
-  } catch (error) {
-    this.logger.error('Erreur initialisation service email de notification', error.stack);
-    this.emailServiceAvailable = false;
-  }
-}
-
-// Separated verification method to avoid multiple calls
-private async verifyConnection(): Promise<void> {
-  if (!this.transporter) {
-    this.emailServiceAvailable = false;
-    return;
+      // Provide helpful debugging info
+      this.logger.debug(
+        `Configuration: ${this.configService.get("EMAIL_HOST")}:${this.configService.get("EMAIL_PORT")}`,
+      );
+    }
   }
 
-  try {
-    await this.transporter.verify();
-    this.emailServiceAvailable = true;
-    this.logger.log('✓ Service email initialisé pour la notification avec succès');
-  } catch (error) {
-    this.emailServiceAvailable = false;
-    this.logger.error(`✗ Test connexion service email de notifications échoué: ${error.message}`);
-    
-    // Provide helpful debugging info
-    this.logger.debug(`Configuration: ${this.configService.get('EMAIL_HOST')}:${this.configService.get('EMAIL_PORT')}`);
+  // Optional: Add a method to retry connection
+  async retryConnection(): Promise<boolean> {
+    this.logger.log("Tentative de reconnexion au service email...");
+    await this.verifyConnection();
+    return this.emailServiceAvailable;
   }
-}
-
-// Optional: Add a method to retry connection
-async retryConnection(): Promise<boolean> {
-  this.logger.log('Tentative de reconnexion au service email...');
-  await this.verifyConnection();
-  return this.emailServiceAvailable;
-}
 
   private getEmailTemplate(header: string, content: string, firstName: string) {
     return `
@@ -129,42 +139,49 @@ async retryConnection(): Promise<boolean> {
     `;
   }
 
- private async sendEmail(
-    to: string, 
-    subject: string, 
-    html: string, 
+  private async sendEmail(
+    to: string,
+    subject: string,
+    html: string,
     context: string,
-    replyTo?: string
-): Promise<void> {
+    replyTo?: string,
+  ): Promise<void> {
     const maskedEmail = this.maskEmail(to);
-    
+
     if (!this.emailServiceAvailable || !this.transporter) {
-        this.logger.log(`Notification "${context}" pour: ${maskedEmail} (service email indisponible)`);
-        return;
+      this.logger.log(
+        `Notification "${context}" pour: ${maskedEmail} (service email indisponible)`,
+      );
+      return;
     }
 
     try {
-        const mailOptions: any = {
-            from: `"Paname Consulting" <${this.configService.get('EMAIL_USER')}>`,
-            to: to,
-            subject: subject,
-            html: html
-        };
+      const mailOptions: any = {
+        from: `"Paname Consulting" <${this.configService.get("EMAIL_USER")}>`,
+        to: to,
+        subject: subject,
+        html: html,
+      };
 
-        if (replyTo) {
-            mailOptions.replyTo = replyTo;
-        }
+      if (replyTo) {
+        mailOptions.replyTo = replyTo;
+      }
 
-        await this.transporter.sendMail(mailOptions);
-        this.logger.log(`Email ${context} envoyé à: ${maskedEmail}`);
+      await this.transporter.sendMail(mailOptions);
+      this.logger.log(`Email ${context} envoyé à: ${maskedEmail}`);
     } catch (error) {
-        this.logger.error(`Erreur envoi ${context}: ${error.message}`);
-        if (error.message.includes('BadCredentials') || error.message.includes('Invalid login')) {
-            this.emailServiceAvailable = false;
-            this.logger.warn('Service notification email désactivé - erreur authentification');
-        }
+      this.logger.error(`Erreur envoi ${context}: ${error.message}`);
+      if (
+        error.message.includes("BadCredentials") ||
+        error.message.includes("Invalid login")
+      ) {
+        this.emailServiceAvailable = false;
+        this.logger.warn(
+          "Service notification email désactivé - erreur authentification",
+        );
+      }
     }
-}
+  }
 
   async sendConfirmation(rendezvous: Rendezvous): Promise<void> {
     const content = `
@@ -436,13 +453,13 @@ async retryConnection(): Promise<boolean> {
     `;
 
     await this.sendEmail(
-        adminEmail, 
-        'Nouveau message de contact - Paname Consulting',
-        emailContent,
-        'notification contact admin',
-        contact.email
+      adminEmail,
+      "Nouveau message de contact - Paname Consulting",
+      emailContent,
+      "notification contact admin",
+      contact.email,
     );
-}
+  }
 
   async sendContactConfirmation(contact: Contact): Promise<void> {
     const emailContent = `
@@ -475,10 +492,10 @@ async retryConnection(): Promise<boolean> {
     `;
 
     await this.sendEmail(
-        contact.email, 
-        'Confirmation de votre message - Paname Consulting',
-        emailContent,
-        'confirmation contact'
+      contact.email,
+      "Confirmation de votre message - Paname Consulting",
+      emailContent,
+      "confirmation contact",
     );
   }
 
@@ -500,8 +517,8 @@ async retryConnection(): Promise<boolean> {
   }
 
   private maskEmail(email: string): string {
-    if (!email || !email.includes('@')) return '***@***';
-    const [name, domain] = email.split('@');
+    if (!email || !email.includes("@")) return "***@***";
+    const [name, domain] = email.split("@");
     if (name.length <= 2) return `***@${domain}`;
     return `${name.substring(0, 2)}***@${domain}`;
   }

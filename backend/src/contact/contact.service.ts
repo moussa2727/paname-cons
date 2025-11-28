@@ -23,7 +23,9 @@ export class ContactService {
   // 📨 Créer un nouveau message de contact
   async create(createContactDto: CreateContactDto): Promise<Contact> {
     try {
-      this.logger.log(`Création d'un nouveau message de contact de: ${createContactDto.email}`);
+      this.logger.log(
+        `Création d'un nouveau message de contact de: ${createContactDto.email}`,
+      );
 
       const createdContact = new this.contactModel(createContactDto);
       const savedContact = await createdContact.save();
@@ -34,7 +36,9 @@ export class ContactService {
       try {
         await this.notificationService.sendContactNotification(savedContact);
         await this.notificationService.sendContactConfirmation(savedContact);
-        this.logger.log(`Notifications envoyées pour le contact ID: ${savedContact._id}`);
+        this.logger.log(
+          `Notifications envoyées pour le contact ID: ${savedContact._id}`,
+        );
       } catch (notificationError) {
         this.logger.error(
           `Erreur lors de l'envoi des notifications pour le contact ${savedContact._id}: ${notificationError.message}`,
@@ -60,7 +64,9 @@ export class ContactService {
     search?: string,
   ) {
     try {
-      this.logger.debug(`Récupération des contacts - Page: ${page}, Limit: ${limit}, Filtres: ${JSON.stringify({ isRead, search })}`);
+      this.logger.debug(
+        `Récupération des contacts - Page: ${page}, Limit: ${limit}, Filtres: ${JSON.stringify({ isRead, search })}`,
+      );
 
       // Valider les paramètres
       if (page < 1)
@@ -93,7 +99,9 @@ export class ContactService {
         this.contactModel.countDocuments(filters),
       ]);
 
-      this.logger.debug(`Récupération réussie: ${data.length} contacts sur ${total} total`);
+      this.logger.debug(
+        `Récupération réussie: ${data.length} contacts sur ${total} total`,
+      );
 
       return {
         data,
@@ -114,13 +122,13 @@ export class ContactService {
   async findOne(id: string): Promise<Contact> {
     try {
       this.logger.debug(`Recherche du contact: ${id}`);
-      
+
       const contact = await this.contactModel.findById(id).exec();
       if (!contact) {
         this.logger.warn(`Contact non trouvé: ${id}`);
         throw new NotFoundException("Message de contact non trouvé");
       }
-      
+
       this.logger.debug(`Contact trouvé: ${id}`);
       return contact;
     } catch (error) {
@@ -136,7 +144,7 @@ export class ContactService {
   async markAsRead(id: string): Promise<Contact> {
     try {
       this.logger.log(`Marquage comme lu du contact: ${id}`);
-      
+
       const contact = await this.contactModel
         .findByIdAndUpdate(id, { isRead: true }, { new: true })
         .exec();
@@ -160,16 +168,22 @@ export class ContactService {
   // 📩 Répondre à un message (admin seulement)
   async replyToMessage(id: string, reply: string, user: any): Promise<Contact> {
     try {
-      this.logger.log(`Envoi de réponse au contact ${id} par l'admin ${user.userId}`);
+      this.logger.log(
+        `Envoi de réponse au contact ${id} par l'admin ${user.userId}`,
+      );
 
       // Vérification des droits admin
       if (!user || user.role !== UserRole.ADMIN) {
-        this.logger.warn(`Tentative d'accès non autorisée pour répondre au contact ${id}`);
+        this.logger.warn(
+          `Tentative d'accès non autorisée pour répondre au contact ${id}`,
+        );
         throw new BadRequestException("Accès refusé : admin requis");
       }
 
       if (!reply || reply.trim().length < 1) {
-        this.logger.warn(`Tentative d'envoi de réponse vide pour le contact ${id}`);
+        this.logger.warn(
+          `Tentative d'envoi de réponse vide pour le contact ${id}`,
+        );
         throw new BadRequestException("La réponse ne peut pas être vide");
       }
 
@@ -201,7 +215,9 @@ export class ContactService {
       // Envoyer la réponse par email
       await this.notificationService.sendContactReply(updatedContact, reply);
 
-      this.logger.log(`Réponse envoyée avec succès au contact ${id} par l'admin ${user.userId}`);
+      this.logger.log(
+        `Réponse envoyée avec succès au contact ${id} par l'admin ${user.userId}`,
+      );
       return updatedContact;
     } catch (error) {
       this.logger.error(
@@ -216,7 +232,7 @@ export class ContactService {
   async remove(id: string): Promise<void> {
     try {
       this.logger.log(`Suppression du contact: ${id}`);
-      
+
       const result = await this.contactModel.findByIdAndDelete(id).exec();
       if (!result) {
         this.logger.warn(`Contact non trouvé pour suppression: ${id}`);
@@ -244,7 +260,7 @@ export class ContactService {
   }> {
     try {
       this.logger.debug(`Calcul des statistiques des contacts`);
-      
+
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const startOfLastMonth = new Date(
@@ -270,7 +286,9 @@ export class ContactService {
           }),
         ]);
 
-      this.logger.debug(`Statistiques calculées: Total=${total}, Non lus=${unread}, Répondus=${responded}`);
+      this.logger.debug(
+        `Statistiques calculées: Total=${total}, Non lus=${unread}, Répondus=${responded}`,
+      );
 
       return {
         total,

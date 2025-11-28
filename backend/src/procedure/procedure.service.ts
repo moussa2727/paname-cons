@@ -38,7 +38,9 @@ export class ProcedureService {
     createDto: CreateProcedureDto,
   ): Promise<Procedure> {
     const maskedRendezvousId = this.maskId(createDto.rendezVousId);
-    this.logger.log(`Création procédure depuis rendez-vous: ${maskedRendezvousId}`);
+    this.logger.log(
+      `Création procédure depuis rendez-vous: ${maskedRendezvousId}`,
+    );
 
     const rendezvous = await this.rendezvousModel.findById(
       createDto.rendezVousId,
@@ -78,7 +80,7 @@ export class ProcedureService {
 
     const maskedEmail = this.maskEmail(procedure.email);
     this.logger.log(`Procédure créée pour: ${maskedEmail}`);
-    
+
     await this.notificationService.sendProcedureCreation(procedure, rendezvous);
 
     return procedure;
@@ -107,7 +109,9 @@ export class ProcedureService {
     // Vérification d'accès
     if (procedure.email !== user.email && user.role !== UserRole.ADMIN) {
       const maskedEmail = this.maskEmail(user.email);
-      this.logger.warn(`Tentative accès non autorisé procédure ${maskedId} par: ${maskedEmail}`);
+      this.logger.warn(
+        `Tentative accès non autorisé procédure ${maskedId} par: ${maskedEmail}`,
+      );
       throw new ForbiddenException("Accès non autorisé");
     }
 
@@ -235,14 +239,16 @@ export class ProcedureService {
     updateDto: UpdateStepDto,
   ): Promise<Procedure> {
     const maskedId = this.maskId(id);
-    
+
     try {
-      this.logger.log(`Mise à jour étape - Procédure: ${maskedId}, Étape: ${stepName}`);
+      this.logger.log(
+        `Mise à jour étape - Procédure: ${maskedId}, Étape: ${stepName}`,
+      );
 
       let decodedStepName: string;
       try {
         decodedStepName = decodeURIComponent(stepName);
-      } catch{
+      } catch {
         throw new BadRequestException(`Nom d'étape mal formé: ${stepName}`);
       }
 
@@ -264,7 +270,9 @@ export class ProcedureService {
         (step: Step) => step.nom === decodedStepName,
       );
       if (stepIndex === -1) {
-        this.logger.error(`Étape non trouvée: "${decodedStepName}" dans ${maskedId}`);
+        this.logger.error(
+          `Étape non trouvée: "${decodedStepName}" dans ${maskedId}`,
+        );
         throw new NotFoundException(
           `Étape "${decodedStepName}" non trouvée dans cette procédure`,
         );
@@ -317,7 +325,9 @@ export class ProcedureService {
       ) {
         const nextStep = procedure.steps[stepIndex + 1];
         if (nextStep.statut === StepStatus.PENDING) {
-          this.logger.log(`Activation étape suivante: ${nextStep.nom} pour ${maskedId}`);
+          this.logger.log(
+            `Activation étape suivante: ${nextStep.nom} pour ${maskedId}`,
+          );
           nextStep.statut = StepStatus.IN_PROGRESS;
           nextStep.dateMaj = now;
           await procedure.save();
@@ -332,7 +342,9 @@ export class ProcedureService {
         );
       }
 
-      this.logger.log(`Étape mise à jour avec succès: ${stepName} pour ${maskedId}`);
+      this.logger.log(
+        `Étape mise à jour avec succès: ${stepName} pour ${maskedId}`,
+      );
       return savedProcedure;
     } catch (error) {
       this.logger.error(
@@ -407,7 +419,9 @@ export class ProcedureService {
 
   async getUserProcedures(email: string, page: number = 1, limit: number = 10) {
     const maskedEmail = this.maskEmail(email);
-    this.logger.debug(`Liste procédures utilisateur: ${maskedEmail}, Page: ${page}`);
+    this.logger.debug(
+      `Liste procédures utilisateur: ${maskedEmail}, Page: ${page}`,
+    );
 
     const skip = (page - 1) * limit;
     const query = { email: email.toLowerCase(), isDeleted: false };
@@ -422,8 +436,10 @@ export class ProcedureService {
       this.procedureModel.countDocuments(query),
     ]);
 
-    this.logger.debug(`Procédures trouvées: ${data.length} pour ${maskedEmail}`);
-    
+    this.logger.debug(
+      `Procédures trouvées: ${data.length} pour ${maskedEmail}`,
+    );
+
     return {
       data,
       total,
@@ -440,14 +456,16 @@ export class ProcedureService {
   ): Promise<Procedure> {
     const maskedId = this.maskId(id);
     const maskedEmail = this.maskEmail(userEmail);
-    
+
     this.logger.log(`Annulation procédure: ${maskedId} par: ${maskedEmail}`);
 
     const procedure = await this.procedureModel.findById(id);
     if (!procedure) throw new NotFoundException("Procédure non trouvée");
 
     if (procedure.email !== userEmail.toLowerCase()) {
-      this.logger.warn(`Tentative annulation non autorisée: ${maskedId} par: ${maskedEmail}`);
+      this.logger.warn(
+        `Tentative annulation non autorisée: ${maskedId} par: ${maskedEmail}`,
+      );
       throw new ForbiddenException(
         "Vous ne pouvez annuler que vos propres procédures",
       );
@@ -486,7 +504,9 @@ export class ProcedureService {
     limit: number = 10,
     email?: string,
   ) {
-    this.logger.debug(`Liste procédures actives - Page: ${page}, Limit: ${limit}`);
+    this.logger.debug(
+      `Liste procédures actives - Page: ${page}, Limit: ${limit}`,
+    );
 
     const skip = (page - 1) * limit;
     const query: any = { isDeleted: false };
@@ -509,7 +529,7 @@ export class ProcedureService {
     ]);
 
     this.logger.debug(`Procédures actives trouvées: ${data.length}`);
-    
+
     return {
       data,
       total,

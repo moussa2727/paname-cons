@@ -1,4 +1,4 @@
-import{
+import {
   BadRequestException,
   Injectable,
   Logger,
@@ -75,20 +75,23 @@ export class UsersService {
   }
 
   private maskEmail(email: string): string {
-    if (!email) return 'email_inconnu';
-    const [localPart, domain] = email.split('@');
-    if (!localPart || !domain) return 'email_invalide';
-    
-    const maskedLocal = localPart.length <= 2 
-      ? localPart.charAt(0) + '*'
-      : localPart.charAt(0) + '***' + localPart.charAt(localPart.length - 1);
-    
+    if (!email) return "email_inconnu";
+    const [localPart, domain] = email.split("@");
+    if (!localPart || !domain) return "email_invalide";
+
+    const maskedLocal =
+      localPart.length <= 2
+        ? localPart.charAt(0) + "*"
+        : localPart.charAt(0) + "***" + localPart.charAt(localPart.length - 1);
+
     return `${maskedLocal}@${domain}`;
   }
 
   private maskUserId(userId: string): string {
-    if (!userId) return 'user_inconnu';
-    return userId.length <= 8 ? userId : userId.substring(0, 4) + '***' + userId.substring(userId.length - 4);
+    if (!userId) return "user_inconnu";
+    return userId.length <= 8
+      ? userId
+      : userId.substring(0, 4) + "***" + userId.substring(userId.length - 4);
   }
 
   // 🔐 Méthodes d'authentification
@@ -102,10 +105,12 @@ export class UsersService {
     const user = await this.findByEmail(email);
     if (user && (await bcrypt.compare(password, user.password))) {
       this.setCache(cacheKey, user);
-      this.logger.log(`Validation utilisateur réussie: ${this.maskEmail(email)}`);
+      this.logger.log(
+        `Validation utilisateur réussie: ${this.maskEmail(email)}`,
+      );
       return user;
     }
-    
+
     this.logger.warn(`Échec validation utilisateur: ${this.maskEmail(email)}`);
     return null;
   }
@@ -169,13 +174,13 @@ export class UsersService {
 
     const user = await this.userModel.findById(id).exec();
     this.setCache(cacheKey, user);
-    
+
     if (user) {
       this.logger.debug(`Utilisateur trouvé: ${this.maskUserId(id)}`);
     } else {
       this.logger.debug(`Utilisateur non trouvé: ${this.maskUserId(id)}`);
     }
-    
+
     return user;
   }
 
@@ -183,13 +188,17 @@ export class UsersService {
     const cacheKey = this.getCacheKey("findAll", "all");
     const cached = this.getCache(cacheKey);
     if (cached) {
-      this.logger.debug(`Liste utilisateurs récupérée depuis le cache: ${cached.length} utilisateurs`);
+      this.logger.debug(
+        `Liste utilisateurs récupérée depuis le cache: ${cached.length} utilisateurs`,
+      );
       return cached;
     }
 
     const users = await this.userModel.find().select("-password").exec();
     this.setCache(cacheKey, users);
-    this.logger.debug(`Liste utilisateurs récupérée depuis la base: ${users.length} utilisateurs`);
+    this.logger.debug(
+      `Liste utilisateurs récupérée depuis la base: ${users.length} utilisateurs`,
+    );
     return users;
   }
 
@@ -212,7 +221,9 @@ export class UsersService {
 
     const user = await this.userModel.findById(userId);
     if (!user) {
-      this.logger.warn(`Vérification accès - Utilisateur non trouvé: ${this.maskUserId(userId)}`);
+      this.logger.warn(
+        `Vérification accès - Utilisateur non trouvé: ${this.maskUserId(userId)}`,
+      );
       this.setCache(cacheKey, false);
       return false;
     }
@@ -223,13 +234,17 @@ export class UsersService {
     }
 
     if (!user.isActive) {
-      this.logger.warn(`Vérification accès - Utilisateur inactif: ${this.maskUserId(userId)}`);
+      this.logger.warn(
+        `Vérification accès - Utilisateur inactif: ${this.maskUserId(userId)}`,
+      );
       this.setCache(cacheKey, false);
       return false;
     }
 
     if (user.logoutUntil && new Date() < user.logoutUntil) {
-      this.logger.warn(`Vérification accès - Utilisateur temporairement déconnecté: ${this.maskUserId(userId)}`);
+      this.logger.warn(
+        `Vérification accès - Utilisateur temporairement déconnecté: ${this.maskUserId(userId)}`,
+      );
       this.setCache(cacheKey, false);
       return false;
     }
@@ -251,7 +266,9 @@ export class UsersService {
   }
 
   async setMaintenanceMode(enabled: boolean): Promise<void> {
-    this.logger.log(`Changement mode maintenance: ${enabled ? 'ACTIVÉ' : 'DÉSACTIVÉ'}`);
+    this.logger.log(
+      `Changement mode maintenance: ${enabled ? "ACTIVÉ" : "DÉSACTIVÉ"}`,
+    );
     process.env.MAINTENANCE_MODE = enabled ? "true" : "false";
     this.clearUserCache(); // Vider le cache car les permissions peuvent changer
   }
@@ -318,7 +335,9 @@ export class UsersService {
         throw error;
       }
 
-      this.logger.error(`Erreur création utilisateur ${maskedEmail}: ${error.message}`);
+      this.logger.error(
+        `Erreur création utilisateur ${maskedEmail}: ${error.message}`,
+      );
       throw new BadRequestException("Erreur lors de la création du compte");
     }
   }
@@ -355,7 +374,9 @@ export class UsersService {
         .exec();
 
       if (!updatedUser) {
-        this.logger.error(`Utilisateur non trouvé après mise à jour: ${maskedId}`);
+        this.logger.error(
+          `Utilisateur non trouvé après mise à jour: ${maskedId}`,
+        );
         throw new NotFoundException("Utilisateur non trouvé après mise à jour");
       }
 
@@ -445,7 +466,9 @@ export class UsersService {
         .exec();
 
       if (existingUserWithEmail) {
-        this.logger.warn(`Conflit email: ${this.maskEmail(updateData.email)} déjà utilisé`);
+        this.logger.warn(
+          `Conflit email: ${this.maskEmail(updateData.email)} déjà utilisé`,
+        );
         throw new BadRequestException("Cet email est déjà utilisé");
       }
     }
@@ -460,7 +483,9 @@ export class UsersService {
         .exec();
 
       if (existingUserWithPhone) {
-        this.logger.warn(`Conflit téléphone: ${updateData.telephone} déjà utilisé`);
+        this.logger.warn(
+          `Conflit téléphone: ${updateData.telephone} déjà utilisé`,
+        );
         throw new BadRequestException(
           "Ce numéro de téléphone est déjà utilisé",
         );
@@ -488,7 +513,9 @@ export class UsersService {
       const messages = Object.values(error.errors).map(
         (err: any) => err.message,
       );
-      this.logger.warn(`Erreur validation pour ${userId}: ${messages.join(', ')}`);
+      this.logger.warn(
+        `Erreur validation pour ${userId}: ${messages.join(", ")}`,
+      );
       throw new BadRequestException(messages.join(", "));
     }
 
@@ -505,7 +532,10 @@ export class UsersService {
       throw error;
     }
 
-    this.logger.error(`Erreur inattendue pour ${userId}: ${error.message}`, error.stack);
+    this.logger.error(
+      `Erreur inattendue pour ${userId}: ${error.message}`,
+      error.stack,
+    );
     throw new BadRequestException("Erreur lors de la mise à jour du profil");
   }
 
@@ -519,7 +549,9 @@ export class UsersService {
 
     const user = await this.userModel.findById(userId);
     if (!user) {
-      this.logger.warn(`Utilisateur non trouvé pour changement mot de passe: ${maskedId}`);
+      this.logger.warn(
+        `Utilisateur non trouvé pour changement mot de passe: ${maskedId}`,
+      );
       throw new NotFoundException("Utilisateur non trouvé");
     }
 
@@ -539,7 +571,7 @@ export class UsersService {
 
     await user.save();
     this.clearUserCache(userId);
-    
+
     this.logger.log(`Mot de passe changé avec succès: ${maskedId}`);
   }
 
@@ -549,7 +581,9 @@ export class UsersService {
 
     const user = await this.userModel.findById(userId);
     if (!user) {
-      this.logger.warn(`Utilisateur non trouvé pour réinitialisation: ${maskedId}`);
+      this.logger.warn(
+        `Utilisateur non trouvé pour réinitialisation: ${maskedId}`,
+      );
       throw new NotFoundException("Utilisateur non trouvé");
     }
 
@@ -560,7 +594,7 @@ export class UsersService {
 
     await user.save();
     this.clearUserCache(userId);
-    
+
     this.logger.log(`Mot de passe réinitialisé: ${maskedId}`);
   }
 
@@ -574,7 +608,7 @@ export class UsersService {
       this.logger.warn(`Utilisateur non trouvé pour suppression: ${maskedId}`);
       throw new NotFoundException("Utilisateur non trouvé");
     }
-    
+
     this.clearUserCache(id);
     this.logger.log(`Utilisateur supprimé: ${maskedId}`);
   }
@@ -590,12 +624,16 @@ export class UsersService {
       .exec();
 
     if (!updatedUser) {
-      this.logger.error(`Utilisateur non trouvé après changement statut: ${maskedId}`);
+      this.logger.error(
+        `Utilisateur non trouvé après changement statut: ${maskedId}`,
+      );
       throw new NotFoundException("Utilisateur non trouvé");
     }
 
     this.clearUserCache(id);
-    this.logger.log(`Statut utilisateur modifié: ${maskedId}, Actif: ${updatedUser.isActive}`);
+    this.logger.log(
+      `Statut utilisateur modifié: ${maskedId}, Actif: ${updatedUser.isActive}`,
+    );
     return updatedUser;
   }
 
@@ -610,7 +648,10 @@ export class UsersService {
       this.logger.debug("Connexion base de données vérifiée avec succès");
       return true;
     } catch (error) {
-      this.logger.error("Échec vérification connexion base de données", error.stack);
+      this.logger.error(
+        "Échec vérification connexion base de données",
+        error.stack,
+      );
       return false;
     }
   }
@@ -638,7 +679,9 @@ export class UsersService {
     };
 
     this.setCache(cacheKey, stats);
-    this.logger.debug(`Statistiques générées - Total: ${totalUsers}, Actifs: ${activeUsers}, Admins: ${adminUsers}`);
+    this.logger.debug(
+      `Statistiques générées - Total: ${totalUsers}, Actifs: ${activeUsers}, Admins: ${adminUsers}`,
+    );
     return stats;
   }
 

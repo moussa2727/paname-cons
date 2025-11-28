@@ -83,7 +83,9 @@ export class DestinationService {
     createDestinationDto: CreateDestinationDto,
     imageFile: Express.Multer.File,
   ): Promise<Destination> {
-    this.logger.log(`Tentative de création destination: ${createDestinationDto.country}`);
+    this.logger.log(
+      `Tentative de création destination: ${createDestinationDto.country}`,
+    );
 
     try {
       // Validation des données d'entrée
@@ -105,7 +107,9 @@ export class DestinationService {
       });
 
       if (existingDestination) {
-        this.logger.warn(`Destination déjà existante: ${createDestinationDto.country}`);
+        this.logger.warn(
+          `Destination déjà existante: ${createDestinationDto.country}`,
+        );
         throw new ConflictException("Cette destination existe déjà");
       }
 
@@ -122,10 +126,15 @@ export class DestinationService {
 
       const savedDestination = await createdDestination.save();
 
-      this.logger.log(`Destination créée: ${savedDestination.country} (ID: ${savedDestination._id})`);
+      this.logger.log(
+        `Destination créée: ${savedDestination.country} (ID: ${savedDestination._id})`,
+      );
       return savedDestination;
     } catch (error) {
-      this.logger.error(`Erreur création destination ${createDestinationDto.country}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Erreur création destination ${createDestinationDto.country}: ${error.message}`,
+        error.stack,
+      );
 
       // Nettoyage en cas d'erreur
       if (imageFile) {
@@ -166,7 +175,9 @@ export class DestinationService {
     hasPrev: boolean;
   }> {
     try {
-      this.logger.debug(`Récupération destinations - Page: ${page}, Limit: ${limit}, Search: ${search || 'aucun'}`);
+      this.logger.debug(
+        `Récupération destinations - Page: ${page}, Limit: ${limit}, Search: ${search || "aucun"}`,
+      );
 
       const skip = (page - 1) * limit;
 
@@ -193,7 +204,9 @@ export class DestinationService {
 
       const totalPages = Math.ceil(total / limit);
 
-      this.logger.debug(`Récupération destinations réussie: ${data.length} sur ${total}`);
+      this.logger.debug(
+        `Récupération destinations réussie: ${data.length} sur ${total}`,
+      );
 
       return {
         data,
@@ -220,16 +233,20 @@ export class DestinationService {
    */
   async findAllWithoutPagination(): Promise<Destination[]> {
     try {
-      this.logger.debug(`Récupération de toutes les destinations sans pagination`);
-      
+      this.logger.debug(
+        `Récupération de toutes les destinations sans pagination`,
+      );
+
       const destinations = await this.destinationModel
         .find()
         .select("country imagePath text createdAt updatedAt")
         .sort({ country: 1 })
         .exec();
 
-      this.logger.debug(`Récupération réussie: ${destinations.length} destinations`);
-      
+      this.logger.debug(
+        `Récupération réussie: ${destinations.length} destinations`,
+      );
+
       return destinations;
     } catch (error) {
       this.logger.error(
@@ -263,7 +280,9 @@ export class DestinationService {
         throw new NotFoundException(`Destination avec ID ${id} non trouvée`);
       }
 
-      this.logger.debug(`Destination trouvée: ${destination.country} (ID: ${id})`);
+      this.logger.debug(
+        `Destination trouvée: ${destination.country} (ID: ${id})`,
+      );
       return destination;
     } catch (error) {
       if (
@@ -289,15 +308,17 @@ export class DestinationService {
   async findByCountry(country: string): Promise<Destination | null> {
     try {
       this.logger.debug(`Recherche destination par pays: ${country}`);
-      
+
       const destination = await this.destinationModel
         .findOne({
           country: { $regex: `^${country.trim()}$`, $options: "i" },
         })
         .exec();
 
-      this.logger.debug(`Recherche par pays ${country}: ${destination ? 'trouvée' : 'non trouvée'}`);
-      
+      this.logger.debug(
+        `Recherche par pays ${country}: ${destination ? "trouvée" : "non trouvée"}`,
+      );
+
       return destination;
     } catch (error) {
       this.logger.error(
@@ -349,7 +370,9 @@ export class DestinationService {
         });
 
         if (countryConflict) {
-          this.logger.warn(`Conflit de nom pour la destination: ${updateDestinationDto.country}`);
+          this.logger.warn(
+            `Conflit de nom pour la destination: ${updateDestinationDto.country}`,
+          );
           throw new ConflictException(
             "Une destination avec ce nom existe déjà",
           );
@@ -478,7 +501,9 @@ export class DestinationService {
         .exec();
 
       if (!deletedDestination) {
-        this.logger.error(`Destination non trouvée lors de la suppression: ${id}`);
+        this.logger.error(
+          `Destination non trouvée lors de la suppression: ${id}`,
+        );
         throw new NotFoundException(
           `Destination avec ID ${id} non trouvée lors de la suppression`,
         );
@@ -493,7 +518,10 @@ export class DestinationService {
         deletedDestination,
       };
     } catch (error) {
-      this.logger.error(`Erreur suppression destination ${id}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Erreur suppression destination ${id}: ${error.message}`,
+        error.stack,
+      );
 
       if (
         error instanceof BadRequestException ||
@@ -513,15 +541,20 @@ export class DestinationService {
    */
   async count(filters: any = {}): Promise<number> {
     try {
-      this.logger.debug(`Comptage des destinations avec filtres: ${JSON.stringify(filters)}`);
-      
+      this.logger.debug(
+        `Comptage des destinations avec filtres: ${JSON.stringify(filters)}`,
+      );
+
       const count = await this.destinationModel.countDocuments(filters).exec();
-      
+
       this.logger.debug(`Comptage terminé: ${count} destinations`);
-      
+
       return count;
     } catch (error) {
-      this.logger.error(`Erreur comptage destinations: ${error.message}`, error.stack);
+      this.logger.error(
+        `Erreur comptage destinations: ${error.message}`,
+        error.stack,
+      );
       throw new InternalServerErrorException(
         "Erreur lors du comptage des destinations",
       );
@@ -537,7 +570,10 @@ export class DestinationService {
       const count = await this.destinationModel.countDocuments({ _id: id });
       return count > 0;
     } catch (error) {
-      this.logger.error(`Erreur vérification existence ${id}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Erreur vérification existence ${id}: ${error.message}`,
+        error.stack,
+      );
       return false;
     }
   }
@@ -552,7 +588,7 @@ export class DestinationService {
   }> {
     try {
       this.logger.debug(`Calcul des statistiques des destinations`);
-      
+
       const [total, lastDestination, allDestinations] = await Promise.all([
         this.count(),
         this.destinationModel
@@ -574,7 +610,7 @@ export class DestinationService {
       };
 
       this.logger.debug(`Statistiques calculées: ${JSON.stringify(stats)}`);
-      
+
       return stats;
     } catch (error) {
       this.logger.error(

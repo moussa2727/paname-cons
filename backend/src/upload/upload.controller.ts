@@ -22,9 +22,11 @@ export class UploadController {
   @UseInterceptors(FileInterceptor("image", multerConfig))
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
     const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     try {
-      this.logger.log(`[${requestId}] Début de l'upload - Taille: ${file?.size || 0} bytes`);
+      this.logger.log(
+        `[${requestId}] Début de l'upload - Taille: ${file?.size || 0} bytes`,
+      );
 
       // Validation renforcée
       if (!file) {
@@ -52,7 +54,7 @@ export class UploadController {
       // Journalisation détaillée et sécurisée
       this.logger.error(
         `[${requestId}] Échec de l'upload - Erreur: ${error.message}`,
-        this.cleanErrorStack(error.stack)
+        this.cleanErrorStack(error.stack),
       );
 
       throw new HttpException(
@@ -63,31 +65,32 @@ export class UploadController {
   }
 
   private maskFilename(filename: string): string {
-    if (!filename) return 'fichier_inconnu';
-    
+    if (!filename) return "fichier_inconnu";
+
     const ext = path.extname(filename);
-    const nameWithoutExt = filename.replace(ext, '');
-    
+    const nameWithoutExt = filename.replace(ext, "");
+
     // Garde seulement les premiers et derniers caractères du nom
     if (nameWithoutExt.length <= 2) {
-      return nameWithoutExt + '***' + ext;
+      return nameWithoutExt + "***" + ext;
     }
-    
-    const maskedName = nameWithoutExt.charAt(0) + 
-                      '***' + 
-                      nameWithoutExt.charAt(nameWithoutExt.length - 1);
-    
+
+    const maskedName =
+      nameWithoutExt.charAt(0) +
+      "***" +
+      nameWithoutExt.charAt(nameWithoutExt.length - 1);
+
     return maskedName + ext;
   }
 
   private cleanErrorStack(stack: string): string {
-    if (!stack) return 'stack_trace_non_disponible';
-    
+    if (!stack) return "stack_trace_non_disponible";
+
     // Nettoie les chemins absolus qui pourraient révéler la structure du serveur
     return stack
-      .split('\n')
+      .split("\n")
       .slice(0, 3) // Garde seulement les 3 premières lignes
-      .map(line => line.replace(/\(.*[\\/]([^\\/]+)\)/, '($1)')) // Correction ici
-      .join('\n');
+      .map((line) => line.replace(/\(.*[\\/]([^\\/]+)\)/, "($1)")) // Correction ici
+      .join("\n");
   }
 }

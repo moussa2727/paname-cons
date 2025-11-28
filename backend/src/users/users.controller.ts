@@ -43,13 +43,17 @@ export class UsersController {
   @Roles(UserRole.ADMIN)
   async create(@Body() createUserDto: RegisterDto) {
     const requestId = this.generateRequestId();
-    this.logger.log(`[${requestId}] Création d'utilisateur par admin - Email: ${this.maskEmail(createUserDto.email)}`);
+    this.logger.log(
+      `[${requestId}] Création d'utilisateur par admin - Email: ${this.maskEmail(createUserDto.email)}`,
+    );
 
     // CORRECTION : Vérifier correctement l'existence d'un admin
     if (createUserDto.role === UserRole.ADMIN) {
       const existingAdmin = await this.usersService.findByRole(UserRole.ADMIN);
       if (existingAdmin) {
-        this.logger.warn(`[${requestId}] Tentative de création d'un deuxième admin`);
+        this.logger.warn(
+          `[${requestId}] Tentative de création d'un deuxième admin`,
+        );
         throw new BadRequestException(
           "Il ne peut y avoir qu'un seul administrateur",
         );
@@ -58,10 +62,14 @@ export class UsersController {
 
     try {
       const user = await this.usersService.create(createUserDto);
-      this.logger.log(`[${requestId}] Utilisateur créé avec succès - ID: ${user._id}`);
+      this.logger.log(
+        `[${requestId}] Utilisateur créé avec succès - ID: ${user._id}`,
+      );
       return user;
     } catch (error) {
-      this.logger.error(`[${requestId}] Erreur création utilisateur: ${error.message}`);
+      this.logger.error(
+        `[${requestId}] Erreur création utilisateur: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -72,13 +80,15 @@ export class UsersController {
   async findAll() {
     const requestId = this.generateRequestId();
     this.logger.log(`[${requestId}] Liste des utilisateurs demandée par admin`);
-    
+
     try {
       const users = await this.usersService.findAll();
       this.logger.log(`[${requestId}] ${users.length} utilisateurs récupérés`);
       return users;
     } catch (error) {
-      this.logger.error(`[${requestId}] Erreur récupération utilisateurs: ${error.message}`);
+      this.logger.error(
+        `[${requestId}] Erreur récupération utilisateurs: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -89,13 +99,17 @@ export class UsersController {
   async getStats() {
     const requestId = this.generateRequestId();
     this.logger.log(`[${requestId}] Statistiques utilisateurs demandées`);
-    
+
     try {
       const stats = await this.usersService.getStats();
-      this.logger.log(`[${requestId}] Statistiques générées - Total: ${stats.totalUsers}`);
+      this.logger.log(
+        `[${requestId}] Statistiques générées - Total: ${stats.totalUsers}`,
+      );
       return stats;
     } catch (error) {
-      this.logger.error(`[${requestId}] Erreur génération stats: ${error.message}`);
+      this.logger.error(
+        `[${requestId}] Erreur génération stats: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -106,13 +120,17 @@ export class UsersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param("id") id: string) {
     const requestId = this.generateRequestId();
-    this.logger.log(`[${requestId}] Suppression utilisateur demandée - ID: ${id}`);
-    
+    this.logger.log(
+      `[${requestId}] Suppression utilisateur demandée - ID: ${id}`,
+    );
+
     try {
       await this.usersService.delete(id);
       this.logger.log(`[${requestId}] Utilisateur supprimé - ID: ${id}`);
     } catch (error) {
-      this.logger.error(`[${requestId}] Erreur suppression utilisateur: ${error.message}`);
+      this.logger.error(
+        `[${requestId}] Erreur suppression utilisateur: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -123,13 +141,17 @@ export class UsersController {
   async toggleStatus(@Param("id") id: string) {
     const requestId = this.generateRequestId();
     this.logger.log(`[${requestId}] Changement statut utilisateur - ID: ${id}`);
-    
+
     try {
       const user = await this.usersService.toggleStatus(id);
-      this.logger.log(`[${requestId}] Statut utilisateur modifié - ID: ${id}, Actif: ${user.isActive}`);
+      this.logger.log(
+        `[${requestId}] Statut utilisateur modifié - ID: ${id}, Actif: ${user.isActive}`,
+      );
       return user;
     } catch (error) {
-      this.logger.error(`[${requestId}] Erreur changement statut: ${error.message}`);
+      this.logger.error(
+        `[${requestId}] Erreur changement statut: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -148,11 +170,15 @@ export class UsersController {
   @Roles(UserRole.ADMIN)
   async setMaintenanceMode(@Body() body: { enabled: boolean }) {
     const requestId = this.generateRequestId();
-    this.logger.log(`[${requestId}] Changement mode maintenance - Activé: ${body.enabled}`);
-    
+    this.logger.log(
+      `[${requestId}] Changement mode maintenance - Activé: ${body.enabled}`,
+    );
+
     await this.usersService.setMaintenanceMode(body.enabled);
-    this.logger.log(`[${requestId}] Mode maintenance ${body.enabled ? "activé" : "désactivé"}`);
-    
+    this.logger.log(
+      `[${requestId}] Mode maintenance ${body.enabled ? "activé" : "désactivé"}`,
+    );
+
     return {
       message: `Mode maintenance ${body.enabled ? "activé" : "désactivé"}`,
     };
@@ -163,8 +189,10 @@ export class UsersController {
   @Roles(UserRole.ADMIN)
   async checkUserAccess(@Param("userId") userId: string) {
     const requestId = this.generateRequestId();
-    this.logger.log(`[${requestId}] Vérification accès utilisateur - ID: ${userId}`);
-    
+    this.logger.log(
+      `[${requestId}] Vérification accès utilisateur - ID: ${userId}`,
+    );
+
     const hasAccess = await this.usersService.checkUserAccess(userId);
     this.logger.log(`[${requestId}] Accès utilisateur ${userId}: ${hasAccess}`);
     return { hasAccess };
@@ -179,8 +207,10 @@ export class UsersController {
   ) {
     const requestId = this.generateRequestId();
     const userId = req.user.userId;
-    
-    this.logger.log(`[${requestId}] Mise à jour profil - Utilisateur: ${this.maskUserId(userId)}`);
+
+    this.logger.log(
+      `[${requestId}] Mise à jour profil - Utilisateur: ${this.maskUserId(userId)}`,
+    );
 
     // Validation améliorée
     if (
@@ -201,7 +231,9 @@ export class UsersController {
       }
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(updateUserDto.email)) {
-        this.logger.warn(`[${requestId}] Format email invalide: ${this.maskEmail(updateUserDto.email)}`);
+        this.logger.warn(
+          `[${requestId}] Format email invalide: ${this.maskEmail(updateUserDto.email)}`,
+        );
         throw new BadRequestException("Format d'email invalide");
       }
     }
@@ -237,15 +269,16 @@ export class UsersController {
       throw new BadRequestException("Aucune donnée valide à mettre à jour");
     }
 
-    this.logger.log(`[${requestId}] Données validées pour mise à jour - Champs: ${Object.keys(allowedUpdate).join(', ')}`);
+    this.logger.log(
+      `[${requestId}] Données validées pour mise à jour - Champs: ${Object.keys(allowedUpdate).join(", ")}`,
+    );
 
     try {
-      const updatedUser = await this.usersService.update(
-        userId,
-        allowedUpdate,
-      );
+      const updatedUser = await this.usersService.update(userId, allowedUpdate);
 
-      this.logger.log(`[${requestId}] Profil mis à jour avec succès - Utilisateur: ${this.maskUserId(userId)}`);
+      this.logger.log(
+        `[${requestId}] Profil mis à jour avec succès - Utilisateur: ${this.maskUserId(userId)}`,
+      );
 
       return {
         id: updatedUser._id?.toString(),
@@ -258,7 +291,9 @@ export class UsersController {
         isAdmin: updatedUser.role === UserRole.ADMIN,
       };
     } catch (error) {
-      this.logger.error(`[${requestId}] Erreur mise à jour profil: ${error.message}`);
+      this.logger.error(
+        `[${requestId}] Erreur mise à jour profil: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -271,12 +306,16 @@ export class UsersController {
     @Body() body: { newPassword: string; confirmNewPassword: string },
   ) {
     const requestId = this.generateRequestId();
-    this.logger.log(`[${requestId}] Réinitialisation mot de passe admin - Utilisateur: ${userId}`);
-    
+    this.logger.log(
+      `[${requestId}] Réinitialisation mot de passe admin - Utilisateur: ${userId}`,
+    );
+
     // Implémentez la logique de réinitialisation par l'admin
     await this.usersService.resetPassword(userId, body.newPassword);
-    
-    this.logger.log(`[${requestId}] Mot de passe réinitialisé par admin - Utilisateur: ${userId}`);
+
+    this.logger.log(
+      `[${requestId}] Mot de passe réinitialisé par admin - Utilisateur: ${userId}`,
+    );
     return { message: "Mot de passe réinitialisé avec succès" };
   }
 
@@ -288,11 +327,15 @@ export class UsersController {
     @Body() updateUserDto: UpdateUserDto,
   ) {
     const requestId = this.generateRequestId();
-    this.logger.log(`[${requestId}] Mise à jour utilisateur par admin - ID: ${userId}`);
+    this.logger.log(
+      `[${requestId}] Mise à jour utilisateur par admin - ID: ${userId}`,
+    );
 
     try {
       const updatedUser = await this.usersService.update(userId, updateUserDto);
-      this.logger.log(`[${requestId}] Utilisateur mis à jour par admin - ID: ${userId}`);
+      this.logger.log(
+        `[${requestId}] Utilisateur mis à jour par admin - ID: ${userId}`,
+      );
 
       return {
         id: updatedUser._id?.toString(),
@@ -304,7 +347,9 @@ export class UsersController {
         isActive: updatedUser.isActive,
       };
     } catch (error) {
-      this.logger.error(`[${requestId}] Erreur mise à jour utilisateur par admin: ${error.message}`);
+      this.logger.error(
+        `[${requestId}] Erreur mise à jour utilisateur par admin: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -314,17 +359,23 @@ export class UsersController {
   async getMyProfile(@Request() req: RequestWithUser) {
     const requestId = this.generateRequestId();
     const userId = req.user.sub || req.user.userId;
-    
+
     if (!userId) {
-      this.logger.warn(`[${requestId}] ID utilisateur manquant dans la requête`);
+      this.logger.warn(
+        `[${requestId}] ID utilisateur manquant dans la requête`,
+      );
       throw new BadRequestException("ID utilisateur manquant");
     }
 
-    this.logger.log(`[${requestId}] Récupération profil - Utilisateur: ${this.maskUserId(userId)}`);
+    this.logger.log(
+      `[${requestId}] Récupération profil - Utilisateur: ${this.maskUserId(userId)}`,
+    );
 
     try {
       const user = await this.usersService.findById(userId);
-      this.logger.log(`[${requestId}] Profil récupéré avec succès - Utilisateur: ${this.maskUserId(userId)}`);
+      this.logger.log(
+        `[${requestId}] Profil récupéré avec succès - Utilisateur: ${this.maskUserId(userId)}`,
+      );
 
       return {
         id: user._id?.toString(),
@@ -337,7 +388,9 @@ export class UsersController {
         isAdmin: user.role === UserRole.ADMIN,
       };
     } catch (error) {
-      this.logger.error(`[${requestId}] Erreur récupération profil: ${error.message}`);
+      this.logger.error(
+        `[${requestId}] Erreur récupération profil: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -348,19 +401,22 @@ export class UsersController {
   }
 
   private maskEmail(email: string): string {
-    if (!email) return 'email_inconnu';
-    const [localPart, domain] = email.split('@');
-    if (!localPart || !domain) return 'email_invalide';
-    
-    const maskedLocal = localPart.length <= 2 
-      ? localPart.charAt(0) + '*'
-      : localPart.charAt(0) + '***' + localPart.charAt(localPart.length - 1);
-    
+    if (!email) return "email_inconnu";
+    const [localPart, domain] = email.split("@");
+    if (!localPart || !domain) return "email_invalide";
+
+    const maskedLocal =
+      localPart.length <= 2
+        ? localPart.charAt(0) + "*"
+        : localPart.charAt(0) + "***" + localPart.charAt(localPart.length - 1);
+
     return `${maskedLocal}@${domain}`;
   }
 
   private maskUserId(userId: string): string {
-    if (!userId) return 'user_inconnu';
-    return userId.length <= 8 ? userId : userId.substring(0, 4) + '***' + userId.substring(userId.length - 4);
+    if (!userId) return "user_inconnu";
+    return userId.length <= 8
+      ? userId
+      : userId.substring(0, 4) + "***" + userId.substring(userId.length - 4);
   }
 }

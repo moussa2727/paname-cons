@@ -59,12 +59,19 @@ export class DestinationController {
     )
     imageFile: Express.Multer.File,
   ) {
-    this.logger.log(`Création d'une nouvelle destination: ${createDestinationDto.country}`);
-    
-    const destination = await this.destinationService.create(createDestinationDto, imageFile);
-    
-    this.logger.log(`Destination créée avec succès: ${destination.country} (ID: ${destination._id})`);
-    
+    this.logger.log(
+      `Création d'une nouvelle destination: ${createDestinationDto.country}`,
+    );
+
+    const destination = await this.destinationService.create(
+      createDestinationDto,
+      imageFile,
+    );
+
+    this.logger.log(
+      `Destination créée avec succès: ${destination.country} (ID: ${destination._id})`,
+    );
+
     return destination;
   }
 
@@ -76,12 +83,16 @@ export class DestinationController {
     @Query("limit") limit: number = 10,
     @Query("search") search?: string,
   ) {
-    this.logger.log(`Récupération des destinations - Page: ${page}, Limit: ${limit}, Search: ${search || 'aucun'}`);
-    
+    this.logger.log(
+      `Récupération des destinations - Page: ${page}, Limit: ${limit}, Search: ${search || "aucun"}`,
+    );
+
     const result = await this.destinationService.findAll(page, limit, search);
-    
-    this.logger.log(`Récupération réussie: ${result.data.length} destinations sur ${result.total} total`);
-    
+
+    this.logger.log(
+      `Récupération réussie: ${result.data.length} destinations sur ${result.total} total`,
+    );
+
     return result;
   }
 
@@ -91,11 +102,14 @@ export class DestinationController {
   })
   async findAllWithoutPagination() {
     this.logger.log(`Récupération de toutes les destinations sans pagination`);
-    
-    const destinations = await this.destinationService.findAllWithoutPagination();
-    
-    this.logger.log(`Récupération réussie: ${destinations.length} destinations total`);
-    
+
+    const destinations =
+      await this.destinationService.findAllWithoutPagination();
+
+    this.logger.log(
+      `Récupération réussie: ${destinations.length} destinations total`,
+    );
+
     return destinations;
   }
 
@@ -105,11 +119,11 @@ export class DestinationController {
   @ApiResponse({ status: 404, description: "Destination non trouvée" })
   async findOne(@Param("id") id: string) {
     this.logger.log(`Recherche de la destination avec ID: ${id}`);
-    
+
     const destination = await this.destinationService.findOne(id);
-    
+
     this.logger.log(`Destination trouvée: ${destination.country} (ID: ${id})`);
-    
+
     return destination;
   }
 
@@ -135,17 +149,25 @@ export class DestinationController {
     imageFile?: Express.Multer.File,
   ) {
     this.logger.log(`Mise à jour de la destination ID: ${id}`);
-    
+
     // Vérifier qu'au moins un champ est fourni
     if (Object.keys(updateDestinationDto).length === 0 && !imageFile) {
-      this.logger.warn(`Tentative de mise à jour sans données pour la destination ID: ${id}`);
+      this.logger.warn(
+        `Tentative de mise à jour sans données pour la destination ID: ${id}`,
+      );
       throw new BadRequestException("Aucune donnée à mettre à jour fournie");
     }
 
-    const destination = await this.destinationService.update(id, updateDestinationDto, imageFile);
-    
-    this.logger.log(`Destination mise à jour avec succès: ${destination.country} (ID: ${id})`);
-    
+    const destination = await this.destinationService.update(
+      id,
+      updateDestinationDto,
+      imageFile,
+    );
+
+    this.logger.log(
+      `Destination mise à jour avec succès: ${destination.country} (ID: ${id})`,
+    );
+
     return destination;
   }
 
@@ -157,11 +179,13 @@ export class DestinationController {
   @ApiResponse({ status: 404, description: "Destination non trouvée" })
   async remove(@Param("id") id: string) {
     this.logger.log(`Suppression de la destination ID: ${id}`);
-    
+
     const result = await this.destinationService.remove(id);
-    
-    this.logger.log(`Destination supprimée avec succès: ${result.deletedDestination.country} (ID: ${id})`);
-    
+
+    this.logger.log(
+      `Destination supprimée avec succès: ${result.deletedDestination.country} (ID: ${id})`,
+    );
+
     return { message: "Destination supprimée avec succès" };
   }
 }

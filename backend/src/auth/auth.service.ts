@@ -172,7 +172,8 @@ export class AuthService {
       await this.refreshTokenService.deactivateAllForUser(userId);
       const decodedRefresh = this.jwtService.decode(refreshToken) as any;
       const refreshExp = new Date(
-        (decodedRefresh?.exp || 0) * 1000 || Date.now() + 7 * 24 * 60 * 60 * 1000,
+        (decodedRefresh?.exp || 0) * 1000 ||
+          Date.now() + 7 * 24 * 60 * 60 * 1000,
       );
       await this.refreshTokenService.create(userId, refreshToken, refreshExp);
 
@@ -201,7 +202,6 @@ export class AuthService {
           isActive: newUser.isActive,
         },
       };
-
     } catch (error) {
       this.logger.error(`Erreur lors de l'enregistrement: ${error.message}`);
       throw error;
@@ -283,7 +283,8 @@ export class AuthService {
     }
 
     try {
-      const isWhitelisted = await this.refreshTokenService.isValid(refreshToken);
+      const isWhitelisted =
+        await this.refreshTokenService.isValid(refreshToken);
       if (!isWhitelisted) {
         throw new UnauthorizedException("Refresh token non autorisé");
       }
@@ -420,7 +421,9 @@ export class AuthService {
     stats: any;
   }> {
     try {
-      this.logger.log("🚀 Début de la déconnexion globale des utilisateurs NON-ADMIN");
+      this.logger.log(
+        "🚀 Début de la déconnexion globale des utilisateurs NON-ADMIN",
+      );
 
       const activeNonAdminUsers = await this.userModel
         .find({
@@ -430,7 +433,9 @@ export class AuthService {
         })
         .exec();
 
-      this.logger.log(`📊 ${activeNonAdminUsers.length} utilisateurs non-admin actifs trouvés`);
+      this.logger.log(
+        `📊 ${activeNonAdminUsers.length} utilisateurs non-admin actifs trouvés`,
+      );
 
       if (activeNonAdminUsers.length === 0) {
         return {
@@ -486,7 +491,9 @@ export class AuthService {
         deleteUserResetTokensPromise,
       ]);
 
-      this.logger.log(`✅ Nettoyage complet de ${activeNonAdminUsers.length} utilisateurs non-admin`);
+      this.logger.log(
+        `✅ Nettoyage complet de ${activeNonAdminUsers.length} utilisateurs non-admin`,
+      );
 
       const result = {
         message: `${activeNonAdminUsers.length} utilisateurs non-admin déconnectés avec succès - Admins préservés`,
@@ -506,10 +513,15 @@ export class AuthService {
         },
       };
 
-      this.logger.log(`🎯 Déconnexion globale NON-ADMIN terminée: ${result.message}`);
+      this.logger.log(
+        `🎯 Déconnexion globale NON-ADMIN terminée: ${result.message}`,
+      );
       return result;
     } catch (error) {
-      this.logger.error(`❌ Erreur lors de la déconnexion globale: ${error.message}`, error.stack);
+      this.logger.error(
+        `❌ Erreur lors de la déconnexion globale: ${error.message}`,
+        error.stack,
+      );
       throw new BadRequestException(
         `Erreur lors de la déconnexion globale: ${error.message}`,
       );
@@ -561,12 +573,18 @@ export class AuthService {
           await this.revokeToken(token, new Date(decoded.exp * 1000));
         }
       } catch (error) {
-        this.logger.warn(`Erreur lors de la révocation du token: ${error.message}`);
+        this.logger.warn(
+          `Erreur lors de la révocation du token: ${error.message}`,
+        );
       }
       this.loginAttempts.delete(userId);
-      this.logger.log(`Déconnexion avec suppression de session pour l'utilisateur ${userId}`);
+      this.logger.log(
+        `Déconnexion avec suppression de session pour l'utilisateur ${userId}`,
+      );
     } catch (error) {
-      this.logger.error(`Erreur lors de la déconnexion avec suppression: ${error.message}`);
+      this.logger.error(
+        `Erreur lors de la déconnexion avec suppression: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -618,14 +636,17 @@ export class AuthService {
     const nodeEnv = process.env.NODE_ENV || "development";
 
     if (url && url.includes(",")) {
-      this.logger.warn("⚠️ URL frontend malformée détectée, nettoyage en cours");
+      this.logger.warn(
+        "⚠️ URL frontend malformée détectée, nettoyage en cours",
+      );
       url = url.split(",")[0].trim();
     }
 
     if (!url) {
-      url = nodeEnv === "production"
-        ? "https://panameconsulting.com"
-        : "http://localhost:5173";
+      url =
+        nodeEnv === "production"
+          ? "https://panameconsulting.com"
+          : "http://localhost:5173";
     }
 
     return url.replace(/\/$/, "");
@@ -652,7 +673,9 @@ export class AuthService {
     try {
       const user = await this.usersService.findByEmail(email);
       if (!user) {
-        this.logger.warn(`Demande de réinitialisation pour un email inexistant: ${email}`);
+        this.logger.warn(
+          `Demande de réinitialisation pour un email inexistant: ${email}`,
+        );
         return;
       }
 
@@ -679,11 +702,15 @@ export class AuthService {
         await this.mailService.sendPasswordResetEmail(user.email, resetUrl);
         this.logger.log(`✅ Email de réinitialisation envoyé à ${email}`);
       } catch (emailError) {
-        this.logger.error(`❌ Échec envoi email pour ${email}: ${emailError.message}`);
+        this.logger.error(
+          `❌ Échec envoi email pour ${email}: ${emailError.message}`,
+        );
         this.logger.warn(`🔑 Token de réinitialisation généré pour ${email}`);
       }
     } catch (error) {
-      this.logger.error(`❌ Erreur lors de la demande de réinitialisation: ${error.message}`);
+      this.logger.error(
+        `❌ Erreur lors de la demande de réinitialisation: ${error.message}`,
+      );
     }
   }
 
@@ -691,7 +718,12 @@ export class AuthService {
     try {
       this.logger.log(`🛠️ getProfile appelé avec userId: ${userId}`);
 
-      if (!userId || userId === "undefined" || userId === "null" || userId === "") {
+      if (
+        !userId ||
+        userId === "undefined" ||
+        userId === "null" ||
+        userId === ""
+      ) {
         this.logger.warn("⚠️ userId manquant ou invalide dans getProfile");
         throw new BadRequestException("ID utilisateur manquant");
       }
@@ -702,11 +734,15 @@ export class AuthService {
         const user = await this.usersService.findById(cleanUserId);
 
         if (!user) {
-          this.logger.warn(`❌ Utilisateur non trouvé pour l'ID: ${cleanUserId}`);
+          this.logger.warn(
+            `❌ Utilisateur non trouvé pour l'ID: ${cleanUserId}`,
+          );
           throw new NotFoundException("Utilisateur non trouvé");
         }
 
-        this.logger.log(`✅ Profil récupéré avec succès pour l'ID: ${cleanUserId}`);
+        this.logger.log(
+          `✅ Profil récupéré avec succès pour l'ID: ${cleanUserId}`,
+        );
         return user;
       }
 
@@ -720,14 +756,22 @@ export class AuthService {
         }
       }
 
-      this.logger.error(`❌ Aucun utilisateur trouvé avec l'identifiant: ${cleanUserId}`);
+      this.logger.error(
+        `❌ Aucun utilisateur trouvé avec l'identifiant: ${cleanUserId}`,
+      );
       throw new NotFoundException("Utilisateur non trouvé");
     } catch (error) {
-      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
         throw error;
       }
 
-      this.logger.error(`❌ Erreur critique dans getProfile: ${error.message}`, error.stack);
+      this.logger.error(
+        `❌ Erreur critique dans getProfile: ${error.message}`,
+        error.stack,
+      );
       throw new BadRequestException("Erreur lors de la récupération du profil");
     }
   }
@@ -737,7 +781,8 @@ export class AuthService {
     reason: string = "Logout automatique",
   ): Promise<void> {
     try {
-      const activeSessions = await this.sessionService.getActiveSessionsByUser(userId);
+      const activeSessions =
+        await this.sessionService.getActiveSessionsByUser(userId);
 
       for (const session of activeSessions) {
         try {
@@ -746,7 +791,9 @@ export class AuthService {
             await this.revokeToken(session.token, new Date(decoded.exp * 1000));
           }
         } catch (error) {
-          this.logger.warn(`Erreur lors de la révocation du token: ${error.message}`);
+          this.logger.warn(
+            `Erreur lors de la révocation du token: ${error.message}`,
+          );
         }
       }
 
@@ -755,7 +802,9 @@ export class AuthService {
 
       this.logger.log(`Logout complet pour l'utilisateur ${userId}: ${reason}`);
     } catch (error) {
-      this.logger.error(`Erreur lors du logout pour ${userId}: ${error.message}`);
+      this.logger.error(
+        `Erreur lors du logout pour ${userId}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -771,14 +820,20 @@ export class AuthService {
             await this.revokeToken(session.token, new Date(decoded.exp * 1000));
           }
         } catch (error) {
-          this.logger.warn(`Erreur lors de la révocation du token expiré: ${error.message}`);
+          this.logger.warn(
+            `Erreur lors de la révocation du token expiré: ${error.message}`,
+          );
         }
       }
 
       await this.sessionService.deleteExpiredSessions();
-      this.logger.log(`Nettoyage de ${expiredSessions.length} sessions expirées`);
+      this.logger.log(
+        `Nettoyage de ${expiredSessions.length} sessions expirées`,
+      );
     } catch (error) {
-      this.logger.error(`Erreur lors du nettoyage des sessions: ${error.message}`);
+      this.logger.error(
+        `Erreur lors du nettoyage des sessions: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -788,7 +843,9 @@ export class AuthService {
       await this.sessionService.deleteAllUserSessions(userId);
       this.logger.log(`Sessions nettoyées pour l'utilisateur ${userId}`);
     } catch (error) {
-      this.logger.error(`Erreur lors du nettoyage des sessions pour ${userId}: ${error.message}`);
+      this.logger.error(
+        `Erreur lors du nettoyage des sessions pour ${userId}: ${error.message}`,
+      );
       throw error;
     }
   }

@@ -1,14 +1,9 @@
-[build]
-builder = "./backend/Dockerfile"
+cd backend
+echo '[build]
+builder = "DOCKERFILE"
 
 [deploy]
-startCommand = "cd backend && node dist/main.js"
+startCommand = "pnpm start"
 
-[[services]]
-name = "web"
-httpPort = 10000
-internalPort = 10000
-
-[services.env]
-NODE_ENV = "production"
-PORT = "10000"
+[env]
+PORT = "10000"' > railway.toml
