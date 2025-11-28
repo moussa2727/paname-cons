@@ -301,7 +301,7 @@ export class UsersService {
       // Nettoyer le cache après création
       this.clearUserCache();
 
-      this.logger.log(`Utilisateur créé avec succès: ${maskedEmail}, ID: ${this.maskUserId(savedUser._id.toString())}`);
+      this.logger.log(`Utilisateur créé avec succès: ${maskedEmail}}`);
       return savedUser;
     } catch (error: any) {
       // Gestion des erreurs MongoDB
