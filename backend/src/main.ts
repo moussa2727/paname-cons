@@ -53,17 +53,17 @@ async function bootstrap() {
     const allowedOrigins = [
       "https://panameconsulting.vercel.app",
       "https://panameconsulting-*.vercel.app",
-      "https://panameconsulting.up.railway.app" ,
+      "https://panameconsulting.up.railway.app",
       "http://localhost:5173",
       "http://localhost:3000"
     ];
 
     app.enableCors({
       origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-        // 🔒 BLOQUER les requêtes sans origin
+        // ✅ AUTORISER les requêtes preflight sans origin
         if (!origin) {
-          logger.warn('Tentative d\'accès sans origine - REJETÉE');
-          return callback(new Error('Origin header required'), false);
+          // Les navigateurs peuvent envoyer des preflight sans origin
+          return callback(null, true);
         }
         
         // Vérifier si l'origine est autorisée
@@ -141,6 +141,12 @@ async function bootstrap() {
     // Middleware pour vérifier l'origine sur toutes les requêtes
     app.use((req: Request, res: Response, next: NextFunction) => {
       const origin = req.headers.origin;
+      
+      // ✅ AUTORISER les requêtes preflight (OPTIONS) sans origin
+      if (req.method === 'OPTIONS') {
+        logger.log('✅ Preflight request AUTORISÉE');
+        return res.status(200).end();
+      }
       
       // Autoriser uniquement les health checks sans origin
       if (req.path === '/health' || req.path === '/') {
@@ -247,7 +253,7 @@ async function bootstrap() {
     logger.log(`🌐 URL: http://0.0.0.0:${port}`);
     logger.log(`🔗 API: http://0.0.0.0:${port}/api`);
     logger.log(`❤️  Health: http://0.0.0.0:${port}/health`);
-    logger.log(`🔒 CORS STRICT: Origin header required`);
+    logger.log(`🔒 CORS STRICT: Origin header required (sauf preflight)`);
     logger.log(`🌍 Origines autorisées: ${allowedOrigins.join(', ')}`);
     logger.log('='.repeat(60));
 
