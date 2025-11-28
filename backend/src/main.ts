@@ -26,75 +26,24 @@ async function bootstrap() {
 
   // 🔒 Configuration CORS STRICTE pour la PRODUCTION
   const allowedOrigins = [
-    'https://panameconsulting.com',
-    'https://www.panameconsulting.com',
-    'https://panameconsulting.vercel.app',
-    'https://panameconsulting.up.railway.app',
-  ];
+  "https://panameconsulting.vercel.app",
+  "https://panameconsulting.com",
+  "https://www.panameconsulting.com",
+  "https://panameconsulting.up.railway.app",
+];
 
-  app.enableCors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      // En production, on est STRICT sur les origines
-      if (!origin) {
-        // Autoriser les requêtes sans origine (mobile apps, curl, etc.)
-        callback(null, true);
-        return;
-      }
-      
-      // Vérifier si l'origine est autorisée
-      const isAllowed = allowedOrigins.some(allowedOrigin => 
-        origin === allowedOrigin || origin.startsWith(allowedOrigin)
-      );
-      
-      if (isAllowed) {
-        callback(null, true);
-      } else {
-        console.warn(`🚫 CORS bloqué pour l'origine: ${origin}`);
-        callback(new Error('Not allowed by CORS policy'), false);
-      }
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: [
-      'Origin',
-      'X-Requested-With',
-      'Content-Type',
-      'Accept',
-      'Authorization',
-      'X-API-Key',
-      'Access-Control-Allow-Headers',
-    ],
-    exposedHeaders: [
-      'Authorization',
-      'X-API-Key',
-      'X-Total-Count',
-    ],
-    credentials: true,
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
-    maxAge: 86400, // 24 heures de cache pour les pré-vols
-  });
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const allowedOrigins = [
-    "https://panameconsulting.com",
-    "https://www.panameconsulting.com",
-    "https://panameconsulting.vercel.app",
-    "https://panameconsulting.up.railway.app",
-  ];
-
-  const origin = req.headers.origin;
-
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
-
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-
-  if (req.method === "OPTIONS") return res.sendStatus(204);
-  next();
+app.enableCors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, origin || true);
+    } else {
+      callback(new Error("CORS blocked"), false);
+    }
+  },
+  credentials: true,
+  allowedHeaders: "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+  methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS",
 });
-
 
   // Création du dossier uploads
   const uploadsDir = join(__dirname, '..', 'uploads');
