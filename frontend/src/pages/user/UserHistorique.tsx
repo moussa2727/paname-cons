@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Calendar,
   Clock,
-  ChevronLeft,
-  ChevronRight,
   User,
   FileText,
   Home,
@@ -15,6 +13,8 @@ import {
   EyeOff,
   ArrowLeft,
 } from 'lucide-react';
+import { HistoricService } from '../../api/user/Historic';
+import { Helmet } from 'react-helmet-async';
 
 interface Rendezvous {
   _id: string;
@@ -37,10 +37,8 @@ interface UserStats {
   cancelled: number;
 }
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
 const UserHistorique = () => {
-  const { user, isAuthenticated, token, refreshToken } = useAuth();
+  const { user, isAuthenticated, checkAuth } = useAuth();
   const navigate = useNavigate();
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [completedRendezvous, setCompletedRendezvous] = useState<Rendezvous[]>(
@@ -55,68 +53,46 @@ const UserHistorique = () => {
   const [showCancelledHistory, setShowCancelledHistory] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/connexion');
-    } else {
-      fetchUserStats();
-    }
-  }, [isAuthenticated, navigate]);
-
-  const fetchUserStats = async () => {
-    setIsLoading(true);
-    try {
-      const makeRequest = async (currentToken: string): Promise<Response> => {
-        return fetch(
-          `${API_URL}/api/rendezvous/user/stats?email=${user?.email}`,
-          {
-            headers: {
-              Authorization: `Bearer ${currentToken}`,
-            },
-          }
-        );
-      };
-
-      if (!token) {
-        throw new Error('Token non disponible. Veuillez vous reconnecter.');
-      }
-
-      let response = await makeRequest(token);
-
-      // Si token expiré, rafraîchir et réessayer
-      if (response.status === 401) {
-        const refreshed = await refreshToken();
-        if (refreshed) {
-          const newToken = localStorage.getItem('token');
-          if (newToken) {
-            response = await makeRequest(newToken);
-          } else {
-            throw new Error('Token non disponible après rafraîchissement');
-          }
-        } else {
-          throw new Error('Session expirée. Veuillez vous reconnecter.');
+    const initializeAuth = async () => {
+      if (!isAuthenticated) {
+        const isAuthValid = await checkAuth();
+        if (!isAuthValid) {
+          navigate('/connexion');
+          return;
         }
       }
+      fetchUserStats();
+    };
 
-      if (!response.ok) {
-        throw new Error('Erreur lors de la récupération des statistiques');
-      }
+    initializeAuth();
+  }, [isAuthenticated, checkAuth, navigate]);
 
-      const data = await response.json();
-      setUserStats(data);
+  const fetchUserStats = async () => {
+    if (!user?.email) {
+      toast.error('Utilisateur non authentifié');
+      navigate('/connexion');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const stats = await HistoricService.getUserStats(user.email);
+      setUserStats(stats);
     } catch (error) {
       console.error('❌ Erreur fetchUserStats:', error);
 
-      if (
-        error instanceof Error &&
-        (error.message.includes('Session expirée') ||
-          error.message.includes('Token invalide'))
-      ) {
-        toast.error('Session expirée. Redirection...');
-        setTimeout(() => navigate('/connexion'), 2000);
+      if (error instanceof Error) {
+        if (
+          error.message.includes('Session expirée') ||
+          error.message.includes('non authentifié')
+        ) {
+          toast.error('Session expirée. Redirection...');
+          setTimeout(() => navigate('/connexion'), 2000);
+        } else {
+          toast.error(error.message);
+        }
       } else {
-        toast.error(
-          error instanceof Error ? error.message : 'Une erreur est survenue'
-        );
+        toast.error('Erreur lors de la récupération des statistiques');
       }
     } finally {
       setIsLoading(false);
@@ -124,30 +100,20 @@ const UserHistorique = () => {
   };
 
   const fetchCompletedRendezvous = async () => {
-    if (completedRendezvous.length > 0) return;
+    if (completedRendezvous.length > 0 || !user?.email) return;
 
     setIsHistoryLoading(true);
     try {
-      const response = await fetch(
-        `${API_URL}/api/rendezvous/user/completed?email=${user?.email}`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
+      const completed = await HistoricService.getCompletedRendezvous(
+        user.email
       );
-
-      if (!response.ok) {
-        throw new Error(
-          'Erreur lors de la récupération des rendez-vous terminés'
-        );
-      }
-
-      const data = await response.json();
-      setCompletedRendezvous(data.data || []);
+      setCompletedRendezvous(completed);
     } catch (error) {
+      console.error('❌ Erreur fetchCompletedRendezvous:', error);
       toast.error(
-        error instanceof Error ? error.message : 'Une erreur est survenue'
+        error instanceof Error
+          ? error.message
+          : 'Erreur lors de la récupération des rendez-vous terminés'
       );
     } finally {
       setIsHistoryLoading(false);
@@ -155,30 +121,20 @@ const UserHistorique = () => {
   };
 
   const fetchCancelledRendezvous = async () => {
-    if (cancelledRendezvous.length > 0) return;
+    if (cancelledRendezvous.length > 0 || !user?.email) return;
 
     setIsHistoryLoading(true);
     try {
-      const response = await fetch(
-        `${API_URL}/api/rendezvous/user/cancelled?email=${user?.email}`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
+      const cancelled = await HistoricService.getCancelledRendezvous(
+        user.email
       );
-
-      if (!response.ok) {
-        throw new Error(
-          'Erreur lors de la récupération des rendez-vous annulés'
-        );
-      }
-
-      const data = await response.json();
-      setCancelledRendezvous(data.data || []);
+      setCancelledRendezvous(cancelled);
     } catch (error) {
+      console.error('❌ Erreur fetchCancelledRendezvous:', error);
       toast.error(
-        error instanceof Error ? error.message : 'Une erreur est survenue'
+        error instanceof Error
+          ? error.message
+          : 'Erreur lors de la récupération des rendez-vous annulés'
       );
     } finally {
       setIsHistoryLoading(false);
@@ -202,7 +158,7 @@ const UserHistorique = () => {
           className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
           ${
             status === 'Confirmé'
-              ? 'bg-green-100 text-green-800'
+              ? 'bg-blue-100 text-blue-800'
               : status === 'Terminé'
                 ? 'bg-blue-100 text-blue-800'
                 : status === 'Annulé'
@@ -261,7 +217,7 @@ const UserHistorique = () => {
           >
             <div className='flex justify-between items-start mb-3'>
               <div className='flex-1'>
-                <div className='flex items-center gap-2 text-sky-600 mb-1'>
+                <div className='flex items-center gap-2 text-blue-600 mb-1'>
                   <Calendar className='w-4 h-4' />
                   <span className='font-medium text-sm'>
                     {formatDate(rdv.date)}
@@ -284,7 +240,7 @@ const UserHistorique = () => {
               </div>
               <div>
                 <span className='font-medium text-gray-700 text-xs'>
-                  Niveau d'étude:
+                  Niveau d&apos;étude:
                 </span>
                 <p className='text-gray-600 text-sm'>{rdv.niveauEtude}</p>
               </div>
@@ -301,7 +257,31 @@ const UserHistorique = () => {
     );
   };
 
+  if (!isAuthenticated && !isLoading) {
+    return null; // La redirection est gérée dans useEffect
+  }
+
   return (
+    <>
+    <Helmet>
+      <title>Historique Utilisateurs - Paname Consulting</title>
+      <meta
+        name='description'
+        content="Consultez votre historique de rendez-vous avec un conseiller Paname Consulting."
+      />
+      <meta
+        name='keywords'
+        content="historique, rendez-vous, conseiller, orientation"
+      />
+      <link
+        rel='canonical'
+        href='https://panameconsulting.vercel.app/user-historique'
+      />
+      <meta name='robots' content='noindex, nofollow' />
+      <meta name='googlebot' content='noindex, nofollow' />
+      <meta name='bingbot' content='noindex, nofollow' />
+      <meta name='yandexbot' content='noindex, nofollow' />
+    </Helmet>
     <div className='min-h-screen bg-gray-50'>
       {/* Navigation utilisateur */}
       <div className='bg-white shadow-sm border-b'>
@@ -310,7 +290,7 @@ const UserHistorique = () => {
             <div className='flex items-center space-x-4 md:space-x-6'>
               <Link
                 to='/'
-                className='flex items-center text-sky-600 hover:text-sky-700 transition-colors'
+                className='flex items-center text-blue-600 hover:text-blue-700 transition-colors'
               >
                 <Home className='w-5 h-5 mr-2' />
                 <span className='hidden sm:inline'>Accueil</span>
@@ -318,7 +298,7 @@ const UserHistorique = () => {
               <nav className='flex space-x-2 md:space-x-4'>
                 <Link
                   to='/user-profile'
-                  className='flex items-center px-2 py-2 md:px-3 text-gray-600 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-colors'
+                  className='flex items-center px-2 py-2 md:px-3 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors'
                 >
                   <User className='w-4 h-4 mr-1 md:mr-2' />
                   <span className='hidden sm:inline text-sm md:text-base'>
@@ -327,7 +307,7 @@ const UserHistorique = () => {
                 </Link>
                 <Link
                   to='/user-rendez-vous'
-                  className='flex items-center px-2 py-2 md:px-3 text-gray-600 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-colors'
+                  className='flex items-center px-2 py-2 md:px-3 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors'
                 >
                   <Calendar className='w-4 h-4 mr-1 md:mr-2' />
                   <span className='hidden sm:inline text-sm md:text-base'>
@@ -336,7 +316,7 @@ const UserHistorique = () => {
                 </Link>
                 <Link
                   to='/user-procedure'
-                  className='flex items-center px-2 py-2 md:px-3 text-gray-600 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-colors'
+                  className='flex items-center px-2 py-2 md:px-3 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors'
                 >
                   <FileText className='w-4 h-4 mr-1 md:mr-2' />
                   <span className='hidden sm:inline text-sm md:text-base'>
@@ -345,7 +325,7 @@ const UserHistorique = () => {
                 </Link>
                 <Link
                   to='/user-historique'
-                  className='flex items-center px-2 py-2 md:px-3 bg-sky-100 text-sky-700 rounded-md'
+                  className='flex items-center px-2 py-2 md:px-3 bg-blue-100 text-blue-700 rounded-md'
                 >
                   <BarChart3 className='w-4 h-4 mr-1 md:mr-2' />
                   <span className='hidden sm:inline text-sm md:text-base'>
@@ -356,7 +336,7 @@ const UserHistorique = () => {
             </div>
             <button
               onClick={() => navigate('/rendez-vous')}
-              className='px-3 py-2 md:px-4 md:py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors shadow-sm flex items-center gap-2 text-sm md:text-base'
+              className='px-3 py-2 md:px-4 md:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2 text-sm md:text-base'
             >
               <Calendar className='w-4 h-4' />
               <span className='hidden xs:inline'>Nouveau</span>
@@ -371,7 +351,7 @@ const UserHistorique = () => {
           <div className='mb-6 md:mb-8'>
             <button
               onClick={() => navigate('/user-rendez-vous')}
-              className='flex items-center gap-2 text-sky-600 hover:text-sky-700 mb-4 transition-colors'
+              className='flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4 transition-colors'
             >
               <ArrowLeft className='w-5 h-5' />
               <span className='text-sm md:text-base'>
@@ -380,11 +360,11 @@ const UserHistorique = () => {
             </button>
             <div className='flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3'>
               <div>
-                <h1 className='text-2xl md:text-3xl font-bold text-sky-600'>
+                <h1 className='text-2xl md:text-3xl font-bold text-blue-600'>
                   Historique des Rendez-vous
                 </h1>
                 <p className='text-gray-600 mt-1 md:mt-2 text-sm md:text-base'>
-                  Consultez l'historique complet de vos rendez-vous
+                  Consultez l&apos;historique complet de vos rendez-vous
                 </p>
               </div>
             </div>
@@ -393,8 +373,8 @@ const UserHistorique = () => {
           {/* Carte principale */}
           <div className='bg-white rounded-xl shadow-lg overflow-hidden'>
             <div className='px-4 py-4 md:px-6 md:py-5 border-b border-gray-100'>
-              <h2 className='text-xl md:text-2xl font-bold text-sky-600'>
-                Vue d'ensemble
+              <h2 className='text-xl md:text-2xl font-bold text-blue-600'>
+                Vue d&apos;ensemble
               </h2>
               <p className='text-gray-600 text-sm md:text-base'>
                 Statistiques et historique de vos rendez-vous
@@ -403,7 +383,7 @@ const UserHistorique = () => {
 
             {isLoading ? (
               <div className='flex justify-center py-12'>
-                <div className='animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-sky-500'></div>
+                <div className='animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500'></div>
               </div>
             ) : userStats ? (
               <div className='p-4 md:p-6'>
@@ -425,18 +405,18 @@ const UserHistorique = () => {
                     </div>
                   </div>
 
-                  <div className='bg-green-50 rounded-lg p-4 md:p-6 border border-green-100'>
+                  <div className='bg-blue-50 rounded-lg p-4 md:p-6 border border-blue-100'>
                     <div className='flex items-center justify-between'>
                       <div>
-                        <p className='text-green-600 text-xs md:text-sm font-medium'>
+                        <p className='text-blue-600 text-xs md:text-sm font-medium'>
                           Confirmés
                         </p>
-                        <p className='text-xl md:text-2xl font-bold text-green-700 mt-1'>
+                        <p className='text-xl md:text-2xl font-bold text-blue-700 mt-1'>
                           {userStats.confirmed}
                         </p>
                       </div>
-                      <div className='w-8 h-8 md:w-10 md:h-10 bg-green-100 rounded-full flex items-center justify-center'>
-                        <Calendar className='w-4 h-4 md:w-5 md:h-5 text-green-600' />
+                      <div className='w-8 h-8 md:w-10 md:h-10 bg-blue-100 rounded-full flex items-center justify-center'>
+                        <Calendar className='w-4 h-4 md:w-5 md:h-5 text-blue-600' />
                       </div>
                     </div>
                   </div>
@@ -489,7 +469,7 @@ const UserHistorique = () => {
                       </span>
                     </div>
                     <div className='flex justify-between items-center'>
-                      <span className='text-gray-600'>Taux d'annulation:</span>
+                      <span className='text-gray-600'>Taux d&apos;annulation:</span>
                       <span className='font-semibold'>
                         {userStats.total > 0
                           ? `${((userStats.cancelled / userStats.total) * 100).toFixed(1)}%`
@@ -594,14 +574,14 @@ const UserHistorique = () => {
               </div>
             ) : (
               <div className='text-center py-12 px-6'>
-                <div className='mx-auto w-16 h-16 flex items-center justify-center rounded-full bg-sky-100 text-sky-600 mb-4'>
+                <div className='mx-auto w-16 h-16 flex items-center justify-center rounded-full bg-blue-100 text-blue-600 mb-4'>
                   <BarChart3 className='w-8 h-8' />
                 </div>
                 <h3 className='text-lg font-medium text-gray-900 mb-1'>
                   Aucune donnée
                 </h3>
                 <p className='text-gray-500'>
-                  Vous n'avez aucun rendez-vous pour le moment
+                  Vous n&apos;avez aucun rendez-vous pour le moment
                 </p>
               </div>
             )}
@@ -609,6 +589,8 @@ const UserHistorique = () => {
         </div>
       </div>
     </div>
+    </>
+
   );
 };
 

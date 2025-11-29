@@ -66,7 +66,9 @@ export const useContactService = () => {
       // Vérification des droits administrateur - délégation au AuthContext
       if (requireAdmin) {
         if (!isAuthenticated) {
-          throw new Error('Authentification requise pour accéder à cette ressource');
+          throw new Error(
+            'Authentification requise pour accéder à cette ressource'
+          );
         }
         if (!user) {
           throw new Error('Utilisateur non authentifié');
@@ -129,9 +131,9 @@ export const useContactService = () => {
         }
 
         return await response.json();
-      } catch (err: any) {
+      } catch (err: unknown) {
         clearTimeout(timeoutId);
-        if (err.name === 'AbortError') {
+        if (err instanceof Error && err.name === 'AbortError') {
           throw new Error('Timeout de la requête');
         }
         throw err;
@@ -164,9 +166,9 @@ export const useContactService = () => {
           },
           true // Requiert les droits admin
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
         const errorMessage =
-          err.message || 'Erreur lors de la récupération des messages';
+          err instanceof Error ? err.message : 'Erreur lors de la récupération des messages';
         setError(errorMessage);
         toast.error(errorMessage);
         throw err;
@@ -190,9 +192,9 @@ export const useContactService = () => {
         },
         true // Requiert les droits admin
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorMessage =
-        err.message || 'Erreur lors de la récupération des statistiques';
+        err instanceof Error ? err.message : 'Erreur lors de la récupération des statistiques';
       setError(errorMessage);
       toast.error(errorMessage);
       throw err;
@@ -215,9 +217,9 @@ export const useContactService = () => {
           },
           true // Requiert les droits admin
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
         const errorMessage =
-          err.message || 'Erreur lors de la récupération du message';
+          err instanceof Error ? err.message : 'Erreur lors de la récupération du message';
         setError(errorMessage);
         toast.error(errorMessage);
         throw err;
@@ -245,9 +247,9 @@ export const useContactService = () => {
 
         toast.success('Message marqué comme lu');
         return result.contact;
-      } catch (err: any) {
+      } catch (err: unknown) {
         const errorMessage =
-          err.message || 'Erreur lors du marquage du message';
+          err instanceof Error ? err.message : 'Erreur lors du marquage du message';
         setError(errorMessage);
         toast.error(errorMessage);
         throw err;
@@ -280,9 +282,9 @@ export const useContactService = () => {
 
         toast.success('Réponse envoyée avec succès');
         return result.contact;
-      } catch (err: any) {
+      } catch (err: unknown) {
         const errorMessage =
-          err.message || "Erreur lors de l'envoi de la réponse";
+          err instanceof Error ? err.message : "Erreur lors de l'envoi de la réponse";
         setError(errorMessage);
         toast.error(errorMessage);
         throw err;
@@ -309,9 +311,9 @@ export const useContactService = () => {
         );
 
         toast.success('Message supprimé avec succès');
-      } catch (err: any) {
+      } catch (err: unknown) {
         const errorMessage =
-          err.message || 'Erreur lors de la suppression du message';
+          err instanceof Error ? err.message : 'Erreur lors de la suppression du message';
         setError(errorMessage);
         toast.error(errorMessage);
         throw err;
@@ -340,8 +342,9 @@ export const useContactService = () => {
 
         toast.success('Message envoyé avec succès');
         return result.contact;
-      } catch (err: any) {
-        const errorMessage = err.message || "Erreur lors de l'envoi du message";
+      } catch (err: unknown) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Erreur lors de l'envoi du message";
         setError(errorMessage);
         toast.error(errorMessage);
         throw err;
@@ -377,7 +380,8 @@ export const useContactService = () => {
 
     // Métadonnées (délégation au AuthContext)
     isAdmin: user?.role === 'admin' || user?.isAdmin === true,
-    canAccessAdmin: isAuthenticated && (user?.role === 'admin' || user?.isAdmin === true),
+    canAccessAdmin:
+      isAuthenticated && (user?.role === 'admin' || user?.isAdmin === true),
   };
 };
 

@@ -132,28 +132,29 @@ const About = () => {
                 <p>
                   Fondée par{' '}
                   <strong className='text-sky-600'>Sangare Damini</strong>,
-                  PANAME CONSULTING est née d'une passion pour l'éducation et
-                  l'accompagnement.
+                  PANAME CONSULTING est née d&apos;une passion pour
+                  l&apos;éducation et l&apos;accompagnement.
                 </p>
                 <p>
                   Notre mission : vous offrir un accompagnement sur mesure pour
-                  vos projets d'études à l'étranger, dans un monde en constante
-                  mutation.
+                  vos projets d&apos;études à l&apos;étranger, dans un monde en
+                  constante mutation.
                 </p>
                 <p>
                   <span className='font-semibold text-sky-600'>
                     PANAME CONSULTING
                   </span>{' '}
-                  est votre passerelle vers l'international. Nous transformons
-                  l'éducation en opportunités mondiales grâce à un
-                  accompagnement sur-mesure pour vos projets en France, Canada,
-                  Turquie et au-delà.
+                  est votre passerelle vers l&apos;international. Nous
+                  transformons l&apos;éducation en opportunités mondiales
+                  grâce à un accompagnement sur-mesure pour vos projets en
+                  France, Canada, Turquie et au-delà.
                 </p>
 
                 <div className='bg-sky-50 p-3 md:p-4 border-l-4 border-sky-500 mt-4 md:mt-6'>
                   <p className='italic text-gray-700 text-sm md:text-base'>
-                    "L'éducation est le passeport pour l'avenir, car demain
-                    appartient à ceux qui s'y préparent aujourd'hui."{' '}
+                    "L&apos;éducation est le passeport pour l&apos;avenir, car
+                    demain appartient à ceux qui s&apos;y préparent
+                    aujourd&apos;hui."{' '}
                     <b>: " Malcolm X "</b>
                   </p>
                 </div>

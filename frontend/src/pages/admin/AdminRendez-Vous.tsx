@@ -68,7 +68,9 @@ const AdminRendezVous = () => {
     status: string;
   } | null>(null);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [showMobileActions, setShowMobileActions] = useState<string | null>(null);
+  const [showMobileActions, setShowMobileActions] = useState<string | null>(
+    null
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // États pour la création d'un rendez-vous
@@ -108,30 +110,32 @@ const AdminRendezVous = () => {
   }, []);
 
   // Vérifier si un rendez-vous peut être supprimé selon la logique backend stricte
-  const canDeleteRendezvous = useCallback((
-    rdv: Rendezvous
-  ): { canDelete: boolean; message?: string } => {
-    const isAdmin = user?.role === 'admin';
+  const canDeleteRendezvous = useCallback(
+    (rdv: Rendezvous): { canDelete: boolean; message?: string } => {
+      const isAdmin = user?.role === 'admin';
 
-    if (isAdmin) {
+      if (isAdmin) {
+        return { canDelete: true };
+      }
+
+      // STRICTEMENT conforme à la logique backend (2 heures)
+      const rdvDateTime = new Date(`${rdv.date}T${rdv.time}:00`);
+      const now = new Date();
+      const diffMs = rdvDateTime.getTime() - now.getTime();
+      const twoHoursMs = 2 * 60 * 60 * 1000;
+
+      if (diffMs <= twoHoursMs) {
+        return {
+          canDelete: false,
+          message:
+            "Vous ne pouvez plus annuler votre rendez-vous à moins de 2 heures de l'heure prévue",
+        };
+      }
+
       return { canDelete: true };
-    }
-
-    // STRICTEMENT conforme à la logique backend (2 heures)
-    const rdvDateTime = new Date(`${rdv.date}T${rdv.time}:00`);
-    const now = new Date();
-    const diffMs = rdvDateTime.getTime() - now.getTime();
-    const twoHoursMs = 2 * 60 * 60 * 1000;
-
-    if (diffMs <= twoHoursMs) {
-      return {
-        canDelete: false,
-        message: "Vous ne pouvez plus annuler votre rendez-vous à moins de 2 heures de l'heure prévue",
-      };
-    }
-
-    return { canDelete: true };
-  }, [user?.role]);
+    },
+    [user?.role]
+  );
 
   // Récupération des rendez-vous
   const loadRendezvous = useCallback(async () => {
@@ -156,166 +160,181 @@ const AdminRendezVous = () => {
   }, [fetchRendezvous, page, limit, searchTerm, selectedStatus]);
 
   // Mise à jour du statut
-  const handleUpdateStatus = useCallback(async (
-    id: string,
-    status: string,
-    avisAdmin?: string
-  ) => {
-    try {
-      const updatedRdv = await updateStatus(id, status, avisAdmin);
+  const handleUpdateStatus = useCallback(
+    async (id: string, status: string, avisAdmin?: string) => {
+      try {
+        const updatedRdv = await updateStatus(id, status, avisAdmin);
 
-      setRendezvous(prev =>
-        prev.map(rdv => {
-          if (rdv._id === id) {
-            const updated = {
-              ...rdv,
-              status: updatedRdv.status,
-              // STRICTEMENT conforme au backend : avisAdmin seulement pour "Terminé"
-              ...(updatedRdv.status === 'Terminé' && {
-                avisAdmin: updatedRdv.avisAdmin,
-              }),
-              // Nettoyer avisAdmin si le statut n'est pas "Terminé"
-              ...(updatedRdv.status !== 'Terminé' && {
-                avisAdmin: undefined,
-              }),
-            };
-            return updated;
+        setRendezvous(prev =>
+          prev.map(rdv => {
+            if (rdv._id === id) {
+              const updated = {
+                ...rdv,
+                status: updatedRdv.status,
+                // STRICTEMENT conforme au backend : avisAdmin seulement pour "Terminé"
+                ...(updatedRdv.status === 'Terminé' && {
+                  avisAdmin: updatedRdv.avisAdmin,
+                }),
+                // Nettoyer avisAdmin si le statut n'est pas "Terminé"
+                ...(updatedRdv.status !== 'Terminé' && {
+                  avisAdmin: undefined,
+                }),
+              };
+              return updated;
+            }
+            return rdv;
+          })
+        );
+
+        setShowAvisModal(false);
+        setPendingStatusUpdate(null);
+        setShowMobileActions(null);
+
+        let successMessage = `Statut mis à jour: ${status}`;
+        if (status === 'Terminé' && avisAdmin) {
+          successMessage += ` (Avis: ${avisAdmin})`;
+          if (avisAdmin === 'Favorable') {
+            successMessage +=
+              ' - Une procédure a été créée pour cet utilisateur';
           }
-          return rdv;
-        })
-      );
+        }
 
-      setShowAvisModal(false);
-      setPendingStatusUpdate(null);
-      setShowMobileActions(null);
+        toast.success(successMessage);
+      } catch (error) {
+        console.error('Erreur updateStatus:', error);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'Une erreur est survenue lors de la mise à jour'
+        );
+      }
+    },
+    [updateStatus]
+  );
 
-      let successMessage = `Statut mis à jour: ${status}`;
-      if (status === 'Terminé' && avisAdmin) {
-        successMessage += ` (Avis: ${avisAdmin})`;
-        if (avisAdmin === 'Favorable') {
-          successMessage += ' - Une procédure a été créée pour cet utilisateur';
+  // Gestion du changement de statut via select
+  const handleStatusChange = useCallback(
+    (id: string, newStatus: string) => {
+      if (newStatus === 'Terminé') {
+        setPendingStatusUpdate({ id, status: newStatus });
+        setShowAvisModal(true);
+      } else {
+        handleUpdateStatus(id, newStatus);
+      }
+    },
+    [handleUpdateStatus]
+  );
+
+  // Gestion de la sélection d'avis
+  const handleAvisSelection = useCallback(
+    (avis: 'Favorable' | 'Défavorable') => {
+      if (pendingStatusUpdate) {
+        handleUpdateStatus(
+          pendingStatusUpdate.id,
+          pendingStatusUpdate.status,
+          avis
+        );
+      }
+    },
+    [pendingStatusUpdate, handleUpdateStatus]
+  );
+
+  // Suppression
+  const handleDelete = useCallback(
+    async (id: string) => {
+      const rdvToDelete = rendezvous.find(rdv => rdv._id === id);
+      if (rdvToDelete) {
+        const { canDelete, message } = canDeleteRendezvous(rdvToDelete);
+        if (!canDelete) {
+          toast.error(message || 'Suppression non autorisée');
+          setShowDeleteModal(null);
+          setShowMobileActions(null);
+          return;
         }
       }
 
-      toast.success(successMessage);
-    } catch (error) {
-      console.error('Erreur updateStatus:', error);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Une erreur est survenue lors de la mise à jour'
-      );
-    }
-  }, [updateStatus]);
-
-  // Gestion du changement de statut via select
-  const handleStatusChange = useCallback((id: string, newStatus: string) => {
-    if (newStatus === 'Terminé') {
-      setPendingStatusUpdate({ id, status: newStatus });
-      setShowAvisModal(true);
-    } else {
-      handleUpdateStatus(id, newStatus);
-    }
-  }, [handleUpdateStatus]);
-
-  // Gestion de la sélection d'avis
-  const handleAvisSelection = useCallback((avis: 'Favorable' | 'Défavorable') => {
-    if (pendingStatusUpdate) {
-      handleUpdateStatus(
-        pendingStatusUpdate.id,
-        pendingStatusUpdate.status,
-        avis
-      );
-    }
-  }, [pendingStatusUpdate, handleUpdateStatus]);
-
-  // Suppression
-  const handleDelete = useCallback(async (id: string) => {
-    const rdvToDelete = rendezvous.find(rdv => rdv._id === id);
-    if (rdvToDelete) {
-      const { canDelete, message } = canDeleteRendezvous(rdvToDelete);
-      if (!canDelete) {
-        toast.error(message || 'Suppression non autorisée');
+      try {
+        await deleteRendezvous(id);
+        setRendezvous(prev => prev.filter(rdv => rdv._id !== id));
         setShowDeleteModal(null);
         setShowMobileActions(null);
-        return;
+        toast.success('Rendez-vous annulé avec succès');
+      } catch (error) {
+        console.error('Erreur handleDelete:', error);
+        toast.error(
+          error instanceof Error ? error.message : 'Une erreur est survenue'
+        );
       }
-    }
-
-    try {
-      await deleteRendezvous(id);
-      setRendezvous(prev => prev.filter(rdv => rdv._id !== id));
-      setShowDeleteModal(null);
-      setShowMobileActions(null);
-      toast.success('Rendez-vous annulé avec succès');
-    } catch (error) {
-      console.error('Erreur handleDelete:', error);
-      toast.error(
-        error instanceof Error ? error.message : 'Une erreur est survenue'
-      );
-    }
-  }, [rendezvous, canDeleteRendezvous, deleteRendezvous]);
+    },
+    [rendezvous, canDeleteRendezvous, deleteRendezvous]
+  );
 
   // Création d'un nouveau rendez-vous
-  const handleCreateRendezVous = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+  const handleCreateRendezVous = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsSubmitting(true);
 
-    try {
-      const createdRdv = await createRendezvous(newRendezVous);
+      try {
+        const createdRdv = await createRendezvous(newRendezVous);
 
-      setRendezvous(prev => [createdRdv, ...prev]);
+        setRendezvous(prev => [createdRdv, ...prev]);
 
-      setNewRendezVous({
-        firstName: '',
-        lastName: '',
-        email: '',
-        telephone: '',
-        date: '',
-        time: '',
-        destination: '',
-        destinationAutre: '',
-        niveauEtude: '',
-        filiere: '',
-        filiereAutre: '',
-      });
+        setNewRendezVous({
+          firstName: '',
+          lastName: '',
+          email: '',
+          telephone: '',
+          date: '',
+          time: '',
+          destination: '',
+          destinationAutre: '',
+          niveauEtude: '',
+          filiere: '',
+          filiereAutre: '',
+        });
 
-      setShowCreateModal(false);
-      toast.success('Rendez-vous créé avec succès');
+        setShowCreateModal(false);
+        toast.success('Rendez-vous créé avec succès');
 
-      // Recharger les dates disponibles
-      const dates = await fetchAvailableDates();
-      setAvailableDates(dates);
-    } catch (error) {
-      console.error('Erreur handleCreateRendezVous:', error);
-      toast.error(
-        error instanceof Error ? error.message : 'Une erreur est survenue'
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [newRendezVous, createRendezvous, fetchAvailableDates]);
+        // Recharger les dates disponibles
+        const dates = await fetchAvailableDates();
+        setAvailableDates(dates);
+      } catch (error) {
+        console.error('Erreur handleCreateRendezVous:', error);
+        toast.error(
+          error instanceof Error ? error.message : 'Une erreur est survenue'
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [newRendezVous, createRendezvous, fetchAvailableDates]
+  );
 
   // Gestion du changement de date pour charger les créneaux disponibles
-  const handleDateChange = useCallback(async (date: string) => {
-    setNewRendezVous(prev => ({
-      ...prev,
-      date,
-      time: '',
-    }));
-    if (date) {
-      try {
-        const slots = await fetchAvailableSlots(date);
-        setAvailableSlots(slots);
-      } catch (error) {
-        console.error('Erreur fetchAvailableSlots:', error);
-        toast.error('Erreur lors du chargement des créneaux disponibles');
+  const handleDateChange = useCallback(
+    async (date: string) => {
+      setNewRendezVous(prev => ({
+        ...prev,
+        date,
+        time: '',
+      }));
+      if (date) {
+        try {
+          const slots = await fetchAvailableSlots(date);
+          setAvailableSlots(slots);
+        } catch (error) {
+          console.error('Erreur fetchAvailableSlots:', error);
+          toast.error('Erreur lors du chargement des créneaux disponibles');
+          setAvailableSlots([]);
+        }
+      } else {
         setAvailableSlots([]);
       }
-    } else {
-      setAvailableSlots([]);
-    }
-  }, [fetchAvailableSlots]);
+    },
+    [fetchAvailableSlots]
+  );
 
   // Initialisation
   useEffect(() => {
@@ -361,7 +380,10 @@ const AdminRendezVous = () => {
 
   // Déclaration des constantes utilisées
   const statuts = ['tous', 'En attente', 'Confirmé', 'Terminé', 'Annulé'];
-  const avisOptions: ('Favorable' | 'Défavorable')[] = ['Favorable', 'Défavorable'];
+  const avisOptions: ('Favorable' | 'Défavorable')[] = [
+    'Favorable',
+    'Défavorable',
+  ];
   const niveauxEtude = [
     'Bac',
     'Bac+1',
@@ -395,6 +417,9 @@ const AdminRendezVous = () => {
           content="Interface d'administration pour gérer les rendez-vous des utilisateurs sur Paname Consulting. Accès réservé aux administrateurs."
         />
         <meta name='robots' content='noindex, nofollow' />
+        <meta name='googlebot' content='noindex, nofollow' />
+        <meta name='bingbot' content='noindex, nofollow' />
+        <meta name='yandexbot' content='noindex, nofollow' />
       </Helmet>
 
       <div className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30'>
@@ -406,11 +431,12 @@ const AdminRendezVous = () => {
                 <div className='flex items-center gap-3'>
                   <AlertCircle className='w-6 h-6 text-red-500' />
                   <h2 className='text-lg font-bold text-slate-800'>
-                    Confirmer l'annulation
+                    Confirmer l&apos;annulation
                   </h2>
                 </div>
                 <p className='text-sm text-slate-600 mt-2'>
-                  Êtes-vous sûr de vouloir annuler ce rendez-vous ? Cette action est irréversible.
+                  Êtes-vous sûr de vouloir annuler ce rendez-vous ? Cette action
+                  est irréversible.
                 </p>
               </div>
 
@@ -699,7 +725,7 @@ const AdminRendezVous = () => {
                       htmlFor='niveauEtude'
                       className='block text-sm font-medium text-slate-700 mb-2'
                     >
-                      Niveau d'étude *
+                      Niveau d&apos;étude *
                     </label>
                     <div className='relative'>
                       <GraduationCap className='absolute left-3 top-3 w-4 h-4 text-slate-400' />
@@ -875,7 +901,7 @@ const AdminRendezVous = () => {
                     className='px-4 py-2.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all duration-200 font-medium shadow-sm hover:shadow-md flex items-center gap-2 justify-center focus:outline-none focus:ring-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed order-1 sm:order-2'
                   >
                     {isSubmitting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className='w-4 h-4 animate-spin' />
                     ) : (
                       <Plus className='w-4 h-4' />
                     )}

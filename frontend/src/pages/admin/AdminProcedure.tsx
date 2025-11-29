@@ -20,7 +20,7 @@ import { Helmet } from 'react-helmet-async';
 
 const AdminProcedures: React.FC = () => {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  
+
   // États de gestion
   const [procedures, setProcedures] = useState<Procedure[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +36,9 @@ const AdminProcedures: React.FC = () => {
     destination: '',
     statut: '' as ProcedureStatus | '',
   });
-  const [selectedProcedure, setSelectedProcedure] = useState<Procedure | null>(null);
+  const [selectedProcedure, setSelectedProcedure] = useState<Procedure | null>(
+    null
+  );
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -63,7 +65,7 @@ const AdminProcedures: React.FC = () => {
     };
 
     window.addEventListener('auth-token-expired', handleAuthExpired);
-    
+
     return () => {
       window.removeEventListener('auth-token-expired', handleAuthExpired);
     };
@@ -112,7 +114,7 @@ const AdminProcedures: React.FC = () => {
         total: response.total,
         totalPages: response.totalPages,
       }));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ Erreur chargement procédures:', err);
       handleApiError(err, 'le chargement des procédures');
     } finally {
@@ -127,24 +129,30 @@ const AdminProcedures: React.FC = () => {
     try {
       const overview = await adminProcedureApi.getProceduresOverview();
       setStats(overview);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Erreur chargement stats:', err);
       // Ne pas bloquer l'interface pour les stats
     }
   };
 
   // Gestion centralisée des erreurs
-  const handleApiError = (error: any, context: string) => {
+  const handleApiError = (error: unknown, context: string) => {
     const safeContext = context.replace(/[a-f0-9-]{24,}/gi, 'id_****');
-    
-    if (error.message.includes('Session expirée') || error.message.includes('SESSION_EXPIRED')) {
+
+    if (
+      (error as any).message.includes('Session expirée') ||
+      (error as any).message.includes('SESSION_EXPIRED')
+    ) {
       setError('Session expirée - Veuillez vous reconnecter');
       toast.error('Session expirée - Veuillez vous reconnecter');
-    } else if (error.message.includes('Accès refusé') || error.message.includes('ACCESS_DENIED')) {
+    } else if (
+      (error as any).message.includes('Accès refusé') ||
+      (error as any).message.includes('ACCESS_DENIED')
+    ) {
       setError('Accès refusé - Droits insuffisants');
       toast.error('Accès refusé - Droits insuffisants');
     } else {
-      const safeMessage = error.message.replace(/[a-f0-9-]{24,}/gi, 'id_****');
+      const safeMessage = (error as any).message.replace(/[a-f0-9-]{24,}/gi, 'id_****');
       setError(safeMessage || `Erreur lors de ${safeContext}`);
       toast.error(`Erreur lors de ${safeContext}`);
     }
@@ -162,7 +170,10 @@ const AdminProcedures: React.FC = () => {
       return;
     }
 
-    if (newStatus === StepStatus.REJECTED && (!reason || reason.trim() === '')) {
+    if (
+      newStatus === StepStatus.REJECTED &&
+      (!reason || reason.trim() === '')
+    ) {
       toast.error('La raison du rejet est obligatoire');
       return;
     }
@@ -183,9 +194,9 @@ const AdminProcedures: React.FC = () => {
 
       toast.success(`Étape ${stepName} mise à jour avec succès`);
       loadStats(); // Recharger les stats
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ Erreur mise à jour étape:', err);
-      handleApiError(err, 'la mise à jour de l\'étape');
+      handleApiError(err, "la mise à jour de l'étape");
     } finally {
       setActionLoading(null);
     }
@@ -224,7 +235,7 @@ const AdminProcedures: React.FC = () => {
       );
       toast.success('Procédure supprimée avec succès');
       loadStats();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ Erreur suppression:', err);
       handleApiError(err, 'la suppression');
     } finally {
@@ -242,7 +253,10 @@ const AdminProcedures: React.FC = () => {
 
     try {
       setActionLoading(`reject-${selectedProcedure._id}`);
-      await adminProcedureApi.rejectProcedure(selectedProcedure._id, rejectReason);
+      await adminProcedureApi.rejectProcedure(
+        selectedProcedure._id,
+        rejectReason
+      );
 
       setProcedures(prev =>
         prev.map(p =>
@@ -256,7 +270,7 @@ const AdminProcedures: React.FC = () => {
       setShowRejectModal(false);
       setRejectReason('');
       loadStats();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ Erreur rejet procédure:', err);
       handleApiError(err, 'le rejet de la procédure');
     } finally {
@@ -354,12 +368,12 @@ const AdminProcedures: React.FC = () => {
   // ✅ AFFICHAGE SI NON ADMIN
   if (!isAdmin && !authLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="text-center">
-          <ExclamationTriangleIcon className="mx-auto h-12 w-12 text-red-500 mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Accès refusé</h2>
-          <p className="text-gray-600">
-            Vous n'avez pas les droits nécessaires pour accéder à cette page.
+      <div className='min-h-screen bg-slate-50 flex items-center justify-center p-4'>
+        <div className='text-center'>
+          <ExclamationTriangleIcon className='mx-auto h-12 w-12 text-red-500 mb-4' />
+          <h2 className='text-xl font-bold text-gray-900 mb-2'>Accès refusé</h2>
+          <p className='text-gray-600'>
+            Vous n&apos;avez pas les droits nécessaires pour accéder à cette page.
           </p>
         </div>
       </div>
@@ -369,8 +383,8 @@ const AdminProcedures: React.FC = () => {
   // ✅ CHARGEMENT
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className='min-h-screen bg-slate-50 flex items-center justify-center'>
+        <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600'></div>
       </div>
     );
   }
@@ -381,8 +395,12 @@ const AdminProcedures: React.FC = () => {
         <title>Gestion des Procédures | Paname Consulting</title>
         <meta
           name='description'
-          content="Interface d'administration pour gérer les procédures des étudiants"
+          content="Interface d&apos;administration pour gérer les procédures des étudiants"
         />
+        <meta name='robots' content='noindex, nofollow' />
+        <meta name='googlebot' content='noindex, nofollow' />
+        <meta name='bingbot' content='noindex, nofollow' />
+        <meta name='yandexbot' content='noindex, nofollow' />
       </Helmet>
 
       <div className='min-h-screen bg-slate-50 p-4'>
@@ -394,8 +412,11 @@ const AdminProcedures: React.FC = () => {
           <p className='text-gray-600'>
             Consultez et gérez toutes les procédures des étudiants
           </p>
-          <div className="mt-2 text-sm text-gray-500">
-            Connecté en tant que: <strong>{user?.email ? maskEmail(user.email) : 'Administrateur'}</strong>
+          <div className='mt-2 text-sm text-gray-500'>
+            Connecté en tant que:{' '}
+            <strong>
+              {user?.email ? maskEmail(user.email) : 'Administrateur'}
+            </strong>
           </div>
         </div>
 
@@ -421,7 +442,9 @@ const AdminProcedures: React.FC = () => {
               <input
                 type='text'
                 value={filters.destination}
-                onChange={e => handleFilterChange('destination', e.target.value)}
+                onChange={e =>
+                  handleFilterChange('destination', e.target.value)
+                }
                 className='w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
                 placeholder='Filtrer par destination...'
               />
@@ -458,19 +481,25 @@ const AdminProcedures: React.FC = () => {
             <div className='bg-white rounded-lg shadow p-4 border-l-4 border-blue-400'>
               <div className='text-sm text-gray-600'>En cours</div>
               <div className='text-2xl font-bold text-blue-500'>
-                {stats.byStatus?.find((s: any) => s._id === ProcedureStatus.IN_PROGRESS)?.count || 0}
+                {stats.byStatus?.find(
+                  (s: unknown) => (s as any)._id === ProcedureStatus.IN_PROGRESS
+                )?.count || 0}
               </div>
             </div>
             <div className='bg-white rounded-lg shadow p-4 border-l-4 border-green-500'>
               <div className='text-sm text-gray-600'>Terminées</div>
               <div className='text-2xl font-bold text-green-600'>
-                {stats.byStatus?.find((s: any) => s._id === ProcedureStatus.COMPLETED)?.count || 0}
+                {stats.byStatus?.find(
+                  (s: unknown) => (s as any)._id === ProcedureStatus.COMPLETED
+                )?.count || 0}
               </div>
             </div>
             <div className='bg-white rounded-lg shadow p-4 border-l-4 border-red-500'>
               <div className='text-sm text-gray-600'>Rejetées</div>
               <div className='text-2xl font-bold text-red-600'>
-                {stats.byStatus?.find((s: any) => s._id === ProcedureStatus.REJECTED)?.count || 0}
+                {stats.byStatus?.find(
+                  (s: unknown) => (s as any)._id === ProcedureStatus.REJECTED
+                )?.count || 0}
               </div>
             </div>
           </div>
@@ -488,9 +517,9 @@ const AdminProcedures: React.FC = () => {
           )}
 
           {loading ? (
-            <div className="p-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-2 text-gray-600">Chargement des procédures...</p>
+            <div className='p-8 text-center'>
+              <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto'></div>
+              <p className='mt-2 text-gray-600'>Chargement des procédures...</p>
             </div>
           ) : (
             <>
@@ -532,7 +561,10 @@ const AdminProcedures: React.FC = () => {
 
                     <div className='flex justify-between items-center'>
                       <div className='text-sm text-gray-500'>
-                        Créé le {new Date(procedure.createdAt).toLocaleDateString('fr-FR')}
+                        Créé le{' '}
+                        {new Date(procedure.createdAt).toLocaleDateString(
+                          'fr-FR'
+                        )}
                       </div>
                       <div className='flex space-x-2'>
                         <button
@@ -565,7 +597,8 @@ const AdminProcedures: React.FC = () => {
                   <div className='flex-1 flex justify-between items-center'>
                     <div>
                       <p className='text-sm text-gray-700'>
-                        Page {pagination.page} sur {pagination.totalPages} • {pagination.total} résultats
+                        Page {pagination.page} sur {pagination.totalPages} •{' '}
+                        {pagination.total} résultats
                       </p>
                     </div>
                     <div className='flex space-x-2'>
@@ -626,9 +659,7 @@ const AdminProcedures: React.FC = () => {
                     <label className='text-sm font-medium text-gray-700'>
                       Email
                     </label>
-                    <p className='text-gray-900'>
-                      {selectedProcedure.email}
-                    </p>
+                    <p className='text-gray-900'>{selectedProcedure.email}</p>
                   </div>
                   <div>
                     <label className='text-sm font-medium text-gray-700'>
@@ -679,7 +710,8 @@ const AdminProcedures: React.FC = () => {
                             {step.nom}
                           </div>
                           <div className='text-sm text-gray-600'>
-                            Dernière mise à jour: {new Date(step.dateMaj).toLocaleDateString('fr-FR')}
+                            Dernière mise à jour:{' '}
+                            {new Date(step.dateMaj).toLocaleDateString('fr-FR')}
                           </div>
                           {step.raisonRefus && (
                             <div className='text-sm text-red-600 mt-1'>
@@ -706,7 +738,10 @@ const AdminProcedures: React.FC = () => {
                                 <CheckCircleIcon className='w-5 h-5' />
                               </button>
                             )}
-                            {[StepStatus.PENDING, StepStatus.IN_PROGRESS].includes(step.statut) && (
+                            {[
+                              StepStatus.PENDING,
+                              StepStatus.IN_PROGRESS,
+                            ].includes(step.statut) && (
                               <button
                                 onClick={() => {
                                   setShowDetailModal(false);
@@ -749,7 +784,8 @@ const AdminProcedures: React.FC = () => {
               </div>
               <div className='px-6 py-4'>
                 <p className='text-gray-600 mb-4'>
-                  Raison du rejet pour {selectedProcedure.prenom} {selectedProcedure.nom}:
+                  Raison du rejet pour {selectedProcedure.prenom}{' '}
+                  {selectedProcedure.nom}:
                 </p>
                 <textarea
                   value={rejectReason}
@@ -762,7 +798,10 @@ const AdminProcedures: React.FC = () => {
               <div className='px-6 py-4 border-t border-gray-200 flex flex-col space-y-2'>
                 <button
                   onClick={handleRejectProcedure}
-                  disabled={!rejectReason.trim() || actionLoading === `reject-${selectedProcedure._id}`}
+                  disabled={
+                    !rejectReason.trim() ||
+                    actionLoading === `reject-${selectedProcedure._id}`
+                  }
                   className='px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
                 >
                   {actionLoading === `reject-${selectedProcedure._id}`
@@ -795,13 +834,16 @@ const AdminProcedures: React.FC = () => {
               <div className='px-6 py-4'>
                 <p className='text-gray-600'>
                   Êtes-vous sûr de vouloir supprimer la procédure de{' '}
-                  <strong>{deleteModal.procedureName}</strong> ? Cette action est irréversible.
+                  <strong>{deleteModal.procedureName}</strong> ? Cette action
+                  est irréversible.
                 </p>
               </div>
               <div className='px-6 py-4 border-t border-gray-200 flex flex-col space-y-2'>
                 <button
                   onClick={handleDeleteConfirm}
-                  disabled={actionLoading === `delete-${deleteModal.procedureId}`}
+                  disabled={
+                    actionLoading === `delete-${deleteModal.procedureId}`
+                  }
                   className='px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition-colors'
                 >
                   {actionLoading
@@ -809,7 +851,13 @@ const AdminProcedures: React.FC = () => {
                     : 'Confirmer la suppression'}
                 </button>
                 <button
-                  onClick={() => setDeleteModal({ isOpen: false, procedureId: null, procedureName: '' })}
+                  onClick={() =>
+                    setDeleteModal({
+                      isOpen: false,
+                      procedureId: null,
+                      procedureName: '',
+                    })
+                  }
                   className='px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors'
                 >
                   Annuler

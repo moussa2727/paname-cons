@@ -49,7 +49,7 @@ const defaultDestinations: Destination[] = [
 ];
 
 const VITE_API_URL =
-  (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:10000';
+  (import.meta as any).env.VITE_API_URL || 'http://localhost:10000';
 
 const Destination = () => {
   const [destinations, setDestinations] =
@@ -102,7 +102,7 @@ const Destination = () => {
 
       if (result?.data && result.data.length > 0) {
         setDestinations(
-          result.data.map((dest: any) => ({
+          result.data.map((dest: Destination) => ({
             ...dest,
             imagePath: getFullImageUrl(dest.imagePath),
           }))
@@ -110,8 +110,8 @@ const Destination = () => {
       } else {
         setDestinations(defaultDestinations);
       }
-    } catch (err) {
-      console.warn('Network error, using default destinations');
+    } catch (err: unknown) {
+      console.error('Network error, using default destinations', err);
       setDestinations(defaultDestinations);
     } finally {
       setLoading(false);
@@ -139,8 +139,8 @@ const Destination = () => {
             Nos Destinations
           </h2>
           <p className='text-lg text-gray-600 max-w-3xl mx-auto lg:text-xl'>
-            Envie d'évasion ? Découvrez nos destinations les plus en vogue. Un
-            voyage unique vous attend, juste au bon moment.
+            Envie d&apos;évasion ? Découvrez nos destinations les plus en vogue.
+            Un voyage unique vous attend, juste au bon moment.
           </p>
         </div>
 

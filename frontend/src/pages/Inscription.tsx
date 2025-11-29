@@ -5,7 +5,7 @@ import Register from '../components/auth/Register';
 const Inscription = () => {
   const pageTitle = 'Créer un compte - PANAME CONSULTING';
   const pageDescription =
-    'Inscrivez-vous pour démarrer votre projet d’études à l’étranger avec Paname Consulting.';
+    'Inscrivez-vous pour démarrer votre projet d&apos;études à l&apos;étranger avec Paname Consulting.';
   const canonicalUrl = 'https://panameconsulting.com/inscription';
 
   return (

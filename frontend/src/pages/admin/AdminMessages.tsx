@@ -5,6 +5,7 @@ import AdminContactService, {
   ContactStats,
 } from '../../api/admin/AdminContactService';
 import { toast } from 'react-toastify';
+import { Helmet } from 'react-helmet-async';
 
 // Icons corrigés pour accepter className
 const Icon = {
@@ -139,7 +140,8 @@ const AdminMessages: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Vérifier l'accès administrateur
-  const canAccessAdmin = isAuthenticated && (user?.isAdmin || user?.role === 'admin');
+  const canAccessAdmin =
+    isAuthenticated && (user?.isAdmin || user?.role === 'admin');
 
   // Charger les contacts
   const loadContacts = async () => {
@@ -152,10 +154,13 @@ const AdminMessages: React.FC = () => {
       const response = await contactService.getAllContacts(filters);
       setContacts(response.data);
       setTotalContacts(response.total);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors du chargement des contacts:', error);
-      if (error.message.includes('Accès refusé') || error.message.includes('Authentification requise')) {
-        toast.error('Problème d\'authentification. Veuillez vous reconnecter.');
+      if (
+        (error as any).message.includes('Accès refusé') ||
+        (error as any).message.includes('Authentification requise')
+      ) {
+        toast.error("Problème d'authentification. Veuillez vous reconnecter.");
       }
     }
   };
@@ -167,10 +172,13 @@ const AdminMessages: React.FC = () => {
     try {
       const statsData = await contactService.getContactStats();
       setStats(statsData);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors du chargement des statistiques:', error);
-      if (error.message.includes('Accès refusé') || error.message.includes('Authentification requise')) {
-        toast.error('Problème d\'authentification. Veuillez vous reconnecter.');
+      if (
+        (error as any).message.includes('Accès refusé') ||
+        (error as any).message.includes('Authentification requise')
+      ) {
+        toast.error("Problème d'authentification. Veuillez vous reconnecter.");
       }
     }
   };
@@ -201,9 +209,12 @@ const AdminMessages: React.FC = () => {
       await loadContacts();
       await loadStats();
       toast.success('Message marqué comme lu');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur markAsRead:', error);
-      if (error.message.includes('Accès refusé') || error.message.includes('Authentification requise')) {
+      if (
+        (error as any).message.includes('Accès refusé') ||
+        (error as any).message.includes('Authentification requise')
+      ) {
         toast.error('Session expirée. Veuillez vous reconnecter.');
       } else {
         toast.error('Erreur lors du marquage du message');
@@ -224,9 +235,12 @@ const AdminMessages: React.FC = () => {
       setIsReplyModalOpen(false);
       setReplyMessage('');
       toast.success('Réponse envoyée avec succès');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur replyToMessage:', error);
-      if (error.message.includes('Accès refusé') || error.message.includes('Authentification requise')) {
+      if (
+        (error as any).message.includes('Accès refusé') ||
+        (error as any).message.includes('Authentification requise')
+      ) {
         toast.error('Session expirée. Veuillez vous reconnecter.');
       } else {
         toast.error("Erreur lors de l'envoi de la réponse");
@@ -247,9 +261,12 @@ const AdminMessages: React.FC = () => {
       await loadContacts();
       await loadStats();
       toast.success('Message supprimé avec succès');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur deleteContact:', error);
-      if (error.message.includes('Accès refusé') || error.message.includes('Authentification requise')) {
+      if (
+        (error as any).message.includes('Accès refusé') ||
+        (error as any).message.includes('Authentification requise')
+      ) {
         toast.error('Session expirée. Veuillez vous reconnecter.');
       } else {
         toast.error('Erreur lors de la suppression du message');
@@ -307,14 +324,30 @@ const AdminMessages: React.FC = () => {
           <div className='p-4 bg-red-100 rounded-full inline-block mb-4'>
             <Icon.Email className='w-12 h-12 text-red-500' />
           </div>
-          <h2 className='text-xl font-bold text-slate-800 mb-2'>Accès refusé</h2>
-          <p className='text-slate-600'>Vous n'avez pas les droits nécessaires pour accéder à cette page.</p>
+          <h2 className='text-xl font-bold text-slate-800 mb-2'>
+            Accès refusé
+          </h2>
+          <p className='text-slate-600'>
+            Vous n&apos;avez pas les droits nécessaires pour accéder à cette page.
+          </p>
         </div>
       </div>
     );
   }
 
   return (
+    <>
+    <Helmet>
+      <title>Page de gestion des Messages - Paname Consulting</title>
+      <meta
+        name='description'
+        content="Interface dadministration pour gérer les messages des utilisateurs sur Paname Consulting. Accès réservé aux administrateurs."
+      />
+      <meta name='robots' content='noindex, nofollow' />
+      <meta name='googlebot' content='noindex, nofollow' />
+      <meta name='bingbot' content='noindex, nofollow' />
+      <meta name='yandexbot' content='noindex, nofollow' />
+    </Helmet>
     <div className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 overflow-x-hidden'>
       {/* Header */}
       <div className='mb-4 px-4'>
@@ -752,7 +785,7 @@ const AdminMessages: React.FC = () => {
               <div>
                 <label className='text-sm font-medium text-slate-700 mb-1 flex items-center gap-2'>
                   <Icon.Calendar className='w-4 h-4 text-slate-400' />
-                  Date d'envoi
+                  Date d&apos;envoi
                 </label>
                 <p className='text-slate-800'>
                   {formatDate(selectedContact.createdAt)}
@@ -897,6 +930,7 @@ const AdminMessages: React.FC = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 

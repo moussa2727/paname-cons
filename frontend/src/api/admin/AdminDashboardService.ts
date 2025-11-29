@@ -1,5 +1,6 @@
 // AdminDashboardService.ts
 export interface DashboardStats {
+  total: number;
   totalUsers: number;
   activeUsers: number;
   inactiveUsers: number;
@@ -42,7 +43,7 @@ class DashboardApiService {
 
   private async request(endpoint: string, options: RequestInit = {}) {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     const accessToken = this.getCookie('access_token');
 
     const headers = {
@@ -61,12 +62,14 @@ class DashboardApiService {
       if (response.status === 401) {
         console.log('🔄 Token expiré, tentative de rafraîchissement...');
         const refreshed = await this.refreshAuth();
-        
+
         if (refreshed) {
           const newAccessToken = this.getCookie('access_token');
           const retryHeaders = {
             ...headers,
-            ...(newAccessToken && { Authorization: `Bearer ${newAccessToken}` }),
+            ...(newAccessToken && {
+              Authorization: `Bearer ${newAccessToken}`,
+            }),
           };
 
           const retryResponse = await fetch(url, {
@@ -79,19 +82,22 @@ class DashboardApiService {
             return await retryResponse.json();
           }
         }
-        
+
         throw new Error('Session expirée - Veuillez vous reconnecter');
       }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erreur ${response.status}: ${response.statusText}`);
+        throw new Error(
+          errorData.message ||
+            `Erreur ${response.status}: ${response.statusText}`
+        );
       }
 
       return await response.json();
     } catch (error) {
       console.error(`❌ API Error ${endpoint}:`, error);
-      
+
       if (error instanceof Error) {
         if (error.message.includes('Session expirée')) {
           throw error;
@@ -100,7 +106,7 @@ class DashboardApiService {
           throw new Error('Erreur de connexion au serveur');
         }
       }
-      
+
       throw error;
     }
   }
@@ -112,30 +118,46 @@ class DashboardApiService {
       const userStats = userStatsResponse.data || userStatsResponse;
 
       // Stats procédures
-      const procedureStatsResponse = await this.request('/api/procedures/admin/stats');
-      const procedureStats = procedureStatsResponse.data || procedureStatsResponse;
+      const procedureStatsResponse = await this.request(
+        '/api/procedures/admin/stats'
+      );
+      const procedureStats =
+        procedureStatsResponse.data || procedureStatsResponse;
 
       // Récupérer les rendez-vous
-      const rendezvousResponse = await this.request('/api/rendezvous?limit=1000');
+      const rendezvousResponse = await this.request(
+        '/api/rendezvous?limit=1000'
+      );
       const allRendezvous = rendezvousResponse.data || rendezvousResponse || [];
 
       // 🔄 CONVERSION ET NORMALISATION DES STATUTS
-      const normalizedProcedureStats = this.normalizeProcedureStats(procedureStats);
-      const normalizedRendezvousStats = this.normalizeRendezvousStats(allRendezvous);
+      const normalizedProcedureStats =
+        this.normalizeProcedureStats(procedureStats);
+      const normalizedRendezvousStats =
+        this.normalizeRendezvousStats(allRendezvous);
+
+      // CALCUL DU TOTAL GLOBAL (somme des utilisateurs + procédures + rendez-vous)
+      const totalGlobal = 
+        (userStats.totalUsers || userStats.total || 0) +
+        normalizedProcedureStats.totalProcedures +
+        allRendezvous.length;
 
       return {
+        // Propriété total obligatoire
+        total: totalGlobal,
+
         // Données utilisateurs normalisées
         totalUsers: userStats.totalUsers || userStats.total || 0,
         activeUsers: userStats.activeUsers || userStats.active || 0,
         inactiveUsers: userStats.inactiveUsers || userStats.inactive || 0,
         adminUsers: userStats.adminUsers || userStats.admins || 0,
         regularUsers: userStats.regularUsers || userStats.users || 0,
-        
+
         // Données procédures normalisées
         totalProcedures: normalizedProcedureStats.totalProcedures,
         proceduresByStatus: normalizedProcedureStats.byStatus,
         proceduresByDestination: normalizedProcedureStats.byDestination,
-        
+
         // Données rendez-vous normalisées
         totalRendezvous: allRendezvous.length,
         rendezvousStats: normalizedRendezvousStats,
@@ -149,11 +171,15 @@ class DashboardApiService {
   async getRecentActivities(limit: number = 5): Promise<RecentActivity[]> {
     try {
       // Procédures récentes
-      const proceduresResponse = await this.request(`/api/procedures/admin/all?limit=${limit}`);
+      const proceduresResponse = await this.request(
+        `/api/procedures/admin/all?limit=${limit}`
+      );
       const procedures = proceduresResponse.data || proceduresResponse || [];
 
       // Rendez-vous récents
-      const rendezvousResponse = await this.request(`/api/rendezvous?limit=${limit}`);
+      const rendezvousResponse = await this.request(
+        `/api/rendezvous?limit=${limit}`
+      );
       const rendezvous = rendezvousResponse.data || rendezvousResponse || [];
 
       // Transformer en activités récentes
@@ -185,7 +211,10 @@ class DashboardApiService {
 
       // Trier par date et limiter
       return activities
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .sort(
+          (a, b) =>
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        )
         .slice(0, limit);
     } catch (error) {
       console.error('Error fetching recent activities:', error);
@@ -196,14 +225,16 @@ class DashboardApiService {
   // ==================== PROCÉDURES ====================
 
   async getProcedures(page: number = 1, limit: number = 10) {
-    const response = await this.request(`/api/procedures/admin/all?page=${page}&limit=${limit}`);
+    const response = await this.request(
+      `/api/procedures/admin/all?page=${page}&limit=${limit}`
+    );
     return response;
   }
 
   async updateProcedureStatus(id: string, status: string, reason?: string) {
     // 🔄 CONVERSION STATUT FRONTEND -> BACKEND
     const backendStatus = this.mapProcedureStatusToBackend(status);
-    
+
     if (backendStatus === 'rejected') {
       return this.request(`/api/procedures/admin/${id}/reject`, {
         method: 'PUT',
@@ -217,11 +248,18 @@ class DashboardApiService {
     });
   }
 
-  async updateProcedureStep(procedureId: string, stepName: string, updates: any) {
-    return this.request(`/api/procedures/admin/${procedureId}/steps/${stepName}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates),
-    });
+  async updateProcedureStep(
+    procedureId: string,
+    stepName: string,
+    updates: unknown
+  ) {
+    return this.request(
+      `/api/procedures/admin/${procedureId}/steps/${stepName}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(updates),
+      }
+    );
   }
 
   async deleteProcedure(id: string, reason?: string) {
@@ -251,7 +289,7 @@ class DashboardApiService {
   async updateRendezvousStatus(id: string, status: string, avisAdmin?: string) {
     // 🔄 CONVERSION STATUT FRONTEND -> BACKEND
     const backendStatus = this.mapRendezvousStatusToBackend(status);
-    
+
     return this.request(`/api/rendezvous/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ status: backendStatus, avisAdmin }),
@@ -304,20 +342,29 @@ class DashboardApiService {
 
   // 🔄 MÉTHODES DE NORMALISATION
   private normalizeProcedureStats(procedureStats: any) {
-    const byStatus = (procedureStats.byStatus || procedureStats.proceduresByStatus || []).map((stat: any) => ({
+    const byStatus = (
+      procedureStats.byStatus ||
+      procedureStats.proceduresByStatus ||
+      []
+    ).map((stat: any) => ({
       _id: this.normalizeProcedureStatus(stat._id || stat.status),
-      count: stat.count || stat.total || 0
+      count: stat.count || stat.total || 0,
     }));
 
-    const byDestination = (procedureStats.byDestination || procedureStats.proceduresByDestination || []).map((dest: any) => ({
+    const byDestination = (
+      procedureStats.byDestination ||
+      procedureStats.proceduresByDestination ||
+      []
+    ).map((dest: any) => ({
       _id: dest._id || dest.destination || 'Non spécifiée',
-      count: dest.count || dest.total || 0
+      count: dest.count || dest.total || 0,
     }));
 
     return {
-      totalProcedures: procedureStats.total || procedureStats.totalProcedures || 0,
+      totalProcedures:
+        procedureStats.total || procedureStats.totalProcedures || 0,
       byStatus,
-      byDestination
+      byDestination,
     };
   }
 
@@ -326,7 +373,7 @@ class DashboardApiService {
       pending: 0,
       confirmed: 0,
       completed: 0,
-      cancelled: 0
+      cancelled: 0,
     };
 
     rendezvous.forEach((rdv: any) => {
@@ -342,63 +389,64 @@ class DashboardApiService {
   // 🗂️ NORMALISATION DES STATUTS
   private normalizeProcedureStatus(status: string): string {
     const statusMap: { [key: string]: string } = {
-      'pending': 'En cours',
-      'in_progress': 'En cours',
+      pending: 'En cours',
+      in_progress: 'En cours',
       'in progress': 'En cours',
-      'completed': 'Terminée',
-      'finished': 'Terminée',
-      'rejected': 'Refusée',
-      'refused': 'Refusée',
-      'cancelled': 'Annulée',
-      'canceled': 'Annulée',
+      completed: 'Terminée',
+      finished: 'Terminée',
+      rejected: 'Refusée',
+      refused: 'Refusée',
+      cancelled: 'Annulée',
+      canceled: 'Annulée',
       'En cours': 'En cours',
-      'Terminée': 'Terminée',
-      'Refusée': 'Refusée',
-      'Annulée': 'Annulée'
+      Terminée: 'Terminée',
+      Refusée: 'Refusée',
+      Annulée: 'Annulée',
     };
-    
+
     return statusMap[status?.toLowerCase()] || 'En cours';
   }
 
   private normalizeRendezvousStatus(status: string): string {
     const statusMap: { [key: string]: string } = {
-      'pending': 'pending',
+      pending: 'pending',
       'en attente': 'pending',
-      'confirmed': 'confirmed',
-      'confirmé': 'confirmed',
-      'completed': 'completed',
-      'terminé': 'completed',
-      'cancelled': 'cancelled',
-      'annulé': 'cancelled'
+      confirmed: 'confirmed',
+      confirmé: 'confirmed',
+      completed: 'completed',
+      terminé: 'completed',
+      cancelled: 'cancelled',
+      annulé: 'cancelled',
     };
-    
+
     return statusMap[status?.toLowerCase()] || 'pending';
   }
 
   private mapProcedureStatusToBackend(frontendStatus: string): string {
     const statusMap: { [key: string]: string } = {
       'En cours': 'pending',
-      'Terminée': 'completed',
-      'Refusée': 'rejected',
-      'Annulée': 'cancelled'
+      Terminée: 'completed',
+      Refusée: 'rejected',
+      Annulée: 'cancelled',
     };
-    
+
     return statusMap[frontendStatus] || frontendStatus;
   }
 
   private mapRendezvousStatusToBackend(frontendStatus: string): string {
     const statusMap: { [key: string]: string } = {
-      'pending': 'pending',
-      'confirmed': 'confirmed',
-      'completed': 'completed',
-      'cancelled': 'cancelled'
+      pending: 'pending',
+      confirmed: 'confirmed',
+      completed: 'completed',
+      cancelled: 'cancelled',
     };
-    
+
     return statusMap[frontendStatus] || frontendStatus;
   }
 
   private getDefaultStats(): DashboardStats {
     return {
+      total: 0, // Ajout de la propriété total
       totalUsers: 0,
       activeUsers: 0,
       inactiveUsers: 0,
@@ -439,7 +487,9 @@ export const dashboardApi = new DashboardApiService(
     }
   },
   async () => {
-    console.warn('refreshAuth non disponible - utilisation de createDashboardApi() recommandée');
+    console.warn(
+      'refreshAuth non disponible - utilisation de createDashboardApi() recommandée'
+    );
     return false;
   }
 );

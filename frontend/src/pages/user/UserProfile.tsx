@@ -22,36 +22,33 @@ import {
   PasswordData,
   ValidationErrors,
 } from '../../api/user/Profile/userProfileApi';
+import { Helmet } from 'react-helmet-async';
+
 
 const UserProfile = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // États pour les données du profil
   const [profileData, setProfileData] = useState<UserProfileData>({
     email: '',
     telephone: '',
   });
 
-  // États pour le mot de passe
   const [passwordData, setPasswordData] = useState<PasswordData>({
     currentPassword: '',
     newPassword: '',
     confirmNewPassword: '',
   });
 
-  // États d'interface
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // États pour les erreurs de validation
   const [profileErrors, setProfileErrors] = useState<ValidationErrors>({});
   const [passwordErrors, setPasswordErrors] = useState<ValidationErrors>({});
 
-  // États pour les validations en temps réel
   const [profileTouched, setProfileTouched] = useState<{
     [key: string]: boolean;
   }>({});
@@ -59,7 +56,6 @@ const UserProfile = () => {
     [key: string]: boolean;
   }>({});
 
-  // Initialisation des données utilisateur
   useEffect(() => {
     if (user) {
       setProfileData({
@@ -69,16 +65,15 @@ const UserProfile = () => {
     }
   }, [user]);
 
-  // Validation en temps réel pour le profil - CONFORME BACKEND
   const validateProfileField = (name: string, value: string) => {
     let error = '';
-    
+
     if (name === 'email') {
       error = userProfileApi.validateEmail(value);
     } else if (name === 'telephone') {
       error = userProfileApi.validateTelephone(value);
     }
-    
+
     setProfileErrors(prev => ({
       ...prev,
       [name]: error,
@@ -86,21 +81,23 @@ const UserProfile = () => {
     return !error;
   };
 
-  // Validation en temps réel pour le mot de passe - CONFORME BACKEND
   const validatePasswordField = (name: string, value: string) => {
     let error = '';
-    
-    if (name === 'currentPassword' || name === 'newPassword' || name === 'confirmNewPassword') {
+
+    if (
+      name === 'currentPassword' ||
+      name === 'newPassword' ||
+      name === 'confirmNewPassword'
+    ) {
       error = userProfileApi.validatePassword(value, name);
-      
-      // Validation spécifique pour la confirmation - CONFORME BACKEND
+
       if (name === 'confirmNewPassword' && !error) {
         if (value !== passwordData.newPassword) {
           error = 'Les mots de passe ne correspondent pas';
         }
       }
     }
-    
+
     setPasswordErrors(prev => ({
       ...prev,
       [name]: error,
@@ -108,7 +105,6 @@ const UserProfile = () => {
     return !error;
   };
 
-  // Gestion des changements de profil
   const handleProfileChange = (field: keyof UserProfileData, value: string) => {
     const newData = {
       ...profileData,
@@ -118,11 +114,9 @@ const UserProfile = () => {
     setProfileData(newData);
     setProfileTouched(prev => ({ ...prev, [field]: true }));
 
-    // Validation en temps réel CONFORME BACKEND
     validateProfileField(field, value);
   };
 
-  // Gestion des changements de mot de passe
   const handlePasswordChange = (field: keyof PasswordData, value: string) => {
     const newData = {
       ...passwordData,
@@ -132,15 +126,12 @@ const UserProfile = () => {
     setPasswordData(newData);
     setPasswordTouched(prev => ({ ...prev, [field]: true }));
 
-    // Validation en temps réel CONFORME BACKEND
     validatePasswordField(field, value);
   };
 
-  // Soumission du profil - DÉLÉGATION TOTALE
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validation finale CONFORME BACKEND
     const validation = userProfileApi.validateProfileBeforeSubmit(profileData);
 
     if (!validation.isValid) {
@@ -152,42 +143,46 @@ const UserProfile = () => {
     setIsLoading(true);
 
     try {
-      // ✅ Appel direct SANS token - délégation totale au contexte/navigateur
       await userProfileApi.updateProfile(profileData);
 
       toast.success('Profil mis à jour avec succès');
       setProfileTouched({});
-      
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur mise à jour profil:', error);
-      
-      // ✅ GESTION D'ERREURS CONFORME BACKEND
-      if (error.message.includes('Cet email est déjà utilisé')) {
+
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
+
+      if (errorMessage.includes('Cet email est déjà utilisé')) {
         toast.error('Cet email est déjà utilisé');
-      } else if (error.message.includes('Ce numéro de téléphone est déjà utilisé')) {
+      } else if (
+        errorMessage.includes('Ce numéro de téléphone est déjà utilisé')
+      ) {
         toast.error('Ce numéro de téléphone est déjà utilisé');
-      } else if (error.message.includes('Format d\'email invalide')) {
-        toast.error('Format d\'email invalide');
-      } else if (error.message.includes('Le téléphone doit contenir au moins 5 caractères')) {
+      } else if (errorMessage.includes("Format d'email invalide")) {
+        toast.error("Format d'email invalide");
+      } else if (
+        errorMessage.includes(
+          'Le téléphone doit contenir au moins 5 caractères'
+        )
+      ) {
         toast.error('Le téléphone doit contenir au moins 5 caractères');
-      } else if (error.message.includes('Au moins un champ')) {
+      } else if (errorMessage.includes('Au moins un champ')) {
         toast.error('Au moins un champ (email ou téléphone) doit être fourni');
-      } else if (error.message.includes('Session expirée')) {
+      } else if (errorMessage.includes('Session expirée')) {
         toast.error('Session expirée - Veuillez vous reconnecter');
       } else {
-        toast.error(error.message || 'Erreur lors de la mise à jour du profil');
+        toast.error(errorMessage || 'Erreur lors de la mise à jour du profil');
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Soumission du mot de passe - DÉLÉGATION TOTALE
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validation finale CONFORME BACKEND
-    const validation = userProfileApi.validatePasswordBeforeSubmit(passwordData);
+    const validation =
+      userProfileApi.validatePasswordBeforeSubmit(passwordData);
 
     if (!validation.isValid) {
       setPasswordErrors(validation.errors);
@@ -198,12 +193,10 @@ const UserProfile = () => {
     setIsLoading(true);
 
     try {
-      // ✅ Appel direct SANS token - délégation totale au contexte/navigateur
       await userProfileApi.updatePassword(passwordData);
 
       toast.success('Mot de passe mis à jour avec succès');
 
-      // Réinitialiser le formulaire
       setPasswordData({
         currentPassword: '',
         newPassword: '',
@@ -211,29 +204,39 @@ const UserProfile = () => {
       });
       setPasswordTouched({});
       setPasswordErrors({});
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur mise à jour mot de passe:', error);
 
-      // ✅ GESTION D'ERREURS CONFORME BACKEND
-      if (error.message.includes('Mot de passe actuel incorrect')) {
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
+
+      if (errorMessage.includes('Mot de passe actuel incorrect')) {
         toast.error('Le mot de passe actuel est incorrect');
-      } else if (error.message.includes('Les mots de passe ne correspondent pas')) {
+      } else if (
+        errorMessage.includes('Les mots de passe ne correspondent pas')
+      ) {
         toast.error('Les mots de passe ne correspondent pas');
-      } else if (error.message.includes('doit contenir au moins 8 caractères')) {
+      } else if (
+        errorMessage.includes('doit contenir au moins 8 caractères')
+      ) {
         toast.error('Le mot de passe doit contenir au moins 8 caractères');
-      } else if (error.message.includes('minuscule, une majuscule et un chiffre')) {
-        toast.error('Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre');
-      } else if (error.message.includes('Session expirée')) {
+      } else if (
+        errorMessage.includes('minuscule, une majuscule et un chiffre')
+      ) {
+        toast.error(
+          'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre'
+        );
+      } else if (errorMessage.includes('Session expirée')) {
         toast.error('Session expirée - Veuillez vous reconnecter');
       } else {
-        toast.error(error.message || 'Erreur lors de la mise à jour du mot de passe');
+        toast.error(
+          errorMessage || 'Erreur lors de la mise à jour du mot de passe'
+        );
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Réinitialiser les formulaires
   const resetProfileForm = () => {
     if (user) {
       setProfileData({
@@ -255,7 +258,6 @@ const UserProfile = () => {
     setPasswordTouched({});
   };
 
-  // Vérifier si le formulaire profil a des modifications
   const hasProfileChanges = () => {
     if (!user) return false;
     return (
@@ -264,7 +266,6 @@ const UserProfile = () => {
     );
   };
 
-  // Vérifier si le formulaire mot de passe est vide
   const isPasswordFormEmpty = () => {
     return (
       !passwordData.currentPassword &&
@@ -273,7 +274,10 @@ const UserProfile = () => {
     );
   };
 
-  // Composant pour afficher les indicateurs de force du mot de passe
+  const handleTabClick = (tabId: 'profile' | 'password') => {
+    setActiveTab(tabId);
+  };
+
   const PasswordStrengthIndicator = ({ password }: { password: string }) => {
     if (!password) return null;
 
@@ -329,8 +333,26 @@ const UserProfile = () => {
   };
 
   return (
+    <>
+      {/* helmet avec noindex nofollow */}
+      <Helmet>
+        <meta name='robots' content='noindex, nofollow' />
+        <meta name='googlebot' content='noindex, nofollow' />
+        <meta name='bingbot' content='noindex, nofollow' />
+        <meta name='yandexbot' content='noindex, nofollow' />
+        <title>Mon Profil - Paname Consulting</title>
+        <meta name='description' content='Mon Profil - Paname Consulting' />
+        <meta name='keywords' content='Mon Profil, Paname Consulting' />
+        <meta name='author' content='Paname Consulting' />
+        <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+        <meta name='theme-color' content='#0369a1' />
+        <link rel='icon' href='/paname-consulting.ico' />
+        <link rel='apple-touch-icon' href='/paname-consulting.png' />
+        <link rel='manifest' href='/manifest.json' />
+        <link rel='canonical' href='https://panameconsulting.com/user-profile' />
+      </Helmet>
+
     <div className='min-h-screen bg-gray-50'>
-      {/* Header uniformisé */}
       <header className='bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50'>
         <div className='px-4 py-3'>
           <div className='flex items-center justify-between'>
@@ -347,7 +369,6 @@ const UserProfile = () => {
             </div>
           </div>
 
-          {/* Navigation uniformisée */}
           <div className='mt-3'>
             <nav className='flex space-x-1'>
               {[
@@ -391,7 +412,6 @@ const UserProfile = () => {
 
       <div className='py-8 px-4 sm:px-6 lg:px-8'>
         <div className='max-w-4xl mx-auto'>
-          {/* En-tête amélioré */}
           <div className='text-center mb-12'>
             <div className='inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-2xl mb-4'>
               <User className='w-8 h-8 text-blue-600' />
@@ -401,15 +421,14 @@ const UserProfile = () => {
             </p>
           </div>
 
-          {/* Navigation des onglets */}
           <div className='flex space-x-1 mb-8 bg-white p-1 rounded-2xl shadow-sm border border-gray-200'>
             {[
-              { id: 'profile', label: 'Informations personnelles', icon: User },
-              { id: 'password', label: 'Sécurité', icon: Lock },
+              { id: 'profile' as const, label: 'Informations personnelles', icon: User },
+              { id: 'password' as const, label: 'Sécurité', icon: Lock },
             ].map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => handleTabClick(tab.id)}
                 className={`flex items-center gap-3 px-6 py-3 rounded-xl text-sm font-medium transition-all flex-1 ${
                   activeTab === tab.id
                     ? 'bg-blue-500 text-white shadow-lg'
@@ -422,9 +441,7 @@ const UserProfile = () => {
             ))}
           </div>
 
-          {/* Contenu des onglets */}
           <div className='bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-200'>
-            {/* Informations personnelles */}
             {activeTab === 'profile' && (
               <div className='p-8'>
                 <div className='mb-8'>
@@ -432,12 +449,12 @@ const UserProfile = () => {
                     Informations personnelles
                   </h2>
                   <p className='text-gray-600'>
-                    Mettez à jour votre adresse email et votre numéro de téléphone
+                    Mettez à jour votre adresse email et votre numéro de
+                    téléphone
                   </p>
                 </div>
 
                 <form onSubmit={handleProfileSubmit} className='space-y-6'>
-                  {/* Champ Email */}
                   <div>
                     <label
                       htmlFor='email'
@@ -472,7 +489,6 @@ const UserProfile = () => {
                     )}
                   </div>
 
-                  {/* Champ Téléphone */}
                   <div>
                     <label
                       htmlFor='telephone'
@@ -507,7 +523,6 @@ const UserProfile = () => {
                     )}
                   </div>
 
-                  {/* Actions */}
                   <div className='flex gap-3 pt-6 border-t border-gray-200'>
                     <button
                       type='button'
@@ -537,7 +552,6 @@ const UserProfile = () => {
               </div>
             )}
 
-            {/* Sécurité - Mot de passe */}
             {activeTab === 'password' && (
               <div className='p-8'>
                 <div className='mb-8'>
@@ -545,12 +559,12 @@ const UserProfile = () => {
                     Sécurité du compte
                   </h2>
                   <p className='text-gray-600'>
-                    Modifiez votre mot de passe pour renforcer la sécurité de votre compte
+                    Modifiez votre mot de passe pour renforcer la sécurité de
+                    votre compte
                   </p>
                 </div>
 
                 <form onSubmit={handlePasswordSubmit} className='space-y-6'>
-                  {/* Mot de passe actuel */}
                   <div>
                     <label
                       htmlFor='currentPassword'
@@ -602,7 +616,6 @@ const UserProfile = () => {
                       )}
                   </div>
 
-                  {/* Nouveau mot de passe */}
                   <div>
                     <label
                       htmlFor='newPassword'
@@ -652,7 +665,6 @@ const UserProfile = () => {
                     />
                   </div>
 
-                  {/* Confirmation du nouveau mot de passe */}
                   <div>
                     <label
                       htmlFor='confirmNewPassword'
@@ -714,7 +726,6 @@ const UserProfile = () => {
                       )}
                   </div>
 
-                  {/* Actions */}
                   <div className='flex gap-3 pt-6 border-t border-gray-200'>
                     <button
                       type='button'
@@ -742,14 +753,15 @@ const UserProfile = () => {
                   </div>
                 </form>
 
-                {/* Conseils de sécurité */}
                 <div className='mt-8 p-4 bg-blue-50 border border-blue-200 rounded-xl'>
                   <h3 className='text-sm font-semibold text-blue-800 mb-2'>
                     Conseils de sécurité
                   </h3>
                   <ul className='text-sm text-blue-700 space-y-1'>
                     <li>• Utilisez un mot de passe unique et complexe</li>
-                    <li>• Évitez les mots de passe que vous utilisez sur d'autres sites</li>
+                    <li>
+                      • Évitez les mots de passe que vous utilisez sur d&apos;autres sites
+                    </li>
                     <li>• Changez régulièrement votre mot de passe</li>
                     <li>• Ne partagez jamais votre mot de passe</li>
                   </ul>
@@ -760,6 +772,7 @@ const UserProfile = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

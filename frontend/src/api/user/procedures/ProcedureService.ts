@@ -1,4 +1,3 @@
-// ProcedureService.ts - VERSION SÉCURISÉE ET CORRIGÉE
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
 
@@ -112,8 +111,8 @@ class ProcedureApiService {
 
       const data = await response.json();
       return this.sanitizeProceduresData(data);
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+      if ((error as Error).name === 'AbortError') {
         throw new Error('Délai de connexion dépassé');
       }
       throw error;
@@ -156,8 +155,8 @@ class ProcedureApiService {
 
       const data = await response.json();
       return this.sanitizeProcedureData(data);
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+      if ((error as Error).name === 'AbortError') {
         throw new Error('Délai de connexion dépassé');
       }
       throw error;
@@ -202,8 +201,8 @@ class ProcedureApiService {
 
       const data = await response.json();
       return this.sanitizeProcedureData(data);
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+      if ((error as Error).name === 'AbortError') {
         throw new Error('Délai de connexion dépassé');
       }
       throw error;
@@ -252,16 +251,10 @@ class ProcedureApiService {
   /**
    * ✅ Filtrer les données sensibles d'une procédure
    */
-  private static sanitizeProcedureData(data: any): UserProcedure {
+  private static sanitizeProcedureData(data: UserProcedure): UserProcedure {
     if (!data) throw new Error('Données de procédure invalides');
 
-    // ✅ Supprimer les champs réservés aux admins
     const {
-      isDeleted,
-      deletedAt,
-      deletionReason,
-      telephone,
-      // Extraire uniquement les champs autorisés
       ...safeData
     } = data;
 
@@ -271,14 +264,14 @@ class ProcedureApiService {
   /**
    * ✅ Filtrer les données sensibles d'une liste de procédures
    */
-  private static sanitizeProceduresData(data: any): PaginatedUserProcedures {
+  private static sanitizeProceduresData(data: PaginatedUserProcedures): PaginatedUserProcedures {
     if (!data || !Array.isArray(data.data)) {
       throw new Error('Données de procédures invalides');
     }
 
     return {
       ...data,
-      data: data.data.map((procedure: any) =>
+      data: data.data.map((procedure: UserProcedure) =>
         this.sanitizeProcedureData(procedure)
       ),
     };
@@ -304,14 +297,14 @@ export const useUserProcedures = (page: number = 1, limit: number = 10) => {
     try {
       const data = await ProcedureApiService.fetchUserProcedures(page, limit);
       setProcedures(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       const safeErrorMessage = getSafeUserErrorMessage(err);
       setError(safeErrorMessage);
 
       // ✅ Logs de débogage sécurisés
       console.log('🔍 Erreur useUserProcedures:', {
         type: safeErrorMessage,
-        status: err.status,
+        status: (err as any).status,
       });
 
       // ✅ Toast uniquement pour les erreurs non-session
@@ -356,13 +349,13 @@ export const useProcedureDetails = (procedureId: string | null) => {
     try {
       const data = await ProcedureApiService.fetchProcedureDetails(procedureId);
       setProcedure(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       const safeErrorMessage = getSafeUserErrorMessage(err);
       setError(safeErrorMessage);
 
       console.log('🔍 Erreur useProcedureDetails:', {
         type: safeErrorMessage,
-        status: err.status,
+        status: (err as any).status,
       });
 
       if (safeErrorMessage !== 'SESSION_EXPIRED') {
@@ -405,12 +398,12 @@ export const useCancelProcedure = () => {
         );
         toast.success('Procédure annulée avec succès');
         return data;
-      } catch (err: any) {
+      } catch (err: unknown) {
         const safeErrorMessage = getSafeUserErrorMessage(err);
 
         console.log('🔍 Erreur useCancelProcedure:', {
           type: safeErrorMessage,
-          status: err.status,
+          status: (err as any).status,
         });
 
         if (safeErrorMessage !== 'SESSION_EXPIRED') {

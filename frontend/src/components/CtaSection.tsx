@@ -49,11 +49,11 @@ const CtaSection: React.FC<CtaSectionProps> = ({ className }) => {
               <span className='block mt-1 bg-gradient-to-r from-white via-sky-100 to-white bg-clip-text text-transparent'>
                 PANAME CONSULTING
               </span>
-              <span className='text-white'>LE CAP VERS L'EXCELLENCE</span>
+              <span className='text-white'>LE CAP VERS L&apos;EXCELLENCE</span>
             </h3>
 
             <p className='text-base sm:text-lg text-sky-100 font-medium'>
-              VOTRE PARTENAIRE VERS L'EXCELLENCE ACADÉMIQUE INTERNATIONALE
+              VOTRE PARTENAIRE VERS L&apos;EXCELLENCE ACADÉMIQUE INTERNATIONALE
             </p>
           </div>
 

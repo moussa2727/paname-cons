@@ -108,7 +108,7 @@ const Partners = () => {
             transition={{ delay: 0.4 }}
             className='text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed'
           >
-            Collaborations exclusives avec des établissements d'excellence
+            Collaborations exclusives avec des établissements d&apos;excellence
             internationale pour offrir des opportunités éducatives et
             professionnelles uniques.
           </motion.p>

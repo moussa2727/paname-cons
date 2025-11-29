@@ -44,7 +44,7 @@ export default function Footer() {
               <FaMapMarkerAlt className='flex-shrink-0 mt-1' />
               <span className='text-sm'>
                 Kalaban Coura, Imm.Bore <br />
-                en face de l'hôtel Wassulu
+                en face de l&apos;hôtel Wassulu
               </span>
             </div>
           </section>

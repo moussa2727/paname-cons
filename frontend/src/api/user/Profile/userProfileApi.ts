@@ -1,4 +1,4 @@
-// userProfileApi.ts
+// userProfileApi.ts - SERVICE pour toutes les opérations utilisateur (sauf auth)
 export interface UserProfileData {
   email?: string;
   telephone?: string;
@@ -30,14 +30,14 @@ class UserProfileApiService {
     if (!email || email.trim() === '') {
       return "L'email est requis";
     }
-    
+
     const trimmedEmail = email.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
+
     if (!emailRegex.test(trimmedEmail)) {
       return "Format d'email invalide";
     }
-    
+
     return '';
   }
 
@@ -48,14 +48,14 @@ class UserProfileApiService {
     if (!telephone || telephone.trim() === '') {
       return 'Le téléphone est requis';
     }
-    
+
     const trimmedPhone = telephone.trim();
-    
+
     // ✅ CONFORME BACKEND : au moins 5 caractères
     if (trimmedPhone.length < 5) {
       return 'Le téléphone doit contenir au moins 5 caractères';
     }
-    
+
     return '';
   }
 
@@ -89,10 +89,100 @@ class UserProfileApiService {
     return labels[fieldName] || 'Ce champ';
   }
 
-  // ==================== 📞 APPELS API AVEC DÉLÉGATION TOTALE ====================
+  // ==================== 📧 MOT DE PASSE OUBLIÉ ====================
 
   /**
-   * Mise à jour profil - DÉLÉGATION TOTALE AU CONTEXTE
+   * Demande de réinitialisation de mot de passe
+   */
+  async forgotPassword(email: string): Promise<void> {
+    // ✅ Validation email CONFORME BACKEND
+    const emailError = this.validateEmail(email);
+    if (emailError) {
+      throw new Error(emailError);
+    }
+
+    try {
+      const response = await fetch(
+        `${this.VITE_API_URL}/api/auth/forgot-password`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            email: email.trim().toLowerCase(),
+          }),
+        }
+      );
+
+      // ✅ Gestion d'erreurs CONFORME BACKEND
+      if (!response.ok) {
+        await this.handleForgotPasswordError(response);
+      }
+
+      // ✅ RÉPONSE CONFORME BACKEND - Toujours retourner succès même si email non trouvé
+      await response.json();
+    } catch (error: unknown) {
+      // ✅ IGNORER L'ERREUR SPÉCIALE POUR LA SÉCURITÉ
+      if ((error as Error).message === 'EMAIL_SENT_FOR_SECURITY') {
+        return; // Ne rien faire - conforme au backend pour la confidentialité
+      }
+      this.handleApiError(error, 'demande de réinitialisation');
+    }
+  }
+
+  // ==================== 🔄 RÉINITIALISATION MOT DE PASSE ====================
+
+  /**
+   * Réinitialisation du mot de passe avec token
+   */
+  async resetPassword(
+    token: string,
+    newPassword: string,
+    confirmPassword: string
+  ): Promise<void> {
+    // ✅ Validation STRICTE CONFORME BACKEND
+    const passwordError = this.validatePassword(newPassword, 'newPassword');
+    if (passwordError) {
+      throw new Error(passwordError);
+    }
+
+    if (newPassword !== confirmPassword) {
+      throw new Error('Les mots de passe ne correspondent pas');
+    }
+
+    try {
+      const response = await fetch(
+        `${this.VITE_API_URL}/api/auth/reset-password`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            token,
+            newPassword,
+            confirmPassword,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        await this.handleResetPasswordError(response);
+      }
+
+      await response.json();
+    } catch (error: unknown) {
+      this.handleApiError(error, 'réinitialisation de mot de passe');
+    }
+  }
+
+  // ==================== 📞 APPELS API PROFIL ====================
+
+  /**
+   * Mise à jour profil
    */
   async updateProfile(profileData: UserProfileData): Promise<any> {
     // ✅ Validation STRICTE identique backend
@@ -124,13 +214,13 @@ class UserProfileApiService {
 
       const result = await response.json();
       return this.formatUserResponse(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.handleApiError(error, 'profil');
     }
   }
 
   /**
-   * Récupération profil - DÉLÉGATION TOTALE AU CONTEXTE
+   * Récupération profil
    */
   async getProfile(): Promise<any> {
     try {
@@ -148,13 +238,13 @@ class UserProfileApiService {
 
       const result = await response.json();
       return this.formatUserResponse(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.handleApiError(error, 'profil');
     }
   }
 
   /**
-   * Mise à jour mot de passe - DÉLÉGATION TOTALE AU CONTEXTE
+   * Mise à jour mot de passe
    */
   async updatePassword(passwordData: PasswordData): Promise<void> {
     // ✅ Validation STRICTE identique backend
@@ -186,24 +276,94 @@ class UserProfileApiService {
       }
 
       await response.json();
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.handleApiError(error, 'mot de passe');
     }
   }
 
-  // ==================== 🛡️ GESTION D'ERREURS STRICTE (CONFORME BACKEND) ====================
+  // ==================== 🛡️ GESTION D'ERREURS STRICTE ====================
+
+  private async handleForgotPasswordError(response: Response): Promise<never> {
+    const errorData = await response.json().catch(() => ({}));
+
+    switch (response.status) {
+      case 400:
+        if (errorData.message?.includes("Format d'email invalide")) {
+          throw new Error("Format d'email invalide");
+        }
+        throw new Error(errorData.message || 'Données de demande invalides');
+
+      case 429:
+        throw new Error('Trop de tentatives - Veuillez réessayer plus tard');
+
+      case 500:
+        throw new Error('Erreur interne du serveur - Veuillez réessayer');
+
+      default:
+        throw new Error('EMAIL_SENT_FOR_SECURITY'); // Erreur spéciale qui sera catchée
+    }
+  }
+
+  private async handleResetPasswordError(response: Response): Promise<never> {
+    const errorData = await response.json().catch(() => ({}));
+
+    switch (response.status) {
+      case 400:
+        if (
+          errorData.message?.includes('Les mots de passe ne correspondent pas')
+        ) {
+          throw new Error('Les mots de passe ne correspondent pas');
+        }
+        if (
+          errorData.message?.includes('doit contenir au moins 8 caractères')
+        ) {
+          throw new Error(
+            'Le mot de passe doit contenir au moins 8 caractères'
+          );
+        }
+        if (
+          errorData.message?.includes('minuscule, une majuscule et un chiffre')
+        ) {
+          throw new Error(
+            'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre'
+          );
+        }
+        throw new Error(
+          errorData.message || 'Données de réinitialisation invalides'
+        );
+
+      case 401:
+        if (errorData.message?.includes('Token invalide ou expiré')) {
+          throw new Error('Lien de réinitialisation invalide ou expiré');
+        }
+        throw new Error('Lien de réinitialisation invalide');
+
+      case 404:
+        throw new Error('Utilisateur non trouvé');
+
+      case 500:
+        throw new Error('Erreur interne du serveur - Veuillez réessayer');
+
+      default:
+        throw new Error('Erreur lors de la réinitialisation du mot de passe');
+    }
+  }
+
   private async handleProfileUpdateError(response: Response): Promise<never> {
     const errorData = await response.json().catch(() => ({}));
 
     switch (response.status) {
       case 400:
-        // ✅ MESSAGES D'ERREUR CONFORMES BACKEND
-        if (errorData.message?.includes('email est déjà utilisé') ||
-            errorData.message?.includes('Cet email est déjà utilisé')) {
+        if (
+          errorData.message?.includes('email est déjà utilisé') ||
+          errorData.message?.includes('Cet email est déjà utilisé')
+        ) {
           throw new Error('Cet email est déjà utilisé');
         }
-        if (errorData.message?.includes('téléphone est déjà utilisé') ||
-            errorData.message?.includes('Ce numéro de téléphone est déjà utilisé')) {
+        if (
+          errorData.message?.includes('téléphone est déjà utilisé') ||
+          errorData.message?.includes('Ce numéro de téléphone est déjà utilisé')
+        ) {
           throw new Error('Ce numéro de téléphone est déjà utilisé');
         }
         if (errorData.message?.includes("Format d'email invalide")) {
@@ -213,7 +373,9 @@ class UserProfileApiService {
           throw new Error('Le téléphone doit contenir au moins 5 caractères');
         }
         if (errorData.message?.includes('Au moins un champ')) {
-          throw new Error('Au moins un champ (email ou téléphone) doit être fourni');
+          throw new Error(
+            'Au moins un champ (email ou téléphone) doit être fourni'
+          );
         }
         if (errorData.message?.includes("L'email ne peut pas être vide")) {
           throw new Error("L'email ne peut pas être vide");
@@ -230,7 +392,9 @@ class UserProfileApiService {
         throw new Error('Service temporairement indisponible');
 
       case 409:
-        throw new Error('Ces informations sont déjà utilisées par un autre compte');
+        throw new Error(
+          'Ces informations sont déjà utilisées par un autre compte'
+        );
 
       case 429:
         throw new Error('Trop de tentatives - Veuillez réessayer plus tard');
@@ -259,21 +423,34 @@ class UserProfileApiService {
 
     switch (response.status) {
       case 400:
-        // ✅ MESSAGES D'ERREUR CONFORMES BACKEND
-        if (errorData.message?.includes('Les mots de passe ne correspondent pas')) {
+        if (
+          errorData.message?.includes('Les mots de passe ne correspondent pas')
+        ) {
           throw new Error('Les mots de passe ne correspondent pas');
         }
-        if (errorData.message?.includes('doit contenir au moins 8 caractères')) {
-          throw new Error('Le mot de passe doit contenir au moins 8 caractères');
+        if (
+          errorData.message?.includes('doit contenir au moins 8 caractères')
+        ) {
+          throw new Error(
+            'Le mot de passe doit contenir au moins 8 caractères'
+          );
         }
-        if (errorData.message?.includes('minuscule, une majuscule et un chiffre')) {
-          throw new Error('Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre');
+        if (
+          errorData.message?.includes('minuscule, une majuscule et un chiffre')
+        ) {
+          throw new Error(
+            'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre'
+          );
         }
-        throw new Error(errorData.message || 'Données de mot de passe invalides');
+        throw new Error(
+          errorData.message || 'Données de mot de passe invalides'
+        );
 
       case 401:
-        if (errorData.message?.includes('Mot de passe actuel incorrect') ||
-            errorData.message?.includes('Le mot de passe actuel est incorrect')) {
+        if (
+          errorData.message?.includes('Mot de passe actuel incorrect') ||
+          errorData.message?.includes('Le mot de passe actuel est incorrect')
+        ) {
           throw new Error('Le mot de passe actuel est incorrect');
         }
         throw new Error('Session expirée - Veuillez vous reconnecter');
@@ -286,14 +463,17 @@ class UserProfileApiService {
   private handleApiError(error: any, context: string): never {
     console.error(`Erreur ${context}:`, error);
 
-    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+    if (
+      error.name === 'TypeError' &&
+      error.message.includes('Failed to fetch')
+    ) {
       throw new Error('Erreur de connexion au serveur');
     }
 
     throw error;
   }
 
-  // ==================== ✅ VALIDATIONS POUR FORMULAIRES (CONFORMES BACKEND) ====================
+  // ==================== ✅ VALIDATIONS POUR FORMULAIRES ====================
 
   validateProfileBeforeSubmit(profileData: UserProfileData): {
     isValid: boolean;
@@ -367,7 +547,7 @@ class UserProfileApiService {
     };
   }
 
-  // ==================== 🎯 FORMATAGE RÉPONSES (CONFORME BACKEND) ====================
+  // ==================== 🎯 FORMATAGE RÉPONSES ====================
 
   private formatUserResponse(userData: any): any {
     // ✅ STRUCTURE STRICTE CONFORME RÉPONSES BACKEND
@@ -379,9 +559,10 @@ class UserProfileApiService {
       lastName: userData.lastName,
       role: userData.role,
       isActive: userData.isActive,
-      isAdmin: userData.isAdmin !== undefined 
-        ? userData.isAdmin 
-        : userData.role === 'admin',
+      isAdmin:
+        userData.isAdmin !== undefined
+          ? userData.isAdmin
+          : userData.role === 'admin',
     };
   }
 }

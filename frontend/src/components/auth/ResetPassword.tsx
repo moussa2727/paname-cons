@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, CheckCircle, XCircle } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { userProfileApi } from '../../api/user/Profile/userProfileApi';
 
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { resetPassword } = useAuth();
-
   const token = searchParams.get('token');
 
   const [formData, setFormData] = useState({
@@ -20,13 +18,6 @@ const ResetPassword = () => {
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
-  const [passwordStrength, setPasswordStrength] = useState({
-    hasMinLength: false,
-    hasUpperCase: false,
-    hasLowerCase: false,
-    hasNumber: false,
-    // ❌ SUPPRIMÉ : hasSpecialChar pour conformité backend
-  });
 
   useEffect(() => {
     if (!token) {
@@ -37,43 +28,30 @@ const ResetPassword = () => {
     }
   }, [token]);
 
-  useEffect(() => {
-    checkPasswordStrength(formData.newPassword);
-  }, [formData.newPassword]);
-
-  const checkPasswordStrength = password => {
-    setPasswordStrength({
-      hasMinLength: password.length >= 8,
-      hasUpperCase: /[A-Z]/.test(password),
-      hasLowerCase: /[a-z]/.test(password),
-      hasNumber: /[0-9]/.test(password),
-      // ✅ CONFORME BACKEND : Pas de caractère spécial requis
-    });
-  };
-
-  // ✅ MODIFIÉ : Validation conforme backend (sans caractère spécial)
-  const isPasswordValid = 
-    passwordStrength.hasMinLength &&
-    passwordStrength.hasUpperCase &&
-    passwordStrength.hasLowerCase &&
-    passwordStrength.hasNumber;
-
   const canSubmit =
-    isPasswordValid && formData.newPassword === formData.confirmPassword;
+    formData.newPassword && formData.newPassword === formData.confirmPassword;
 
-  const togglePasswordVisibility = field => {
+  const togglePasswordVisibility = (field: string) => {
     setShowPassword(prev => ({
       ...prev,
-      [field]: !prev[field],
+      [field]: !prev[field as keyof typeof prev],
     }));
   };
 
-  const handleSubmit = async e => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!canSubmit) {
       setMessage({
-        text: 'Veuillez corriger les erreurs dans le formulaire',
+        text: 'Les mots de passe doivent correspondre',
+        type: 'error',
+      });
+      return;
+    }
+
+    if (!token) {
+      setMessage({
+        text: 'Token de réinitialisation manquant',
         type: 'error',
       });
       return;
@@ -83,7 +61,12 @@ const ResetPassword = () => {
     setMessage({ text: '', type: '' });
 
     try {
-      await resetPassword(token, formData.newPassword);
+      // ✅ DÉLÉGATION TOTALE : Le backend valide tout
+      await userProfileApi.resetPassword(
+        token,
+        formData.newPassword,
+        formData.confirmPassword
+      );
 
       setMessage({
         text: 'Mot de passe réinitialisé avec succès ! Redirection...',
@@ -91,29 +74,16 @@ const ResetPassword = () => {
       });
 
       setTimeout(() => navigate('/connexion'), 3000);
-    } catch (error) {
-      // ✅ Évite les logs sensibles
-      console.error('Erreur réinitialisation:', error.message);
-
+    } catch (error: unknown) {
+      // ✅ DÉLÉGATION : Affichage pur du message d'erreur backend
       setMessage({
-        text: error.message || 'Erreur lors de la réinitialisation',
+        text: (error as Error).message || 'Erreur lors de la réinitialisation',
         type: 'error',
       });
     } finally {
       setLoading(false);
     }
   };
-
-  const PasswordRequirement = ({ met, text }) => (
-    <div className='flex items-center gap-2 text-sm'>
-      {met ? (
-        <CheckCircle className='w-4 h-4 text-green-500' />
-      ) : (
-        <XCircle className='w-4 h-4 text-gray-400' />
-      )}
-      <span className={met ? 'text-green-600' : 'text-gray-500'}>{text}</span>
-    </div>
-  );
 
   return (
     <div className='min-h-screen bg-gradient-to-br from-sky-50 to-blue-100 flex items-center justify-center p-4'>
@@ -174,18 +144,12 @@ const ResetPassword = () => {
                     }
                     placeholder='Entrez votre nouveau mot de passe'
                     className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-sky-500 focus:ring-none focus:outline-none transition-colors duration-200'
-                    aria-describedby='passwordRequirements'
                     required
                   />
                   <button
                     type='button'
                     onClick={() => togglePasswordVisibility('newPassword')}
                     className='absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-sky-600 transition-colors duration-200 focus:border-sky-500 focus:ring-none focus:outline-none'
-                    aria-label={
-                      showPassword.newPassword
-                        ? 'Masquer le mot de passe'
-                        : 'Afficher le mot de passe'
-                    }
                   >
                     {showPassword.newPassword ? (
                       <EyeOff className='w-5 h-5' />
@@ -194,38 +158,9 @@ const ResetPassword = () => {
                     )}
                   </button>
                 </div>
-
-                {/* Password Requirements - ✅ MODIFIÉ pour conformité backend */}
-                {formData.newPassword && (
-                  <div
-                    id='passwordRequirements'
-                    className='mt-3 p-4 bg-gray-50 rounded-lg space-y-2'
-                  >
-                    <p className='text-sm font-medium text-gray-700 mb-2'>
-                      Exigences de sécurité (conformes au serveur) :
-                    </p>
-                    <PasswordRequirement
-                      met={passwordStrength.hasMinLength}
-                      text='Au moins 8 caractères'
-                    />
-                    <PasswordRequirement
-                      met={passwordStrength.hasUpperCase}
-                      text='Une lettre majuscule'
-                    />
-                    <PasswordRequirement
-                      met={passwordStrength.hasLowerCase}
-                      text='Une lettre minuscule'
-                    />
-                    <PasswordRequirement
-                      met={passwordStrength.hasNumber}
-                      text='Un chiffre'
-                    />
-                    {/* ✅ SUPPRIMÉ : Exigence des caractères spéciaux */}
-                  </div>
-                )}
               </div>
 
-              {/* Confirm Password - ✅ GARDÉ POUR L'UX MAIS NON ENVOYÉ AU BACKEND */}
+              {/* Confirm Password */}
               <div>
                 <label
                   htmlFor='confirmPassword'
@@ -257,12 +192,7 @@ const ResetPassword = () => {
                   <button
                     type='button'
                     onClick={() => togglePasswordVisibility('confirmPassword')}
-                    className='absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-sky-600 transition-colors duration-200 focus:border-sky-500 focus:ring-none focus:outline-none'
-                    aria-label={
-                      showPassword.confirmPassword
-                        ? 'Masquer le mot de passe'
-                        : 'Afficher le mot de passe'
-                    }
+                    className='absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-sky-600 transition-colors duration-200'
                   >
                     {showPassword.confirmPassword ? (
                       <EyeOff className='w-5 h-5' />
@@ -278,21 +208,13 @@ const ResetPassword = () => {
                       Les mots de passe ne correspondent pas
                     </p>
                   )}
-                {formData.confirmPassword &&
-                  formData.newPassword === formData.confirmPassword &&
-                  isPasswordValid && (
-                    <p className='mt-2 text-sm text-green-600 flex items-center gap-1'>
-                      <CheckCircle className='w-4 h-4' />
-                      Les mots de passe correspondent
-                    </p>
-                  )}
               </div>
 
               {/* Submit Button */}
               <button
                 type='submit'
                 disabled={!canSubmit || loading}
-                className='w-full bg-gradient-to-r from-sky-500 to-sky-600 text-white py-3 px-4 rounded-lg font-medium hover:from-sky-600 hover:to-sky-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 focus:border-sky-500 focus:ring-none focus:outline-none'
+                className='w-full bg-gradient-to-r from-sky-500 to-sky-600 text-white py-3 px-4 rounded-lg font-medium hover:from-sky-600 hover:to-sky-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2'
               >
                 {loading ? (
                   <>
@@ -318,7 +240,7 @@ const ResetPassword = () => {
               </p>
               <button
                 onClick={() => navigate('/forgot-password')}
-                className='mt-4 text-sky-600 hover:text-sky-700 font-medium focus:border-sky-500 focus:ring-none focus:outline-none'
+                className='mt-4 text-sky-600 hover:text-sky-700 font-medium'
               >
                 Demander un nouveau lien
               </button>
@@ -332,7 +254,7 @@ const ResetPassword = () => {
             Revenir à la{' '}
             <button
               onClick={() => navigate('/connexion')}
-              className='text-sky-600 hover:text-sky-700 font-medium focus:border-sky-500 focus:ring-none focus:outline-none'
+              className='text-sky-600 hover:text-sky-700 font-medium'
             >
               page de connexion
             </button>

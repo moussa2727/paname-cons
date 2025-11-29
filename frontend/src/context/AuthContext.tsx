@@ -1,4 +1,10 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, {
+  createContext,
+  useState,
+  useContext,
+  useEffect,
+  useCallback,
+} from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 interface User {
@@ -73,12 +79,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const REQUEST_TIMEOUT = 10000;
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -95,18 +103,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // 🔥 MÉTHODE CONFORME : Vérification durée session basée sur iat
-  const isSessionExpired = useCallback((token: string): boolean => {
-    const issuedTime = getTokenIssuedTime(token);
-    return Date.now() - issuedTime > AUTH_CONSTANTS.MAX_SESSION_DURATION_MS;
-  }, [getTokenIssuedTime]);
+  const isSessionExpired = useCallback(
+    (token: string): boolean => {
+      const issuedTime = getTokenIssuedTime(token);
+      return Date.now() - issuedTime > AUTH_CONSTANTS.MAX_SESSION_DURATION_MS;
+    },
+    [getTokenIssuedTime]
+  );
 
   const maskEmail = (email: string): string => {
     if (!email) return '********';
     const [localPart, domain] = email.split('@');
     if (!localPart || !domain) return '********';
-    const maskedLocal = localPart.length > 2 
-      ? `${localPart.substring(0, 2)}${'*'.repeat(Math.max(1, localPart.length - 2))}`
-      : '***';
+    const maskedLocal =
+      localPart.length > 2
+        ? `${localPart.substring(0, 2)}${'*'.repeat(Math.max(1, localPart.length - 2))}`
+        : '***';
     return `${maskedLocal}@${domain}`;
   };
 
@@ -119,7 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setError('Trop de tentatives. Veuillez réessayer plus tard.');
     } else {
       console.error(`❌ Erreur ${context}:`, error);
-      const safeMessage = error?.response?.data?.message 
+      const safeMessage = error?.response?.data?.message
         ? error.response.data.message
         : `Une erreur est survenue lors de ${context}`;
       setError(safeMessage);
@@ -152,18 +164,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const setCookie = useCallback((name: string, value: string, maxAge: number) => {
-    try {
-      const domainConfig = getCookieDomainConfig();
-      document.cookie = `${name}=${value}; max-age=${maxAge / 1000}; ${domainConfig}`;
-    } catch (error) {
-      console.error('❌ Erreur écriture cookie:', error);
-    }
-  }, []);
+  const setCookie = useCallback(
+    (name: string, value: string, maxAge: number) => {
+      try {
+        const domainConfig = getCookieDomainConfig();
+        document.cookie = `${name}=${value}; max-age=${maxAge / 1000}; ${domainConfig}`;
+      } catch (error) {
+        console.error('❌ Erreur écriture cookie:', error);
+      }
+    },
+    []
+  );
 
   const deleteCookie = useCallback((name: string) => {
     try {
-      const domainConfig = getCookieDomainConfig().replace('secure; ', '').replace('sameSite=none', 'sameSite=lax');
+      const domainConfig = getCookieDomainConfig()
+        .replace('secure; ', '')
+        .replace('sameSite=none', 'sameSite=lax');
       document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; ${domainConfig}`;
     } catch (error) {
       console.error('❌ Erreur suppression cookie:', error);
@@ -185,27 +202,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticated(true);
   }, []);
 
-  const fetchWithTimeout = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+  const fetchWithTimeout = useCallback(
+    async (url: string, options: RequestInit = {}): Promise<Response> => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-        credentials: 'include',
-      });
-      clearTimeout(timeoutId);
-      return response;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      throw error;
-    }
-  }, []);
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal,
+          credentials: 'include',
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+      }
+    },
+    []
+  );
 
   const fetchUserData = useCallback(async (): Promise<User | null> => {
     const accessToken = getCookie('access_token');
-    
+
     if (!accessToken) {
       console.warn('❌ Aucun token trouvé pour fetchUserData');
       return null;
@@ -222,7 +242,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/me`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       });
@@ -247,7 +267,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 🔥 MÉTHODE CONFORME : Logique de rafraîchissement alignée backend
   const refreshAuth = useCallback(async (): Promise<boolean> => {
     const refreshToken = getCookie('refresh_token');
-    
+
     if (!refreshToken) {
       console.warn('❌ Aucun refresh token disponible');
       clearAuth();
@@ -257,13 +277,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🔄 Tentative de rafraîchissement du token...');
 
-      const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({}),
-      });
+      const response = await fetchWithTimeout(
+        `${API_BASE_URL}/api/auth/refresh`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        }
+      );
 
       const data: RefreshResponse = await response.json();
 
@@ -288,10 +311,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // 🔥 CONFIGURATION COOKIES CONFORME BACKEND
-      setCookie('access_token', data.access_token, AUTH_CONSTANTS.JWT_EXPIRATION);
-      
+      setCookie(
+        'access_token',
+        data.access_token,
+        AUTH_CONSTANTS.JWT_EXPIRATION
+      );
+
       if (data.refresh_token) {
-        setCookie('refresh_token', data.refresh_token, AUTH_CONSTANTS.REFRESH_TOKEN_EXPIRATION);
+        setCookie(
+          'refresh_token',
+          data.refresh_token,
+          AUTH_CONSTANTS.REFRESH_TOKEN_EXPIRATION
+        );
       }
 
       const userData = await fetchUserData();
@@ -307,7 +338,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearAuth();
       return false;
     }
-  }, [clearAuth, fetchUserData, fetchWithTimeout, getCookie, navigate, location.pathname, setAuth, setCookie]);
+  }, [
+    clearAuth,
+    fetchUserData,
+    fetchWithTimeout,
+    getCookie,
+    navigate,
+    location.pathname,
+    setAuth,
+    setCookie,
+  ]);
 
   // 🔥 MÉTHODE CONFORME : Vérification basée uniquement sur cookies/tokens
   const checkAuth = useCallback(async (): Promise<boolean> => {
@@ -317,10 +357,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const accessToken = getCookie('access_token');
       const refreshToken = getCookie('refresh_token');
-      
+
       console.log('🔍 CheckAuth - Tokens présents:', {
         access: !!accessToken,
-        refresh: !!refreshToken
+        refresh: !!refreshToken,
       });
 
       if (!accessToken && !refreshToken) {
@@ -339,7 +379,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (accessToken) {
         console.log('🔍 Validation avec access token');
         const userData = await fetchUserData();
-        
+
         if (userData) {
           setAuth(userData);
           return true;
@@ -348,7 +388,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // 🔥 TENTATIVE RAFRAÎCHISSEMENT SI ACCESS TOKEN MANQUANT OU INVALIDE
       if (refreshToken) {
-        console.log('🔄 Refresh token disponible, tentative de rafraîchissement...');
+        console.log(
+          '🔄 Refresh token disponible, tentative de rafraîchissement...'
+        );
         return await refreshAuth();
       }
 
@@ -360,94 +402,144 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  }, [clearAuth, clearError, fetchUserData, getCookie, isSessionExpired, refreshAuth, setAuth]);
+  }, [
+    clearAuth,
+    clearError,
+    fetchUserData,
+    getCookie,
+    isSessionExpired,
+    refreshAuth,
+    setAuth,
+  ]);
 
-  const login = useCallback(async (credentials: LoginCredentials): Promise<void> => {
-    try {
-      setIsLoading(true);
-      clearError();
+  const login = useCallback(
+    async (credentials: LoginCredentials): Promise<void> => {
+      try {
+        setIsLoading(true);
+        clearError();
 
-      console.log(`🔐 Tentative de connexion pour: ${maskEmail(credentials.email)}`);
+        console.log(
+          `🔐 Tentative de connexion pour: ${maskEmail(credentials.email)}`
+        );
 
-      const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
-      });
+        const response = await fetchWithTimeout(
+          `${API_BASE_URL}/api/auth/login`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(credentials),
+          }
+        );
 
-      const data: AuthResponse = await response.json();
+        const data: AuthResponse = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Erreur lors de la connexion');
+        if (!response.ok) {
+          throw new Error(data.message || 'Erreur lors de la connexion');
+        }
+
+        if (!data.access_token || !data.refresh_token || !data.user) {
+          throw new Error('Réponse de connexion invalide');
+        }
+
+        // 🔥 CONFIGURATION COOKIES CONFORME BACKEND
+        setCookie(
+          'access_token',
+          data.access_token,
+          AUTH_CONSTANTS.JWT_EXPIRATION
+        );
+        setCookie(
+          'refresh_token',
+          data.refresh_token,
+          AUTH_CONSTANTS.REFRESH_TOKEN_EXPIRATION
+        );
+
+        setAuth(data.user);
+
+        console.log(
+          `✅ Connexion réussie pour: ${maskEmail(credentials.email)}`
+        );
+
+        const from = location.state?.from?.pathname || '/';
+        navigate(from, { replace: true });
+      } catch (error) {
+        handleApiError(error, 'la connexion');
+        throw error;
+      } finally {
+        setIsLoading(false);
       }
+    },
+    [
+      clearError,
+      fetchWithTimeout,
+      handleApiError,
+      location.state,
+      navigate,
+      setAuth,
+      setCookie,
+    ]
+  );
 
-      if (!data.access_token || !data.refresh_token || !data.user) {
-        throw new Error('Réponse de connexion invalide');
+  const register = useCallback(
+    async (registerData: RegisterData): Promise<void> => {
+      try {
+        setIsLoading(true);
+        clearError();
+
+        console.log(
+          `📝 Tentative d'inscription pour: ${maskEmail(registerData.email)}`
+        );
+
+        const response = await fetchWithTimeout(
+          `${API_BASE_URL}/api/auth/register`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(registerData),
+          }
+        );
+
+        const data: AuthResponse = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Erreur lors de l'inscription");
+        }
+
+        if (!data.access_token || !data.refresh_token || !data.user) {
+          throw new Error("Réponse d'inscription invalide");
+        }
+
+        // 🔥 CONFIGURATION COOKIES CONFORME BACKEND
+        setCookie(
+          'access_token',
+          data.access_token,
+          AUTH_CONSTANTS.JWT_EXPIRATION
+        );
+        setCookie(
+          'refresh_token',
+          data.refresh_token,
+          AUTH_CONSTANTS.REFRESH_TOKEN_EXPIRATION
+        );
+
+        setAuth(data.user);
+
+        console.log(
+          `✅ Inscription réussie pour: ${maskEmail(registerData.email)}`
+        );
+
+        navigate('/', { replace: true });
+      } catch (error) {
+        handleApiError(error, "l'inscription");
+        throw error;
+      } finally {
+        setIsLoading(false);
       }
-
-      // 🔥 CONFIGURATION COOKIES CONFORME BACKEND
-      setCookie('access_token', data.access_token, AUTH_CONSTANTS.JWT_EXPIRATION);
-      setCookie('refresh_token', data.refresh_token, AUTH_CONSTANTS.REFRESH_TOKEN_EXPIRATION);
-
-      setAuth(data.user);
-      
-      console.log(`✅ Connexion réussie pour: ${maskEmail(credentials.email)}`);
-
-      const from = location.state?.from?.pathname || '/';
-      navigate(from, { replace: true });
-
-    } catch (error) {
-      handleApiError(error, 'la connexion');
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [clearError, fetchWithTimeout, handleApiError, location.state, navigate, setAuth, setCookie]);
-
-  const register = useCallback(async (registerData: RegisterData): Promise<void> => {
-    try {
-      setIsLoading(true);
-      clearError();
-
-      console.log(`📝 Tentative d'inscription pour: ${maskEmail(registerData.email)}`);
-
-      const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(registerData),
-      });
-
-      const data: AuthResponse = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Erreur lors de l\'inscription');
-      }
-
-      if (!data.access_token || !data.refresh_token || !data.user) {
-        throw new Error('Réponse d\'inscription invalide');
-      }
-
-      // 🔥 CONFIGURATION COOKIES CONFORME BACKEND
-      setCookie('access_token', data.access_token, AUTH_CONSTANTS.JWT_EXPIRATION);
-      setCookie('refresh_token', data.refresh_token, AUTH_CONSTANTS.REFRESH_TOKEN_EXPIRATION);
-
-      setAuth(data.user);
-      
-      console.log(`✅ Inscription réussie pour: ${maskEmail(registerData.email)}`);
-
-      navigate('/', { replace: true });
-
-    } catch (error) {
-      handleApiError(error, 'l\'inscription');
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [clearError, fetchWithTimeout, handleApiError, navigate, setAuth, setCookie]);
+    },
+    [clearError, fetchWithTimeout, handleApiError, navigate, setAuth, setCookie]
+  );
 
   const logout = useCallback(async (): Promise<void> => {
     try {
@@ -455,33 +547,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearError();
 
       const accessToken = getCookie('access_token');
-      
+
       if (accessToken) {
         try {
           await fetchWithTimeout(`${API_BASE_URL}/api/auth/logout`, {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${accessToken}`,
+              Authorization: `Bearer ${accessToken}`,
               'Content-Type': 'application/json',
             },
           });
-        } catch (error) {
-          console.warn('⚠️ Erreur lors de la déconnexion côté serveur, nettoyage côté client maintenu');
+        } catch (error: unknown) {
+          console.warn(
+            '⚠️ Erreur lors de la déconnexion côté serveur, nettoyage côté client maintenu'
+          );
         }
       }
 
       clearAuth();
-      
+
       console.log('✅ Déconnexion réussie');
 
-      navigate('/connexion', { 
+      navigate('/connexion', {
         replace: true,
-        state: { 
-          message: 'Déconnexion réussie' 
-        }
+        state: {
+          message: 'Déconnexion réussie',
+        },
       });
-
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('❌ Erreur lors de la déconnexion:', error);
       clearAuth();
       navigate('/connexion', { replace: true });
@@ -496,32 +589,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearError();
 
       const accessToken = getCookie('access_token');
-      
+
       console.log(`🛡️ Déconnexion globale initiée`);
 
       if (!accessToken) {
         throw new Error('Token manquant pour la déconnexion globale');
       }
 
-      const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/logout-all`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetchWithTimeout(
+        `${API_BASE_URL}/api/auth/logout-all`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Erreur lors de la déconnexion globale');
+        const errorData = await response.json() as { message: string };
+        throw new Error(
+          errorData.message || 'Erreur lors de la déconnexion globale'
+        );
       }
 
       const result = await response.json();
-      
-      console.log('✅ Déconnexion globale réussie:', result.message);
 
-    } catch (error) {
-      handleApiError(error, 'la déconnexion globale');
+      console.log('✅ Déconnexion globale réussie:', result.message);
+    } catch (error: unknown) {
+      handleApiError(error as Error, 'la déconnexion globale');
       throw error;
     } finally {
       setIsLoading(false);
@@ -556,17 +653,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const interval = setInterval(async () => {
       const accessToken = getCookie('access_token');
-      
+
       if (accessToken) {
         const issuedTime = getTokenIssuedTime(accessToken);
         const tokenAge = Date.now() - issuedTime;
-        
+
         // 🔥 RAFRAÎCHISSEMENT 5min AVANT EXPIRATION - CONFORME BACKEND
-        if (tokenAge > AUTH_CONSTANTS.JWT_EXPIRATION - AUTH_CONSTANTS.REFRESH_THRESHOLD) {
+        if (
+          tokenAge >
+          AUTH_CONSTANTS.JWT_EXPIRATION - AUTH_CONSTANTS.REFRESH_THRESHOLD
+        ) {
           console.log('🔄 Rafraîchissement automatique du token...');
           await refreshAuth();
         }
-        
+
         // 🔥 DÉCONNEXION SI SESSION > 25min - CONFORME BACKEND
         if (tokenAge > AUTH_CONSTANTS.MAX_SESSION_DURATION_MS) {
           console.warn('🔒 Déconnexion automatique (session > 25min)');
@@ -595,19 +695,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
   );
 };
 
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
-  
+
   if (context === undefined) {
     throw new Error('useAuth doit être utilisé within un AuthProvider');
   }
-  
+
   return context;
 };
 

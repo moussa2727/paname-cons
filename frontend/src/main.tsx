@@ -70,7 +70,6 @@ const renderApp = () => {
                   marginTop: '50px',
                 }}
                 limit={1}
-                stacked={true}
               />
             </AuthProvider>
           </BrowserRouter>

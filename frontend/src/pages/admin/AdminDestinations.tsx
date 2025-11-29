@@ -43,7 +43,9 @@ const AdminDestinations: React.FC = () => {
     count: 0,
     lastUpdated: null,
   });
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
+    null
+  );
   const popoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Affiche un popover animé
@@ -59,7 +61,7 @@ const AdminDestinations: React.FC = () => {
     try {
       const data = await getAllDestinationsWithoutPagination();
       setDestinations(
-        data.map((dest: any) => ({
+        data.map((dest: Destination) => ({
           ...dest,
           imagePath: getFullImageUrl(dest.imagePath),
         }))
@@ -80,7 +82,7 @@ const AdminDestinations: React.FC = () => {
             minute: '2-digit',
           }),
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur:', error);
       // Le message d'erreur est déjà géré par le service
     } finally {
@@ -143,7 +145,7 @@ const AdminDestinations: React.FC = () => {
       // Réinitialiser et rafraîchir
       handleCancelEdit();
       fetchDestinations();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur détaillée:', error);
       // Le message d'erreur est déjà géré par le service
     } finally {
@@ -164,7 +166,7 @@ const AdminDestinations: React.FC = () => {
       showPopover('Destination supprimée avec succès', 'success');
       setShowDeleteConfirm(null);
       fetchDestinations();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur détaillée:', error);
       // Le message d'erreur est déjà géré par le service
     } finally {
@@ -229,7 +231,7 @@ const AdminDestinations: React.FC = () => {
         <title>Page de gestion des Destinations - Paname Consulting</title>
         <meta
           name='description'
-          content="Interface d'administration pour gérer les destinations de voyage sur Paname Consulting. Accès réservé aux administrateurs."
+          content="Interface d&apos;administration pour gérer les destinations de voyage sur Paname Consulting. Accès réservé aux administrateurs."
         />
         <meta name='robots' content='noindex, nofollow' />
         <meta name='googlebot' content='noindex, nofollow' />

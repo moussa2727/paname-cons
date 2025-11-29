@@ -5,7 +5,7 @@ import React from 'react';
 const Connexion = () => {
   const pageTitle = 'Connexion à votre compte - PANAME CONSULTING';
   const pageDescription =
-    "Accédez à votre espace personnel pour gérer votre dossier d'études à l'étranger avec Paname Consulting";
+    "Accédez à votre espace personnel pour gérer votre dossier d&apos;études à l&apos;étranger avec Paname Consulting";
   const canonicalUrl = 'https://panameconsulting.com/connexion';
 
   return (

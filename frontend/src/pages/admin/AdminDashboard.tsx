@@ -10,7 +10,11 @@ import {
   BookOpen,
   Globe,
 } from 'lucide-react';
-import { createDashboardApi, DashboardStats, RecentActivity } from '../../api/admin/AdminDashboardService';
+import {
+  createDashboardApi,
+  DashboardStats,
+  RecentActivity,
+} from '../../api/admin/AdminDashboardService';
 import { useAuth } from '../../context/AuthContext';
 import { Helmet } from 'react-helmet-async';
 
@@ -20,6 +24,17 @@ interface DashboardData {
   recentActivities: RecentActivity[];
   loading: boolean;
   error: string | null;
+}
+
+// Types pour les sous-structures
+interface ProcedureStatusItem {
+  _id: string;
+  total: number;
+}
+
+interface ProcedureDestinationItem {
+  _id: string;
+  count: number;
 }
 
 const AdminDashboard = () => {
@@ -76,18 +91,18 @@ const AdminDashboard = () => {
 
   const { stats, recentActivities, loading, error } = data;
 
-  // 🔄 FONCTION SAFE FIND AMÉLIORÉE
-  const safeFind = (array: any[] | undefined, value: string): number => {
+  // 🔄 FONCTION SAFE FIND AMÉLIORÉE POUR LES STATUTS DE PROCÉDURE
+  const safeFindStatus = (array: ProcedureStatusItem[], value: string): number => {
     if (!array || !Array.isArray(array)) return 0;
-    
+
     // Recherche insensible à la casse et aux variations
     const item = array.find(item => {
-      const itemId = item._id?.toString().toLowerCase().trim();
+      const itemId = item._id?.toLowerCase().trim();
       const searchValue = value.toLowerCase().trim();
       return itemId === searchValue;
     });
-    
-    return item ? (item.count || item.total || 0) : 0;
+
+    return item ? item.total || 0 : 0;
   };
 
   if (loading) {
@@ -159,19 +174,19 @@ const AdminDashboard = () => {
   const procedureStats = [
     {
       status: 'En cours',
-      value: safeFind(stats.proceduresByStatus, 'en cours'),
+      value: safeFindStatus(stats.proceduresByStatus as unknown as ProcedureStatusItem[], 'en cours'),
       icon: Clock,
       color: 'text-yellow-600',
     },
     {
       status: 'Terminées',
-      value: safeFind(stats.proceduresByStatus, 'terminée'),
+      value: safeFindStatus(stats.proceduresByStatus as unknown as ProcedureStatusItem[], 'terminée'),
       icon: CheckCircle,
       color: 'text-green-600',
     },
     {
       status: 'Refusées',
-      value: safeFind(stats.proceduresByStatus, 'refusée'),
+      value: safeFindStatus(stats.proceduresByStatus as unknown as ProcedureStatusItem[], 'refusée'),
       icon: Mail,
       color: 'text-red-600',
     },
@@ -209,6 +224,9 @@ const AdminDashboard = () => {
           content='Tableau de bord administrateur de Paname Consulting avec statistiques clés et activités récentes.'
         />
         <meta name='robots' content='noindex, nofollow' />
+        <meta name='googlebot' content='noindex, nofollow' />
+        <meta name='bingbot' content='noindex, nofollow' />
+        <meta name='yandexbot' content='noindex, nofollow' />
       </Helmet>
 
       <div className='p-6 space-y-6'>
@@ -219,7 +237,7 @@ const AdminDashboard = () => {
           </h1>
           <div className='flex items-center space-x-2 text-blue-600'>
             <TrendingUp size={20} />
-            <span className='text-sm font-medium'>Vue d'ensemble</span>
+            <span className='text-sm font-medium'>Vue d&apos;ensemble</span>
           </div>
         </div>
 
@@ -299,7 +317,10 @@ const AdminDashboard = () => {
             </div>
             <div className='space-y-3'>
               {rendezvousStats.map((stat, index) => (
-                <div key={index} className='flex items-center justify-between py-2'>
+                <div
+                  key={index}
+                  className='flex items-center justify-between py-2'
+                >
                   <span className='text-sm font-medium text-gray-700'>
                     {stat.status}
                   </span>
@@ -323,10 +344,13 @@ const AdminDashboard = () => {
             </h2>
           </div>
           <div className='space-y-3'>
-            {(stats.proceduresByDestination || [])
+            {(stats.proceduresByDestination as ProcedureDestinationItem[] || [])
               .slice(0, 5)
               .map((destination, index) => (
-                <div key={index} className='flex items-center justify-between py-2'>
+                <div
+                  key={index}
+                  className='flex items-center justify-between py-2'
+                >
                   <span className='text-sm font-medium text-gray-700'>
                     {destination._id || 'Non spécifiée'}
                   </span>
@@ -336,7 +360,7 @@ const AdminDashboard = () => {
                 </div>
               ))}
             {(!stats.proceduresByDestination ||
-              stats.proceduresByDestination.length === 0) && (
+              (stats.proceduresByDestination as ProcedureDestinationItem[]).length === 0) && (
               <div className='text-center text-gray-500 py-4'>
                 Aucune donnée de destination disponible
               </div>

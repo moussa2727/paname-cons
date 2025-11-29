@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import {
   FiKey,
   FiEdit,
@@ -90,14 +90,14 @@ const ServicesGrid = () => {
             data-aos='fade-up'
             data-aos-delay='100'
           >
-            Accompagnement complet pour vos études à l'étranger
+            Accompagnement complet pour vos études à l&apos;étranger
           </h1>
           <p
             className='text-gray-600 max-w-2xl mx-auto text-base sm:text-lg leading-relaxed'
             data-aos='fade-up'
             data-aos-delay='150'
           >
-            Parcours simplifié de la création de compte à l'obtention de votre
+            Parcours simplifié de la création de compte à l&apos;obtention de votre
             visa
           </p>
         </header>

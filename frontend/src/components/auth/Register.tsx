@@ -51,13 +51,15 @@ const Register: React.FC = () => {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
-        telephone: formData.telephone, 
+        telephone: formData.telephone,
         password: formData.password,
       });
       // La navigation est gérée dans le contexte
-    } catch (err) {
+    } catch (err: unknown) {
       // Les erreurs sont déjà gérées dans le contexte
-      console.log('Erreur capturée dans le composant (déjà gérée par le contexte)');
+      console.log(
+        'Erreur capturée dans le composant (déjà gérée par le contexte)'
+      );
     }
   };
 

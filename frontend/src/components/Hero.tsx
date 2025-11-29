@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const Hero = () => {
@@ -8,114 +7,6 @@ const Hero = () => {
   const currentYear = new Date().getFullYear();
   const startYear = 2023;
   const yearsOfExperience = currentYear - startYear;
-
-  const services = [
-    {
-      redIcon: (
-        <svg
-          className='w-5 h-5 md:w-6 md:h-6'
-          fill='none'
-          stroke='currentColor'
-          viewBox='0 0 24 24'
-        >
-          <path
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            strokeWidth={2}
-            d='M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9m0 9c-5 0-9-4-9-9s4-9 9-9'
-          />
-        </svg>
-      ),
-      whiteIcon: (
-        <svg
-          className='w-5 h-5 md:w-6 md:h-6'
-          fill='none'
-          stroke='currentColor'
-          viewBox='0 0 24 24'
-        >
-          <path
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            strokeWidth={2}
-            d='M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9m0 9c-5 0-9-4-9-9s4-9 9-9'
-          />
-        </svg>
-      ),
-      title: 'École innovante',
-      description:
-        "Formation en alternance dès la 3ème année : étape décisive vers l'emploi",
-    },
-    {
-      redIcon: (
-        <svg
-          className='w-5 h-5 md:w-6 md:h-6'
-          fill='none'
-          stroke='currentColor'
-          viewBox='0 0 24 24'
-        >
-          <path
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            strokeWidth={2}
-            d='M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'
-          />
-        </svg>
-      ),
-      whiteIcon: (
-        <svg
-          className='w-5 h-5 md:w-6 md:h-6'
-          fill='none'
-          stroke='currentColor'
-          viewBox='0 0 24 24'
-        >
-          <path
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            strokeWidth={2}
-            d='M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'
-          />
-        </svg>
-      ),
-      title: 'Intégration des étudiants internationaux',
-      description:
-        'Accueil et assistance personnalisée pour réussir son intégration au Maroc',
-    },
-    {
-      redIcon: (
-        <svg
-          className='w-5 h-5 md:w-6 md:h-6'
-          fill='none'
-          stroke='currentColor'
-          viewBox='0 0 24 24'
-        >
-          <path
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            strokeWidth={2}
-            d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'
-          />
-        </svg>
-      ),
-      whiteIcon: (
-        <svg
-          className='w-5 h-5 md:w-6 md:h-6'
-          fill='none'
-          stroke='currentColor'
-          viewBox='0 0 24 24'
-        >
-          <path
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            strokeWidth={2}
-            d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'
-          />
-        </svg>
-      ),
-      title: 'Certification de compétences',
-      description:
-        'Validez vos compétences avec des certificats professionnels reconnus mondialement',
-    },
-  ];
 
   const stats = [
     {
@@ -266,14 +157,14 @@ const Hero = () => {
                 <h2 className='text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 leading-tight text-balance hero-text-shadow'>
                   LE CAP VERS
                   <br className='hidden xs:block' />
-                  <span className='text-sky-300'>L'EXCELLENCE</span>
+                  <span className='text-sky-300'>L&apos;EXCELLENCE</span>
                 </h2>
 
                 {/* Sous-titre */}
                 <p className='text-sm sm:text-base mb-6 leading-relaxed opacity-95 max-w-xl lg:max-w-none text-balance'>
                   Depuis {startYear}, notre équipe multiculturelle accompagne
                   les étudiants ambitieux vers les meilleures universités du
-                  monde. De la sélection du programme jusqu'à votre
+                  monde. De la sélection du programme jusqu&apos;à votre
                   installation, nous transformons vos ambitions en réussites
                   concrètes.
                 </p>
@@ -281,7 +172,7 @@ const Hero = () => {
                 {/* CTA Buttons */}
                 <div className='mb-6 lg:mb-0'>
                   <h3 className='text-sm sm:text-base font-semibold mb-4 text-sky-100'>
-                    Commencez votre aventure dès aujourd'hui
+                    Commencez votre aventure dès aujourd&apos;hui
                   </h3>
                   <div className='flex flex-col sm:flex-row gap-3 justify-center lg:justify-start'>
                     <button
@@ -387,7 +278,7 @@ const Hero = () => {
             Explorez nos Destinations
           </h2>
           <p className='text-center text-sky-100 mb-4 md:mb-6 text-xs sm:text-sm max-w-2xl mx-auto'>
-            Découvrez les opportunités d'études dans nos pays partenaires
+            Découvrez les opportunités d&apos;études dans nos pays partenaires
           </p>
 
           <div className='flex flex-wrap justify-center gap-1.5 sm:gap-2 md:gap-3'>

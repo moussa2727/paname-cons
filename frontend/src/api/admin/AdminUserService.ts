@@ -38,7 +38,8 @@ class AdminUserService {
   private baseURL: string;
 
   constructor() {
-    this.baseURL = import.meta.env.VITE_API_URL || 'https://panameconsulting.up.railway.app';
+    this.baseURL =
+      import.meta.env.VITE_API_URL || 'https://panameconsulting.up.railway.app';
   }
 
   private async makeAuthenticatedRequest(
@@ -66,7 +67,7 @@ class AdminUserService {
   private async handleAdminError(response: Response): Promise<never> {
     // ✅ MASQUAGE DES DONNÉES SENSIBLES DANS LES LOGS
     const errorData = await response.json().catch(() => ({}));
-    const safeMessage = errorData.message 
+    const safeMessage = errorData.message
       ? errorData.message.replace(/[a-f0-9]{24,}/gi, 'id_****')
       : `Erreur ${response.status}`;
 
@@ -179,7 +180,7 @@ class AdminUserService {
     try {
       await this.getUserStats();
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       return false;
     }
   }

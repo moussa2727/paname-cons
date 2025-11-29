@@ -32,7 +32,6 @@ export interface RendezvousResponse {
 const API_URL = import.meta.env.VITE_API_URL;
 
 export class RendezvousService {
-  
   // Récupérer les rendez-vous de l'utilisateur
   static async getUserRendezvous(
     email: string,
@@ -56,14 +55,22 @@ export class RendezvousService {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('❌ Erreur HTTP récupération rendez-vous:', response.status, errorData);
+        console.error(
+          '❌ Erreur HTTP récupération rendez-vous:',
+          response.status,
+          errorData
+        );
         throw new Error(
           errorData.message || 'Erreur lors de la récupération des rendez-vous'
         );
       }
 
       const data = await response.json();
-      console.log('✅ Rendez-vous récupérés avec succès:', data.data?.length || 0, 'rendez-vous');
+      console.log(
+        '✅ Rendez-vous récupérés avec succès:',
+        data.data?.length || 0,
+        'rendez-vous'
+      );
 
       return {
         data: data.data || [],
@@ -90,7 +97,11 @@ export class RendezvousService {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('❌ Erreur HTTP confirmation:', response.status, errorData);
+        console.error(
+          '❌ Erreur HTTP confirmation:',
+          response.status,
+          errorData
+        );
         throw new Error(
           errorData.message || 'Erreur lors de la confirmation du rendez-vous'
         );

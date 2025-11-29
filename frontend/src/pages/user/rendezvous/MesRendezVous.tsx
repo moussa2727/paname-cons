@@ -20,6 +20,8 @@ import {
   RendezvousService,
   Rendezvous,
 } from '../../../api/user/Rendezvous/MesRendezVous';
+import { Helmet } from 'react-helmet-async';
+
 
 const MesRendezVous = () => {
   const { user, isAuthenticated } = useAuth();
@@ -34,7 +36,6 @@ const MesRendezVous = () => {
   const [hasFetched, setHasFetched] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('');
 
-  // Vérification d'authentification au chargement
   useEffect(() => {
     if (!isAuthenticated) {
       console.log('🔒 Utilisateur non authentifié');
@@ -68,22 +69,19 @@ const MesRendezVous = () => {
       setRendezvous(response.data);
       setTotalPages(response.totalPages);
       setHasFetched(true);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('💥 Erreur fetchRendezvous:', error);
 
-      // Gestion spécifique des erreurs d'authentification
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
+
       if (
-        error instanceof Error &&
-        (error.message.includes('Session expirée') ||
-          error.message.includes('non authentifié'))
+        errorMessage.includes('Session expirée') ||
+        errorMessage.includes('non authentifié')
       ) {
         console.log('🔒 Session expirée');
         toast.error('Session expirée. Veuillez vous reconnecter.');
       } else {
-        // Affichage d'un message d'erreur générique
-        toast.error(
-          error instanceof Error ? error.message : 'Une erreur est survenue'
-        );
+        toast.error(errorMessage);
       }
     } finally {
       setIsLoading(false);
@@ -103,28 +101,23 @@ const MesRendezVous = () => {
 
       toast.success('Rendez-vous confirmé avec succès');
 
-      // Mise à jour optimiste de l'état local
       setRendezvous(prev =>
         prev.map(rdv => (rdv._id === id ? { ...rdv, status: 'Confirmé' } : rdv))
       );
 
-      // Recharger les données pour s'assurer de la synchronisation
       fetchRendezvous();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('💥 Erreur confirmation rendez-vous:', error);
 
-      // Gestion spécifique des erreurs d'authentification
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
+
       if (
-        error instanceof Error &&
-        (error.message.includes('Session expirée') ||
-          error.message.includes('non authentifié'))
+        errorMessage.includes('Session expirée') ||
+        errorMessage.includes('non authentifié')
       ) {
         toast.error('Session expirée. Veuillez vous reconnecter.');
       } else {
-        // Affichage d'un message d'erreur générique
-        toast.error(
-          error instanceof Error ? error.message : 'Une erreur est survenue'
-        );
+        toast.error(errorMessage);
       }
     } finally {
       setMobileMenuOpen(null);
@@ -137,35 +130,30 @@ const MesRendezVous = () => {
       return;
     }
 
-    console.log("🗑️ Tentative d'annulation du rendez-vous:", id);
+    console.log('🗑️ Tentative d&apos;annulation du rendez-vous:', id);
 
     try {
       await RendezvousService.cancelRendezvous(id);
 
       toast.success('Rendez-vous annulé avec succès');
 
-      // Mise à jour optimiste de l'état local
       setRendezvous(prev =>
         prev.map(rdv => (rdv._id === id ? { ...rdv, status: 'Annulé' } : rdv))
       );
 
-      // Recharger les données pour s'assurer de la synchronisation
       fetchRendezvous();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('💥 Erreur annulation rendez-vous:', error);
 
-      // Gestion spécifique des erreurs d'authentification
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
+
       if (
-        error instanceof Error &&
-        (error.message.includes('Session expirée') ||
-          error.message.includes('non authentifié'))
+        errorMessage.includes('Session expirée') ||
+        errorMessage.includes('non authentifié')
       ) {
         toast.error('Session expirée. Veuillez vous reconnecter.');
       } else {
-        // Affichage d'un message d'erreur générique
-        toast.error(
-          error instanceof Error ? error.message : 'Une erreur est survenue'
-        );
+        toast.error(errorMessage);
       }
     } finally {
       setConfirmId(null);
@@ -173,12 +161,11 @@ const MesRendezVous = () => {
     }
   };
 
-  // Fonction pour gérer le clic sur annuler
   const handleCancelClick = (rdv: Rendezvous) => {
     if (!RendezvousService.canCancelRendezvous(rdv)) {
       const message =
         RendezvousService.getTimeRemainingMessage(rdv) ||
-        "Annulation impossible (délai de 2 heures dépassé)";
+        'Annulation impossible (délai de 2 heures dépassé)';
       toast.info(message);
       return;
     }
@@ -215,21 +202,39 @@ const MesRendezVous = () => {
     return RendezvousService.isUpcoming(rdv);
   };
 
-  // Affichage du loading pendant la vérification d'authentification
   if (!isAuthenticated) {
     return (
       <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
         <div className='flex flex-col items-center gap-4'>
           <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4'></div>
-          <p className='text-gray-600'>Vérification de l'authentification...</p>
+          <p className='text-gray-600'>Vérification de l&apos;authentification...</p>
         </div>
       </div>
     );
   }
 
   return (
+    <>
+    <Helmet>
+      <title>Mes Rendez-vous - Paname Consulting</title>
+      <meta
+        name='description'
+        content="Consultez vos rendez-vous avec un conseiller Paname Consulting."
+      />
+      <meta
+        name='keywords'
+        content="rendez-vous, conseiller, orientation"
+      />
+      <link
+        rel='canonical'
+        href='https://panameconsulting.vercel.app/mes-rendez-vous'
+      />
+      <meta name='robots' content='noindex, nofollow' />
+      <meta name='googlebot' content='noindex, nofollow' />
+      <meta name='bingbot' content='noindex, nofollow' />
+      <meta name='yandexbot' content='noindex, nofollow' />
+    </Helmet>
     <div className='min-h-screen bg-gray-50'>
-      {/* Header uniformisé */}
       <header className='bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50'>
         <div className='px-4 py-3'>
           <div className='flex items-center justify-between'>
@@ -246,7 +251,6 @@ const MesRendezVous = () => {
             </div>
 
             <div className='flex items-center space-x-2'>
-              {/* Sélecteur de filtre par statut */}
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
@@ -281,7 +285,6 @@ const MesRendezVous = () => {
             </div>
           </div>
 
-          {/* Navigation uniformisée */}
           <div className='mt-3'>
             <nav className='flex space-x-1'>
               {[
@@ -325,7 +328,6 @@ const MesRendezVous = () => {
 
       <div className='py-8 px-4 sm:px-6 lg:px-8'>
         <div className='max-w-7xl mx-auto'>
-          {/* En-tête amélioré */}
           <div className='text-center mb-12'>
             <div className='inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-2xl mb-4'>
               <Calendar className='w-8 h-8 text-blue-600' />
@@ -334,12 +336,11 @@ const MesRendezVous = () => {
               Mes Rendez-vous
             </h1>
             <p className='text-lg text-gray-600 max-w-2xl mx-auto'>
-              Gérez vos consultations et suivez l'état de vos rendez-vous en
+              Gérez vos consultations et suivez l&apos;état de vos rendez-vous en
               temps réel
             </p>
           </div>
 
-          {/* Statistiques rapides */}
           <div className='grid grid-cols-2 md:grid-cols-4 gap-4 mb-8'>
             {[
               {
@@ -382,7 +383,6 @@ const MesRendezVous = () => {
             ))}
           </div>
 
-          {/* Carte principale améliorée */}
           <div className='bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-200'>
             <div className='px-6 py-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-blue-50'>
               <div className='flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4'>
@@ -395,7 +395,7 @@ const MesRendezVous = () => {
                   </p>
                 </div>
                 <div className='text-sm text-gray-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2'>
-                  <strong>⚠️ Règles d'annulation :</strong> Possible jusqu'à 2
+                  <strong>⚠️ Règles d&apos;annulation :</strong> Possible jusqu&apos;à 2
                   heures avant le rendez-vous
                 </div>
               </div>
@@ -420,7 +420,7 @@ const MesRendezVous = () => {
                 </h3>
                 <p className='text-gray-600 mb-8 max-w-md mx-auto'>
                   Prenez votre premier rendez-vous pour discuter de votre projet
-                  d'études à l'étranger avec nos conseillers experts.
+                  d&apos;études à l&apos;étranger avec nos conseillers experts.
                 </p>
                 <button
                   onClick={() => navigate('/rendez-vous')}
@@ -432,7 +432,6 @@ const MesRendezVous = () => {
             ) : (
               <>
                 <div className='overflow-hidden'>
-                  {/* Version desktop améliorée */}
                   <div className='hidden lg:block'>
                     <table className='w-full'>
                       <thead className='bg-gray-50'>
@@ -502,7 +501,6 @@ const MesRendezVous = () => {
                               </td>
                               <td className='px-6 py-5'>
                                 <div className='flex items-center gap-3'>
-                                  {/* ACTIONS POUR L'UTILISATEUR - CONFIRMATION ET ANNULATION */}
                                   {rdv.status === 'En attente' && (
                                     <>
                                       <button
@@ -526,7 +524,6 @@ const MesRendezVous = () => {
                                         Annuler
                                       </button>
 
-                                      {/* MESSAGE TEMPS RESTANT */}
                                       {!canCancelRdv && (
                                         <div className='flex items-center gap-1 text-xs text-amber-600 max-w-[180px]'>
                                           <AlertCircle className='w-3 h-3' />
@@ -552,7 +549,6 @@ const MesRendezVous = () => {
                                         Annuler
                                       </button>
 
-                                      {/* MESSAGE TEMPS RESTANT */}
                                       {!canCancelRdv && (
                                         <div className='flex items-center gap-1 text-xs text-amber-600 max-w-[180px]'>
                                           <AlertCircle className='w-3 h-3' />
@@ -578,7 +574,6 @@ const MesRendezVous = () => {
                     </table>
                   </div>
 
-                  {/* Version mobile améliorée */}
                   <div className='lg:hidden'>
                     <div className='divide-y divide-gray-100'>
                       {rendezvous.map(rdv => {
@@ -644,7 +639,6 @@ const MesRendezVous = () => {
                             </div>
 
                             <div className='mt-4 pt-4 border-t border-gray-100'>
-                              {/* ACTIONS POUR L'UTILISATEUR - VERSION MOBILE */}
                               {rdv.status === 'En attente' && (
                                 <div className='flex flex-col gap-3'>
                                   <button
@@ -668,7 +662,6 @@ const MesRendezVous = () => {
                                     Annuler le rendez-vous
                                   </button>
 
-                                  {/* MESSAGE TEMPS RESTANT */}
                                   {!canCancelRdv && (
                                     <div className='flex items-center justify-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded-lg'>
                                       <AlertCircle className='w-3 h-3' />
@@ -694,7 +687,6 @@ const MesRendezVous = () => {
                                     Annuler le rendez-vous
                                   </button>
 
-                                  {/* MESSAGE TEMPS RESTANT */}
                                   {!canCancelRdv && (
                                     <div className='flex items-center justify-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded-lg'>
                                       <AlertCircle className='w-3 h-3' />
@@ -712,7 +704,6 @@ const MesRendezVous = () => {
                   </div>
                 </div>
 
-                {/* Pagination améliorée */}
                 {totalPages > 1 && (
                   <div className='px-6 py-4 bg-gray-50 border-t border-gray-200'>
                     <div className='flex items-center justify-between'>
@@ -763,7 +754,6 @@ const MesRendezVous = () => {
         </div>
       </div>
 
-      {/* Modal de confirmation d'annulation */}
       {confirmId && (
         <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
           <div className='bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-lg'>
@@ -771,13 +761,13 @@ const MesRendezVous = () => {
               <XCircle className='w-6 h-6 text-red-600' />
             </div>
             <h3 className='text-xl font-bold text-gray-800 mb-2'>
-              Confirmer l'annulation
+              Confirmer l&apos;annulation
             </h3>
             <p className='text-gray-600 mb-6'>
               Êtes-vous sûr de vouloir annuler ce rendez-vous ? Cette action est
               irréversible.
               <span className='block mt-2 text-sm text-amber-600'>
-                ⚠️ L'annulation n'est possible que jusqu'à 2 heures avant le
+                ⚠️ L&apos;annulation n&apos;est possible que jusqu&apos;à 2 heures avant le
                 rendez-vous.
               </span>
             </p>
@@ -792,14 +782,13 @@ const MesRendezVous = () => {
                 onClick={() => handleCancel(confirmId)}
                 className='px-6 py-2.5 rounded-xl bg-red-600 text-white hover:bg-red-700 transition-colors font-medium shadow-sm order-1 sm:order-2'
               >
-                Confirmer l'annulation
+                Confirmer l&apos;annulation
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal de détails */}
       {selectedRdv && (
         <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
           <div className='bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-lg'>
@@ -857,7 +846,8 @@ const MesRendezVous = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 
-export default MesRendezVous;
+export default MesRendezVous; 

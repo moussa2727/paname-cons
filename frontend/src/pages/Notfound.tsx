@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
@@ -39,7 +38,7 @@ const NotFound = () => {
         <title>404 — Page non trouvée | Paname Consulting</title>
         <meta
           name='description'
-          content='Oups ! Cette page semble avoir disparu. Retournez à l’accueil de Paname Consulting.'
+          content='Oups ! Cette page semble avoir disparu. Retournez à l&apos;accueil de Paname Consulting.'
         />
         <meta name='viewport' content='width=device-width, initial-scale=1.0' />
         <link rel='icon' href='/icons/paname-consulting.ico' />

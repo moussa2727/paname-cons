@@ -37,7 +37,7 @@ const AdminRendezVous = lazy(() => import('./pages/admin/AdminRendez-Vous'));
 // Restrictions admin
 import RequireAdmin from './context/RequireAdmin';
 
-import MesRendezVous from './pages/user/MesRendezVous';
+import MesRendezVous from './pages/user/rendezvous/MesRendezVous';
 import UserProfile from './pages/user/UserProfile';
 import UserProcedure from './pages/user/UserProcedure';
 import ResetPassword from './components/auth/ResetPassword';
@@ -74,7 +74,7 @@ function App() {
         top: 0,
         behavior: behavior,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       window.scrollTo(0, 0);
     }
   }, []);
@@ -120,12 +120,12 @@ function App() {
     <ErrorBoundary>
       <Helmet>
         <title>
-          Paname Consulting - Études à l'Étranger, Voyages d'Affaires & demandes
-          de Visas
+          Paname Consulting - Études à l&apos;Étranger, Voyages d&apos;Affaires &
+          demandes de Visas
         </title>
         <meta
           name='description'
-          content="Paname Consulting : expert en accompagnement étudiant à l'étranger, organisation de voyages d'affaires et demandes de visa. Conseil personnalisé pour votre réussite internationale."
+          content="Paname Consulting : expert en accompagnement étudiant à l&apos;Étranger, organisation de voyages d&apos;Affaires et demandes de visa. Conseil personnalisé pour votre réussite internationale."
         />
       </Helmet>
 

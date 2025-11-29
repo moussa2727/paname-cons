@@ -62,11 +62,11 @@ export class AdminProcedureApiService {
 
   // ✅ MÉTHODE PRIVÉE POUR LES REQUÊTES AUTHENTIFIÉES
   private async makeAuthenticatedRequest(
-    endpoint: string, 
+    endpoint: string,
     options: RequestInit = {}
   ): Promise<any> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     // Récupération du token depuis les cookies (compatible avec AuthContext)
     const getCookie = (name: string): string | null => {
       const value = `; ${document.cookie}`;
@@ -76,14 +76,14 @@ export class AdminProcedureApiService {
     };
 
     const accessToken = getCookie('access_token');
-    
+
     if (!accessToken) {
-      throw new Error('Token d\'accès manquant - Veuillez vous reconnecter');
+      throw new Error("Token d'accès manquant - Veuillez vous reconnecter");
     }
 
     const headers = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
       ...options.headers,
     };
 
@@ -109,18 +109,21 @@ export class AdminProcedureApiService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erreur ${response.status}: ${response.statusText}`);
+        throw new Error(
+          errorData.message ||
+            `Erreur ${response.status}: ${response.statusText}`
+        );
       }
 
       return await response.json();
-    } catch (error: any) {
-      if (error.message === 'SESSION_EXPIRED') {
+    } catch (error: unknown) {
+      if ((error as Error).message === 'SESSION_EXPIRED') {
         // Déclencher le refresh via le contexte Auth
         window.dispatchEvent(new CustomEvent('auth-token-expired'));
         throw new Error('Session expirée - Veuillez vous reconnecter');
       }
-      
-      if (error.message === 'ACCESS_DENIED') {
+
+      if ((error as Error).message === 'ACCESS_DENIED') {
         throw new Error('Accès refusé - Droits insuffisants');
       }
 
@@ -164,14 +167,15 @@ export class AdminProcedureApiService {
       }
 
       const response = await this.makeAuthenticatedRequest(url);
-      
+
       // ✅ Formatage standardisé de la réponse
       return {
         data: response.data || [],
         total: response.total || 0,
-        totalPages: response.totalPages || Math.ceil((response.total || 0) / limit),
+        totalPages:
+          response.totalPages || Math.ceil((response.total || 0) / limit),
       };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('❌ Erreur récupération procédures:', error);
       throw error;
     }
@@ -184,21 +188,30 @@ export class AdminProcedureApiService {
         throw new Error('ID de procédure invalide');
       }
       return await this.makeAuthenticatedRequest(`/api/procedures/admin/${id}`);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`❌ Erreur détails procédure ${this.maskId(id)}:`, error);
       throw error;
     }
   }
 
   // ==================== MISE À JOUR PROCÉDURE ====================
-  async updateProcedure(id: string, updates: Partial<Procedure>): Promise<Procedure> {
+  async updateProcedure(
+    id: string,
+    updates: Partial<Procedure>
+  ): Promise<Procedure> {
     try {
-      return await this.makeAuthenticatedRequest(`/api/procedures/admin/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(updates),
-      });
-    } catch (error) {
-      console.error(`❌ Erreur mise à jour procédure ${this.maskId(id)}:`, error);
+      return await this.makeAuthenticatedRequest(
+        `/api/procedures/admin/${id}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(updates),
+        }
+      );
+    } catch (error: unknown) {
+      console.error(
+        `❌ Erreur mise à jour procédure ${this.maskId(id)}:`,
+        error
+      );
       throw error;
     }
   }
@@ -207,14 +220,19 @@ export class AdminProcedureApiService {
   async rejectProcedure(id: string, reason: string): Promise<Procedure> {
     try {
       if (!reason || reason.trim().length < 5) {
-        throw new Error('La raison du rejet doit contenir au moins 5 caractères');
+        throw new Error(
+          'La raison du rejet doit contenir au moins 5 caractères'
+        );
       }
 
-      return await this.makeAuthenticatedRequest(`/api/procedures/admin/${id}/reject`, {
-        method: 'PUT',
-        body: JSON.stringify({ reason: reason.trim() }),
-      });
-    } catch (error) {
+      return await this.makeAuthenticatedRequest(
+        `/api/procedures/admin/${id}/reject`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ reason: reason.trim() }),
+        }
+      );
+    } catch (error: unknown) {
       console.error(`❌ Erreur rejet procédure ${this.maskId(id)}:`, error);
       throw error;
     }
@@ -222,16 +240,24 @@ export class AdminProcedureApiService {
 
   // ==================== SUPPRESSION PROCÉDURE ====================
   async deleteProcedure(
-    id: string, 
+    id: string,
     reason?: string
   ): Promise<{ success: boolean; message: string }> {
     try {
-      return await this.makeAuthenticatedRequest(`/api/procedures/admin/${id}`, {
-        method: 'DELETE',
-        body: JSON.stringify({ reason: reason || 'Supprimé par administrateur' }),
-      });
-    } catch (error) {
-      console.error(`❌ Erreur suppression procédure ${this.maskId(id)}:`, error);
+      return await this.makeAuthenticatedRequest(
+        `/api/procedures/admin/${id}`,
+        {
+          method: 'DELETE',
+          body: JSON.stringify({
+            reason: reason || 'Supprimé par administrateur',
+          }),
+        }
+      );
+    } catch (error: unknown) {
+      console.error(
+        `❌ Erreur suppression procédure ${this.maskId(id)}:`,
+        error
+      );
       throw error;
     }
   }
@@ -244,9 +270,9 @@ export class AdminProcedureApiService {
     reason?: string
   ): Promise<Procedure> {
     try {
-      const updates: any = { 
+      const updates: any = {
         statut: newStatus,
-        dateMaj: new Date().toISOString()
+        dateMaj: new Date().toISOString(),
       };
 
       if (reason && newStatus === StepStatus.REJECTED) {
@@ -261,25 +287,36 @@ export class AdminProcedureApiService {
           body: JSON.stringify(updates),
         }
       );
-    } catch (error) {
-      console.error(`❌ Erreur mise à jour étape ${this.maskId(procedureId)}:`, error);
+    } catch (error: unknown) {
+      console.error(
+        `❌ Erreur mise à jour étape ${this.maskId(procedureId)}:`,
+        error
+      );
       throw error;
     }
   }
 
   // ==================== CRÉATION DE PROCÉDURE ====================
-  async createProcedureFromRendezvous(rendezVousId: string): Promise<Procedure> {
+  async createProcedureFromRendezvous(
+    rendezVousId: string
+  ): Promise<Procedure> {
     try {
       if (!rendezVousId || rendezVousId.length < 10) {
         throw new Error('ID de rendez-vous invalide');
       }
 
-      return await this.makeAuthenticatedRequest('/api/procedures/admin/create', {
-        method: 'POST',
-        body: JSON.stringify({ rendezVousId }),
-      });
-    } catch (error) {
-      console.error(`❌ Erreur création procédure RDV ${this.maskId(rendezVousId)}:`, error);
+      return await this.makeAuthenticatedRequest(
+        '/api/procedures/admin/create',
+        {
+          method: 'POST',
+          body: JSON.stringify({ rendezVousId }),
+        }
+      );
+    } catch (error: unknown) {
+      console.error(
+        `❌ Erreur création procédure RDV ${this.maskId(rendezVousId)}:`,
+        error
+      );
       throw error;
     }
   }
@@ -289,8 +326,6 @@ export class AdminProcedureApiService {
     if (!id || id.length < 8) return '***';
     return `${id.substring(0, 4)}***${id.substring(id.length - 4)}`;
   }
-
-  
 }
 
 // Instance unique exportée
@@ -301,18 +336,22 @@ export const useAdminProcedureApi = () => {
   return {
     // Méthodes principales
     getProcedures: adminProcedureApi.getProcedures.bind(adminProcedureApi),
-    getProcedureDetails: adminProcedureApi.getProcedureDetails.bind(adminProcedureApi),
+    getProcedureDetails:
+      adminProcedureApi.getProcedureDetails.bind(adminProcedureApi),
     updateProcedure: adminProcedureApi.updateProcedure.bind(adminProcedureApi),
     rejectProcedure: adminProcedureApi.rejectProcedure.bind(adminProcedureApi),
     deleteProcedure: adminProcedureApi.deleteProcedure.bind(adminProcedureApi),
 
     // Gestion des étapes
-    updateStepStatus: adminProcedureApi.updateStepStatus.bind(adminProcedureApi),
+    updateStepStatus:
+      adminProcedureApi.updateStepStatus.bind(adminProcedureApi),
 
     // Statistiques
-    getProceduresOverview: adminProcedureApi.getProceduresOverview.bind(adminProcedureApi),
+    getProceduresOverview:
+      adminProcedureApi.getProceduresOverview.bind(adminProcedureApi),
 
     // Création
-    createProcedureFromRendezvous: adminProcedureApi.createProcedureFromRendezvous.bind(adminProcedureApi),
+    createProcedureFromRendezvous:
+      adminProcedureApi.createProcedureFromRendezvous.bind(adminProcedureApi),
   };
 };

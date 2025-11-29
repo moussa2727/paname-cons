@@ -13,12 +13,12 @@ function Accueil() {
       <div className='flex flex-col min-h-screen w-full overflow-x-hidden touch-pan-y'>
         <Helmet>
           <title>
-            Paname Consulting - Accompagnement étudiant, Études à l'étranger,
+            Paname Consulting - Accompagnement étudiant, Études à l&apos;étranger,
             Vacances, Demandes de visa
           </title>
           <meta
             name='title'
-            content="Paname Consulting - Accompagnement étudiant, Études à l'étranger, Vacances, Demandes de visa"
+            content="Paname Consulting - Accompagnement étudiant, Études à l&apos;étranger, Vacances, Demandes de visa"
           />
           {/* Meta utf  */}
           <meta charSet='utf-8' />
@@ -30,11 +30,11 @@ function Accueil() {
           {/* Balises de recherche */}
           <meta
             name='description'
-            content="Paname Consulting est une entreprise spécialisée dans l'accompagnement étudiant pour des études à l'étranger, les vacances et voyages d'affaires réussis et les demandes de visa pour plusieurs destinations à travers le monde."
+            content="Paname Consulting est une entreprise spécialisée dans l'accompagnement étudiant pour des études à l&apos;étranger, les vacances et voyages d&apos;affaires réussis et les demandes de visa pour plusieurs destinations à travers le monde."  
           />
           <meta
             name='keywords'
-            content="Paname Consulting, Accompagnement étudiant, Études à l'étranger, Vacances, Demandes de visa, Destinations internationales"
+            content="Paname Consulting, Accompagnement étudiant, Études à l&apos;étranger, Vacances, Demandes de visa, Destinations internationales"
           />
           <meta name='author' content='Paname Consulting' />
           <meta name='robots' content='index, follow' />
@@ -60,7 +60,7 @@ function Accueil() {
           {/* Balises Open Graph pour le partage social */}
           <meta
             property='og:title'
-            content="Paname Consulting - Votre partenaire pour les études à l'étranger"
+            content="Paname Consulting - Votre partenaire pour les études à l&apos;étranger"
           />
           <meta
             property='og:description'
@@ -81,7 +81,7 @@ function Accueil() {
           <meta name='twitter:title' content='Paname Consulting' />
           <meta
             name='twitter:description'
-            content="Votre partenaire pour les études à l'étranger et les voyages internationaux"
+            content="Votre partenaire pour les études à l&apos;étranger et les voyages internationaux"
           />
           <meta
             name='twitter:image'

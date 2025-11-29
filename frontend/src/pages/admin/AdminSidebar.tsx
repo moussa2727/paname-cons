@@ -248,8 +248,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                     >
                       <div
                         className={`${
-                          isActivePath(item.basePath) 
-                            ? 'text-white' 
+                          isActivePath(item.basePath)
+                            ? 'text-white'
                             : 'text-slate-500 group-hover:text-slate-700'
                         } ${isCollapsed ? 'transform scale-110' : ''}`}
                       >
@@ -400,8 +400,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                     >
                       <div
                         className={`${
-                          isActivePath(item.basePath) 
-                            ? 'text-white' 
+                          isActivePath(item.basePath)
+                            ? 'text-white'
                             : 'text-slate-500'
                         } w-6 h-6 flex items-center justify-center`}
                       >

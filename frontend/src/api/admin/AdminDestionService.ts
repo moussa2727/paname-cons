@@ -58,7 +58,9 @@ export const useDestinationService = () => {
       // Vérification des droits administrateur - délégation au AuthContext
       if (requireAdmin) {
         if (!isAuthenticated) {
-          throw new Error('Authentification requise pour accéder à cette ressource');
+          throw new Error(
+            'Authentification requise pour accéder à cette ressource'
+          );
         }
         if (!user) {
           throw new Error('Utilisateur non authentifié');
@@ -125,9 +127,9 @@ export const useDestinationService = () => {
         }
 
         return await response.json();
-      } catch (err: any) {
+      } catch (err: unknown) {
         clearTimeout(timeoutId);
-        if (err.name === 'AbortError') {
+        if ((err as Error).name === 'AbortError') {
           throw new Error('Timeout de la requête');
         }
         throw err;
@@ -160,9 +162,9 @@ export const useDestinationService = () => {
           },
           false // Public - ne requiert PAS les droits admin
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
         const errorMessage =
-          err.message || 'Erreur lors du chargement des destinations';
+          (err as Error).message || 'Erreur lors du chargement des destinations';
         setError(errorMessage);
         toast.error(errorMessage);
         throw err;
@@ -174,7 +176,9 @@ export const useDestinationService = () => {
   );
 
   // 📋 Récupérer toutes les destinations sans pagination
-  const getAllDestinationsWithoutPagination = useCallback(async (): Promise<Destination[]> => {
+  const getAllDestinationsWithoutPagination = useCallback(async (): Promise<
+    Destination[]
+  > => {
     setIsLoading(true);
     setError(null);
 
@@ -186,9 +190,9 @@ export const useDestinationService = () => {
         },
         false // Public
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorMessage =
-        err.message || 'Erreur lors du chargement des destinations';
+        (err as Error).message || 'Erreur lors du chargement des destinations';
       setError(errorMessage);
       toast.error(errorMessage);
       throw err;
@@ -198,187 +202,199 @@ export const useDestinationService = () => {
   }, [secureFetch]);
 
   // 👁️ Récupérer une destination par ID
-  const getDestinationById = useCallback(async (id: string): Promise<Destination> => {
-    setIsLoading(true);
-    setError(null);
+  const getDestinationById = useCallback(
+    async (id: string): Promise<Destination> => {
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      if (!id) {
-        throw new Error('ID de destination requis');
+      try {
+        if (!id) {
+          throw new Error('ID de destination requis');
+        }
+
+        return await secureFetch(
+          `/api/destinations/${id}`,
+          {
+            method: 'GET',
+          },
+          false // Public
+        );
+      } catch (err: unknown) {
+        const errorMessage =
+          (err as Error).message || 'Erreur lors de la récupération de la destination';
+        setError(errorMessage);
+        toast.error(errorMessage);
+        throw err;
+      } finally {
+        setIsLoading(false);
       }
-
-      return await secureFetch(
-        `/api/destinations/${id}`,
-        {
-          method: 'GET',
-        },
-        false // Public
-      );
-    } catch (err: any) {
-      const errorMessage =
-        err.message || 'Erreur lors de la récupération de la destination';
-      setError(errorMessage);
-      toast.error(errorMessage);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [secureFetch]);
+    },
+    [secureFetch]
+  );
 
   // ➕ Créer une nouvelle destination (Admin seulement)
-  const createDestination = useCallback(async (data: CreateDestinationData): Promise<Destination> => {
-    setIsLoading(true);
-    setError(null);
+  const createDestination = useCallback(
+    async (data: CreateDestinationData): Promise<Destination> => {
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      // Validation des données
-      if (!data.country?.trim()) {
-        throw new Error('Le nom du pays est obligatoire');
-      }
+      try {
+        // Validation des données
+        if (!data.country?.trim()) {
+          throw new Error('Le nom du pays est obligatoire');
+        }
 
-      if (!data.text?.trim()) {
-        throw new Error('La description est obligatoire');
-      }
+        if (!data.text?.trim()) {
+          throw new Error('La description est obligatoire');
+        }
 
-      if (!data.imageFile) {
-        throw new Error("L'image est obligatoire");
-      }
+        if (!data.imageFile) {
+          throw new Error("L'image est obligatoire");
+        }
 
-      if (data.text.length < 10 || data.text.length > 2000) {
-        throw new Error(
-          'La description doit contenir entre 10 et 2000 caractères'
-        );
-      }
+        if (data.text.length < 10 || data.text.length > 2000) {
+          throw new Error(
+            'La description doit contenir entre 10 et 2000 caractères'
+          );
+        }
 
-      // Validation de l'image
-      const validation = validateImageFile(data.imageFile);
-      if (!validation.isValid) {
-        throw new Error(validation.error!);
-      }
-
-      // Préparation FormData
-      const formData = new FormData();
-      formData.append('country', data.country.trim());
-      formData.append('text', data.text.trim());
-      formData.append('image', data.imageFile);
-
-      const result = await secureFetch(
-        '/api/destinations',
-        {
-          method: 'POST',
-          body: formData,
-          // NE PAS mettre Content-Type pour FormData - le navigateur le gère
-        },
-        true // Requiert les droits admin
-      );
-
-      toast.success('Destination créée avec succès');
-      return result;
-    } catch (err: any) {
-      const errorMessage = err.message || 'Erreur lors de la création de la destination';
-      setError(errorMessage);
-      toast.error(errorMessage);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [secureFetch]);
-
-  // ✏️ Mettre à jour une destination (Admin seulement)
-  const updateDestination = useCallback(async (
-    id: string,
-    data: UpdateDestinationData
-  ): Promise<Destination> => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      if (!id) {
-        throw new Error('ID de destination requis');
-      }
-
-      // Validation des données
-      if (data.country && data.country.trim().length === 0) {
-        throw new Error('Le nom du pays ne peut pas être vide');
-      }
-
-      if (data.text && (data.text.length < 10 || data.text.length > 2000)) {
-        throw new Error(
-          'La description doit contenir entre 10 et 2000 caractères'
-        );
-      }
-
-      if (data.imageFile) {
+        // Validation de l'image
         const validation = validateImageFile(data.imageFile);
         if (!validation.isValid) {
           throw new Error(validation.error!);
         }
-      }
 
-      // Préparation FormData
-      const formData = new FormData();
-
-      if (data.country) {
+        // Préparation FormData
+        const formData = new FormData();
         formData.append('country', data.country.trim());
-      }
-
-      if (data.text) {
         formData.append('text', data.text.trim());
-      }
-
-      if (data.imageFile) {
         formData.append('image', data.imageFile);
+
+        const result = await secureFetch(
+          '/api/destinations',
+          {
+            method: 'POST',
+            body: formData,
+            // NE PAS mettre Content-Type pour FormData - le navigateur le gère
+          },
+          true // Requiert les droits admin
+        );
+
+        toast.success('Destination créée avec succès');
+        return result;
+      } catch (err: unknown) {
+        const errorMessage =
+          (err as Error).message || 'Erreur lors de la création de la destination';
+        setError(errorMessage);
+        toast.error(errorMessage);
+        throw err;
+      } finally {
+        setIsLoading(false);
       }
+    },
+    [secureFetch]
+  );
 
-      const result = await secureFetch(
-        `/api/destinations/${id}`,
-        {
-          method: 'PUT',
-          body: formData,
-        },
-        true // Requiert les droits admin
-      );
+  // ✏️ Mettre à jour une destination (Admin seulement)
+  const updateDestination = useCallback(
+    async (id: string, data: UpdateDestinationData): Promise<Destination> => {
+      setIsLoading(true);
+      setError(null);
 
-      toast.success('Destination modifiée avec succès');
-      return result;
-    } catch (err: any) {
-      const errorMessage = err.message || 'Erreur lors de la modification de la destination';
-      setError(errorMessage);
-      toast.error(errorMessage);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [secureFetch]);
+      try {
+        if (!id) {
+          throw new Error('ID de destination requis');
+        }
+
+        // Validation des données
+        if (data.country && data.country.trim().length === 0) {
+          throw new Error('Le nom du pays ne peut pas être vide');
+        }
+
+        if (data.text && (data.text.length < 10 || data.text.length > 2000)) {
+          throw new Error(
+            'La description doit contenir entre 10 et 2000 caractères'
+          );
+        }
+
+        if (data.imageFile) {
+          const validation = validateImageFile(data.imageFile);
+          if (!validation.isValid) {
+            throw new Error(validation.error!);
+          }
+        }
+
+        // Préparation FormData
+        const formData = new FormData();
+
+        if (data.country) {
+          formData.append('country', data.country.trim());
+        }
+
+        if (data.text) {
+          formData.append('text', data.text.trim());
+        }
+
+        if (data.imageFile) {
+          formData.append('image', data.imageFile);
+        }
+
+        const result = await secureFetch(
+          `/api/destinations/${id}`,
+          {
+            method: 'PUT',
+            body: formData,
+          },
+          true // Requiert les droits admin
+        );
+
+        toast.success('Destination modifiée avec succès');
+        return result;
+      } catch (err: unknown) {
+        const errorMessage =
+          (err as Error).message || 'Erreur lors de la modification de la destination';
+        setError(errorMessage);
+        toast.error(errorMessage);
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [secureFetch]
+  );
 
   // 🗑️ Supprimer une destination (Admin seulement)
-  const deleteDestination = useCallback(async (id: string): Promise<void> => {
-    setIsLoading(true);
-    setError(null);
+  const deleteDestination = useCallback(
+    async (id: string): Promise<void> => {
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      if (!id) {
-        throw new Error('ID de destination requis');
+      try {
+        if (!id) {
+          throw new Error('ID de destination requis');
+        }
+
+        await secureFetch(
+          `/api/destinations/${id}`,
+          {
+            method: 'DELETE',
+          },
+          true // Requiert les droits admin
+        );
+
+        toast.success('Destination supprimée avec succès');
+      } catch (err: unknown) {
+        const errorMessage =
+          (err as Error).message || 'Erreur lors de la suppression de la destination';
+        setError(errorMessage);
+        toast.error(errorMessage);
+        throw err;
+      } finally {
+        setIsLoading(false);
       }
-
-      await secureFetch(
-        `/api/destinations/${id}`,
-        {
-          method: 'DELETE',
-        },
-        true // Requiert les droits admin
-      );
-
-      toast.success('Destination supprimée avec succès');
-    } catch (err: any) {
-      const errorMessage = err.message || 'Erreur lors de la suppression de la destination';
-      setError(errorMessage);
-      toast.error(errorMessage);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [secureFetch]);
+    },
+    [secureFetch]
+  );
 
   // 📊 Récupérer les statistiques des destinations
   const getStatistics = useCallback(async (): Promise<Statistics> => {
@@ -411,8 +427,9 @@ export const useDestinationService = () => {
         countries: uniqueCountries.size,
         lastUpdated,
       };
-    } catch (err: any) {
-      const errorMessage = err.message || 'Erreur lors de la récupération des statistiques';
+    } catch (err: unknown) {
+      const errorMessage =
+        (err as Error).message || 'Erreur lors de la récupération des statistiques';
       setError(errorMessage);
       toast.error(errorMessage);
       throw err;
@@ -422,26 +439,30 @@ export const useDestinationService = () => {
   }, [getAllDestinationsWithoutPagination]);
 
   // 🔍 Rechercher des destinations
-  const searchDestinations = useCallback(async (query: string): Promise<Destination[]> => {
-    setIsLoading(true);
-    setError(null);
+  const searchDestinations = useCallback(
+    async (query: string): Promise<Destination[]> => {
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      if (!query.trim()) {
-        return getAllDestinationsWithoutPagination();
+      try {
+        if (!query.trim()) {
+          return getAllDestinationsWithoutPagination();
+        }
+
+        const response = await getAllDestinations(1, 50, query.trim());
+        return response.data;
+      } catch (err: unknown) {
+        const errorMessage =
+          (err as Error).message || 'Erreur lors de la recherche des destinations';
+        setError(errorMessage);
+        toast.error(errorMessage);
+        throw err;
+      } finally {
+        setIsLoading(false);
       }
-
-      const response = await getAllDestinations(1, 50, query.trim());
-      return response.data;
-    } catch (err: any) {
-      const errorMessage = err.message || 'Erreur lors de la recherche des destinations';
-      setError(errorMessage);
-      toast.error(errorMessage);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [getAllDestinations, getAllDestinationsWithoutPagination]);
+    },
+    [getAllDestinations, getAllDestinationsWithoutPagination]
+  );
 
   const clearError = useCallback(() => {
     setError(null);
@@ -468,12 +489,15 @@ export const useDestinationService = () => {
 
     // Métadonnées (délégation au AuthContext)
     isAdmin: user?.role === 'admin' || user?.isAdmin === true,
-    canAccessAdmin: isAuthenticated && (user?.role === 'admin' || user?.isAdmin === true),
+    canAccessAdmin:
+      isAuthenticated && (user?.role === 'admin' || user?.isAdmin === true),
   };
 };
 
 // ===== FONCTIONS UTILITAIRES =====
-export const validateImageFile = (file: File): { isValid: boolean; error?: string } => {
+export const validateImageFile = (
+  file: File
+): { isValid: boolean; error?: string } => {
   // Taille max: 5MB
   const maxSize = 5 * 1024 * 1024;
 
@@ -538,7 +562,8 @@ export const AdminDestinationService = () => {
     isLoading: destinationService.isLoading,
     error: destinationService.error,
     getAllDestinations: destinationService.getAllDestinations,
-    getAllDestinationsWithoutPagination: destinationService.getAllDestinationsWithoutPagination,
+    getAllDestinationsWithoutPagination:
+      destinationService.getAllDestinationsWithoutPagination,
     getDestinationById: destinationService.getDestinationById,
     createDestination: destinationService.createDestination,
     updateDestination: destinationService.updateDestination,

@@ -81,10 +81,8 @@ const UserProcedure = (): JSX.Element => {
   } = useUserProcedures(currentPage, limit);
 
   // ✅ CORRIGÉ: Suppression de detailsLoading et refetchDetails inutilisés
-  const {
-    procedure: detailedProcedure,
-    error: detailsError,
-  } = useProcedureDetails(selectedProcedure?._id || null);
+  const { procedure: detailedProcedure, error: detailsError } =
+    useProcedureDetails(selectedProcedure?._id || null);
 
   const { cancelProcedure, loading: cancelLoading } = useCancelProcedure();
 
@@ -225,17 +223,20 @@ const UserProcedure = (): JSX.Element => {
         <title>Procédures Utilisateurs - Paname Consulting</title>
         <meta
           name='description'
-          content="Prenez rendez-vous avec un conseiller Paname Consulting pour discuter de votre projet d'études à l'étranger."
+          content="Prenez rendez-vous avec un conseiller Paname Consulting pour discuter de votre projet d&apos;études à l&apos;étranger."
         />
         <meta
           name='keywords'
-          content="rendez-vous, études à l'étranger, conseiller, orientation"
+          content="rendez-vous, études à l&apos;étranger, conseiller, orientation"
         />
         <link
           rel='canonical'
           href='https://panameconsulting.vercel.app/user-procedures'
         />
         <meta name='robots' content='noindex, nofollow' />
+        <meta name='googlebot' content='noindex, nofollow' />
+        <meta name='bingbot' content='noindex, nofollow' />
+        <meta name='yandexbot' content='noindex, nofollow' />
       </Helmet>
       <div className='min-h-screen bg-slate-50'>
         <header className='bg-white shadow-sm border-b border-slate-200 sticky top-0 z-50'>
@@ -712,7 +713,7 @@ const UserProcedure = (): JSX.Element => {
                               {selectedProcedure.niveauEtude && (
                                 <div className='flex justify-between py-1'>
                                   <span className='text-slate-500'>
-                                    Niveau d'étude
+                                    Niveau d&apos;étude
                                   </span>
                                   <span className='text-slate-800 font-medium'>
                                     {selectedProcedure.niveauEtude}
@@ -841,7 +842,7 @@ const UserProcedure = (): JSX.Element => {
               <p className='text-slate-600 mb-6'>
                 {searchTerm || statusFilter !== 'ALL'
                   ? 'Aucune procédure ne correspond à vos critères.'
-                  : "Vous n'avez aucune procédure en cours."}
+                  : 'Vous n&apos;avez aucune procédure en cours.'}
               </p>
               <div className='flex flex-col sm:flex-row gap-3 justify-center'>
                 <button
@@ -1018,7 +1019,7 @@ const UserProcedure = (): JSX.Element => {
           <div className='fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center p-4 z-50 sm:items-center sm:p-6'>
             <div className='bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto'>
               <h3 className='text-lg font-semibold text-slate-800 mb-2'>
-                Confirmer l'annulation
+                Confirmer l&apos;annulation
               </h3>
               <p className='text-slate-600 mb-4'>
                 Êtes-vous sûr de vouloir annuler votre procédure pour{' '}
@@ -1030,7 +1031,7 @@ const UserProcedure = (): JSX.Element => {
                   htmlFor='cancelReason'
                   className='block text-sm font-medium text-slate-700 mb-2'
                 >
-                  Raison de l'annulation
+                  Raison de l&apos;annulation
                 </label>
                 <textarea
                   id='cancelReason'

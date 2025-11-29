@@ -1,14 +1,14 @@
-import { useAuth } from '../../context/AuthContext';
 import React, { useState } from 'react';
 import { FiAlertCircle, FiArrowLeft, FiMail } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { userProfileApi } from '../../api/user/Profile/userProfileApi';
 
 const ForgotPassword: React.FC = () => {
   const navigate = useNavigate();
   const [resetEmail, setResetEmail] = useState('');
   const [error, setError] = useState('');
-  const { forgotPassword, isLoading } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
 
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,16 +20,23 @@ const ForgotPassword: React.FC = () => {
     }
 
     try {
-      await forgotPassword(resetEmail);
+      setIsLoading(true);
+      // ✅ UTILISATION DU SERVICE, PAS DU CONTEXTE
+      await userProfileApi.forgotPassword(resetEmail);
       toast.success(
         'Si votre email est enregistré, vous recevrez un lien de réinitialisation'
       );
       setResetEmail(''); // Réinitialiser le champ
-    } catch (err) {
-      toast.error("Une erreur est survenue lors de l'envoi de l'email");
+    } catch (err: unknown) {
+      setError(
+        (err as Error).message || "Une erreur est survenue lors de l'envoi de l'email"
+      );
       setResetEmail(''); // Réinitialiser le champ
+    } finally {
+      setIsLoading(false);
     }
   };
+
   return (
     <div className='min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-sky-100 p-4'>
       <div className='w-full max-w-md'>

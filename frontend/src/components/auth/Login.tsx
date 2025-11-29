@@ -46,7 +46,9 @@ const Login: React.FC = () => {
       // La navigation est gérée dans le contexte
     } catch (err) {
       // Les erreurs sont déjà gérées dans le contexte
-      console.log('Erreur capturée dans le composant (déjà gérée par le contexte)');
+      console.log(
+        'Erreur capturée dans le composant (déjà gérée par le contexte)'
+      );
     }
   };
 
@@ -73,7 +75,7 @@ const Login: React.FC = () => {
             <form className='space-y-3' onSubmit={handleSubmit}>
               {/* Champ username caché pour l'accessibilité */}
               <div className='sr-only' aria-hidden='true'>
-                <label htmlFor='username'>Nom d'utilisateur</label>
+                <label htmlFor='username'>Nom d&apos;utilisateur</label>
                 <input
                   id='username'
                   type='text'
@@ -194,12 +196,12 @@ const Login: React.FC = () => {
                     </Link>
                   </p>
                   <p className='text-xs text-gray-600 mt-1'>
-                    Vous n'avez pas de compte?{' '}
+                    Vous n&apos;avez pas de compte?{' '}
                     <Link
                       to='/inscription'
                       className='font-medium text-sky-600 hover:text-sky-500 transition-colors'
                     >
-                      S'inscrire
+                      S&apos;inscrire
                     </Link>
                   </p>
                 </div>

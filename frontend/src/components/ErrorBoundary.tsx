@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -33,9 +33,9 @@ class ErrorBoundary extends Component<Props, State> {
     ) {
       console.warn('DOM manipulation error detected, attempting recovery...');
       // Try to recover by refreshing AOS if available
-      if (typeof window !== 'undefined' && (window as any).AOS) {
+      if (typeof window !== 'undefined' && (window as unknown as any).AOS) {
         setTimeout(() => {
-          (window as any).AOS.refresh();
+          (window as unknown as any).AOS.refresh();
         }, 100);
       }
       return;
@@ -81,10 +81,10 @@ class ErrorBoundary extends Component<Props, State> {
               <AlertTriangle className='w-16 h-16 text-red-500 mx-auto' />
             </div>
             <h1 className='text-xl font-semibold text-gray-900 mb-2'>
-              Oups ! Quelque chose s'est mal passé
+              Oups ! Quelque chose s&apos;est mal passé
             </h1>
             <p className='text-gray-600 mb-6'>
-              Une erreur inattendue s'est produite. Veuillez réessayer.
+              Une erreur inattendue s&apos;est produite. Veuillez réessayer.
             </p>
 
             <div className='space-y-3'>
@@ -101,14 +101,14 @@ class ErrorBoundary extends Component<Props, State> {
                 className='w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors'
               >
                 <Home className='w-4 h-4' />
-                Retour à l'accueil
+                Retour à l&apos;accueil
               </Link>
             </div>
 
             {process.env.NODE_ENV === 'development' && this.state.error && (
               <details className='mt-6 text-left'>
                 <summary className='cursor-pointer text-sm text-gray-500 hover:text-gray-700'>
-                  Détails de l'erreur (développement)
+                  Détails de l&apos;erreur (développement)
                 </summary>
                 <div className='mt-2 p-3 bg-gray-100 rounded text-xs font-mono text-gray-700 overflow-auto'>
                   <div className='mb-2'>

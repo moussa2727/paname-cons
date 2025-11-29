@@ -38,10 +38,10 @@ const AdminProfile: React.FC = () => {
       label: 'Une lettre majuscule',
       met: /[A-Z]/.test(formData.newPassword),
     },
-    { 
-      id: 'number', 
-      label: 'Un chiffre', 
-      met: /\d/.test(formData.newPassword) 
+    {
+      id: 'number',
+      label: 'Un chiffre',
+      met: /\d/.test(formData.newPassword),
     },
     {
       id: 'match',
@@ -55,13 +55,16 @@ const AdminProfile: React.FC = () => {
   const allRulesMet = passwordRules.every(rule => rule.met);
 
   // Fonction de mise à jour du mot de passe
-  const updatePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
+  const updatePassword = async (
+    currentPassword: string,
+    newPassword: string
+  ): Promise<void> => {
     setIsLoading(true);
     setMessage(null);
 
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      
+
       const requestBody = {
         currentPassword,
         newPassword,
@@ -111,7 +114,8 @@ const AdminProfile: React.FC = () => {
         confirmPassword: '',
       });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Une erreur est survenue';
+      const errorMessage =
+        err instanceof Error ? err.message : 'Une erreur est survenue';
       setMessage({ type: 'error', text: errorMessage });
     } finally {
       setIsLoading(false);
@@ -157,8 +161,11 @@ const AdminProfile: React.FC = () => {
         />
         <meta name='author' content='Paname Consulting' />
         <meta name='robots' content='noindex, nofollow' />
+        <meta name='googlebot' content='noindex, nofollow' />
+        <meta name='bingbot' content='noindex, nofollow' />
+        <meta name='yandexbot' content='noindex, nofollow' />
       </Helmet>
-      
+
       <div className='min-h-screen px-4 sm:px-6 lg:px-8'>
         <div className='max-w-md mx-auto'>
           {/* En-tête */}
@@ -197,7 +204,7 @@ const AdminProfile: React.FC = () => {
             <form onSubmit={handleSubmit} className='space-y-4 sm:space-y-6'>
               {/* Champ username caché pour l'accessibilité */}
               <div className='sr-only' aria-hidden='true'>
-                <label htmlFor='username'>Nom d'utilisateur</label>
+                <label htmlFor='username'>Nom d&apos;utilisateur</label>
                 <input
                   id='username'
                   type='text'
@@ -216,7 +223,7 @@ const AdminProfile: React.FC = () => {
                   htmlFor='currentPassword'
                   className='block text-sm font-medium text-slate-700 mb-2'
                 >
-                  Mot de passe actuel
+                  Mot de passe actuel *
                 </label>
                 <div className='relative'>
                   <input
@@ -255,7 +262,7 @@ const AdminProfile: React.FC = () => {
                   htmlFor='newPassword'
                   className='block text-sm font-medium text-slate-700 mb-2'
                 >
-                  Nouveau mot de passe
+                  Nouveau mot de passe *
                 </label>
                 <div className='relative'>
                   <input
@@ -294,7 +301,7 @@ const AdminProfile: React.FC = () => {
                   htmlFor='confirmPassword'
                   className='block text-sm font-medium text-slate-700 mb-2'
                 >
-                  Confirmer le mot de passe
+                  Confirmer le mot de passe *
                 </label>
                 <div className='relative'>
                   <input
@@ -404,7 +411,7 @@ const AdminProfile: React.FC = () => {
                   </p>
                   <p className='text-amber-700 text-xs mt-1'>
                     Votre mot de passe doit respecter les normes de sécurité les
-                    plus strictes pour protéger l'accès administrateur.
+                    plus strictes pour protéger l&apos;accès administrateur.
                   </p>
                 </div>
               </div>

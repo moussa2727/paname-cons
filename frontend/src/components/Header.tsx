@@ -1,6 +1,5 @@
 import {
   Calendar,
-  ChevronDown,
   FileText,
   Home as HomeIcon,
   Info as InfoIcon,
@@ -80,7 +79,7 @@ function Header() {
 
   // Animation clignotante pour "Services" - version optimisée
   useEffect(() => {
-    let blinkTimeout: any;
+    let blinkTimeout: unknown;
     setBlinkColor('text-gray-600'); // Réinitialiser la couleur avant de commencer
     const blink = () => {
       setBlinkColor('text-sky-400');
@@ -93,7 +92,7 @@ function Header() {
 
     return () => {
       clearInterval(blinkInterval);
-      clearTimeout(blinkTimeout);
+      clearTimeout(blinkTimeout as unknown as number);
     };
   }, []);
 
@@ -266,7 +265,7 @@ function Header() {
               className='font-semibold bg-white/20 px-3 py-1 rounded-full'
               aria-label='Slogan de Paname Consulting: Le cap vers l excellence'
             >
-              LE CAP VERS L'EXCELLENCE
+              LE CAP VERS L&apos;EXCELLENCE
             </span>
           </div>
         </div>
