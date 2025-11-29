@@ -37,7 +37,10 @@ const NotFound = () => {
     <>
       <Helmet>
         <title>404 — Page non trouvée | Paname Consulting</title>
-        <meta name='description' content='Oups ! Cette page semble avoir disparu. Retournez à l’accueil de Paname Consulting.' />
+        <meta
+          name='description'
+          content='Oups ! Cette page semble avoir disparu. Retournez à l’accueil de Paname Consulting.'
+        />
         <meta name='viewport' content='width=device-width, initial-scale=1.0' />
         <link rel='icon' href='/icons/paname-consulting.ico' />
         <link rel='apple-touch-icon' href='/icons/paname-consulting-512.png' />
@@ -81,7 +84,10 @@ const NotFound = () => {
               transition={{ duration: 2, repeat: Infinity }}
               className='inline-block mb-4'
             >
-              <FiFrown className='w-20 h-20 text-white/90 mx-auto' aria-hidden='true' />
+              <FiFrown
+                className='w-20 h-20 text-white/90 mx-auto'
+                aria-hidden='true'
+              />
             </motion.div>
 
             <h1 className='text-6xl md:text-8xl font-extrabold text-white mb-2'>

@@ -14,108 +14,109 @@ const defaultDestinations: Destination[] = [
     _id: '1',
     country: 'Russie',
     imagePath: '/russie.png',
-    text: 'La Russie propose un enseignement supérieur d\'excellence avec des universités historiques comme MGU. Système éducatif combinant tradition et recherche de pointe dans un environnement multiculturel. Coûts de scolarité très compétitifs et bourses disponibles pour étudiants internationaux. Logements universitaires abordables et infrastructures modernes.'
+    text: "La Russie propose un enseignement supérieur d'excellence avec des universités historiques comme MGU. Système éducatif combinant tradition et recherche de pointe dans un environnement multiculturel. Coûts de scolarité très compétitifs et bourses disponibles pour étudiants internationaux. Logements universitaires abordables et infrastructures modernes.",
   },
   {
     _id: '2',
     country: 'Chine',
     imagePath: '/chine.jpg',
-    text: 'La Chine développe des pôles universitaires high-tech avec des programmes innovants en IA et commerce international. Universités comme Tsinghua rivalisent avec les meilleures mondiales. Environnement dynamique combinant technologie et culture millénaire. Cours en anglais disponibles avec des partenariats industriels solides pour des stages en entreprise.'
+    text: 'La Chine développe des pôles universitaires high-tech avec des programmes innovants en IA et commerce international. Universités comme Tsinghua rivalisent avec les meilleures mondiales. Environnement dynamique combinant technologie et culture millénaire. Cours en anglais disponibles avec des partenariats industriels solides pour des stages en entreprise.',
   },
   {
     _id: '3',
     country: 'Maroc',
     imagePath: '/maroc.webp',
-    text: 'Le Maroc offre un enseignement de qualité en français/arabe avec des frais accessibles. Universités reconnues en Afrique et programmes d\'échange avec l\'Europe. Environnement sécurisé et cadre de vie agréable. Spécialisations en ingénierie, médecine et commerce avec des liens forts vers le marché africain des parcours axés sur le professionnelisme.'
+    text: "Le Maroc offre un enseignement de qualité en français/arabe avec des frais accessibles. Universités reconnues en Afrique et programmes d'échange avec l'Europe. Environnement sécurisé et cadre de vie agréable. Spécialisations en ingénierie, médecine et commerce avec des liens forts vers le marché africain des parcours axés sur le professionnelisme.",
   },
   {
     _id: '4',
     country: 'Algérie',
     imagePath: '/algerie.png',
-    text: 'L\'Algérie dispose d\'universités performantes en sciences et médecine avec des coûts très abordables. Système éducatif francophone et infrastructures récentes. Opportunités de recherche dans les énergies renouvelables et la pharmacologie. Vie étudiante riche et logements universitaires subventionnés / abordables.'
+    text: "L'Algérie dispose d'universités performantes en sciences et médecine avec des coûts très abordables. Système éducatif francophone et infrastructures récentes. Opportunités de recherche dans les énergies renouvelables et la pharmacologie. Vie étudiante riche et logements universitaires subventionnés / abordables.",
   },
   {
     _id: '5',
     country: 'Turquie',
     imagePath: '/turquie.webp',
-    text: 'La Turquie combine éducation de qualité et frais modestes avec des universités accréditées internationalement. Position géographique unique entre Europe et Asie. Programmes en anglais disponibles avec spécialisation en ingénierie et relations internationales. Cadre de vie moderne préservant un riche héritage culturel.'
+    text: 'La Turquie combine éducation de qualité et frais modestes avec des universités accréditées internationalement. Position géographique unique entre Europe et Asie. Programmes en anglais disponibles avec spécialisation en ingénierie et relations internationales. Cadre de vie moderne préservant un riche héritage culturel.',
   },
   {
     _id: '6',
     country: 'France',
     imagePath: '/france.svg',
-    text: 'La France maintient sa tradition d\'excellence académique avec des universités historiques et grandes écoles renommées. Système éducatif diversifié offrant des formations pointues dans tous les domaines. Réseau d\'anciens élèves influents et forte employabilité internationale. Vie culturelle riche et nombreuses bourses disponibles.'
-  }
+    text: "La France maintient sa tradition d'excellence académique avec des universités historiques et grandes écoles renommées. Système éducatif diversifié offrant des formations pointues dans tous les domaines. Réseau d'anciens élèves influents et forte employabilité internationale. Vie culturelle riche et nombreuses bourses disponibles.",
+  },
 ];
 
-const VITE_API_URL = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:10000';
+const VITE_API_URL =
+  (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:10000';
 
 const Destination = () => {
-  const [destinations, setDestinations] = useState<Destination[]>(defaultDestinations);
+  const [destinations, setDestinations] =
+    useState<Destination[]>(defaultDestinations);
   const [loading, setLoading] = useState(true);
- const getFullImageUrl = (imagePath: string) => {
-  if (!imagePath) return '/paname-consulting.jpg';
-  
-  // URLs déjà complètes
-  if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
-    return imagePath;
-  }
+  const getFullImageUrl = (imagePath: string) => {
+    if (!imagePath) return '/paname-consulting.jpg';
 
-  // Images dans public (par défaut)
-  if (imagePath.startsWith('/')) {
-    return imagePath;
-  }
+    // URLs déjà complètes
+    if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
+      return imagePath;
+    }
 
-  const baseUrl = VITE_API_URL;
+    // Images dans public (par défaut)
+    if (imagePath.startsWith('/')) {
+      return imagePath;
+    }
 
-  // Images uploadées
-  let cleanPath = imagePath;
-  if (!cleanPath.startsWith('uploads/')) {
-    cleanPath = `uploads/${cleanPath}`;
-  }
-  cleanPath = cleanPath.replace(/\/\//g, '/');
-  
-  return `${baseUrl}/${cleanPath}`;
-};
+    const baseUrl = VITE_API_URL;
 
+    // Images uploadées
+    let cleanPath = imagePath;
+    if (!cleanPath.startsWith('uploads/')) {
+      cleanPath = `uploads/${cleanPath}`;
+    }
+    cleanPath = cleanPath.replace(/\/\//g, '/');
 
-const fetchDestinations = async () => {
-  try {
-    setLoading(true);
-    const response = await fetch(`${VITE_API_URL}/api/destinations`, {
-      method: 'GET',
-      headers: { 
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
+    return `${baseUrl}/${cleanPath}`;
+  };
+
+  const fetchDestinations = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${VITE_API_URL}/api/destinations`, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        // ✅ Pas de credentials pour les routes publiques
+      });
+
+      if (!response.ok) {
+        console.warn('Failed to fetch destinations:', response.status);
+        setDestinations(defaultDestinations);
+        return;
       }
-      // ✅ Pas de credentials pour les routes publiques
-    });
 
-    if (!response.ok) {
-      console.warn('Failed to fetch destinations:', response.status);
-      setDestinations(defaultDestinations);
-      return;
-    }
+      const result = await response.json();
 
-    const result = await response.json();
-    
-    if (result?.data && result.data.length > 0) {
-      setDestinations(
-        result.data.map((dest: any) => ({
-          ...dest,
-          imagePath: getFullImageUrl(dest.imagePath),
-        }))
-      );
-    } else {
+      if (result?.data && result.data.length > 0) {
+        setDestinations(
+          result.data.map((dest: any) => ({
+            ...dest,
+            imagePath: getFullImageUrl(dest.imagePath),
+          }))
+        );
+      } else {
+        setDestinations(defaultDestinations);
+      }
+    } catch (err) {
+      console.warn('Network error, using default destinations');
       setDestinations(defaultDestinations);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.warn('Network error, using default destinations');
-    setDestinations(defaultDestinations);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   useEffect(() => {
     fetchDestinations();
@@ -155,7 +156,8 @@ const fetchDestinations = async () => {
                   alt={`${dest.country} flag`}
                   className='w-full h-full object-cover transition-transform duration-500 group-hover:scale-105'
                   onError={e => {
-                    (e.target as HTMLImageElement).src = '/paname-consulting.jpg';
+                    (e.target as HTMLImageElement).src =
+                      '/paname-consulting.jpg';
                   }}
                   loading='lazy'
                 />

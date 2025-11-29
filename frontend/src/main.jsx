@@ -16,7 +16,7 @@ const setupDevelopmentConfig = () => {
   const originalError = console.error;
   console.error = (...args) => {
     const message = args[0]?.toString() || '';
-    
+
     const shouldIgnore = [
       'gen_204',
       'ERR_BLOCKED_BY_CLIENT',
@@ -32,7 +32,7 @@ const setupDevelopmentConfig = () => {
 // Rendu de l'application
 const renderApp = () => {
   const rootElement = document.getElementById('root');
-  
+
   if (!rootElement) {
     console.error('Élément racine non trouvé');
     return;
@@ -42,7 +42,7 @@ const renderApp = () => {
     setupDevelopmentConfig();
 
     const root = createRoot(rootElement);
-    
+
     root.render(
       <React.StrictMode>
         <HelmetProvider>
@@ -55,7 +55,7 @@ const renderApp = () => {
             <AuthProvider>
               <App />
               <ToastContainer
-                position="top-right"
+                position='top-right'
                 autoClose={4000}
                 hideProgressBar={false}
                 newestOnTop={true}
@@ -64,13 +64,13 @@ const renderApp = () => {
                 pauseOnFocusLoss={false}
                 draggable={false}
                 pauseOnHover={false}
-                theme="light"
+                theme='light'
                 style={{
                   zIndex: 9999,
-                  marginTop: '50px'
+                  marginTop: '50px',
                 }}
-                limit={1} 
-                stacked={true} 
+                limit={1}
+                stacked={true}
               />
             </AuthProvider>
           </BrowserRouter>
@@ -78,8 +78,8 @@ const renderApp = () => {
       </React.StrictMode>
     );
   } catch (error) {
-    console.error('Erreur lors du rendu de l\'application:', error);
-    
+    console.error("Erreur lors du rendu de l'application:", error);
+
     // Fallback pour l'utilisateur
     rootElement.innerHTML = `
       <div style="padding: 2rem; text-align: center; font-family: system-ui, sans-serif;">

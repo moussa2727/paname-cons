@@ -25,10 +25,15 @@ import { SessionService } from "./session.service";
 import { JwtStrategy } from "./strategies/jwt.strategy";
 import { LocalStrategy } from "./strategies/local.strategy";
 import { User, UserSchema } from "../schemas/user.schema";
+import { UsersService } from "../users/users.service";
+
 @Module({
   imports: [
-    UsersModule,
-    PassportModule.register({ defaultStrategy: "jwt" }),
+    UsersModule, // ✅ Fournit UsersService pour les deux stratégies
+    PassportModule.register({
+      defaultStrategy: "jwt", // ✅ Stratégie par défaut
+      session: false, // ✅ Pas de sessions express
+    }),
     MailModule,
     ScheduleModule.forRoot(),
     MongooseModule.forFeature([
@@ -55,13 +60,17 @@ import { User, UserSchema } from "../schemas/user.schema";
   controllers: [AuthController],
   providers: [
     AuthService,
-    JwtStrategy,
     SessionService,
     RefreshTokenService,
     RevokedTokenService,
     CleanupService,
-    LocalStrategy,
-    JwtStrategy,
+
+    // ✅ STRATÉGIES D'AUTHENTIFICATION - ORDRE IMPORTANT
+    LocalStrategy, // 1. Stratégie locale (email/mot de passe)
+    JwtStrategy, // 2. Stratégie JWT (tokens)
+
+    // ✅ SERVICES NÉCESSAires POUR LES STRATÉGIES
+    UsersService, // Fourni par UsersModule mais peut être réinjecté si besoin
   ],
   exports: [
     AuthService,
@@ -69,6 +78,7 @@ import { User, UserSchema } from "../schemas/user.schema";
     RefreshTokenService,
     RevokedTokenService,
     JwtModule,
+    PassportModule, // ✅ Important pour les guards
   ],
 })
 export class AuthModule {}

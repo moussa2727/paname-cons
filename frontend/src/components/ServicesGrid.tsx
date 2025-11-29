@@ -10,46 +10,53 @@ import {
 // AOS is now initialized globally in App.tsx
 
 const ServicesGrid = () => {
-
   // Mémoization des services pour éviter les recréations inutiles
-  const services = React.useMemo(() => [
-    {
-      icon: <FiKey className='w-5 h-5 sm:w-6 sm:h-6' />,
-      title: "Création d'un Compte Pastel",
-      description: 'Nous créons votre compte Pastel rapidement et en toute sécurité.',
-      keywords: 'compte pastel, création compte, sécurité'
-    },
-    {
-      icon: <FiEdit className='w-5 h-5 sm:w-6 sm:h-6' />,
-      title: 'Saisie des Informations Personnelles',
-      description: 'Saisie précise et sécurisée de vos informations personnelles.',
-      keywords: 'informations personnelles, saisie données'
-    },
-    {
-      icon: <FiBookOpen className='w-5 h-5 sm:w-6 sm:h-6' />,
-      title: 'Choix des Universités et Formations',
-      description: 'Conseils personnalisés pour choisir les meilleures universités.',
-      keywords: 'universités, formations, orientation'
-    },
-    {
-      icon: <FiFileText className='w-5 h-5 sm:w-6 sm:h-6' />,
-      title: 'Lettre de Motivation',
-      description: 'Rédaction de lettres de motivation percutantes et personnalisées.',
-      keywords: 'lettre motivation, rédaction'
-    },
-    {
-      icon: <FiUsers className='w-5 h-5 sm:w-6 sm:h-6' />,
-      title: 'Préparation aux Entretiens',
-      description: 'Préparation efficace et personnalisée pour vos entretiens.',
-      keywords: 'préparation entretiens, simulation'
-    },
-    {
-      icon: <FiBriefcase className='w-5 h-5 sm:w-6 sm:h-6' />,
-      title: 'Assistance Demande de Visa',
-      description: 'Accompagnement complet pour votre demande de visa.',
-      keywords: 'visa, demande visa, assistance'
-    },
-  ], []);
+  const services = React.useMemo(
+    () => [
+      {
+        icon: <FiKey className='w-5 h-5 sm:w-6 sm:h-6' />,
+        title: "Création d'un Compte Pastel",
+        description:
+          'Nous créons votre compte Pastel rapidement et en toute sécurité.',
+        keywords: 'compte pastel, création compte, sécurité',
+      },
+      {
+        icon: <FiEdit className='w-5 h-5 sm:w-6 sm:h-6' />,
+        title: 'Saisie des Informations Personnelles',
+        description:
+          'Saisie précise et sécurisée de vos informations personnelles.',
+        keywords: 'informations personnelles, saisie données',
+      },
+      {
+        icon: <FiBookOpen className='w-5 h-5 sm:w-6 sm:h-6' />,
+        title: 'Choix des Universités et Formations',
+        description:
+          'Conseils personnalisés pour choisir les meilleures universités.',
+        keywords: 'universités, formations, orientation',
+      },
+      {
+        icon: <FiFileText className='w-5 h-5 sm:w-6 sm:h-6' />,
+        title: 'Lettre de Motivation',
+        description:
+          'Rédaction de lettres de motivation percutantes et personnalisées.',
+        keywords: 'lettre motivation, rédaction',
+      },
+      {
+        icon: <FiUsers className='w-5 h-5 sm:w-6 sm:h-6' />,
+        title: 'Préparation aux Entretiens',
+        description:
+          'Préparation efficace et personnalisée pour vos entretiens.',
+        keywords: 'préparation entretiens, simulation',
+      },
+      {
+        icon: <FiBriefcase className='w-5 h-5 sm:w-6 sm:h-6' />,
+        title: 'Assistance Demande de Visa',
+        description: 'Accompagnement complet pour votre demande de visa.',
+        keywords: 'visa, demande visa, assistance',
+      },
+    ],
+    []
+  );
 
   // Handler pour les interactions tactiles
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -63,9 +70,9 @@ const ServicesGrid = () => {
   }, []);
 
   return (
-    <section 
+    <section
       className='pt-6 pb-12 sm:pt-8 sm:pb-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white via-sky-50/70 to-white'
-      aria-labelledby="services-heading"
+      aria-labelledby='services-heading'
     >
       <div className='max-w-7xl mx-auto'>
         {/* En-tête avec meilleure sémantique SEO */}
@@ -78,7 +85,7 @@ const ServicesGrid = () => {
             <span className='text-xs sm:text-sm font-medium'>Nos services</span>
           </div>
           <h1
-            id="services-heading"
+            id='services-heading'
             className='text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-3 sm:mb-4'
             data-aos='fade-up'
             data-aos-delay='100'
@@ -90,7 +97,8 @@ const ServicesGrid = () => {
             data-aos='fade-up'
             data-aos-delay='150'
           >
-            Parcours simplifié de la création de compte à l'obtention de votre visa
+            Parcours simplifié de la création de compte à l'obtention de votre
+            visa
           </p>
         </header>
 
@@ -105,13 +113,13 @@ const ServicesGrid = () => {
               data-aos-offset='40'
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
-              role="article"
+              role='article'
               aria-label={`Service: ${service.title}`}
             >
               {/* Background gradient optimisé */}
-              <div 
+              <div
                 className='absolute inset-0 bg-gradient-to-br from-sky-50/50 to-white opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity duration-300 -z-0'
-                aria-hidden="true"
+                aria-hidden='true'
               />
 
               {/* Contenu principal */}
@@ -122,7 +130,7 @@ const ServicesGrid = () => {
                     className='inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-full text-sky-600 group-hover:text-white border border-sky-100 group-hover:border-sky-200 group-hover:bg-gradient-to-r from-sky-500 to-sky-600 shadow-xs group-hover:shadow-sm transition-all duration-300'
                     data-aos='zoom-in'
                     data-aos-delay={Math.min(index * 80 + 200, 600)}
-                    aria-hidden="true"
+                    aria-hidden='true'
                   >
                     {service.icon}
                   </div>
@@ -132,7 +140,7 @@ const ServicesGrid = () => {
                 <h2 className='text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3 leading-tight'>
                   {service.title}
                 </h2>
-                
+
                 {/* Description avec meilleure lisibilité */}
                 <p className='text-gray-600 text-sm sm:text-base leading-relaxed sm:leading-loose'>
                   {service.description}
@@ -140,9 +148,9 @@ const ServicesGrid = () => {
               </div>
 
               {/* Indicateur visuel pour l'accessibilité */}
-              <div 
-                className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-sky-500/0 to-transparent group-hover:via-sky-500/50 transition-all duration-300"
-                aria-hidden="true"
+              <div
+                className='absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-sky-500/0 to-transparent group-hover:via-sky-500/50 transition-all duration-300'
+                aria-hidden='true'
               />
             </article>
           ))}

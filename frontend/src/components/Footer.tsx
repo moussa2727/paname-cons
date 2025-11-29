@@ -10,7 +10,6 @@ import { Link } from 'react-router-dom';
 // AOS is now initialized globally in App.tsx
 
 export default function Footer() {
-
   return (
     <footer
       role='contentinfo'
@@ -44,7 +43,8 @@ export default function Footer() {
             <div className='flex items-start space-x-2 text-sky-600'>
               <FaMapMarkerAlt className='flex-shrink-0 mt-1' />
               <span className='text-sm'>
-                Kalaban Coura, Imm.Bore <br/>en face de l'hôtel Wassulu
+                Kalaban Coura, Imm.Bore <br />
+                en face de l'hôtel Wassulu
               </span>
             </div>
           </section>

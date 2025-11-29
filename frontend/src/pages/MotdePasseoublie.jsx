@@ -6,7 +6,8 @@ const MotdePasseOubliePage = () => {
   const pageTitle = 'Mot de passe oublié - PANAME CONSULTING';
   const pageDescription =
     'Réinitialisez votre mot de passe pour accéder à votre espace Paname Consulting.';
-  const canonicalUrl = 'https://panameconsulting.vercel.app/mot-de-passe-oublie';
+  const canonicalUrl =
+    'https://panameconsulting.vercel.app/mot-de-passe-oublie';
 
   return (
     <>

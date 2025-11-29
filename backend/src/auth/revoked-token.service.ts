@@ -14,19 +14,21 @@ export class RevokedTokenService {
     private jwtService: JwtService,
   ) {}
 
-  async revokeToken(token: string, expiresAt: Date): Promise<void> {
+  async revokeToken(access_token: string, expiresAt: Date): Promise<void> {
     try {
       this.logger.log(`Revoking token for user`);
 
-      const decoded = this.jwtService.decode(token) as any;
+      const decoded = this.jwtService.decode(access_token) as any;
       const userId = decoded?.sub;
 
       this.logger.debug(`Decoded token for user ID: ${userId}`);
 
-      const exists = await this.revokedTokenModel.findOne({ token });
+      const exists = await this.revokedTokenModel.findOne({
+        token: access_token,
+      });
       if (!exists) {
         await this.revokedTokenModel.create({
-          token,
+          token: access_token,
           userId,
           expiresAt,
         });
@@ -42,10 +44,12 @@ export class RevokedTokenService {
     }
   }
 
-  async isTokenRevoked(token: string): Promise<boolean> {
+  async isTokenRevoked(access_token: string): Promise<boolean> {
     this.logger.debug(`Checking if token is revoked`);
 
-    const found = await this.revokedTokenModel.findOne({ token }).exec();
+    const found = await this.revokedTokenModel
+      .findOne({ token: access_token })
+      .exec();
     const isRevoked = !!found;
 
     this.logger.debug(`Token revocation check result: ${isRevoked}`);

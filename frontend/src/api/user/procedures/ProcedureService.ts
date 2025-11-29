@@ -8,7 +8,7 @@ export enum ProcedureStatus {
   IN_PROGRESS = 'En cours',
   COMPLETED = 'Terminée',
   REJECTED = 'Rejetée',
-  CANCELLED = 'Annulée'
+  CANCELLED = 'Annulée',
 }
 
 export enum StepStatus {
@@ -16,13 +16,13 @@ export enum StepStatus {
   IN_PROGRESS = 'En cours',
   COMPLETED = 'Terminée',
   REJECTED = 'Rejetée',
-  CANCELLED = 'Annulée'
+  CANCELLED = 'Annulée',
 }
 
 export enum StepName {
-  DEMANDE_ADMISSION = 'Demande d\'admission',
+  DEMANDE_ADMISSION = "Demande d'admission",
   DEMANDE_VISA = 'Demande de visa',
-  PREPARATIF_VOYAGE = 'Préparatifs de voyage'
+  PREPARATIF_VOYAGE = 'Préparatifs de voyage',
 }
 
 export interface UserProcedureStep {
@@ -77,11 +77,10 @@ export interface CancelProcedureDto {
 
 // ==================== SERVICE API SÉCURISÉ ====================
 
-const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const VITE_API_URL = import.meta.env.VITE_API_URL;
 const API_TIMEOUT = 15000;
 
 class ProcedureApiService {
-  
   /**
    * ✅ Récupérer les procédures de l'utilisateur connecté (SÉCURISÉ)
    */
@@ -101,7 +100,7 @@ class ProcedureApiService {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          signal: controller.signal
+          signal: controller.signal,
         }
       );
 
@@ -113,7 +112,6 @@ class ProcedureApiService {
 
       const data = await response.json();
       return this.sanitizeProceduresData(data);
-
     } catch (error: any) {
       if (error.name === 'AbortError') {
         throw new Error('Délai de connexion dépassé');
@@ -146,7 +144,7 @@ class ProcedureApiService {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          signal: controller.signal
+          signal: controller.signal,
         }
       );
 
@@ -158,7 +156,6 @@ class ProcedureApiService {
 
       const data = await response.json();
       return this.sanitizeProcedureData(data);
-
     } catch (error: any) {
       if (error.name === 'AbortError') {
         throw new Error('Délai de connexion dépassé');
@@ -193,7 +190,7 @@ class ProcedureApiService {
           },
           credentials: 'include',
           body: JSON.stringify({ reason } as CancelProcedureDto),
-          signal: controller.signal
+          signal: controller.signal,
         }
       );
 
@@ -205,7 +202,6 @@ class ProcedureApiService {
 
       const data = await response.json();
       return this.sanitizeProcedureData(data);
-
     } catch (error: any) {
       if (error.name === 'AbortError') {
         throw new Error('Délai de connexion dépassé');
@@ -224,12 +220,12 @@ class ProcedureApiService {
   private static createSecureError(response: Response): Error {
     const error = new Error(this.getSecureErrorMessage(response.status));
     (error as any).status = response.status;
-    
+
     // ✅ Marquer uniquement les erreurs de session
     if (response.status === 401) {
       (error as any).isSessionExpired = true;
     }
-    
+
     return error;
   }
 
@@ -260,13 +256,13 @@ class ProcedureApiService {
     if (!data) throw new Error('Données de procédure invalides');
 
     // ✅ Supprimer les champs réservés aux admins
-    const { 
-      isDeleted, 
-      deletedAt, 
-      deletionReason, 
-      telephone, 
+    const {
+      isDeleted,
+      deletedAt,
+      deletionReason,
+      telephone,
       // Extraire uniquement les champs autorisés
-      ...safeData 
+      ...safeData
     } = data;
 
     return safeData as UserProcedure;
@@ -282,7 +278,9 @@ class ProcedureApiService {
 
     return {
       ...data,
-      data: data.data.map((procedure: any) => this.sanitizeProcedureData(procedure))
+      data: data.data.map((procedure: any) =>
+        this.sanitizeProcedureData(procedure)
+      ),
     };
   }
 }
@@ -293,7 +291,9 @@ class ProcedureApiService {
  * ✅ Hook pour récupérer les procédures de l'utilisateur avec pagination
  */
 export const useUserProcedures = (page: number = 1, limit: number = 10) => {
-  const [procedures, setProcedures] = useState<PaginatedUserProcedures | null>(null);
+  const [procedures, setProcedures] = useState<PaginatedUserProcedures | null>(
+    null
+  );
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -307,13 +307,13 @@ export const useUserProcedures = (page: number = 1, limit: number = 10) => {
     } catch (err: any) {
       const safeErrorMessage = getSafeUserErrorMessage(err);
       setError(safeErrorMessage);
-      
+
       // ✅ Logs de débogage sécurisés
       console.log('🔍 Erreur useUserProcedures:', {
         type: safeErrorMessage,
-        status: err.status
+        status: err.status,
       });
-      
+
       // ✅ Toast uniquement pour les erreurs non-session
       if (safeErrorMessage !== 'SESSION_EXPIRED') {
         toast.error(getUserFriendlyMessage(safeErrorMessage));
@@ -331,7 +331,7 @@ export const useUserProcedures = (page: number = 1, limit: number = 10) => {
     procedures,
     loading,
     error,
-    refetch: fetchProcedures
+    refetch: fetchProcedures,
   };
 };
 
@@ -359,12 +359,12 @@ export const useProcedureDetails = (procedureId: string | null) => {
     } catch (err: any) {
       const safeErrorMessage = getSafeUserErrorMessage(err);
       setError(safeErrorMessage);
-      
+
       console.log('🔍 Erreur useProcedureDetails:', {
         type: safeErrorMessage,
-        status: err.status
+        status: err.status,
       });
-      
+
       if (safeErrorMessage !== 'SESSION_EXPIRED') {
         toast.error(getUserFriendlyMessage(safeErrorMessage));
       }
@@ -381,7 +381,7 @@ export const useProcedureDetails = (procedureId: string | null) => {
     procedure,
     loading,
     error,
-    refetch: fetchDetails
+    refetch: fetchDetails,
   };
 };
 
@@ -391,36 +391,42 @@ export const useProcedureDetails = (procedureId: string | null) => {
 export const useCancelProcedure = () => {
   const [loading, setLoading] = useState<boolean>(false);
 
-  const cancelProcedure = useCallback(async (
-    procedureId: string,
-    reason?: string
-  ): Promise<UserProcedure | null> => {
-    setLoading(true);
+  const cancelProcedure = useCallback(
+    async (
+      procedureId: string,
+      reason?: string
+    ): Promise<UserProcedure | null> => {
+      setLoading(true);
 
-    try {
-      const data = await ProcedureApiService.cancelProcedure(procedureId, reason);
-      toast.success('Procédure annulée avec succès');
-      return data;
-    } catch (err: any) {
-      const safeErrorMessage = getSafeUserErrorMessage(err);
-      
-      console.log('🔍 Erreur useCancelProcedure:', {
-        type: safeErrorMessage,
-        status: err.status
-      });
-      
-      if (safeErrorMessage !== 'SESSION_EXPIRED') {
-        toast.error(getUserFriendlyMessage(safeErrorMessage));
+      try {
+        const data = await ProcedureApiService.cancelProcedure(
+          procedureId,
+          reason
+        );
+        toast.success('Procédure annulée avec succès');
+        return data;
+      } catch (err: any) {
+        const safeErrorMessage = getSafeUserErrorMessage(err);
+
+        console.log('🔍 Erreur useCancelProcedure:', {
+          type: safeErrorMessage,
+          status: err.status,
+        });
+
+        if (safeErrorMessage !== 'SESSION_EXPIRED') {
+          toast.error(getUserFriendlyMessage(safeErrorMessage));
+        }
+        return null;
+      } finally {
+        setLoading(false);
       }
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   return {
     cancelProcedure,
-    loading
+    loading,
   };
 };
 
@@ -432,32 +438,34 @@ export const useCancelProcedure = () => {
 export const canCancelProcedure = (procedure: UserProcedure): boolean => {
   // ✅ Cette validation est indicative - la validation réelle se fait côté backend
   if (procedure.statut !== ProcedureStatus.IN_PROGRESS) return false;
-  
+
   // ✅ Vérifier qu'aucune étape n'est terminée (logique métier)
-  const hasCompletedSteps = procedure.steps.some((step: UserProcedureStep) => 
-    step.statut === StepStatus.COMPLETED
+  const hasCompletedSteps = procedure.steps.some(
+    (step: UserProcedureStep) => step.statut === StepStatus.COMPLETED
   );
-  
+
   return !hasCompletedSteps;
 };
 
 /**
  * ✅ Calcule la progression d'une procédure
  */
-export const getProgressStatus = (procedure: UserProcedure): { 
-  percentage: number; 
-  completed: number; 
-  total: number 
+export const getProgressStatus = (
+  procedure: UserProcedure
+): {
+  percentage: number;
+  completed: number;
+  total: number;
 } => {
   const totalSteps = procedure.steps.length;
-  const completedSteps = procedure.steps.filter((step: UserProcedureStep) => 
-    step.statut === StepStatus.COMPLETED
+  const completedSteps = procedure.steps.filter(
+    (step: UserProcedureStep) => step.statut === StepStatus.COMPLETED
   ).length;
-  
+
   return {
     percentage: totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0,
     completed: completedSteps,
-    total: totalSteps
+    total: totalSteps,
   };
 };
 
@@ -466,11 +474,12 @@ export const getProgressStatus = (procedure: UserProcedure): {
  */
 export const formatProcedureDate = (dateString: string | Date): string => {
   try {
-    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    const date =
+      typeof dateString === 'string' ? new Date(dateString) : dateString;
     return date.toLocaleDateString('fr-FR', {
       day: 'numeric',
       month: 'short',
-      year: 'numeric'
+      year: 'numeric',
     });
   } catch {
     return 'Date invalide';
@@ -482,9 +491,9 @@ export const formatProcedureDate = (dateString: string | Date): string => {
  */
 export const getStepDisplayName = (stepName: StepName): string => {
   const stepNames: Record<StepName, string> = {
-    [StepName.DEMANDE_ADMISSION]: 'Demande d\'admission',
+    [StepName.DEMANDE_ADMISSION]: "Demande d'admission",
     [StepName.DEMANDE_VISA]: 'Demande de visa',
-    [StepName.PREPARATIF_VOYAGE]: 'Préparatifs de voyage'
+    [StepName.PREPARATIF_VOYAGE]: 'Préparatifs de voyage',
   };
   return stepNames[stepName] || stepName.toString();
 };
@@ -497,7 +506,7 @@ export const getProcedureDisplayStatus = (status: ProcedureStatus): string => {
     [ProcedureStatus.IN_PROGRESS]: 'En cours',
     [ProcedureStatus.COMPLETED]: 'Terminée',
     [ProcedureStatus.REJECTED]: 'Refusée',
-    [ProcedureStatus.CANCELLED]: 'Annulée'
+    [ProcedureStatus.CANCELLED]: 'Annulée',
   };
   return statusMap[status] || status.toString();
 };
@@ -511,7 +520,7 @@ export const getStepDisplayStatus = (status: StepStatus): string => {
     [StepStatus.IN_PROGRESS]: 'En cours',
     [StepStatus.COMPLETED]: 'Terminée',
     [StepStatus.REJECTED]: 'Rejetée',
-    [StepStatus.CANCELLED]: 'Annulée'
+    [StepStatus.CANCELLED]: 'Annulée',
   };
   return statusMap[status] || status.toString();
 };
@@ -529,7 +538,7 @@ export const getProcedureStatusColor = (statut: ProcedureStatus): string => {
       return 'bg-red-50 text-red-700 border-red-200';
     case ProcedureStatus.REJECTED:
       return 'bg-orange-50 text-orange-700 border-orange-200';
-    default: 
+    default:
       return 'bg-gray-50 text-gray-700 border-gray-200';
   }
 };
@@ -539,17 +548,17 @@ export const getProcedureStatusColor = (statut: ProcedureStatus): string => {
  */
 export const getStepStatusColor = (statut: StepStatus): string => {
   switch (statut) {
-    case StepStatus.PENDING: 
+    case StepStatus.PENDING:
       return 'bg-yellow-50 text-yellow-700 border-yellow-200';
     case StepStatus.IN_PROGRESS:
       return 'bg-blue-50 text-blue-700 border-blue-200';
-    case StepStatus.COMPLETED: 
+    case StepStatus.COMPLETED:
       return 'bg-green-50 text-green-700 border-green-200';
-    case StepStatus.CANCELLED: 
+    case StepStatus.CANCELLED:
       return 'bg-red-50 text-red-700 border-red-200';
-    case StepStatus.REJECTED: 
+    case StepStatus.REJECTED:
       return 'bg-orange-50 text-orange-700 border-orange-200';
-    default: 
+    default:
       return 'bg-gray-50 text-gray-700 border-gray-200';
   }
 };
@@ -572,16 +581,16 @@ const getSafeUserErrorMessage = (error: any): string => {
  */
 const getUserFriendlyMessage = (errorCode: string): string => {
   const messages: Record<string, string> = {
-    'SESSION_EXPIRED': 'Session expirée - Veuillez vous reconnecter',
-    'ACCES_REFUSE': 'Action non autorisée',
-    'PROCEDURE_INTROUVABLE': 'Procédure non trouvée',
-    'TROP_REQUETES': 'Trop de requêtes - Veuillez patienter',
-    'ERREUR_SERVEUR': 'Erreur serveur - Veuillez réessayer',
-    'ERREUR_INCONNUE': 'Une erreur est survenue',
+    SESSION_EXPIRED: 'Session expirée - Veuillez vous reconnecter',
+    ACCES_REFUSE: 'Action non autorisée',
+    PROCEDURE_INTROUVABLE: 'Procédure non trouvée',
+    TROP_REQUETES: 'Trop de requêtes - Veuillez patienter',
+    ERREUR_SERVEUR: 'Erreur serveur - Veuillez réessayer',
+    ERREUR_INCONNUE: 'Une erreur est survenue',
     'Délai de connexion dépassé': 'Délai de connexion dépassé',
-    'ID de procédure manquant': 'Identifiant de procédure manquant'
+    'ID de procédure manquant': 'Identifiant de procédure manquant',
   };
-  
+
   return messages[errorCode] || 'Une erreur est survenue';
 };
 

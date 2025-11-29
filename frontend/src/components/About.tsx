@@ -52,15 +52,15 @@ const About = () => {
         id='a-propos'
         className='py-12 px-4 sm:px-6 lg:px-8 w-full max-w-7xl mx-auto'
       >
-       <div className='text-center'>
-        <span
-          className='inline-block px-4 py-2 mb-3 text-xs font-bold text-sky-600 uppercase tracking-widest bg-sky-50 rounded-full border-l-4 border-sky-500 shadow-sm transition-all duration-300 hover:shadow-md'
-          data-aos='fade-up'
-          data-aos-duration='500'
-        >
-          Qui Sommes Nous ?
-        </span>
-      </div>
+        <div className='text-center'>
+          <span
+            className='inline-block px-4 py-2 mb-3 text-xs font-bold text-sky-600 uppercase tracking-widest bg-sky-50 rounded-full border-l-4 border-sky-500 shadow-sm transition-all duration-300 hover:shadow-md'
+            data-aos='fade-up'
+            data-aos-duration='500'
+          >
+            Qui Sommes Nous ?
+          </span>
+        </div>
 
         {/* Section Fondateur */}
         <section
@@ -153,7 +153,8 @@ const About = () => {
                 <div className='bg-sky-50 p-3 md:p-4 border-l-4 border-sky-500 mt-4 md:mt-6'>
                   <p className='italic text-gray-700 text-sm md:text-base'>
                     "L'éducation est le passeport pour l'avenir, car demain
-                    appartient à ceux qui s'y préparent aujourd'hui." <b>: " Malcolm X "</b> 
+                    appartient à ceux qui s'y préparent aujourd'hui."{' '}
+                    <b>: " Malcolm X "</b>
                   </p>
                 </div>
               </div>
@@ -178,7 +179,7 @@ const About = () => {
         </section>
 
         {/* Services */}
-       <div className='mt-12 md:mt-16'>
+        <div className='mt-12 md:mt-16'>
           <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6'>
             {services.map((service, index) => (
               <div

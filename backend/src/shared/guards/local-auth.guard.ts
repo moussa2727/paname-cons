@@ -1,56 +1,95 @@
-// local-auth.guard.ts - VERSION CORRIGÉE
 import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
+  Logger,
+  BadRequestException,
 } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 
 @Injectable()
 export class LocalAuthGuard extends AuthGuard("local") {
-  /**
-   * Fonctionnement :
-   * 1. Le guard intercepte la requête
-   * 2. Passe les credentials (email, password) à la stratégie LocalStrategy
-   * 3. La stratégie valide les credentials via le AuthService
-   * 4. Si valide, ajoute l'utilisateur à la requête (req.user)
-   * 5. Si invalide, renvoie une erreur 401 Unauthorized
-   */
+  private readonly logger = new Logger(LocalAuthGuard.name);
 
   constructor() {
     super();
   }
 
-  /**
-   * Surcharge de handleRequest pour personnaliser les messages d'erreur
-   */
-  handleRequest(err: any, user: any, info: any) {
-    // Personnalisez la réponse en cas d'erreur
-    if (err || !user) {
-      console.error(
-        "❌ Erreur authentification locale:",
-        err?.message || info?.message,
-      );
-      throw err || new UnauthorizedException("Email ou mot de passe incorrect");
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest();
+    const { email, password } = request.body;
+
+    // ✅ VALIDATION PRÉLIMINAIRE DES DONNÉES
+    if (!email || !password) {
+      this.logger.warn("LocalAuthGuard: Missing credentials");
+      throw new BadRequestException("Email et mot de passe sont requis");
     }
+
+    this.logger.log(
+      `LocalAuthGuard: Login attempt for ${this.maskEmail(email)}`,
+    );
+
+    try {
+      // ✅ APPEL DE LA MÉTHODE PARENT
+      const result = await super.canActivate(context);
+
+      if (result) {
+        this.logger.log(
+          `LocalAuthGuard: Successful login for ${this.maskEmail(email)}`,
+        );
+      }
+
+      return result as boolean;
+    } catch (error) {
+      this.logger.error(
+        `LocalAuthGuard: Authentication failed for ${this.maskEmail(email)} - ${error.message}`,
+      );
+
+      // ✅ PROPAGATION DES ERREURS SPÉCIFIQUES
+      if (error.message === "COMPTE_DESACTIVE") {
+        throw new UnauthorizedException("COMPTE_DESACTIVE");
+      }
+
+      if (error.message.includes("maintenance")) {
+        throw new UnauthorizedException(error.message);
+      }
+
+      // ✅ ERREUR GÉNÉRIQUE POUR ÉVITER LES FUITES D'INFORMATIONS
+      throw new UnauthorizedException("Email ou mot de passe incorrect");
+    }
+  }
+
+  handleRequest(err: any, user: any, info: any) {
+    if (err || !user) {
+      this.logger.warn(
+        `LocalAuthGuard handleRequest: ${err?.message || info?.message}`,
+      );
+
+      // ✅ GESTION DES ERREURS SPÉCIFIQUES
+      if (err?.message === "COMPTE_DESACTIVE") {
+        throw new UnauthorizedException("COMPTE_DESACTIVE");
+      }
+
+      if (info?.message?.includes("Trop de tentatives")) {
+        throw new UnauthorizedException(info.message);
+      }
+
+      throw new UnauthorizedException("Email ou mot de passe incorrect");
+    }
+
+    // ✅ VÉRIFICATION COMPTE ACTIF
+    if (user && !user.isActive) {
+      this.logger.warn(`LocalAuthGuard: Inactive account - ${user.email}`);
+      throw new UnauthorizedException("COMPTE_DESACTIVE");
+    }
+
     return user;
   }
 
-  /**
-   * Optionnel : Surcharge de canActivate pour ajouter une logique supplémentaire
-   */
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    try {
-      // Logique supplémentaire avant l'authentification (optionnelle)
-      const request = context.switchToHttp().getRequest();
-      console.log("🔐 Tentative de connexion pour:", request.body?.email);
-
-      // Appel de la méthode parent
-      const result = (await super.canActivate(context)) as boolean;
-      return result;
-    } catch (error) {
-      console.error("❌ Erreur activation guard local:", error);
-      throw error;
-    }
+  private maskEmail(email: string): string {
+    if (!email || !email.includes("@")) return "***@***";
+    const [name, domain] = email.split("@");
+    if (name.length <= 2) return `***@${domain}`;
+    return `${name.substring(0, 2)}***@${domain}`;
   }
 }

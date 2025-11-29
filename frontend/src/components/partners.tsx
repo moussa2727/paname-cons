@@ -21,9 +21,10 @@ const partners = [
     location: 'Casablanca, Maroc',
     image: '/supemir.webp',
     link: 'https://www.supemir.com/',
-    description: 'École supérieure de commerce et de management renommée au Maroc, spécialisée dans les formations en gestion et commerce international.',
+    description:
+      'École supérieure de commerce et de management renommée au Maroc, spécialisée dans les formations en gestion et commerce international.',
     category: 'IT et MANAGEMENT',
-    since: '2025'
+    since: '2025',
   },
   {
     id: 2,
@@ -31,9 +32,10 @@ const partners = [
     location: 'Paris, France',
     image: '/Ecolemultimediafrance.webp',
     link: 'https://www.ecole-multimedia.com/',
-    description: 'École pionnière dans la formation aux métiers du digital, du design et du développement web à Paris.',
+    description:
+      'École pionnière dans la formation aux métiers du digital, du design et du développement web à Paris.',
     category: 'DIGITAL & MULTIMEDIA',
-    since: '2025'
+    since: '2025',
   },
   {
     id: 3,
@@ -41,9 +43,10 @@ const partners = [
     location: 'Accra, Ghana',
     image: '/internationalinstitute.png',
     link: 'https://visionfordgh.com/',
-    description: 'Institut international de formation offrant des programmes éducatifs innovants au Ghana et en Afrique de l\'Ouest.',
+    description:
+      "Institut international de formation offrant des programmes éducatifs innovants au Ghana et en Afrique de l'Ouest.",
     category: 'FORMATION EN ANGLAIS',
-    since: '2025'
+    since: '2025',
   },
   {
     id: 4,
@@ -51,9 +54,10 @@ const partners = [
     location: 'Chongqing, Chine',
     image: '/universitechiongqing.png',
     link: 'https://english.cqu.edu.cn/',
-    description: 'Université prestigieuse classée parmi les meilleures institutions de recherche en Chine, avec des programmes académiques diversifiés.',
+    description:
+      'Université prestigieuse classée parmi les meilleures institutions de recherche en Chine, avec des programmes académiques diversifiés.',
     category: 'RECHERCHE & INNOVATION',
-    since: '2025'
+    since: '2025',
   },
 ];
 
@@ -83,7 +87,6 @@ const Partners = () => {
           transition={{ duration: 0.6 }}
           className='text-center mb-16 sm:mb-20'
         >
-          
           <motion.h2
             id='partners-heading'
             initial={{ opacity: 0, y: 20 }}
@@ -92,9 +95,12 @@ const Partners = () => {
             transition={{ delay: 0.3 }}
             className='text-4xl sm:text-5xl font-bold text-gray-900 mb-4'
           >
-            Nos Institutions <span className='text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-blue-600'>Partenaires</span>
+            Nos Institutions{' '}
+            <span className='text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-blue-600'>
+              Partenaires
+            </span>
           </motion.h2>
-          
+
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -102,8 +108,9 @@ const Partners = () => {
             transition={{ delay: 0.4 }}
             className='text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed'
           >
-            Collaborations exclusives avec des établissements d'excellence internationale 
-            pour offrir des opportunités éducatives et professionnelles uniques.
+            Collaborations exclusives avec des établissements d'excellence
+            internationale pour offrir des opportunités éducatives et
+            professionnelles uniques.
           </motion.p>
         </motion.div>
 
@@ -119,7 +126,7 @@ const Partners = () => {
                 delay: index * 0.1,
                 type: 'spring',
                 stiffness: 90,
-                damping: 15
+                damping: 15,
               }}
               whileHover={{ y: -5 }}
               className='group relative'
@@ -129,7 +136,7 @@ const Partners = () => {
                 {/* Badge de catégorie */}
                 <div className='absolute top-4 left-4 z-10'>
                   <span className='inline-flex items-center gap-1 bg-white/90 backdrop-blur-sm text-sky-700 text-xs font-medium px-3 py-1.5 rounded-full border border-sky-200/50'>
-                    <FiGlobe className="w-3 h-3" />
+                    <FiGlobe className='w-3 h-3' />
                     {partner.category}
                   </span>
                 </div>
@@ -150,10 +157,10 @@ const Partners = () => {
                       height='300'
                     />
                   </motion.div>
-                  
+
                   {/* Overlay de gradient amélioré */}
                   <div className='absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-60 group-hover:opacity-30 transition-opacity duration-500' />
-                  
+
                   {/* Effet de brillance au survol */}
                   <div className='absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000' />
                 </div>
@@ -170,7 +177,9 @@ const Partners = () => {
                         className='w-4 h-4 text-sky-500 mr-2 flex-shrink-0'
                         aria-hidden='true'
                       />
-                      <span className='text-sm font-medium'>{partner.location}</span>
+                      <span className='text-sm font-medium'>
+                        {partner.location}
+                      </span>
                     </div>
 
                     <p className='text-gray-600 text-sm leading-relaxed line-clamp-3 group-hover:text-gray-700 transition-colors duration-300'>
@@ -182,14 +191,17 @@ const Partners = () => {
                   <div className='flex items-center justify-between mb-4 pt-3 border-t border-gray-100'>
                     {partner.since && (
                       <div className='text-xs text-gray-500'>
-                        Partenaire depuis <span className='font-semibold text-sky-600'>{partner.since}</span>
+                        Partenaire depuis{' '}
+                        <span className='font-semibold text-sky-600'>
+                          {partner.since}
+                        </span>
                       </div>
                     )}
                     <motion.span
                       whileHover={{ scale: 1.05 }}
                       className='inline-flex items-center gap-1 bg-gradient-to-r from-sky-500 to-blue-500 text-white text-xs font-semibold px-3 py-1 rounded-full'
                     >
-                      <FiStar className="w-3 h-3" />
+                      <FiStar className='w-3 h-3' />
                       Actif
                     </motion.span>
                   </div>
@@ -205,9 +217,9 @@ const Partners = () => {
                     aria-label={`Visiter le site de ${partner.name}`}
                   >
                     <span className='text-sm'>Visiter le site</span>
-                    <FiExternalLink 
-                      className='w-4 h-4 transition-transform duration-300 group-hover/btn:translate-x-0.5' 
-                      aria-hidden='true' 
+                    <FiExternalLink
+                      className='w-4 h-4 transition-transform duration-300 group-hover/btn:translate-x-0.5'
+                      aria-hidden='true'
                     />
                   </motion.a>
                 </div>

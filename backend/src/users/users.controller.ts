@@ -42,126 +42,84 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async create(@Body() createUserDto: RegisterDto) {
-    const requestId = this.generateRequestId();
     this.logger.log(
-      `[${requestId}] Création d'utilisateur par admin - Email: ${this.maskEmail(createUserDto.email)}`,
+      `📝 Création utilisateur par admin: ${createUserDto.email}`,
     );
 
-    // CORRECTION : Vérifier correctement l'existence d'un admin
-    if (createUserDto.role === UserRole.ADMIN) {
+    const userData = { ...createUserDto };
+
+    if (userData.role === UserRole.ADMIN) {
       const existingAdmin = await this.usersService.findByRole(UserRole.ADMIN);
       if (existingAdmin) {
-        this.logger.warn(
-          `[${requestId}] Tentative de création d'un deuxième admin`,
-        );
         throw new BadRequestException(
           "Il ne peut y avoir qu'un seul administrateur",
         );
       }
     }
 
-    try {
-      const user = await this.usersService.create(createUserDto);
-      this.logger.log(
-        `[${requestId}] Utilisateur créé avec succès - ID: ${user._id}`,
-      );
-      return user;
-    } catch (error) {
-      this.logger.error(
-        `[${requestId}] Erreur création utilisateur: ${error.message}`,
-      );
-      throw error;
-    }
+    return this.usersService.create(userData);
   }
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  async findAll() {
-    const requestId = this.generateRequestId();
-    this.logger.log(`[${requestId}] Liste des utilisateurs demandée par admin`);
-
-    try {
-      const users = await this.usersService.findAll();
-      this.logger.log(`[${requestId}] ${users.length} utilisateurs récupérés`);
-      return users;
-    } catch (error) {
-      this.logger.error(
-        `[${requestId}] Erreur récupération utilisateurs: ${error.message}`,
-      );
-      throw error;
-    }
+  findAll() {
+    this.logger.log("📋 Récupération de tous les utilisateurs");
+    return this.usersService.findAll();
   }
 
   @Get("stats")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async getStats() {
-    const requestId = this.generateRequestId();
-    this.logger.log(`[${requestId}] Statistiques utilisateurs demandées`);
+    this.logger.log("📊 Récupération des statistiques utilisateurs");
+    return this.usersService.getStats();
+  }
 
-    try {
-      const stats = await this.usersService.getStats();
-      this.logger.log(
-        `[${requestId}] Statistiques générées - Total: ${stats.totalUsers}`,
-      );
-      return stats;
-    } catch (error) {
-      this.logger.error(
-        `[${requestId}] Erreur génération stats: ${error.message}`,
-      );
-      throw error;
-    }
+  @Patch(":id")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async updateUser(
+    @Param("id") userId: string,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    this.logger.log(`✏️ Mise à jour utilisateur par admin: ${userId}`);
+
+    const updatedUser = await this.usersService.update(userId, updateUserDto);
+
+    return {
+      id: updatedUser._id?.toString(),
+      email: updatedUser.email,
+      firstName: updatedUser.firstName,
+      lastName: updatedUser.lastName,
+      role: updatedUser.role,
+      telephone: updatedUser.telephone,
+      isActive: updatedUser.isActive,
+    };
   }
 
   @Delete(":id")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param("id") id: string) {
-    const requestId = this.generateRequestId();
-    this.logger.log(
-      `[${requestId}] Suppression utilisateur demandée - ID: ${id}`,
-    );
-
-    try {
-      await this.usersService.delete(id);
-      this.logger.log(`[${requestId}] Utilisateur supprimé - ID: ${id}`);
-    } catch (error) {
-      this.logger.error(
-        `[${requestId}] Erreur suppression utilisateur: ${error.message}`,
-      );
-      throw error;
-    }
+  remove(@Param("id") id: string) {
+    this.logger.log(`🗑️ Suppression utilisateur: ${id}`);
+    return this.usersService.delete(id);
   }
 
   @Patch(":id/toggle-status")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  async toggleStatus(@Param("id") id: string) {
-    const requestId = this.generateRequestId();
-    this.logger.log(`[${requestId}] Changement statut utilisateur - ID: ${id}`);
-
-    try {
-      const user = await this.usersService.toggleStatus(id);
-      this.logger.log(
-        `[${requestId}] Statut utilisateur modifié - ID: ${id}, Actif: ${user.isActive}`,
-      );
-      return user;
-    } catch (error) {
-      this.logger.error(
-        `[${requestId}] Erreur changement statut: ${error.message}`,
-      );
-      throw error;
-    }
+  toggleStatus(@Param("id") id: string) {
+    this.logger.log(`🔄 Changement statut utilisateur: ${id}`);
+    return this.usersService.toggleStatus(id);
   }
 
   @Get("maintenance-status")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async getMaintenanceStatus() {
-    const requestId = this.generateRequestId();
-    this.logger.log(`[${requestId}] Statut maintenance demandé`);
+    this.logger.log("🔧 Récupération statut maintenance");
     return this.usersService.getMaintenanceStatus();
   }
 
@@ -169,16 +127,8 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async setMaintenanceMode(@Body() body: { enabled: boolean }) {
-    const requestId = this.generateRequestId();
-    this.logger.log(
-      `[${requestId}] Changement mode maintenance - Activé: ${body.enabled}`,
-    );
-
+    this.logger.log(`⚙️ Changement mode maintenance: ${body.enabled}`);
     await this.usersService.setMaintenanceMode(body.enabled);
-    this.logger.log(
-      `[${requestId}] Mode maintenance ${body.enabled ? "activé" : "désactivé"}`,
-    );
-
     return {
       message: `Mode maintenance ${body.enabled ? "activé" : "désactivé"}`,
     };
@@ -188,60 +138,58 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async checkUserAccess(@Param("userId") userId: string) {
-    const requestId = this.generateRequestId();
-    this.logger.log(
-      `[${requestId}] Vérification accès utilisateur - ID: ${userId}`,
-    );
-
+    this.logger.log(`🔐 Vérification accès utilisateur: ${userId}`);
     const hasAccess = await this.usersService.checkUserAccess(userId);
-    this.logger.log(`[${requestId}] Accès utilisateur ${userId}: ${hasAccess}`);
     return { hasAccess };
   }
 
-  // === ENDPOINTS PUBLIC (Pour l'utilisateur connecté) ===
+  @Post(":id/admin-reset-password")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async adminResetPassword(
+    @Param("id") userId: string,
+    @Body() body: { newPassword: string; confirmNewPassword: string },
+  ) {
+    this.logger.log(`🔑 Réinitialisation mot de passe par admin: ${userId}`);
+
+    if (body.newPassword !== body.confirmNewPassword) {
+      throw new BadRequestException("Les mots de passe ne correspondent pas");
+    }
+
+    await this.usersService.resetPassword(userId, body.newPassword);
+    return { message: "Mot de passe réinitialisé avec succès" };
+  }
+
+  // === ENDPOINTS UTILISATEUR ===
   @Patch("profile/me")
   @UseGuards(JwtAuthGuard)
   async updateProfile(
     @Request() req: RequestWithUser,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    const requestId = this.generateRequestId();
-    const userId = req.user.userId;
+    this.logger.log(`✏️ Mise à jour profil utilisateur: ${req.user.userId}`);
 
-    this.logger.log(
-      `[${requestId}] Mise à jour profil - Utilisateur: ${this.maskUserId(userId)}`,
-    );
-
-    // Validation améliorée
     if (
       updateUserDto.email === undefined &&
       updateUserDto.telephone === undefined
     ) {
-      this.logger.warn(`[${requestId}] Aucun champ fourni pour mise à jour`);
       throw new BadRequestException(
         "Au moins un champ (email ou téléphone) doit être fourni",
       );
     }
 
-    // Validation de l'email si fourni
     if (updateUserDto.email !== undefined) {
       if (updateUserDto.email.trim() === "") {
-        this.logger.warn(`[${requestId}] Email vide fourni`);
         throw new BadRequestException("L'email ne peut pas être vide");
       }
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(updateUserDto.email)) {
-        this.logger.warn(
-          `[${requestId}] Format email invalide: ${this.maskEmail(updateUserDto.email)}`,
-        );
         throw new BadRequestException("Format d'email invalide");
       }
     }
 
-    // Validation du téléphone si fourni
     if (updateUserDto.telephone !== undefined) {
       if (updateUserDto.telephone.trim().length < 5) {
-        this.logger.warn(`[${requestId}] Téléphone trop court`);
         throw new BadRequestException(
           "Le téléphone doit contenir au moins 5 caractères",
         );
@@ -265,158 +213,41 @@ export class UsersController {
     }
 
     if (Object.keys(allowedUpdate).length === 0) {
-      this.logger.warn(`[${requestId}] Aucune donnée valide après validation`);
       throw new BadRequestException("Aucune donnée valide à mettre à jour");
     }
 
-    this.logger.log(
-      `[${requestId}] Données validées pour mise à jour - Champs: ${Object.keys(allowedUpdate).join(", ")}`,
+    const updatedUser = await this.usersService.update(
+      req.user.userId,
+      allowedUpdate,
     );
 
-    try {
-      const updatedUser = await this.usersService.update(userId, allowedUpdate);
-
-      this.logger.log(
-        `[${requestId}] Profil mis à jour avec succès - Utilisateur: ${this.maskUserId(userId)}`,
-      );
-
-      return {
-        id: updatedUser._id?.toString(),
-        email: updatedUser.email,
-        firstName: updatedUser.firstName,
-        lastName: updatedUser.lastName,
-        role: updatedUser.role,
-        telephone: updatedUser.telephone,
-        isActive: updatedUser.isActive,
-        isAdmin: updatedUser.role === UserRole.ADMIN,
-      };
-    } catch (error) {
-      this.logger.error(
-        `[${requestId}] Erreur mise à jour profil: ${error.message}`,
-      );
-      throw error;
-    }
-  }
-
-  @Post(":id/admin-reset-password")
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async adminResetPassword(
-    @Param("id") userId: string,
-    @Body() body: { newPassword: string; confirmNewPassword: string },
-  ) {
-    const requestId = this.generateRequestId();
-    this.logger.log(
-      `[${requestId}] Réinitialisation mot de passe admin - Utilisateur: ${userId}`,
-    );
-
-    // Implémentez la logique de réinitialisation par l'admin
-    await this.usersService.resetPassword(userId, body.newPassword);
-
-    this.logger.log(
-      `[${requestId}] Mot de passe réinitialisé par admin - Utilisateur: ${userId}`,
-    );
-    return { message: "Mot de passe réinitialisé avec succès" };
-  }
-
-  @Patch(":id")
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async updateUser(
-    @Param("id") userId: string,
-    @Body() updateUserDto: UpdateUserDto,
-  ) {
-    const requestId = this.generateRequestId();
-    this.logger.log(
-      `[${requestId}] Mise à jour utilisateur par admin - ID: ${userId}`,
-    );
-
-    try {
-      const updatedUser = await this.usersService.update(userId, updateUserDto);
-      this.logger.log(
-        `[${requestId}] Utilisateur mis à jour par admin - ID: ${userId}`,
-      );
-
-      return {
-        id: updatedUser._id?.toString(),
-        email: updatedUser.email,
-        firstName: updatedUser.firstName,
-        lastName: updatedUser.lastName,
-        role: updatedUser.role,
-        telephone: updatedUser.telephone,
-        isActive: updatedUser.isActive,
-      };
-    } catch (error) {
-      this.logger.error(
-        `[${requestId}] Erreur mise à jour utilisateur par admin: ${error.message}`,
-      );
-      throw error;
-    }
+    return {
+      id: updatedUser._id?.toString(),
+      email: updatedUser.email,
+      firstName: updatedUser.firstName,
+      lastName: updatedUser.lastName,
+      role: updatedUser.role,
+      telephone: updatedUser.telephone,
+      isActive: updatedUser.isActive,
+      isAdmin: updatedUser.role === UserRole.ADMIN,
+    };
   }
 
   @Get("profile/me")
   @UseGuards(JwtAuthGuard)
   async getMyProfile(@Request() req: RequestWithUser) {
-    const requestId = this.generateRequestId();
-    const userId = req.user.sub || req.user.userId;
+    this.logger.log(`📋 Récupération profil utilisateur: ${req.user.userId}`);
+    const user = await this.usersService.findById(req.user.userId);
 
-    if (!userId) {
-      this.logger.warn(
-        `[${requestId}] ID utilisateur manquant dans la requête`,
-      );
-      throw new BadRequestException("ID utilisateur manquant");
-    }
-
-    this.logger.log(
-      `[${requestId}] Récupération profil - Utilisateur: ${this.maskUserId(userId)}`,
-    );
-
-    try {
-      const user = await this.usersService.findById(userId);
-      this.logger.log(
-        `[${requestId}] Profil récupéré avec succès - Utilisateur: ${this.maskUserId(userId)}`,
-      );
-
-      return {
-        id: user._id?.toString(),
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        telephone: user.telephone,
-        isActive: user.isActive,
-        isAdmin: user.role === UserRole.ADMIN,
-      };
-    } catch (error) {
-      this.logger.error(
-        `[${requestId}] Erreur récupération profil: ${error.message}`,
-      );
-      throw error;
-    }
-  }
-
-  // === MÉTHODES PRIVÉES POUR LA SÉCURITÉ ===
-  private generateRequestId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  private maskEmail(email: string): string {
-    if (!email) return "email_inconnu";
-    const [localPart, domain] = email.split("@");
-    if (!localPart || !domain) return "email_invalide";
-
-    const maskedLocal =
-      localPart.length <= 2
-        ? localPart.charAt(0) + "*"
-        : localPart.charAt(0) + "***" + localPart.charAt(localPart.length - 1);
-
-    return `${maskedLocal}@${domain}`;
-  }
-
-  private maskUserId(userId: string): string {
-    if (!userId) return "user_inconnu";
-    return userId.length <= 8
-      ? userId
-      : userId.substring(0, 4) + "***" + userId.substring(userId.length - 4);
+    return {
+      id: user._id?.toString(),
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      telephone: user.telephone,
+      isActive: user.isActive,
+      isAdmin: user.role === UserRole.ADMIN,
+    };
   }
 }

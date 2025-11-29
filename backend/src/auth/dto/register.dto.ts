@@ -1,3 +1,4 @@
+// register.dto.ts - CORRIGÉ
 import {
   IsEmail,
   IsNotEmpty,
@@ -38,6 +39,7 @@ export class RegisterDto {
   @ApiProperty({ example: "+33123456789", description: "Téléphone" })
   @IsString()
   @IsNotEmpty({ message: "Le téléphone est requis" })
+  @MinLength(5, { message: "Le téléphone doit contenir au moins 5 caractères" })
   telephone: string;
 
   @ApiProperty({

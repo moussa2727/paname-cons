@@ -1,5 +1,4 @@
-
-// Types et interfaces
+// Types et interfaces conformes au backend
 export interface Procedure {
   _id: string;
   rendezVousId: string;
@@ -8,6 +7,7 @@ export interface Procedure {
   email: string;
   telephone?: string;
   destination: string;
+  niveauEtude?: string;
   filiere?: string;
   statut: ProcedureStatus;
   steps: Step[];
@@ -18,6 +18,7 @@ export interface Procedure {
   dateCompletion?: string;
   createdAt: string;
   updatedAt: string;
+  dateDerniereModification?: string;
 }
 
 export interface Step {
@@ -29,12 +30,12 @@ export interface Step {
   dateCompletion?: string;
 }
 
-// Enums
+// Enums conformes au backend
 export enum ProcedureStatus {
   IN_PROGRESS = 'En cours',
   COMPLETED = 'Terminée',
   REJECTED = 'Refusée',
-  CANCELLED = 'Annulée'
+  CANCELLED = 'Annulée',
 }
 
 export enum StepStatus {
@@ -42,201 +43,16 @@ export enum StepStatus {
   IN_PROGRESS = 'En cours',
   COMPLETED = 'Terminé',
   REJECTED = 'Rejeté',
-  CANCELLED = 'Annulé'
+  CANCELLED = 'Annulé',
 }
 
 export enum StepName {
   DEMANDE_ADMISSION = 'DEMANDE ADMISSION',
   DEMANDE_VISA = 'DEMANDE VISA',
-  PREPARATIF_VOYAGE = 'PREPARATIF VOYAGE'
+  PREPARATIF_VOYAGE = 'PREPARATIF VOYAGE',
 }
 
-// Hook personnalisé pour l'API
-export const useAdminProcedureApi = () => {
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-  const makeAuthenticatedRequest = async (endpoint: string, options: RequestInit = {}) => {
-    const url = `${baseUrl}${endpoint}`;
-    const currentToken = localStorage.getItem('token');
-    
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${currentToken}`,
-      ...options.headers,
-    };
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          localStorage.removeItem('token');
-          window.dispatchEvent(new Event('storage'));
-          throw new Error('Session expirée');
-        }
-        
-        if (response.status === 404) {
-          throw new Error(`Endpoint non trouvé: ${endpoint}`);
-        }
-        
-        throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error(`API Error ${endpoint}:`, error);
-      throw error;
-    }
-  };
-
-  // ==================== STATISTIQUES ====================
-
- const getProceduresOverview = async (): Promise<any> => {
-    try {
-      return await makeAuthenticatedRequest('/api/procedures/admin/stats');
-    } catch (error) {
-      console.error('❌ Erreur récupération statistiques:', error);
-      throw error;
-    }
-  };
-
-  // ==================== LISTE DES PROCÉDURES ====================
-   const fetchProcedures = async (
-    page: number = 1, 
-    limit: number = 10, 
-    email?: string,
-    destination?: string,
-    statut?: string
-  ): Promise<{ data: Procedure[]; total: number; totalPages: number }> => { // ✅ AJOUT DU TYPE DE RETOUR
-    let url = `/api/procedures/admin/all?page=${page}&limit=${limit}`;
-    
-    if (email) url += `&email=${encodeURIComponent(email)}`;
-    if (destination) url += `&destination=${encodeURIComponent(destination)}`;
-    if (statut) url += `&statut=${encodeURIComponent(statut)}`; // ✅ CORRIGÉ: 'status' → 'statut'
-
-    const response = await makeAuthenticatedRequest(url);
-    
-    // ✅ ASSURER LE FORMAT DE RÉPONSE UNIFORME
-    if (response.data !== undefined) {
-      return response;
-    } else {
-      // Si l'API retourne directement un tableau, l'adapter au format attendu
-      return {
-        data: Array.isArray(response) ? response : [],
-        total: response.total || response.length || 0,
-        totalPages: response.totalPages || Math.ceil((response.total || response.length || 0) / limit)
-      };
-    }
-  };
-
-  // ==================== GESTION DES PROCÉDURES ====================
-
-  const getProcedureDetails = async (id: string) => {
-    return makeAuthenticatedRequest(`/api/procedures/admin/${id}`);
-  };
-
-  const updateProcedure = async (id: string, updates: any) => {
-    return makeAuthenticatedRequest(`/api/procedures/admin/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates)
-    });
-  };
-
-   const rejectProcedure = async (id: string, reason: string): Promise<Procedure> => { // ✅ AJOUT DU TYPE DE RETOUR
-    return makeAuthenticatedRequest(`/api/procedures/admin/${id}/reject`, {
-      method: 'PUT',
-      body: JSON.stringify({ reason })
-    });
-  };
-
-   const deleteProcedure = async (id: string, reason?: string): Promise<{ success: boolean; message: string }> => { // ✅ AJOUT DU TYPE DE RETOUR
-    return makeAuthenticatedRequest(`/api/procedures/admin/${id}`, {
-      method: 'DELETE',
-      body: JSON.stringify({ reason })
-    });
-  };
-
-  // ==================== GESTION DES ÉTAPES ====================
-
- const updateStepStatus = async (
-    procedureId: string, 
-    stepName: StepName, 
-    newStatus: StepStatus, 
-    reason?: string
-    ): Promise<Procedure> => { // ✅ AJOUT DU TYPE DE RETOUR
-    const updates: any = { statut: newStatus };
-    
-    if (reason && newStatus === StepStatus.REJECTED) {
-      updates.raisonRefus = reason;
-    }
-
-    return makeAuthenticatedRequest(
-      `/api/procedures/admin/${procedureId}/steps/${encodeURIComponent(stepName)}`,
-      {
-        method: 'PUT',
-        body: JSON.stringify(updates)
-      }
-    );
-  };
-
-  // ==================== CRÉATION DE PROCÉDURE ====================
-
-  const createProcedureFromRendezvous = async (rendezVousId: string) => {
-    return makeAuthenticatedRequest('/api/procedures/admin/create', {
-      method: 'POST',
-      body: JSON.stringify({ rendezVousId })
-    });
-  };
-
-  // ==================== RECHERCHE ET FILTRES ====================
-
-  const searchProcedures = async (query: string, page: number = 1, limit: number = 10) => {
-    return makeAuthenticatedRequest(
-      `/api/procedures/admin/all?search=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
-    );
-  };
-
-  const getProceduresByDestination = async (destination: string, page: number = 1, limit: number = 10) => {
-    return makeAuthenticatedRequest(
-      `/api/procedures/admin/all?destination=${encodeURIComponent(destination)}&page=${page}&limit=${limit}`
-    );
-  };
-
-  const getProceduresByStatus = async (status: string, page: number = 1, limit: number = 10) => {
-    return makeAuthenticatedRequest(
-      `/api/procedures/admin/all?status=${encodeURIComponent(status)}&page=${page}&limit=${limit}`
-    );
-  };
-
-  return {
-    // Méthodes principales
-    fetchProcedures,
-    getProcedureDetails,
-    updateProcedure,
-    rejectProcedure,
-    deleteProcedure,
-    
-    // Gestion des étapes
-    updateStepStatus,
-    
-    // Statistiques
-    getProceduresOverview,
-    
-    // Création
-    createProcedureFromRendezvous,
-    
-    // Recherche et filtres
-    searchProcedures,
-    getProceduresByDestination,
-    getProceduresByStatus
-  };
-};
-
-// Export pour une utilisation directe (sans hook)
+// Service principal avec intégration AuthContext
 export class AdminProcedureApiService {
   private baseUrl: string;
 
@@ -244,13 +60,30 @@ export class AdminProcedureApiService {
     this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   }
 
-  private async makeAuthenticatedRequest(endpoint: string, options: RequestInit = {}) {
+  // ✅ MÉTHODE PRIVÉE POUR LES REQUÊTES AUTHENTIFIÉES
+  private async makeAuthenticatedRequest(
+    endpoint: string, 
+    options: RequestInit = {}
+  ): Promise<any> {
     const url = `${this.baseUrl}${endpoint}`;
-    const currentToken = localStorage.getItem('token');
     
+    // Récupération du token depuis les cookies (compatible avec AuthContext)
+    const getCookie = (name: string): string | null => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+      return null;
+    };
+
+    const accessToken = getCookie('access_token');
+    
+    if (!accessToken) {
+      throw new Error('Token d\'accès manquant - Veuillez vous reconnecter');
+    }
+
     const headers = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${currentToken}`,
+      'Authorization': `Bearer ${accessToken}`,
       ...options.headers,
     };
 
@@ -261,28 +94,43 @@ export class AdminProcedureApiService {
         credentials: 'include',
       });
 
+      // Gestion centralisée des codes d'erreur
+      if (response.status === 401) {
+        throw new Error('SESSION_EXPIRED');
+      }
+
+      if (response.status === 403) {
+        throw new Error('ACCESS_DENIED');
+      }
+
+      if (response.status === 404) {
+        throw new Error('RESOURCE_NOT_FOUND');
+      }
+
       if (!response.ok) {
-        if (response.status === 401) {
-          localStorage.removeItem('token');
-          window.dispatchEvent(new Event('storage'));
-          throw new Error('Session expirée');
-        }
-        
-        if (response.status === 404) {
-          throw new Error(`Endpoint non trouvé: ${endpoint}`);
-        }
-        
-        throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Erreur ${response.status}: ${response.statusText}`);
       }
 
       return await response.json();
-    } catch (error) {
-      console.error(`API Error ${endpoint}:`, error);
+    } catch (error: any) {
+      if (error.message === 'SESSION_EXPIRED') {
+        // Déclencher le refresh via le contexte Auth
+        window.dispatchEvent(new CustomEvent('auth-token-expired'));
+        throw new Error('Session expirée - Veuillez vous reconnecter');
+      }
+      
+      if (error.message === 'ACCESS_DENIED') {
+        throw new Error('Accès refusé - Droits insuffisants');
+      }
+
+      console.error(`❌ Erreur API ${endpoint}:`, error);
       throw error;
     }
   }
 
-  async getProceduresOverview() {
+  // ==================== STATISTIQUES ====================
+  async getProceduresOverview(): Promise<any> {
     try {
       return await this.makeAuthenticatedRequest('/api/procedures/admin/stats');
     } catch (error) {
@@ -291,85 +139,180 @@ export class AdminProcedureApiService {
     }
   }
 
-  async getProcedures(page: number = 1, limit: number = 10, filters?: any) {
-    let url = `/api/procedures/admin/all?page=${page}&limit=${limit}`;
-    
-    if (filters?.email) url += `&email=${encodeURIComponent(filters.email)}`;
-    if (filters?.destination) url += `&destination=${encodeURIComponent(filters.destination)}`;
-    if (filters?.status) url += `&status=${encodeURIComponent(filters.status)}`;
-    if (filters?.search) url += `&search=${encodeURIComponent(filters.search)}`;
-
-    return this.makeAuthenticatedRequest(url);
-  }
-  
-  async getProcedureDetails(id: string) {
-    return this.makeAuthenticatedRequest(`/api/procedures/admin/${id}`);
-  }
-  async updateProcedure(id: string, updates: any) {
-    return this.makeAuthenticatedRequest(`/api/procedures/admin/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates)
-    });
-  }
-
-  async rejectProcedure(id: string, reason: string) {
-    return this.makeAuthenticatedRequest(`/api/procedures/admin/${id}/reject`, {
-      method: 'PUT',
-      body: JSON.stringify({ reason })
-    });
-  }
-
-  async deleteProcedure(id: string, reason?: string) {
-    return this.makeAuthenticatedRequest(`/api/procedures/admin/${id}`, {
-      method: 'DELETE',
-      body: JSON.stringify({ reason })
-    });
-  }
-
-  async updateStepStatus(
-    procedureId: string, 
-    stepName: StepName, 
-    newStatus: StepStatus, 
-    reason?: string
-  ) {
-    const updates: any = { statut: newStatus }; 
-    if (reason && newStatus === StepStatus.REJECTED) {
-      updates.raisonRefus = reason;
+  // ==================== LISTE DES PROCÉDURES ====================
+  async getProcedures(
+    page: number = 1,
+    limit: number = 10,
+    filters?: {
+      email?: string;
+      destination?: string;
+      statut?: string;
     }
-    return this.makeAuthenticatedRequest(
-      `/api/procedures/admin/${procedureId}/steps/${encodeURIComponent(stepName)}`,
-      {
-        method: 'PUT',
-        body: JSON.stringify(updates)
+  ): Promise<{ data: Procedure[]; total: number; totalPages: number }> {
+    try {
+      let url = `/api/procedures/admin/all?page=${page}&limit=${limit}`;
+
+      // Construction des paramètres de filtre
+      if (filters?.email) {
+        url += `&email=${encodeURIComponent(filters.email)}`;
       }
-    );
+      if (filters?.destination) {
+        url += `&destination=${encodeURIComponent(filters.destination)}`;
+      }
+      if (filters?.statut) {
+        url += `&statut=${encodeURIComponent(filters.statut)}`;
+      }
+
+      const response = await this.makeAuthenticatedRequest(url);
+      
+      // ✅ Formatage standardisé de la réponse
+      return {
+        data: response.data || [],
+        total: response.total || 0,
+        totalPages: response.totalPages || Math.ceil((response.total || 0) / limit),
+      };
+    } catch (error) {
+      console.error('❌ Erreur récupération procédures:', error);
+      throw error;
+    }
   }
 
-  async createProcedureFromRendezvous(rendezVousId: string) {
-    return this.makeAuthenticatedRequest('/api/procedures/admin/create', {
-      method: 'POST',
-      body: JSON.stringify({ rendezVousId })
-    });
+  // ==================== DÉTAILS PROCÉDURE ====================
+  async getProcedureDetails(id: string): Promise<Procedure> {
+    try {
+      if (!id || id.length < 10) {
+        throw new Error('ID de procédure invalide');
+      }
+      return await this.makeAuthenticatedRequest(`/api/procedures/admin/${id}`);
+    } catch (error) {
+      console.error(`❌ Erreur détails procédure ${this.maskId(id)}:`, error);
+      throw error;
+    }
   }
 
-  async searchProcedures(query: string, page: number = 1, limit: number = 10) {
-    return this.makeAuthenticatedRequest(
-      `/api/procedures/admin/all?search=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
-    );
+  // ==================== MISE À JOUR PROCÉDURE ====================
+  async updateProcedure(id: string, updates: Partial<Procedure>): Promise<Procedure> {
+    try {
+      return await this.makeAuthenticatedRequest(`/api/procedures/admin/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates),
+      });
+    } catch (error) {
+      console.error(`❌ Erreur mise à jour procédure ${this.maskId(id)}:`, error);
+      throw error;
+    }
   }
 
-  async getProceduresByDestination(destination: string, page: number = 1, limit: number = 10) {
-    return this.makeAuthenticatedRequest(
-      `/api/procedures/admin/all?destination=${encodeURIComponent(destination)}&page=${page}&limit=${limit}`
-    );
+  // ==================== REJET PROCÉDURE ====================
+  async rejectProcedure(id: string, reason: string): Promise<Procedure> {
+    try {
+      if (!reason || reason.trim().length < 5) {
+        throw new Error('La raison du rejet doit contenir au moins 5 caractères');
+      }
+
+      return await this.makeAuthenticatedRequest(`/api/procedures/admin/${id}/reject`, {
+        method: 'PUT',
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+    } catch (error) {
+      console.error(`❌ Erreur rejet procédure ${this.maskId(id)}:`, error);
+      throw error;
+    }
   }
 
-  async getProceduresByStatus(status: string, page: number = 1, limit: number = 10) {
-    return this.makeAuthenticatedRequest(
-      `/api/procedures/admin/all?status=${encodeURIComponent(status)}&page=${page}&limit=${limit}`
-    );
+  // ==================== SUPPRESSION PROCÉDURE ====================
+  async deleteProcedure(
+    id: string, 
+    reason?: string
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      return await this.makeAuthenticatedRequest(`/api/procedures/admin/${id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ reason: reason || 'Supprimé par administrateur' }),
+      });
+    } catch (error) {
+      console.error(`❌ Erreur suppression procédure ${this.maskId(id)}:`, error);
+      throw error;
+    }
   }
 
+  // ==================== GESTION DES ÉTAPES ====================
+  async updateStepStatus(
+    procedureId: string,
+    stepName: StepName,
+    newStatus: StepStatus,
+    reason?: string
+  ): Promise<Procedure> {
+    try {
+      const updates: any = { 
+        statut: newStatus,
+        dateMaj: new Date().toISOString()
+      };
+
+      if (reason && newStatus === StepStatus.REJECTED) {
+        updates.raisonRefus = reason;
+      }
+
+      const encodedStepName = encodeURIComponent(stepName);
+      return await this.makeAuthenticatedRequest(
+        `/api/procedures/admin/${procedureId}/steps/${encodedStepName}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(updates),
+        }
+      );
+    } catch (error) {
+      console.error(`❌ Erreur mise à jour étape ${this.maskId(procedureId)}:`, error);
+      throw error;
+    }
+  }
+
+  // ==================== CRÉATION DE PROCÉDURE ====================
+  async createProcedureFromRendezvous(rendezVousId: string): Promise<Procedure> {
+    try {
+      if (!rendezVousId || rendezVousId.length < 10) {
+        throw new Error('ID de rendez-vous invalide');
+      }
+
+      return await this.makeAuthenticatedRequest('/api/procedures/admin/create', {
+        method: 'POST',
+        body: JSON.stringify({ rendezVousId }),
+      });
+    } catch (error) {
+      console.error(`❌ Erreur création procédure RDV ${this.maskId(rendezVousId)}:`, error);
+      throw error;
+    }
+  }
+
+  // ==================== MÉTHODES UTILITAIRES ====================
+  private maskId(id: string): string {
+    if (!id || id.length < 8) return '***';
+    return `${id.substring(0, 4)}***${id.substring(id.length - 4)}`;
+  }
+
+  
 }
 
+// Instance unique exportée
 export const adminProcedureApi = new AdminProcedureApiService();
+
+// Hook personnalisé pour les composants React
+export const useAdminProcedureApi = () => {
+  return {
+    // Méthodes principales
+    getProcedures: adminProcedureApi.getProcedures.bind(adminProcedureApi),
+    getProcedureDetails: adminProcedureApi.getProcedureDetails.bind(adminProcedureApi),
+    updateProcedure: adminProcedureApi.updateProcedure.bind(adminProcedureApi),
+    rejectProcedure: adminProcedureApi.rejectProcedure.bind(adminProcedureApi),
+    deleteProcedure: adminProcedureApi.deleteProcedure.bind(adminProcedureApi),
+
+    // Gestion des étapes
+    updateStepStatus: adminProcedureApi.updateStepStatus.bind(adminProcedureApi),
+
+    // Statistiques
+    getProceduresOverview: adminProcedureApi.getProceduresOverview.bind(adminProcedureApi),
+
+    // Création
+    createProcedureFromRendezvous: adminProcedureApi.createProcedureFromRendezvous.bind(adminProcedureApi),
+  };
+};

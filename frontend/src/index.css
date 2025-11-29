@@ -41,13 +41,13 @@
     transform: none !important;
     visibility: visible !important;
   }
-  
+
   /* Fallback for AOS animations on mobile */
-  [data-aos="fade-up"] {
+  [data-aos='fade-up'] {
     animation: none !important;
   }
-  
-  [data-aos="fade-in"] {
+
+  [data-aos='fade-in'] {
     animation: none !important;
   }
 }
@@ -57,7 +57,7 @@
   .text-balance {
     text-wrap: balance;
   }
-  
+
   .hero-text-shadow {
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   }

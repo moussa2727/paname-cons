@@ -7,8 +7,7 @@ import Hero from '../components/Hero';
 import Valeur from '../components/Valeur';
 import '../index.css';
 
-function Accueil() { 
-
+function Accueil() {
   return (
     <>
       <div className='flex flex-col min-h-screen w-full overflow-x-hidden touch-pan-y'>
@@ -103,7 +102,7 @@ function Accueil() {
           <Valeur />
           {/* <Partners /> */}
           <Form />
-          
+
           <CtaSection />
         </main>
       </div>

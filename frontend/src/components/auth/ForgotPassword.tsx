@@ -13,21 +13,23 @@ const ForgotPassword: React.FC = () => {
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     if (!resetEmail) {
-        setError('Veuillez entrer votre email');
-        return;
+      setError('Veuillez entrer votre email');
+      return;
     }
-    
+
     try {
-        await forgotPassword(resetEmail);
-        toast.success('Si votre email est enregistré, vous recevrez un lien de réinitialisation');
-        setResetEmail(''); // Réinitialiser le champ
+      await forgotPassword(resetEmail);
+      toast.success(
+        'Si votre email est enregistré, vous recevrez un lien de réinitialisation'
+      );
+      setResetEmail(''); // Réinitialiser le champ
     } catch (err) {
-        toast.error('Une erreur est survenue lors de l\'envoi de l\'email');
-        setResetEmail(''); // Réinitialiser le champ
+      toast.error("Une erreur est survenue lors de l'envoi de l'email");
+      setResetEmail(''); // Réinitialiser le champ
     }
-};
+  };
   return (
     <div className='min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-sky-100 p-4'>
       <div className='w-full max-w-md'>
@@ -40,7 +42,9 @@ const ForgotPassword: React.FC = () => {
                 </div>
               </div>
               <Link to='/'>
-                <h1 className='text-2xl font-bold text-white'>Réinitialisation</h1>
+                <h1 className='text-2xl font-bold text-white'>
+                  Réinitialisation
+                </h1>
               </Link>
             </div>
           </div>
@@ -51,7 +55,8 @@ const ForgotPassword: React.FC = () => {
                 Mot de passe oublié
               </h2>
               <p className='text-gray-600 text-center text-sm md:text-base'>
-                Entrez votre adresse email pour réinitialiser votre mot de passe.
+                Entrez votre adresse email pour réinitialiser votre mot de
+                passe.
               </p>
 
               {error && (
@@ -62,7 +67,10 @@ const ForgotPassword: React.FC = () => {
               )}
 
               <div>
-                <label htmlFor='reset-email' className='block text-sm font-medium text-gray-700 mb-1'>
+                <label
+                  htmlFor='reset-email'
+                  className='block text-sm font-medium text-gray-700 mb-1'
+                >
                   Email
                 </label>
                 <div className='relative'>
@@ -73,7 +81,7 @@ const ForgotPassword: React.FC = () => {
                     id='reset-email'
                     type='email'
                     value={resetEmail}
-                    onChange={(e) => {
+                    onChange={e => {
                       setResetEmail(e.target.value);
                       setError('');
                     }}
@@ -90,7 +98,9 @@ const ForgotPassword: React.FC = () => {
                   disabled={isLoading}
                   className={`w-full flex justify-center py-2.5 px-4 border border-transparent rounded shadow-sm text-white bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 focus:outline-none focus:ring-none font-medium transition-all duration-200 ${isLoading ? 'opacity-80 cursor-not-allowed' : ''}`}
                 >
-                  {isLoading ? 'Envoi en cours...' : "Envoyer l'email de réinitialisation"}
+                  {isLoading
+                    ? 'Envoi en cours...'
+                    : "Envoyer l'email de réinitialisation"}
                 </button>
 
                 <button
@@ -107,7 +117,8 @@ const ForgotPassword: React.FC = () => {
 
           <div className='bg-gray-50 px-6 py-4 text-center'>
             <p className='text-xs text-gray-500'>
-              &copy; {new Date().getFullYear()} Paname Consulting. Tous droits réservés.
+              &copy; {new Date().getFullYear()} Paname Consulting. Tous droits
+              réservés.
             </p>
           </div>
         </div>

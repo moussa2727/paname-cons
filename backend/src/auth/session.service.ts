@@ -14,14 +14,14 @@ export class SessionService {
 
   async create(
     userId: string,
-    token: string,
+    access_token: string,
     expiresAt: Date,
   ): Promise<Session> {
     this.logger.log(`Creating session for user ${userId}`);
 
     const session = await this.sessionModel.create({
       user: userId,
-      token,
+      token: access_token,
       expiresAt,
       isActive: true,
     });
@@ -30,23 +30,23 @@ export class SessionService {
     return session;
   }
 
-  async revoke(token: string): Promise<void> {
+  async revoke(access_token: string): Promise<void> {
     this.logger.log(
-      `Revoking session with token: ${token.substring(0, 10)}...`,
+      `Revoking session with token: ${access_token.substring(0, 10)}...`,
     );
 
     const result = await this.sessionModel.updateOne(
-      { token },
+      { token: access_token },
       { isActive: false },
     );
 
     if (result.modifiedCount > 0) {
       this.logger.log(
-        `Session revoked successfully: ${token.substring(0, 10)}...`,
+        `Session revoked successfully: ${access_token.substring(0, 10)}...`,
       );
     } else {
       this.logger.warn(
-        `No active session found to revoke: ${token.substring(0, 10)}...`,
+        `No active session found to revoke: ${access_token.substring(0, 10)}...`,
       );
     }
   }
@@ -64,20 +64,20 @@ export class SessionService {
     );
   }
 
-  async deleteSession(token: string): Promise<void> {
+  async deleteSession(access_token: string): Promise<void> {
     this.logger.log(
-      `Deleting session with token: ${token.substring(0, 10)}...`,
+      `Deleting session with token: ${access_token.substring(0, 10)}...`,
     );
 
-    const result = await this.sessionModel.deleteOne({ token });
+    const result = await this.sessionModel.deleteOne({ token: access_token });
 
     if (result.deletedCount > 0) {
       this.logger.log(
-        `Session deleted successfully: ${token.substring(0, 10)}...`,
+        `Session deleted successfully: ${access_token.substring(0, 10)}...`,
       );
     } else {
       this.logger.warn(
-        `No session found to delete: ${token.substring(0, 10)}...`,
+        `No session found to delete: ${access_token.substring(0, 10)}...`,
       );
     }
   }
@@ -146,16 +146,18 @@ export class SessionService {
     return count;
   }
 
-  async isTokenActive(token: string): Promise<boolean> {
+  async isTokenActive(access_token: string): Promise<boolean> {
     this.logger.debug(
-      `Checking if token is active: ${token.substring(0, 10)}...`,
+      `Checking if token is active: ${access_token.substring(0, 10)}...`,
     );
 
-    const session = await (this.sessionModel as any).findOne({ token }).exec();
+    const session = await (this.sessionModel as any)
+      .findOne({ token: access_token })
+      .exec();
     const isActive = !!session?.isActive;
 
     this.logger.debug(
-      `Token active status: ${isActive} for ${token.substring(0, 10)}...`,
+      `Token active status: ${isActive} for ${access_token.substring(0, 10)}...`,
     );
     return isActive;
   }
@@ -202,34 +204,38 @@ export class SessionService {
     this.logger.log(`Cleaned up ${result.modifiedCount} expired sessions`);
   }
 
-  async getSessionByToken(token: string): Promise<Session | null> {
-    this.logger.debug(`Getting session by token: ${token.substring(0, 10)}...`);
+  async getSessionByToken(access_token: string): Promise<Session | null> {
+    this.logger.debug(
+      `Getting session by token: ${access_token.substring(0, 10)}...`,
+    );
 
-    const session = await (this.sessionModel as any).findOne({ token }).exec();
+    const session = await (this.sessionModel as any)
+      .findOne({ token: access_token })
+      .exec();
 
     this.logger.debug(
-      `Session lookup completed for token: ${token.substring(0, 10)}...`,
+      `Session lookup completed for token: ${access_token.substring(0, 10)}...`,
     );
     return session;
   }
 
-  async updateSessionActivity(token: string): Promise<void> {
+  async updateSessionActivity(access_token: string): Promise<void> {
     this.logger.debug(
-      `Updating session activity for token: ${token.substring(0, 10)}...`,
+      `Updating session activity for token: ${access_token.substring(0, 10)}...`,
     );
 
     const result = await this.sessionModel.updateOne(
-      { token },
+      { token: access_token },
       { lastActivity: new Date() },
     );
 
     if (result.modifiedCount > 0) {
       this.logger.debug(
-        `Session activity updated for token: ${token.substring(0, 10)}...`,
+        `Session activity updated for token: ${access_token.substring(0, 10)}...`,
       );
     } else {
       this.logger.warn(
-        `No session found to update activity for token: ${token.substring(0, 10)}...`,
+        `No session found to update activity for token: ${access_token.substring(0, 10)}...`,
       );
     }
   }

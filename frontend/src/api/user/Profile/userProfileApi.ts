@@ -1,3 +1,4 @@
+// userProfileApi.ts
 export interface UserProfileData {
   email?: string;
   telephone?: string;
@@ -18,97 +19,195 @@ export interface ValidationErrors {
 }
 
 class UserProfileApiService {
-  private readonly VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  private readonly VITE_API_URL = import.meta.env.VITE_API_URL;
 
-  // Validation des champs profil
-  validateProfileField(name: string, value: string): string {
-    switch (name) {
-      case 'email':
-        if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-          return 'Format d\'email invalide';
-        }
-        break;
-      
-      case 'telephone':
-        if (value && value.trim().length < 5) {
-          return 'Le téléphone doit contenir au moins 5 caractères';
-        }
-        if (value && !/^[\d\s+\-()]+$/.test(value)) {
-          return 'Le téléphone contient des caractères invalides';
-        }
-        break;
-      
-      default:
-        return '';
+  // ==================== 🔐 VALIDATIONS STRICTES (CONFORMES BACKEND) ====================
+
+  /**
+   * Validation email - STRICTEMENT CONFORME BACKEND
+   */
+  validateEmail(email: string): string {
+    if (!email || email.trim() === '') {
+      return "L'email est requis";
     }
+    
+    const trimmedEmail = email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!emailRegex.test(trimmedEmail)) {
+      return "Format d'email invalide";
+    }
+    
     return '';
   }
 
-  // Validation des champs mot de passe
-  validatePasswordField(name: string, value: string, allData?: PasswordData): string {
-    switch (name) {
-      case 'currentPassword':
-        if (!value.trim()) {
-          return 'Le mot de passe actuel est requis';
-        }
-        break;
-      
-      case 'newPassword':
-        if (!value.trim()) {
-          return 'Le nouveau mot de passe est requis';
-        }
-        if (value.length < 8) {
-          return 'Le mot de passe doit contenir au moins 8 caractères';
-        }
-        if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(value)) {
-          return 'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre';
-        }
-        break;
-      
-      case 'confirmNewPassword':
-        if (!value.trim()) {
-          return 'La confirmation du mot de passe est requise';
-        }
-        if (allData && value !== allData.newPassword) {
-          return 'Les mots de passe ne correspondent pas';
-        }
-        break;
-      
-      default:
-        return '';
+  /**
+   * Validation téléphone - STRICTEMENT CONFORME BACKEND
+   */
+  validateTelephone(telephone: string): string {
+    if (!telephone || telephone.trim() === '') {
+      return 'Le téléphone est requis';
     }
+    
+    const trimmedPhone = telephone.trim();
+    
+    // ✅ CONFORME BACKEND : au moins 5 caractères
+    if (trimmedPhone.length < 5) {
+      return 'Le téléphone doit contenir au moins 5 caractères';
+    }
+    
     return '';
   }
 
-async updateProfile(profileData: UserProfileData, token: string): Promise<any> {
-  try {
-    const response = await fetch(`${this.VITE_API_URL}/api/users/profile/me`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      credentials: 'include',
-      body: JSON.stringify({
-        email: profileData.email?.trim() || undefined,
-        telephone: profileData.telephone?.trim() || undefined
-      })
-    });
+  /**
+   * Validation mot de passe - STRICTEMENT CONFORME BACKEND
+   */
+  validatePassword(password: string, fieldName: string): string {
+    if (!password || password.trim() === '') {
+      return `${this.getPasswordFieldLabel(fieldName)} est requis`;
+    }
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      
-      console.warn(`Erreur mise à jour profil: ${response.status}`);
-      
-      if (response.status === 400) {
-        if (errorData.message?.includes('email est déjà utilisé')) {
+    // ✅ CONFORME BACKEND : validation spécifique pour nouveau mot de passe
+    if (fieldName === 'newPassword') {
+      if (password.length < 8) {
+        return 'Le mot de passe doit contenir au moins 8 caractères';
+      }
+      if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+        return 'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre';
+      }
+    }
+
+    return '';
+  }
+
+  private getPasswordFieldLabel(fieldName: string): string {
+    const labels: { [key: string]: string } = {
+      currentPassword: 'Le mot de passe actuel',
+      newPassword: 'Le nouveau mot de passe',
+      confirmNewPassword: 'La confirmation du mot de passe',
+    };
+    return labels[fieldName] || 'Ce champ';
+  }
+
+  // ==================== 📞 APPELS API AVEC DÉLÉGATION TOTALE ====================
+
+  /**
+   * Mise à jour profil - DÉLÉGATION TOTALE AU CONTEXTE
+   */
+  async updateProfile(profileData: UserProfileData): Promise<any> {
+    // ✅ Validation STRICTE identique backend
+    const validation = this.validateProfileBeforeSubmit(profileData);
+    if (!validation.isValid) {
+      throw new Error(Object.values(validation.errors)[0]);
+    }
+
+    try {
+      const response = await fetch(
+        `${this.VITE_API_URL}/api/users/profile/me`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            email: profileData.email?.trim(),
+            telephone: profileData.telephone?.trim(),
+          }),
+        }
+      );
+
+      // ✅ Gestion d'erreurs CONFORME BACKEND
+      if (!response.ok) {
+        await this.handleProfileUpdateError(response);
+      }
+
+      const result = await response.json();
+      return this.formatUserResponse(result);
+    } catch (error: any) {
+      this.handleApiError(error, 'profil');
+    }
+  }
+
+  /**
+   * Récupération profil - DÉLÉGATION TOTALE AU CONTEXTE
+   */
+  async getProfile(): Promise<any> {
+    try {
+      const response = await fetch(
+        `${this.VITE_API_URL}/api/users/profile/me`,
+        {
+          method: 'GET',
+          credentials: 'include',
+        }
+      );
+
+      if (!response.ok) {
+        await this.handleGetProfileError(response);
+      }
+
+      const result = await response.json();
+      return this.formatUserResponse(result);
+    } catch (error: any) {
+      this.handleApiError(error, 'profil');
+    }
+  }
+
+  /**
+   * Mise à jour mot de passe - DÉLÉGATION TOTALE AU CONTEXTE
+   */
+  async updatePassword(passwordData: PasswordData): Promise<void> {
+    // ✅ Validation STRICTE identique backend
+    const validation = this.validatePasswordBeforeSubmit(passwordData);
+    if (!validation.isValid) {
+      throw new Error(Object.values(validation.errors)[0]);
+    }
+
+    try {
+      const response = await fetch(
+        `${this.VITE_API_URL}/api/auth/update-password`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            currentPassword: passwordData.currentPassword,
+            newPassword: passwordData.newPassword,
+            confirmNewPassword: passwordData.confirmNewPassword,
+          }),
+        }
+      );
+
+      // ✅ Gestion d'erreurs CONFORME BACKEND
+      if (!response.ok) {
+        await this.handlePasswordUpdateError(response);
+      }
+
+      await response.json();
+    } catch (error: any) {
+      this.handleApiError(error, 'mot de passe');
+    }
+  }
+
+  // ==================== 🛡️ GESTION D'ERREURS STRICTE (CONFORME BACKEND) ====================
+  private async handleProfileUpdateError(response: Response): Promise<never> {
+    const errorData = await response.json().catch(() => ({}));
+
+    switch (response.status) {
+      case 400:
+        // ✅ MESSAGES D'ERREUR CONFORMES BACKEND
+        if (errorData.message?.includes('email est déjà utilisé') ||
+            errorData.message?.includes('Cet email est déjà utilisé')) {
           throw new Error('Cet email est déjà utilisé');
         }
-        if (errorData.message?.includes('numéro de téléphone est déjà utilisé')) {
+        if (errorData.message?.includes('téléphone est déjà utilisé') ||
+            errorData.message?.includes('Ce numéro de téléphone est déjà utilisé')) {
           throw new Error('Ce numéro de téléphone est déjà utilisé');
         }
-        if (errorData.message?.includes('Format d\'email invalide')) {
-          throw new Error('Format d\'email invalide');
+        if (errorData.message?.includes("Format d'email invalide")) {
+          throw new Error("Format d'email invalide");
         }
         if (errorData.message?.includes('téléphone doit contenir')) {
           throw new Error('Le téléphone doit contenir au moins 5 caractères');
@@ -116,187 +215,173 @@ async updateProfile(profileData: UserProfileData, token: string): Promise<any> {
         if (errorData.message?.includes('Au moins un champ')) {
           throw new Error('Au moins un champ (email ou téléphone) doit être fourni');
         }
-        throw new Error('Données de profil invalides');
-      }
-      
-      if (response.status === 401) {
+        if (errorData.message?.includes("L'email ne peut pas être vide")) {
+          throw new Error("L'email ne peut pas être vide");
+        }
+        throw new Error(errorData.message || 'Données de profil invalides');
+
+      case 401:
         throw new Error('Session expirée - Veuillez vous reconnecter');
-      }
-      
-      throw new Error('Erreur lors de la mise à jour du profil');
-    }
 
-    const result = await response.json();
-    
-    // ✅ FORMAT COHÉRENT ABSOLU
-    return {
-      id: result.id,
-      email: result.email,
-      telephone: result.telephone,
-      firstName: result.firstName,
-      lastName: result.lastName,
-      role: result.role,
-      isActive: result.isActive,
-      isAdmin: result.isAdmin !== undefined ? result.isAdmin : result.role === 'admin'
-    };
-      
-  } catch (error: any) {
-    console.warn('Erreur mise à jour profil');
-    
-    if (error.message && !error.message.includes('token')) {
-      throw error;
-    }
-    throw new Error('Erreur de connexion au serveur');
-  }
-}
+      case 403:
+        throw new Error('Accès refusé');
 
-  // Mise à jour du mot de passe - CORRECTION DE L'ENDPOINT
-  async updatePassword(passwordData: PasswordData, token: string): Promise<void> {
-    if (!token) {
-      throw new Error('Vous devez être connecté pour modifier votre mot de passe');
-    }
+      case 404:
+        throw new Error('Service temporairement indisponible');
 
-    // Validation finale mot de passe
-    const finalErrors: ValidationErrors = {};
-    Object.keys(passwordData).forEach(key => {
-      const error = this.validatePasswordField(key, passwordData[key as keyof PasswordData] || '', passwordData);
-      if (error) {
-        finalErrors[key as keyof ValidationErrors] = error;
-      }
-    });
+      case 409:
+        throw new Error('Ces informations sont déjà utilisées par un autre compte');
 
-    if (Object.keys(finalErrors).length > 0) {
-      throw new Error('Veuillez corriger les erreurs dans le formulaire');
-    }
+      case 429:
+        throw new Error('Trop de tentatives - Veuillez réessayer plus tard');
 
-    try {
-      const response = await fetch(`${this.VITE_API_URL}/api/auth/update-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword,
-          confirmNewPassword: passwordData.confirmNewPassword 
-        })
-      });
+      case 500:
+        throw new Error('Erreur interne du serveur - Veuillez réessayer');
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        
-        console.warn(`Erreur mise à jour mot de passe: ${response.status}`);
-        
-        if (response.status === 404) {
-          return await this.tryAlternativePasswordUpdate(passwordData, token);
-        }
-        
-        if (response.status === 400 || response.status === 401) {
-          if (errorData.message?.includes('Mot de passe actuel incorrect') || 
-              errorData.message?.includes('Le mot de passe actuel est incorrect')) {
-            throw new Error('Le mot de passe actuel est incorrect');
-          }
-          throw new Error(errorData.message || 'Erreur lors de la mise à jour du mot de passe');
-        }
-        
-        throw new Error('Erreur lors de la mise à jour du mot de passe');
-      }
-
-      await response.json();
-      
-    } catch (error: any) {
-      console.warn('Erreur mise à jour mot de passe');
-      
-      // Gestion des erreurs réseau
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('Erreur de connexion au serveur');
-      }
-      
-      // Propager les erreurs métier existantes
-      if (error.message && 
-          !error.message.includes('token') && 
-          !error.message.includes('Failed to fetch')) {
-        throw error;
-      }
-      
-      throw new Error('Erreur lors de la mise à jour du mot de passe');
+      default:
+        throw new Error('Erreur lors de la mise à jour du profil');
     }
   }
 
-  private async tryAlternativePasswordUpdate(passwordData: PasswordData, token: string): Promise<void> {
-    try {
-      const response = await fetch(`${this.VITE_API_URL}/api/users/update-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword,
-          confirmNewPassword: passwordData.confirmNewPassword
-        })
-      });
+  private async handleGetProfileError(response: Response): Promise<never> {
+    switch (response.status) {
+      case 401:
+        throw new Error('Session expirée - Veuillez vous reconnecter');
+      case 404:
+        throw new Error('Profil non trouvé');
+      default:
+        throw new Error('Erreur lors de la récupération du profil');
+    }
+  }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        
-        if (response.status === 401) {
+  private async handlePasswordUpdateError(response: Response): Promise<never> {
+    const errorData = await response.json().catch(() => ({}));
+
+    switch (response.status) {
+      case 400:
+        // ✅ MESSAGES D'ERREUR CONFORMES BACKEND
+        if (errorData.message?.includes('Les mots de passe ne correspondent pas')) {
+          throw new Error('Les mots de passe ne correspondent pas');
+        }
+        if (errorData.message?.includes('doit contenir au moins 8 caractères')) {
+          throw new Error('Le mot de passe doit contenir au moins 8 caractères');
+        }
+        if (errorData.message?.includes('minuscule, une majuscule et un chiffre')) {
+          throw new Error('Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre');
+        }
+        throw new Error(errorData.message || 'Données de mot de passe invalides');
+
+      case 401:
+        if (errorData.message?.includes('Mot de passe actuel incorrect') ||
+            errorData.message?.includes('Le mot de passe actuel est incorrect')) {
           throw new Error('Le mot de passe actuel est incorrect');
         }
-        
-        throw new Error(errorData.message || 'Erreur lors de la mise à jour du mot de passe');
-      }
+        throw new Error('Session expirée - Veuillez vous reconnecter');
 
-      await response.json();
-      
-    } catch (error: any) {
-      console.warn('Endpoint alternatif échoué');
-      throw new Error('Fonctionnalité temporairement indisponible');
+      default:
+        throw new Error('Erreur lors de la mise à jour du mot de passe');
     }
   }
 
-  validateProfileBeforeSubmit(profileData: UserProfileData): { isValid: boolean; errors: ValidationErrors } {
+  private handleApiError(error: any, context: string): never {
+    console.error(`Erreur ${context}:`, error);
+
+    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+      throw new Error('Erreur de connexion au serveur');
+    }
+
+    throw error;
+  }
+
+  // ==================== ✅ VALIDATIONS POUR FORMULAIRES (CONFORMES BACKEND) ====================
+
+  validateProfileBeforeSubmit(profileData: UserProfileData): {
+    isValid: boolean;
+    errors: ValidationErrors;
+  } {
     const errors: ValidationErrors = {};
     let hasValidData = false;
-    if (profileData.email !== undefined && profileData.email.trim() !== '') {
-      hasValidData = true;
-      const emailError = this.validateProfileField('email', profileData.email);
-      if (emailError) errors.email = emailError;
+
+    // ✅ LOGIQUE STRICTE CONFORME BACKEND
+    if (profileData.email !== undefined) {
+      const emailError = this.validateEmail(profileData.email);
+      if (emailError) {
+        errors.email = emailError;
+      } else {
+        hasValidData = true;
+      }
     }
 
-    if (profileData.telephone !== undefined && profileData.telephone.trim() !== '') {
-      hasValidData = true;
-      const telephoneError = this.validateProfileField('telephone', profileData.telephone);
-      if (telephoneError) errors.telephone = telephoneError;
+    if (profileData.telephone !== undefined) {
+      const telephoneError = this.validateTelephone(profileData.telephone);
+      if (telephoneError) {
+        errors.telephone = telephoneError;
+      } else {
+        hasValidData = true;
+      }
     }
 
-    if (!hasValidData) {
-      errors.email = 'Au moins un champ (email ou téléphone) doit être modifié';
+    // ✅ MÊME RÈGLE QUE BACKEND : au moins un champ valide
+    if (!hasValidData && Object.keys(errors).length === 0) {
+      errors.email = 'Au moins un champ (email ou téléphone) doit être fourni';
     }
 
     return {
       isValid: Object.keys(errors).length === 0,
-      errors
+      errors,
     };
   }
 
-  validatePasswordBeforeSubmit(passwordData: PasswordData): { isValid: boolean; errors: ValidationErrors } {
+  validatePasswordBeforeSubmit(passwordData: PasswordData): {
+    isValid: boolean;
+    errors: ValidationErrors;
+  } {
     const errors: ValidationErrors = {};
-    
-    Object.keys(passwordData).forEach(key => {
-      const error = this.validatePasswordField(key, passwordData[key as keyof PasswordData] || '', passwordData);
-      if (error) {
-        errors[key as keyof ValidationErrors] = error;
-      }
-    });
-    
+
+    // ✅ VALIDATION STRICTE CONFORME BACKEND
+    const currentPasswordError = this.validatePassword(
+      passwordData.currentPassword,
+      'currentPassword'
+    );
+    if (currentPasswordError) errors.currentPassword = currentPasswordError;
+
+    const newPasswordError = this.validatePassword(
+      passwordData.newPassword,
+      'newPassword'
+    );
+    if (newPasswordError) errors.newPassword = newPasswordError;
+
+    const confirmPasswordError = this.validatePassword(
+      passwordData.confirmNewPassword,
+      'confirmNewPassword'
+    );
+    if (confirmPasswordError) {
+      errors.confirmNewPassword = confirmPasswordError;
+    } else if (passwordData.newPassword !== passwordData.confirmNewPassword) {
+      errors.confirmNewPassword = 'Les mots de passe ne correspondent pas';
+    }
+
     return {
       isValid: Object.keys(errors).length === 0,
-      errors
+      errors,
+    };
+  }
+
+  // ==================== 🎯 FORMATAGE RÉPONSES (CONFORME BACKEND) ====================
+
+  private formatUserResponse(userData: any): any {
+    // ✅ STRUCTURE STRICTE CONFORME RÉPONSES BACKEND
+    return {
+      id: userData._id,
+      email: userData.email,
+      telephone: userData.telephone,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      role: userData.role,
+      isActive: userData.isActive,
+      isAdmin: userData.isAdmin !== undefined 
+        ? userData.isAdmin 
+        : userData.role === 'admin',
     };
   }
 }

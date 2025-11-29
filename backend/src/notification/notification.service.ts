@@ -15,7 +15,6 @@ export class NotificationService {
     this.initializeTransporter();
   }
 
-  // Updated initializeTransporter() method for both services
   private initializeTransporter() {
     if (
       !this.configService.get("EMAIL_HOST") ||
@@ -23,88 +22,62 @@ export class NotificationService {
       !this.configService.get("EMAIL_PASS")
     ) {
       this.logger.warn(
-        "Configuration email incomplète - service email de notication désactivé",
+        "Configuration email incomplète - notifications désactivées",
       );
       this.emailServiceAvailable = false;
       return;
     }
 
     try {
-      const isProduction = this.configService.get("NODE_ENV") === "production";
-      const port = this.configService.get("EMAIL_PORT") || 587;
-      const isSecure = this.configService.get("EMAIL_SECURE") === "true";
-
       this.transporter = nodemailer.createTransport({
         host: this.configService.get("EMAIL_HOST"),
-        port: port,
-        secure: isSecure, // true for 465, false for other ports
+        port: this.configService.get("EMAIL_PORT"),
+        secure: this.configService.get("EMAIL_SECURE") === "true",
         auth: {
           user: this.configService.get("EMAIL_USER"),
           pass: this.configService.get("EMAIL_PASS"),
         },
-        // Remove SSLv3 cipher - use modern TLS instead
         tls: {
-          rejectUnauthorized: isProduction,
-          // Let the system negotiate the best available cipher
-          minVersion: "TLSv1.2",
+          rejectUnauthorized:
+            this.configService.get("NODE_ENV") === "production",
+          ciphers: "SSLv3",
         },
-        // Connection pooling
-        pool: true,
-        maxConnections: 5,
-        maxMessages: 100,
-
-        // Timeout configurations
-        connectionTimeout: 30000, // 30 seconds
-        greetingTimeout: 15000, // 15 seconds
-        socketTimeout: 45000, // 45 seconds (increased)
-
-        // Logging for debugging (remove in production)
-        logger: !isProduction,
-        debug: !isProduction,
+        connectionTimeout: 35000,
+        greetingTimeout: 20000,
+        socketTimeout: 35000,
       });
 
-      // Single connection test with proper error handling
-      this.verifyConnection();
+      this.testConnection()
+        .then((success) => {
+          this.emailServiceAvailable = success;
+        })
+        .catch(() => {
+          this.emailServiceAvailable = false;
+        });
     } catch (error) {
       this.logger.error(
-        "Erreur initialisation service email de notification",
+        "Erreur initialisation service notification email",
         error.stack,
       );
       this.emailServiceAvailable = false;
     }
   }
 
-  // Separated verification method to avoid multiple calls
-  private async verifyConnection(): Promise<void> {
+  private async testConnection(): Promise<boolean> {
     if (!this.transporter) {
-      this.emailServiceAvailable = false;
-      return;
+      return false;
     }
 
     try {
       await this.transporter.verify();
-      this.emailServiceAvailable = true;
-      this.logger.log(
-        "✓ Service email initialisé pour la notification avec succès",
-      );
+      this.logger.log("Service notification email initialisé avec succès");
+      return true;
     } catch (error) {
-      this.emailServiceAvailable = false;
       this.logger.error(
-        `✗ Test connexion service email de notifications échoué: ${error.message}`,
+        `Test connexion notification email échoué: ${error.message}`,
       );
-
-      // Provide helpful debugging info
-      this.logger.debug(
-        `Configuration: ${this.configService.get("EMAIL_HOST")}:${this.configService.get("EMAIL_PORT")}`,
-      );
+      return false;
     }
-  }
-
-  // Optional: Add a method to retry connection
-  async retryConnection(): Promise<boolean> {
-    this.logger.log("Tentative de reconnexion au service email...");
-    await this.verifyConnection();
-    return this.emailServiceAvailable;
   }
 
   private getEmailTemplate(header: string, content: string, firstName: string) {

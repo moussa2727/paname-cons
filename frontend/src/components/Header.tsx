@@ -52,7 +52,7 @@ function Header() {
       ) {
         setNav(false);
       }
-      
+
       if (
         dropdownOpen &&
         dropdownRef.current &&
@@ -71,7 +71,7 @@ function Header() {
 
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleEscapeKey);
-    
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscapeKey);
@@ -80,8 +80,8 @@ function Header() {
 
   // Animation clignotante pour "Services" - version optimisée
   useEffect(() => {
-let blinkTimeout: any;
-    setBlinkColor('text-gray-600'); // Réinitialiser la couleur avant de commencer    
+    let blinkTimeout: any;
+    setBlinkColor('text-gray-600'); // Réinitialiser la couleur avant de commencer
     const blink = () => {
       setBlinkColor('text-sky-400');
       blinkTimeout = setTimeout(() => {
@@ -134,39 +134,41 @@ let blinkTimeout: any;
 
   // Options du menu utilisateur
   const userMenuItems = [
-    { 
-      name: 'Tableau de bord', 
-      path: '/gestionnaire/statistiques', 
+    {
+      name: 'Tableau de bord',
+      path: '/gestionnaire/statistiques',
       icon: <LayoutDashboard className='w-4 h-4' />,
-      visible: user?.role === 'admin'
+      visible: user?.role === 'admin',
     },
-    { 
-      name: 'Ma Procédure', 
-      path: '/user-procedure', 
+    {
+      name: 'Ma Procédure',
+      path: '/user-procedure',
       icon: <FileText className='w-4 h-4' />,
-      visible: user?.role === 'user'
+      visible: user?.role === 'user',
     },
-    { 
-      name: 'Mes Rendez-Vous', 
-      path: '/user-rendez-vous', 
+    {
+      name: 'Mes Rendez-Vous',
+      path: '/user-rendez-vous',
       icon: <Calendar className='w-4 h-4' />,
-      visible: user?.role === 'user'
+      visible: user?.role === 'user',
     },
-    { 
-      name: 'Mon Profil', 
-      path: '/user-profile', 
+    {
+      name: 'Mon Profil',
+      path: '/user-profile',
       icon: <UserIcon className='w-4 h-4' />,
-      visible: user?.role === 'user'
+      visible: user?.role === 'user',
     },
-    { 
-      name: 'Déconnexion', 
-      action: handleLogout, 
-      icon: isLoggingOut ? 
-        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 
-        <LogOut className='w-4 h-4' />,
+    {
+      name: 'Déconnexion',
+      action: handleLogout,
+      icon: isLoggingOut ? (
+        <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+      ) : (
+        <LogOut className='w-4 h-4' />
+      ),
       visible: true,
-      disabled: isLoggingOut
-    }
+      disabled: isLoggingOut,
+    },
   ];
 
   // Générer les initiales de l'utilisateur
@@ -185,17 +187,17 @@ let blinkTimeout: any;
         <div className='bg-sky-500 text-white text-sm h-10 hidden md:block'>
           <div className='mx-auto px-4 h-full flex flex-row items-center justify-between'>
             <div className='flex items-center space-x-6'>
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-sky-400 rounded mr-2 animate-pulse"></div>
-                <div className="w-32 h-4 bg-sky-400 rounded animate-pulse"></div>
+              <div className='flex items-center'>
+                <div className='w-4 h-4 bg-sky-400 rounded mr-2 animate-pulse'></div>
+                <div className='w-32 h-4 bg-sky-400 rounded animate-pulse'></div>
               </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-sky-400 rounded mr-2 animate-pulse"></div>
-                <div className="w-48 h-4 bg-sky-400 rounded animate-pulse"></div>
+              <div className='flex items-center'>
+                <div className='w-4 h-4 bg-sky-400 rounded mr-2 animate-pulse'></div>
+                <div className='w-48 h-4 bg-sky-400 rounded animate-pulse'></div>
               </div>
             </div>
-            <div className="flex items-center">
-              <div className="w-40 h-6 bg-sky-400 rounded animate-pulse"></div>
+            <div className='flex items-center'>
+              <div className='w-40 h-6 bg-sky-400 rounded animate-pulse'></div>
             </div>
           </div>
         </div>
@@ -205,23 +207,26 @@ let blinkTimeout: any;
           <div className='px-4'>
             <div className='flex items-center justify-between py-3'>
               {/* Logo skeleton */}
-              <div className="flex items-center">
+              <div className='flex items-center'>
                 <div className='w-16 h-16 bg-gray-200 rounded animate-pulse'></div>
               </div>
 
               {/* Menu desktop skeleton */}
               <div className='hidden lg:flex items-center space-x-4'>
-                <div className="flex space-x-2">
+                <div className='flex space-x-2'>
                   {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="w-20 h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                    <div
+                      key={i}
+                      className='w-20 h-10 bg-gray-200 rounded-lg animate-pulse'
+                    ></div>
                   ))}
                 </div>
-                <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse ml-4"></div>
+                <div className='w-10 h-10 bg-gray-200 rounded-full animate-pulse ml-4'></div>
               </div>
 
               {/* Bouton hamburger skeleton */}
               <div className='lg:hidden p-2'>
-                <div className="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
+                <div className='w-6 h-6 bg-gray-200 rounded animate-pulse'></div>
               </div>
             </div>
           </div>
@@ -302,7 +307,11 @@ let blinkTimeout: any;
 
             {/* Menu desktop - visible uniquement sur grand écran */}
             <div className='hidden lg:flex items-center space-x-4'>
-              <ul className='flex space-x-2' role='menubar' aria-label='Navigation principale'>
+              <ul
+                className='flex space-x-2'
+                role='menubar'
+                aria-label='Navigation principale'
+              >
                 {navItems.map(item => (
                   <li key={item.path} role='none'>
                     <Link
@@ -326,62 +335,64 @@ let blinkTimeout: any;
 
               {/* Boutons de connexion/inscription ou menu utilisateur */}
               {isAuthenticated ? (
-                <div className="relative ml-4" ref={dropdownRef}>
+                <div className='relative ml-4' ref={dropdownRef}>
                   <button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-400 transition-transform duration-200 hover:scale-105"
-                    aria-label="Menu utilisateur"
+                    className='flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-400 transition-transform duration-200 hover:scale-105'
+                    aria-label='Menu utilisateur'
                     aria-expanded={dropdownOpen}
-                    aria-haspopup="true"
+                    aria-haspopup='true'
                   >
-                    {getUserInitials() || <UserIcon className="w-5 h-5" />}
+                    {getUserInitials() || <UserIcon className='w-5 h-5' />}
                   </button>
-                  
+
                   {dropdownOpen && (
-                    <div 
-                      className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200 animate-fadeIn"
-                      role="menu"
-                      aria-orientation="vertical"
+                    <div
+                      className='absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200 animate-fadeIn'
+                      role='menu'
+                      aria-orientation='vertical'
                     >
-                      <div className="px-4 py-2 border-b border-gray-100">
-                        <p className="text-sm font-medium text-gray-800 truncate">
+                      <div className='px-4 py-2 border-b border-gray-100'>
+                        <p className='text-sm font-medium text-gray-800 truncate'>
                           {user?.firstName} {user?.lastName}
                         </p>
-                        <p className="text-xs text-gray-500 truncate">
+                        <p className='text-xs text-gray-500 truncate'>
                           {user?.email}
                         </p>
                       </div>
-                      
-                      <div className="py-1">
-                        {userMenuItems.filter(item => item.visible).map((item, index) => (
-                          item.path ? (
-                            <Link
-                              key={index}
-                              to={item.path}
-                              className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-150"
-                              onClick={() => setDropdownOpen(false)}
-                              role="menuitem"
-                              tabIndex={0}
-                            >
-                              {item.icon}
-                              <span className="ml-3">{item.name}</span>
-                            </Link>
-                          ) : (
-                            <button
-                              key={index}
-                              onClick={() => {
-                                if (item.action) item.action();
-                              }}
-                              className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-150"
-                              role="menuitem"
-                              disabled={item.disabled}
-                              aria-disabled={item.disabled}
-                            >
-                              {item.icon}
-                              <span className="ml-3">{item.name}</span>
-                            </button>
-                          )
-                        ))}
+
+                      <div className='py-1'>
+                        {userMenuItems
+                          .filter(item => item.visible)
+                          .map((item, index) =>
+                            item.path ? (
+                              <Link
+                                key={index}
+                                to={item.path}
+                                className='flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-150'
+                                onClick={() => setDropdownOpen(false)}
+                                role='menuitem'
+                                tabIndex={0}
+                              >
+                                {item.icon}
+                                <span className='ml-3'>{item.name}</span>
+                              </Link>
+                            ) : (
+                              <button
+                                key={index}
+                                onClick={() => {
+                                  if (item.action) item.action();
+                                }}
+                                className='flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-150'
+                                role='menuitem'
+                                disabled={item.disabled}
+                                aria-disabled={item.disabled}
+                              >
+                                {item.icon}
+                                <span className='ml-3'>{item.name}</span>
+                              </button>
+                            )
+                          )}
                       </div>
                     </div>
                   )}
@@ -391,7 +402,7 @@ let blinkTimeout: any;
                   <Link
                     to='/connexion'
                     className='flex items-center px-4 py-2 text-sky-600 hover:bg-sky-50 border border-sky-200 transition-colors duration-200 rounded-full'
-                    aria-label="Se connecter"
+                    aria-label='Se connecter'
                   >
                     <LogIn className='w-5 h-5 mr-2' />
                     <span>Connexion</span>
@@ -399,7 +410,7 @@ let blinkTimeout: any;
                   <Link
                     to='/inscription'
                     className='flex items-center px-4 py-2 text-white bg-sky-500 hover:bg-sky-600 transition-colors duration-200 rounded-full'
-                    aria-label="Créer un compte"
+                    aria-label='Créer un compte'
                   >
                     <UserPlus className='w-5 h-5 mr-2' />
                     <span>Inscription</span>
@@ -455,50 +466,52 @@ let blinkTimeout: any;
 
                 {/* Section utilisateur connecté */}
                 {isAuthenticated && (
-                  <div className="px-4 py-3 border-t">
-                    <div className="flex items-center mb-3">
-                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-medium mr-3">
-                        {getUserInitials() || <UserIcon className="w-5 h-5" />}
+                  <div className='px-4 py-3 border-t'>
+                    <div className='flex items-center mb-3'>
+                      <div className='flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-medium mr-3'>
+                        {getUserInitials() || <UserIcon className='w-5 h-5' />}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-800 truncate">
+                        <p className='text-sm font-medium text-gray-800 truncate'>
                           {user?.firstName} {user?.lastName}
                         </p>
-                        <p className="text-xs text-gray-500 truncate">
+                        <p className='text-xs text-gray-500 truncate'>
                           {user?.email}
                         </p>
                       </div>
                     </div>
 
-                    <div className="space-y-1">
-                      {userMenuItems.filter(item => item.visible).map((item, index) => (
-                        item.path ? (
-                          <Link
-                            key={index}
-                            to={item.path}
-                            onClick={() => setNav(false)}
-                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors duration-150"
-                            role="menuitem"
-                          >
-                            {item.icon}
-                            <span className="ml-3">{item.name}</span>
-                          </Link>
-                        ) : (
-                          <button
-                            key={index}
-                            onClick={() => {
-                              if (item.action) item.action();
-                            }}
-                            className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors duration-150"
-                            role="menuitem"
-                            disabled={item.disabled}
-                            aria-disabled={item.disabled}
-                          >
-                            {item.icon}
-                            <span className="ml-3">{item.name}</span>
-                          </button>
-                        )
-                      ))}
+                    <div className='space-y-1'>
+                      {userMenuItems
+                        .filter(item => item.visible)
+                        .map((item, index) =>
+                          item.path ? (
+                            <Link
+                              key={index}
+                              to={item.path}
+                              onClick={() => setNav(false)}
+                              className='flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors duration-150'
+                              role='menuitem'
+                            >
+                              {item.icon}
+                              <span className='ml-3'>{item.name}</span>
+                            </Link>
+                          ) : (
+                            <button
+                              key={index}
+                              onClick={() => {
+                                if (item.action) item.action();
+                              }}
+                              className='flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors duration-150'
+                              role='menuitem'
+                              disabled={item.disabled}
+                              aria-disabled={item.disabled}
+                            >
+                              {item.icon}
+                              <span className='ml-3'>{item.name}</span>
+                            </button>
+                          )
+                        )}
                     </div>
                   </div>
                 )}
@@ -510,7 +523,7 @@ let blinkTimeout: any;
                       to='/connexion'
                       onClick={() => setNav(false)}
                       className='flex items-center justify-center w-full px-4 py-2 text-sky-600 hover:bg-sky-50 border border-sky-200 rounded-lg transition-colors duration-200'
-                      role="menuitem"
+                      role='menuitem'
                     >
                       <LogIn className='w-5 h-5 mr-2' />
                       <span>Connexion</span>
@@ -519,7 +532,7 @@ let blinkTimeout: any;
                       to='/inscription'
                       onClick={() => setNav(false)}
                       className='flex items-center justify-center w-full px-4 py-2 text-white bg-sky-500 hover:bg-sky-600 rounded-lg transition-colors duration-200 mt-2'
-                      role="menuitem"
+                      role='menuitem'
                     >
                       <UserPlus className='w-5 h-5 mr-2' />
                       <span>Inscription</span>

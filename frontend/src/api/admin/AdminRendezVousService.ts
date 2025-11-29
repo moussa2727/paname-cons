@@ -1,3 +1,4 @@
+// AdminRendezVousService.ts
 import { useAuth } from '../../context/AuthContext';
 
 export interface Rendezvous {
@@ -17,6 +18,9 @@ export interface Rendezvous {
   avisAdmin?: 'Favorable' | 'Défavorable';
   createdAt: string;
   updatedAt: string;
+  cancelledAt?: string;
+  cancelledBy?: 'user' | 'admin';
+  cancellationReason?: string;
 }
 
 export interface CreateRendezVousData {
@@ -33,70 +37,84 @@ export interface CreateRendezVousData {
   filiereAutre: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+export interface RendezvousResponse {
+  data: Rendezvous[];
+  total: number;
+}
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 export const useAdminRendezVousService = () => {
-  const { token, refreshToken } = useAuth();
+  const { user, isAuthenticated, refreshAuth } = useAuth();
 
-  const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}) => {
-    if (!token) {
-      throw new Error('Token non disponible');
+  const makeAuthenticatedRequest = async (
+    url: string,
+    options: RequestInit = {}
+  ): Promise<Response> => {
+    if (!isAuthenticated || !user) {
+      throw new Error('Utilisateur non authentifié');
     }
 
-    const makeRequest = async (currentToken: string): Promise<Response> => {
-      return fetch(`${API_URL}${url}`, {
+    const makeRequest = async (): Promise<Response> => {
+      const config: RequestInit = {
         headers: {
-          'Authorization': `Bearer ${currentToken}`,
           'Content-Type': 'application/json',
           ...options.headers,
         },
         credentials: 'include',
         ...options,
-      });
-    };
+      };
 
-    let response = await makeRequest(token);
-
-    if (response.status === 401) {
-      const refreshed = await refreshToken();
-      if (refreshed) {
-        const newToken = localStorage.getItem('token');
-        if (newToken) {
-          response = await makeRequest(newToken);
-        } else {
-          throw new Error('Token non disponible après rafraîchissement');
+      const response = await fetch(`${API_URL}${url}`, config);
+      
+      if (response.status === 401) {
+        // Tentative de rafraîchissement du token
+        const refreshed = await refreshAuth();
+        if (refreshed) {
+          // Retenter la requête après rafraîchissement
+          return await fetch(`${API_URL}${url}`, config);
         }
-      } else {
         throw new Error('Session expirée');
       }
-    }
+      
+      return response;
+    };
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Erreur lors de la requête');
-    }
+    try {
+      const response = await makeRequest();
 
-    return response;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Erreur ${response.status}: ${response.statusText}`);
+      }
+
+      return response;
+    } catch (error: any) {
+      if (error.message === 'Session expirée') {
+        throw new Error('Session expirée - Veuillez vous reconnecter');
+      }
+      throw error;
+    }
   };
 
   const fetchRendezvous = async (
     page: number = 1,
     limit: number = 10,
     searchTerm: string = '',
-    selectedStatus: string = 'tous'
-  ): Promise<{ data: Rendezvous[]; total: number }> => {
-    let url = `/api/rendezvous?page=${page}&limit=${limit}`;
-    
-    if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
-    if (selectedStatus && selectedStatus !== 'tous') url += `&status=${encodeURIComponent(selectedStatus)}`;
+    selectedStatus: string = 'tous',
+    date?: string
+  ): Promise<RendezvousResponse> => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
 
-    const response = await makeAuthenticatedRequest(url);
-    const data = await response.json();
-    
-    return {
-      data: data.data || [],
-      total: data.total || 0
-    };
+    if (searchTerm) params.append('search', searchTerm);
+    if (selectedStatus && selectedStatus !== 'tous') params.append('status', selectedStatus);
+    if (date) params.append('date', date);
+
+    const response = await makeAuthenticatedRequest(`/api/rendezvous?${params.toString()}`);
+    return await response.json();
   };
 
   const fetchAvailableDates = async (): Promise<string[]> => {
@@ -107,22 +125,26 @@ export const useAdminRendezVousService = () => {
   const fetchAvailableSlots = async (date: string): Promise<string[]> => {
     if (!date) return [];
     
-    const response = await makeAuthenticatedRequest(`/api/rendezvous/available-slots?date=${date}`);
+    const response = await makeAuthenticatedRequest(`/api/rendezvous/available-slots?date=${encodeURIComponent(date)}`);
     return await response.json();
   };
 
   const updateStatus = async (
-    id: string, 
-    status: string, 
+    id: string,
+    status: string,
     avisAdmin?: string
   ): Promise<Rendezvous> => {
     const bodyData: any = { status };
-    
+
+    // STRICTEMENT conforme à la logique backend
     if (status === 'Terminé') {
-      if (!avisAdmin || (avisAdmin !== 'Favorable' && avisAdmin !== 'Défavorable')) {
-        throw new Error('L\'avis admin (Favorable ou Défavorable) est obligatoire pour terminer un rendez-vous');
+      if (!avisAdmin || !['Favorable', 'Défavorable'].includes(avisAdmin)) {
+        throw new Error("L'avis admin (Favorable ou Défavorable) est obligatoire pour terminer un rendez-vous");
       }
       bodyData.avisAdmin = avisAdmin;
+    } else {
+      // Nettoyer l'avisAdmin si le statut n'est pas "Terminé"
+      bodyData.avisAdmin = null;
     }
 
     const response = await makeAuthenticatedRequest(`/api/rendezvous/${id}/status`, {
@@ -139,19 +161,21 @@ export const useAdminRendezVousService = () => {
     });
   };
 
-  const createRendezvous = async (createData: CreateRendezVousData): Promise<Rendezvous> => {
-    // LOGIQUE STRICTE POUR LES CHAMPS "AUTRE" - IDENTIQUE AU BACKEND
+  const createRendezvous = async (
+    createData: CreateRendezVousData
+  ): Promise<Rendezvous> => {
+    // LOGIQUE STRICTE IDENTIQUE AU BACKEND
     const processedData: any = {
       firstName: createData.firstName.trim(),
       lastName: createData.lastName.trim(),
-      email: createData.email.trim(),
+      email: createData.email.toLowerCase().trim(),
       telephone: createData.telephone.trim(),
       date: createData.date,
       time: createData.time,
-      niveauEtude: createData.niveauEtude
+      niveauEtude: createData.niveauEtude,
     };
 
-    // Destination - logique stricte
+    // Destination - logique backend stricte
     if (createData.destination === 'Autre') {
       if (!createData.destinationAutre || createData.destinationAutre.trim() === '') {
         throw new Error('Veuillez préciser votre destination');
@@ -160,9 +184,10 @@ export const useAdminRendezVousService = () => {
       processedData.destinationAutre = createData.destinationAutre.trim();
     } else {
       processedData.destination = createData.destination;
+      processedData.destinationAutre = undefined;
     }
 
-    // Filière - logique stricte
+    // Filière - logique backend stricte
     if (createData.filiere === 'Autre') {
       if (!createData.filiereAutre || createData.filiereAutre.trim() === '') {
         throw new Error('Veuillez préciser votre filière');
@@ -171,9 +196,10 @@ export const useAdminRendezVousService = () => {
       processedData.filiereAutre = createData.filiereAutre.trim();
     } else {
       processedData.filiere = createData.filiere;
+      processedData.filiereAutre = undefined;
     }
 
-    // Validation finale
+    // Validation finale conforme au backend
     if (!processedData.destination || processedData.destination.trim() === '') {
       throw new Error('La destination est obligatoire');
     }
