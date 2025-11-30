@@ -287,166 +287,168 @@ export class AuthService {
   }
 
   // ==================== 🔄 REFRESH TOKEN ====================
-async refresh(refresh_token: string): Promise<{
-  access_token: string;
-  refresh_token?: string;
-  sessionExpired?: boolean;
-  sessionCreatedAt?: number;
-}> {
-  this.logger.log(`🔄 Tentative de rafraîchissement de token`);
+  async refresh(refresh_token: string): Promise<{
+    access_token: string;
+    refresh_token?: string;
+    sessionExpired?: boolean;
+    sessionCreatedAt?: number;
+  }> {
+    this.logger.log(`🔄 Tentative de rafraîchissement de token`);
 
-  if (!refresh_token) {
-    throw new UnauthorizedException("Refresh token manquant");
-  }
-
-  try {
-    // ✅ VÉRIFICATION WHITELIST
-    const isWhitelisted = await this.refreshTokenService.isValid(refresh_token);
-    if (!isWhitelisted) {
-      this.logger.warn("❌ Refresh token non autorisé (non whitelisté)");
-      throw new UnauthorizedException("Refresh token non autorisé");
+    if (!refresh_token) {
+      throw new UnauthorizedException("Refresh token manquant");
     }
 
-    // ✅ VÉRIFICATION RÉVOCATION
-    const wasRevoked = await this.revokedTokenService.isTokenRevoked(refresh_token);
-    if (wasRevoked) {
-      this.logger.warn("❌ Refresh token déjà utilisé");
-      throw new UnauthorizedException("Refresh token déjà utilisé");
-    }
+    try {
+      // ✅ VÉRIFICATION WHITELIST
+      const isWhitelisted =
+        await this.refreshTokenService.isValid(refresh_token);
+      if (!isWhitelisted) {
+        this.logger.warn("❌ Refresh token non autorisé (non whitelisté)");
+        throw new UnauthorizedException("Refresh token non autorisé");
+      }
 
-    // ✅ VÉRIFICATION SIGNATURE
-    const payload = this.jwtService.verify(refresh_token, {
-      secret: process.env.JWT_REFRESH_SECRET,
-    });
+      // ✅ VÉRIFICATION RÉVOCATION
+      const wasRevoked =
+        await this.revokedTokenService.isTokenRevoked(refresh_token);
+      if (wasRevoked) {
+        this.logger.warn("❌ Refresh token déjà utilisé");
+        throw new UnauthorizedException("Refresh token déjà utilisé");
+      }
 
-    if ((payload as any)?.tokenType !== "refresh") {
-      this.logger.warn("❌ Type de token invalide");
-      throw new UnauthorizedException("Type de token invalide");
-    }
+      // ✅ VÉRIFICATION SIGNATURE
+      const payload = this.jwtService.verify(refresh_token, {
+        secret: process.env.JWT_REFRESH_SECRET,
+      });
 
-    // ✅ VÉRIFICATION DURÉE MAXIMALE DE SESSION (25 minutes)
-    const maxSessionMs = AuthConstants.MAX_SESSION_DURATION_MS;
-    const issuedAtMs = ((payload as any)?.iat || 0) * 1000;
-    if (issuedAtMs && Date.now() - issuedAtMs > maxSessionMs) {
+      if ((payload as any)?.tokenType !== "refresh") {
+        this.logger.warn("❌ Type de token invalide");
+        throw new UnauthorizedException("Type de token invalide");
+      }
+
+      // ✅ VÉRIFICATION DURÉE MAXIMALE DE SESSION (25 minutes)
+      const maxSessionMs = AuthConstants.MAX_SESSION_DURATION_MS;
+      const issuedAtMs = ((payload as any)?.iat || 0) * 1000;
+      if (issuedAtMs && Date.now() - issuedAtMs > maxSessionMs) {
+        this.logger.log(
+          `🔒 Session expirée après 25 minutes pour: ${payload.sub}`,
+        );
+        try {
+          await this.logoutUser(
+            (payload as any).sub,
+            "Session maximale atteinte",
+          );
+          await this.refreshTokenService.deactivateByToken(refresh_token);
+        } catch (error) {
+          this.logger.warn(`⚠️ Erreur lors du logout: ${error.message}`);
+        }
+        return {
+          access_token: "",
+          refresh_token: undefined,
+          sessionExpired: true,
+          sessionCreatedAt: issuedAtMs,
+        };
+      }
+
+      // ✅ VÉRIFICATION UTILISATEUR
+      const user = await this.usersService.findById(payload.sub);
+      if (!user) {
+        this.logger.warn(`❌ Utilisateur non trouvé: ${payload.sub}`);
+        throw new UnauthorizedException("Utilisateur non trouvé");
+      }
+
+      const userId = this.convertObjectIdToString(user._id);
       this.logger.log(
-        `🔒 Session expirée après 25 minutes pour: ${payload.sub}`,
+        `✅ Utilisateur trouvé pour rafraîchissement: ${user.email}`,
       );
+
+      // ✅ GÉNÉRATION NOUVEAU ACCESS TOKEN
+      const newJti = uuidv4();
+      const new_access_token = this.jwtService.sign(
+        {
+          sub: userId,
+          email: user.email,
+          role: user.role,
+          jti: newJti,
+          tokenType: "access",
+        },
+        {
+          expiresIn: AuthConstants.JWT_EXPIRATION,
+        },
+      );
+
+      // ✅ GÉNÉRATION NOUVEAU REFRESH TOKEN (rotation)
+      const newRefreshJti = uuidv4();
+      const new_refresh_token = this.jwtService.sign(
+        {
+          sub: userId,
+          email: user.email,
+          role: user.role,
+          jti: newRefreshJti,
+          tokenType: "refresh",
+        },
+        {
+          expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
+          secret: process.env.JWT_REFRESH_SECRET,
+        },
+      );
+
+      // ✅ CRÉATION NOUVELLE SESSION
+      await this.sessionService.create(
+        userId,
+        new_access_token,
+        new Date(Date.now() + 15 * 60 * 1000),
+      );
+
+      // ✅ RÉVOCATION ANCIEN REFRESH TOKEN
       try {
-        await this.logoutUser(
-          (payload as any).sub,
-          "Session maximale atteinte",
+        const expMs = ((payload as any)?.exp || 0) * 1000;
+        await this.revokedTokenService.revokeToken(
+          refresh_token,
+          new Date(expMs || Date.now() + 7 * 24 * 60 * 60 * 1000),
         );
         await this.refreshTokenService.deactivateByToken(refresh_token);
+        this.logger.log(`✅ Ancien refresh token révoqué`);
       } catch (error) {
-        this.logger.warn(`⚠️ Erreur lors du logout: ${error.message}`);
+        this.logger.warn(
+          `⚠️ Impossible de révoquer l'ancien refresh token: ${error.message}`,
+        );
       }
+
+      // ✅ WHITELIST NOUVEAU REFRESH TOKEN
+      try {
+        const decodedNewRefresh = this.jwtService.decode(
+          new_refresh_token,
+        ) as any;
+        const newExp = new Date(
+          (decodedNewRefresh?.exp || 0) * 1000 ||
+            Date.now() + 7 * 24 * 60 * 60 * 1000,
+        );
+        await this.refreshTokenService.create(
+          userId,
+          new_refresh_token,
+          newExp,
+        );
+        this.logger.log(`✅ Nouveau refresh token whitelisté`);
+      } catch (error) {
+        this.logger.warn(
+          `⚠️ Impossible d'enregistrer le nouveau refresh token: ${error.message}`,
+        );
+      }
+
+      this.logger.log(`✅ Rafraîchissement réussi pour: ${user.email}`);
+
       return {
-        access_token: "",
-        refresh_token: undefined,
-        sessionExpired: true,
-        sessionCreatedAt: issuedAtMs,
+        access_token: new_access_token,
+        refresh_token: new_refresh_token,
+        sessionExpired: false,
+        sessionCreatedAt: Date.now(),
       };
-    }
-
-    // ✅ VÉRIFICATION UTILISATEUR
-    const user = await this.usersService.findById(payload.sub);
-    if (!user) {
-      this.logger.warn(`❌ Utilisateur non trouvé: ${payload.sub}`);
-      throw new UnauthorizedException("Utilisateur non trouvé");
-    }
-
-    const userId = this.convertObjectIdToString(user._id);
-    this.logger.log(
-      `✅ Utilisateur trouvé pour rafraîchissement: ${user.email}`,
-    );
-
-    // ✅ GÉNÉRATION NOUVEAU ACCESS TOKEN
-    const newJti = uuidv4();
-    const new_access_token = this.jwtService.sign(
-      {
-        sub: userId,
-        email: user.email,
-        role: user.role,
-        jti: newJti,
-        tokenType: "access",
-      },
-      {
-        expiresIn: AuthConstants.JWT_EXPIRATION,
-      },
-    );
-
-    // ✅ GÉNÉRATION NOUVEAU REFRESH TOKEN (rotation)
-    const newRefreshJti = uuidv4();
-    const new_refresh_token = this.jwtService.sign(
-      {
-        sub: userId,
-        email: user.email,
-        role: user.role,
-        jti: newRefreshJti,
-        tokenType: "refresh",
-      },
-      {
-        expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
-        secret: process.env.JWT_REFRESH_SECRET,
-      },
-    );
-
-    // ✅ CRÉATION NOUVELLE SESSION
-    await this.sessionService.create(
-      userId,
-      new_access_token,
-      new Date(Date.now() + 15 * 60 * 1000),
-    );
-
-    // ✅ RÉVOCATION ANCIEN REFRESH TOKEN
-    try {
-      const expMs = ((payload as any)?.exp || 0) * 1000;
-      await this.revokedTokenService.revokeToken(
-        refresh_token,
-        new Date(expMs || Date.now() + 7 * 24 * 60 * 60 * 1000),
-      );
-      await this.refreshTokenService.deactivateByToken(refresh_token);
-      this.logger.log(`✅ Ancien refresh token révoqué`);
     } catch (error) {
-      this.logger.warn(
-        `⚠️ Impossible de révoquer l'ancien refresh token: ${error.message}`,
-      );
+      this.logger.error(`❌ Erreur de refresh token: ${error.message}`);
+      throw new UnauthorizedException("Refresh token invalide");
     }
-
-    // ✅ WHITELIST NOUVEAU REFRESH TOKEN
-    try {
-      const decodedNewRefresh = this.jwtService.decode(
-        new_refresh_token,
-      ) as any;
-      const newExp = new Date(
-        (decodedNewRefresh?.exp || 0) * 1000 ||
-          Date.now() + 7 * 24 * 60 * 60 * 1000,
-      );
-      await this.refreshTokenService.create(
-        userId,
-        new_refresh_token,
-        newExp,
-      );
-      this.logger.log(`✅ Nouveau refresh token whitelisté`);
-    } catch (error) {
-      this.logger.warn(
-        `⚠️ Impossible d'enregistrer le nouveau refresh token: ${error.message}`,
-      );
-    }
-
-    this.logger.log(`✅ Rafraîchissement réussi pour: ${user.email}`);
-
-    return {
-      access_token: new_access_token,
-      refresh_token: new_refresh_token,
-      sessionExpired: false,
-      sessionCreatedAt: Date.now(),
-    };
-  } catch (error) {
-    this.logger.error(`❌ Erreur de refresh token: ${error.message}`);
-    throw new UnauthorizedException("Refresh token invalide");
   }
-}
 
   // ==================== 👤 VALIDATION UTILISATEUR ====================
   async validateUser(email: string, password: string): Promise<User | null> {

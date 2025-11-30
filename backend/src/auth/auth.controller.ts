@@ -357,8 +357,8 @@ export class AuthController {
 
       // ✅ RÉPONSE COHÉRENTE AVEC LE SERVICE
       return res.status(201).json({
-        access_token: result.access_token, 
-        refresh_token: result.refresh_token, 
+        access_token: result.access_token,
+        refresh_token: result.refresh_token,
         user: {
           id: result.user.id,
           email: result.user.email,
