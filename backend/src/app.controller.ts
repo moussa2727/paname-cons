@@ -1,4 +1,4 @@
-import { Controller, Get, Res, Req, UseInterceptors } from "@nestjs/common";
+import { Controller, Get, Res, Req, UseInterceptors, Redirect } from "@nestjs/common";
 import { Request, Response } from "express";
 import { LoggingInterceptor } from "./shared/interceptors/logging.interceptor";
 
@@ -6,14 +6,20 @@ import { LoggingInterceptor } from "./shared/interceptors/logging.interceptor";
 @UseInterceptors(LoggingInterceptor)
 export class AppController {
   @Get()
-  root(@Req() req: Request, @Res() res: Response) {
+  @Redirect('/api')
+  redirectToApi() {
+    // Redirection automatique vers /api
+  }
+
+  @Get("api")
+  apiRoot(@Req() req: Request, @Res() res: Response) {
     try {
       const apiInfo = {
         status: "success",
-        message: "API Paname Consulting",
+        message: "🚀 Paname Consulting API is running",
         timestamp: new Date().toISOString(),
         version: process.env.npm_package_version || "1.0.0",
-        environment: process.env.NODE_ENV || "development",
+        environment: process.env.NODE_ENV || "production",
       };
 
       // ✅ Headers de sécurité
@@ -25,7 +31,7 @@ export class AppController {
 
       return res.status(200).json(apiInfo);
     } catch (error) {
-      console.error("❌ Erreur dans le endpoint racine:", error);
+      console.error("❌ Erreur dans le endpoint API:", error);
       return res.status(500).json({
         status: "error",
         message: "Erreur interne du serveur",
