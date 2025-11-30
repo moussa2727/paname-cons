@@ -412,6 +412,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setAuth,
   ]);
 
+  // 🔥 LOGIQUE DE REDIRECTION SELON RÔLE
+  const getRoleBasedRedirect = useCallback((userRole: 'admin' | 'user'): string => {
+    return userRole === 'admin' ? '/gestionnaire/statistiques' : '/';
+  }, []);
+
   const login = useCallback(
     async (credentials: LoginCredentials): Promise<void> => {
       try {
@@ -461,7 +466,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           `✅ Connexion réussie pour: ${maskEmail(credentials.email)}`
         );
 
-        const from = location.state?.from?.pathname || '/';
+        // 🔥 REDIRECTION SELON RÔLE
+        const redirectPath = getRoleBasedRedirect(data.user.role);
+        const from = location.state?.from?.pathname || redirectPath;
         navigate(from, { replace: true });
       } catch (error) {
         handleApiError(error, 'la connexion');
@@ -478,6 +485,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       navigate,
       setAuth,
       setCookie,
+      getRoleBasedRedirect,
     ]
   );
 
@@ -530,7 +538,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           `✅ Inscription réussie pour: ${maskEmail(registerData.email)}`
         );
 
-        navigate('/', { replace: true });
+        // 🔥 REDIRECTION SELON RÔLE
+        const redirectPath = getRoleBasedRedirect(data.user.role);
+        navigate(redirectPath, { replace: true });
       } catch (error) {
         handleApiError(error, "l'inscription");
         throw error;
@@ -538,7 +548,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setIsLoading(false);
       }
     },
-    [clearError, fetchWithTimeout, handleApiError, navigate, setAuth, setCookie]
+    [clearError, fetchWithTimeout, handleApiError, navigate, setAuth, setCookie, getRoleBasedRedirect]
   );
 
   const logout = useCallback(async (): Promise<void> => {
