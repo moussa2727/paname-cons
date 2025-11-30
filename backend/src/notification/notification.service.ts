@@ -180,7 +180,7 @@ export class NotificationService {
   }
 
   // Send status update email to user when rendezvous status changes
-  async sendStatusUpdate(rendezvous: Rendezvous, previousStatus?: string): Promise<void> {
+  async sendStatusUpdate(rendezvous: Rendezvous, _previousStatus?: string): Promise<void> {
     let content = '';
     let subject = '';
 
@@ -298,7 +298,7 @@ export class NotificationService {
 
 
   // Send procedure creation email to user when procedure is created
-  async sendProcedureCreation(procedure: Procedure, rendezvous: Rendezvous): Promise<void> {
+  async sendProcedureCreation(procedure: Procedure, _rendezvous: Rendezvous): Promise<void> {
     const content = `
       <p>Félicitations ! Suite à votre rendez-vous favorable, votre procédure d'admission a été entamée.</p>
       
