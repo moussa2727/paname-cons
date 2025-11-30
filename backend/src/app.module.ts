@@ -75,7 +75,6 @@ import { TimeoutInterceptor } from "./shared/interceptors/timeout.interceptor";
   ],
   controllers: [AppController],
   providers: [
-    // ✅ INTERCEPTORS GLOBAUX
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,
