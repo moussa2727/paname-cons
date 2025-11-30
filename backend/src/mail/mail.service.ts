@@ -1,6 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import * as nodemailer from "nodemailer";
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
@@ -13,46 +13,39 @@ export class MailService {
   }
 
   private initializeTransporter() {
-    if (
-      !this.configService.get("EMAIL_HOST") ||
-      !this.configService.get("EMAIL_USER") ||
-      !this.configService.get("EMAIL_PASS")
-    ) {
-      this.logger.warn(
-        "Configuration email incomplète - service email désactivé",
-      );
+    // Vérifier si la configuration email est complète
+    if (!this.configService.get('EMAIL_HOST') || !this.configService.get('EMAIL_USER') || !this.configService.get('EMAIL_PASS')) {
+      this.logger.warn('Service email non configuré');
       this.emailServiceAvailable = false;
       return;
     }
 
     try {
       this.transporter = nodemailer.createTransport({
-        host: this.configService.get("EMAIL_HOST"),
-        port: this.configService.get("EMAIL_PORT"),
-        secure: this.configService.get("EMAIL_SECURE") === "true",
+        host: this.configService.get('EMAIL_HOST'),
+        port: this.configService.get('EMAIL_PORT'),
+        secure: true,
         auth: {
-          user: this.configService.get("EMAIL_USER"),
-          pass: this.configService.get("EMAIL_PASS"),
+          user: this.configService.get('EMAIL_USER'),
+          pass: this.configService.get('EMAIL_PASS'),
         },
         tls: {
-          rejectUnauthorized:
-            this.configService.get("NODE_ENV") === "production",
-          ciphers: "SSLv3",
+          rejectUnauthorized: false,
         },
-        connectionTimeout: 35000,
-        greetingTimeout: 20000,
-        socketTimeout: 35000,
       });
 
-      this.testConnection()
-        .then((success) => {
-          this.emailServiceAvailable = success;
-        })
-        .catch(() => {
-          this.emailServiceAvailable = false;
-        });
+      // Tester la connexion
+      this.testConnection().then(success => {
+        this.emailServiceAvailable = success;
+        if (success) {
+          this.logger.log('Service email initialisé avec succès');
+        } else {
+          this.logger.warn('Service email initialisé mais connexion échouée');
+        }
+      });
+
     } catch (error) {
-      this.logger.error("Erreur initialisation service email", error.stack);
+      this.logger.error('Erreur initialisation service email', error);
       this.emailServiceAvailable = false;
     }
   }
@@ -64,30 +57,27 @@ export class MailService {
 
     try {
       await this.transporter.verify();
-      this.logger.log("Service email initialisé avec succès");
       return true;
     } catch (error) {
-      this.logger.error(
-        `Test connexion service email échoué: ${error.message}`,
-      );
+      this.logger.error(`Test connexion email échoué: ${error.message}`);
       return false;
     }
   }
 
   async sendPasswordResetEmail(email: string, resetUrl: string): Promise<void> {
-    const maskedEmail = this.maskEmail(email);
+    // Logger le token pour le développement
+    this.logger.log(`Token réinitialisation pour ${email}: ${resetUrl}`);
 
+    // Si le service email n'est pas disponible
     if (!this.emailServiceAvailable || !this.transporter) {
-      this.logger.log(
-        `Envoi lien réinitialisation à: ${maskedEmail} (service email indisponible)`,
-      );
+      this.logger.log(`Lien réinitialisation pour: ${email}`);
       return;
     }
 
     const mailOptions = {
-      from: `"Paname Consulting" <${this.configService.get("EMAIL_USER")}>`,
+      from: `"Paname Consulting" <${this.configService.get('EMAIL_USER')}>`,
       to: email,
-      subject: "Réinitialisation de votre mot de passe - Paname Consulting",
+      subject: 'Réinitialisation de votre mot de passe - Paname Consulting',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: linear-gradient(135deg, #0ea5e9, #0369a1); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
@@ -126,36 +116,28 @@ export class MailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Email réinitialisation envoyé à: ${maskedEmail}`);
+      this.logger.log(`Email réinitialisation envoyé à ${email}`);
     } catch (error) {
-      this.logger.error(
-        `Erreur envoi email réinitialisation: ${error.message}`,
-      );
-
-      if (
-        error.message.includes("BadCredentials") ||
-        error.message.includes("Invalid login")
-      ) {
+      this.logger.error(`Erreur envoi email à ${email}: ${error.message}`);
+      this.logger.log(`Lien réinitialisation pour ${email} - Service email indisponible`);
+      // Désactiver le service après une erreur d'authentification
+      if (error.message.includes('BadCredentials') || error.message.includes('Invalid login')) {
         this.emailServiceAvailable = false;
-        this.logger.warn("Service email désactivé - erreur authentification");
+        this.logger.warn('Service email désactivé - erreur authentification');
       }
     }
   }
 
   async sendWelcomeEmail(email: string, firstName: string): Promise<void> {
-    const maskedEmail = this.maskEmail(email);
-
     if (!this.emailServiceAvailable || !this.transporter) {
-      this.logger.log(
-        `Email bienvenue pour: ${maskedEmail} (service email indisponible)`,
-      );
+      this.logger.log(`Email bienvenue pour ${firstName} (${email})`);
       return;
     }
 
     const mailOptions = {
-      from: `"Paname Consulting" <${this.configService.get("EMAIL_USER")}>`,
+      from: `"Paname Consulting" <${this.configService.get('EMAIL_USER')}>`,
       to: email,
-      subject: "Bienvenue chez Paname Consulting",
+      subject: 'Bienvenue chez Paname Consulting',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: linear-gradient(135deg, #0ea5e9, #0369a1); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
@@ -185,16 +167,10 @@ export class MailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Email bienvenue envoyé à: ${maskedEmail}`);
+      this.logger.log(`Email bienvenue envoyé à ${email}`);
     } catch (error) {
-      this.logger.error(`Erreur envoi email bienvenue: ${error.message}`);
+      this.logger.error(`Erreur envoi email bienvenue à ${email}`, error.stack);
+      this.logger.log(`Email bienvenue pour ${firstName} (${email})`);
     }
-  }
-
-  private maskEmail(email: string): string {
-    if (!email || !email.includes("@")) return "***@***";
-    const [name, domain] = email.split("@");
-    if (name.length <= 2) return `***@${domain}`;
-    return `${name.substring(0, 2)}***@${domain}`;
   }
 }

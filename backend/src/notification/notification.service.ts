@@ -1,9 +1,9 @@
-import { Injectable, Logger } from "@nestjs/common";
-import * as nodemailer from "nodemailer";
-import { Rendezvous } from "../schemas/rendezvous.schema";
-import { Procedure, StepStatus } from "../schemas/procedure.schema";
-import { ConfigService } from "@nestjs/config";
-import { Contact } from "../schemas/contact.schema";
+import { Injectable, Logger } from '@nestjs/common';
+import * as nodemailer from 'nodemailer';
+import { Rendezvous } from '../schemas/rendezvous.schema';
+import { Procedure, StepStatus } from '../schemas/procedure.schema';
+import { ConfigService } from '@nestjs/config';
+import { Contact } from '../schemas/contact.schema';
 
 @Injectable()
 export class NotificationService {
@@ -11,54 +11,45 @@ export class NotificationService {
   private transporter: nodemailer.Transporter;
   private emailServiceAvailable: boolean = false;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+  ) {
     this.initializeTransporter();
   }
 
   private initializeTransporter() {
-    if (
-      !this.configService.get("EMAIL_HOST") ||
-      !this.configService.get("EMAIL_USER") ||
-      !this.configService.get("EMAIL_PASS")
-    ) {
-      this.logger.warn(
-        "Configuration email incomplète - notifications désactivées",
-      );
+    if(!this.configService.get('EMAIL_HOST') || !this.configService.get('EMAIL_USER') || !this.configService.get('EMAIL_PASS')) {
+      this.logger.warn('Configuration email incomplète - notifications désactivées');
       this.emailServiceAvailable = false;
       return;
     }
 
     try {
       this.transporter = nodemailer.createTransport({
-        host: this.configService.get("EMAIL_HOST"),
-        port: this.configService.get("EMAIL_PORT"),
-        secure: this.configService.get("EMAIL_SECURE") === "true",
+        host: this.configService.get('EMAIL_HOST'),
+        port: this.configService.get('EMAIL_PORT'),
+        secure: this.configService.get('EMAIL_SECURE') === 'true',
         auth: {
-          user: this.configService.get("EMAIL_USER"),
-          pass: this.configService.get("EMAIL_PASS"),
+          user: this.configService.get('EMAIL_USER'),
+          pass: this.configService.get('EMAIL_PASS'),
         },
         tls: {
-          rejectUnauthorized:
-            this.configService.get("NODE_ENV") === "production",
-          ciphers: "SSLv3",
+          rejectUnauthorized: this.configService.get('NODE_ENV') === 'production',
         },
-        connectionTimeout: 35000,
-        greetingTimeout: 20000,
-        socketTimeout: 35000,
       });
 
-      this.testConnection()
-        .then((success) => {
-          this.emailServiceAvailable = success;
-        })
-        .catch(() => {
-          this.emailServiceAvailable = false;
-        });
+      // Tester la connexion
+      this.testConnection().then(success => {
+        this.emailServiceAvailable = success;
+        if (success) {
+          this.logger.log('Service notification email initialisé avec succès');
+        } else {
+          this.logger.warn('Service notification email initialisé mais connexion échouée');
+        }
+      });
+
     } catch (error) {
-      this.logger.error(
-        "Erreur initialisation service notification email",
-        error.stack,
-      );
+      this.logger.error('Erreur initialisation service notification email', error);
       this.emailServiceAvailable = false;
     }
   }
@@ -70,12 +61,9 @@ export class NotificationService {
 
     try {
       await this.transporter.verify();
-      this.logger.log("Service notification email initialisé avec succès");
       return true;
     } catch (error) {
-      this.logger.error(
-        `Test connexion notification email échoué: ${error.message}`,
-      );
+      this.logger.error(`Test connexion notification email échoué: ${error.message}`);
       return false;
     }
   }
@@ -104,7 +92,7 @@ export class NotificationService {
           ${content}
           <div class="footer">
             <p>Cordialement,<br><strong>L'équipe Paname Consulting</strong></p>
-            <p> ${this.configService.get("EMAIL_USER")}<br> www.panameconsulting.com</p>
+            <p> ${this.configService.get('EMAIL_USER')}<br> www.panameconsulting.com</p>
           </div>
         </div>
       </body>
@@ -112,56 +100,49 @@ export class NotificationService {
     `;
   }
 
-  private async sendEmail(
-    to: string,
-    subject: string,
-    html: string,
+ private async sendEmail(
+    to: string, 
+    subject: string, 
+    html: string, 
     context: string,
-    replyTo?: string,
-  ): Promise<void> {
-    const maskedEmail = this.maskEmail(to);
-
+    replyTo?: string
+): Promise<void> {
     if (!this.emailServiceAvailable || !this.transporter) {
-      this.logger.log(
-        `Notification "${context}" pour: ${maskedEmail} (service email indisponible)`,
-      );
-      return;
+        this.logger.log(`Notification "${subject}" pour: ${to} (service email indisponible)`);
+        return;
     }
 
     try {
-      const mailOptions: any = {
-        from: `"Paname Consulting" <${this.configService.get("EMAIL_USER")}>`,
-        to: to,
-        subject: subject,
-        html: html,
-      };
+        const mailOptions: any = {
+            from: `"Paname Consulting" <${this.configService.get('EMAIL_USER')}>`,
+            to: to,
+            subject: subject,
+            html: html
+        };
 
-      if (replyTo) {
-        mailOptions.replyTo = replyTo;
-      }
+        // Ajouter replyTo si fourni
+        if (replyTo) {
+            mailOptions.replyTo = replyTo;
+        }
 
-      await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Email ${context} envoyé à: ${maskedEmail}`);
+        await this.transporter.sendMail(mailOptions);
+        this.logger.log(`Email ${context} envoyé à: ${to}`);
     } catch (error) {
-      this.logger.error(`Erreur envoi ${context}: ${error.message}`);
-      if (
-        error.message.includes("BadCredentials") ||
-        error.message.includes("Invalid login")
-      ) {
-        this.emailServiceAvailable = false;
-        this.logger.warn(
-          "Service notification email désactivé - erreur authentification",
-        );
-      }
+        this.logger.error(`Erreur envoi ${context}: ${error.message}`);
+        if (error.message.includes('BadCredentials') || error.message.includes('Invalid login')) {
+            this.emailServiceAvailable = false;
+            this.logger.warn('Service notification email désactivé - erreur authentification');
+        }
     }
-  }
+}
 
+  // Send confirmation email to user when rendezvous is confirmed
   async sendConfirmation(rendezvous: Rendezvous): Promise<void> {
     const content = `
       <p>Votre rendez-vous a été confirmé avec succès.</p>
       <div class="info-box">
         <h3> Détails de votre rendez-vous :</h3>
-        <p><strong>Date :</strong> ${new Date(rendezvous.date).toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+        <p><strong>Date :</strong> ${new Date(rendezvous.date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
         <p><strong>Heure :</strong> ${rendezvous.time}</p>
         <p><strong>Lieu :</strong> Paname Consulting Kalaban Coura Imm.Boré en face de l'Hôtel Wassulu.</p>
       </div>
@@ -171,16 +152,13 @@ export class NotificationService {
 
     await this.sendEmail(
       rendezvous.email,
-      "Confirmation de votre rendez-vous - Paname Consulting",
-      this.getEmailTemplate(
-        "Rendez-vous Confirmé",
-        content,
-        rendezvous.firstName,
-      ),
-      "confirmation rendez-vous",
+      'Confirmation de votre rendez-vous - Paname Consulting',
+      this.getEmailTemplate('Rendez-vous Confirmé', content, rendezvous.firstName),
+      'confirmation rendez-vous'
     );
   }
 
+  // Send reminder email to user the day before rendezvous
   async sendReminder(rendezvous: Rendezvous): Promise<void> {
     const content = `
       <p>Rappel : Vous avez un rendez-vous aujourd'hui !</p>
@@ -195,47 +173,44 @@ export class NotificationService {
 
     await this.sendEmail(
       rendezvous.email,
-      "Rappel - Votre rendez-vous aujourd'hui - Paname Consulting",
-      this.getEmailTemplate(
-        "Rappel de Rendez-vous",
-        content,
-        rendezvous.firstName,
-      ),
-      "rappel rendez-vous",
+      'Rappel - Votre rendez-vous aujourd\'hui - Paname Consulting',
+      this.getEmailTemplate('Rappel de Rendez-vous', content, rendezvous.firstName),
+      'rappel rendez-vous'
     );
   }
 
-  async sendStatusUpdate(rendezvous: Rendezvous): Promise<void> {
-    let content = "";
-    let subject = "";
+  // Send status update email to user when rendezvous status changes
+  async sendStatusUpdate(rendezvous: Rendezvous, previousStatus?: string): Promise<void> {
+    let content = '';
+    let subject = '';
 
-    if (rendezvous.status === "Confirmé") {
-      subject = "Rendez-vous Confirmé - Paname Consulting";
+    if (rendezvous.status === 'Confirmé') {
+      subject = 'Rendez-vous Confirmé - Paname Consulting';
       content = `
         <p>Votre rendez-vous a été confirmé par notre équipe.</p>
         <div class="info-box">
           <h3> Détails de votre rendez-vous :</h3>
-          <p><strong>Date :</strong> ${new Date(rendezvous.date).toLocaleDateString("fr-FR")}</p>
+          <p><strong>Date :</strong> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</p>
           <p><strong>Heure :</strong> ${rendezvous.time}</p>
           <p><strong>Statut :</strong> Confirmé </p>
         </div>
         <p>Nous vous attendons avec impatience !</p>
       `;
-    } else if (rendezvous.status === "Annulé") {
-      subject = "Rendez-vous Annulé - Paname Consulting";
+    } else if (rendezvous.status === 'Annulé') {
+      subject = 'Rendez-vous Annulé - Paname Consulting';
       content = `
         <p>Votre rendez-vous a été annulé.</p>
         <div class="info-box">
           <h3> Détails de votre rendez-vous :</h3>
-          <p><strong>Date prévue :</strong> ${new Date(rendezvous.date).toLocaleDateString("fr-FR")}</p>
+          <p><strong>Date prévue :</strong> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</p>
           <p><strong>Heure prévue :</strong> ${rendezvous.time}</p>
-          ${rendezvous.avisAdmin ? `<p><strong>Raison :</strong> ${rendezvous.avisAdmin}</p>` : ""}
+          ${rendezvous.avisAdmin ? `<p><strong>Raison :</strong> ${rendezvous.avisAdmin}</p>` : ''}
         </div>
         <p>Si vous souhaitez reprogrammer un rendez-vous, n'hésitez pas à nous contacter.</p>
       `;
-    } else if (rendezvous.status === "Terminé") {
-      if (rendezvous.avisAdmin === "Favorable") {
-        subject = "Rendez-vous Terminé - Procédure Lancée - Paname Consulting";
+    } else if (rendezvous.status === 'Terminé') {
+      if (rendezvous.avisAdmin === 'Favorable') {
+        subject = 'Rendez-vous Terminé - Procédure Lancée - Paname Consulting';
         content = `
           <p>Votre rendez-vous s'est excellentement déroulé !</p>
           <div class="info-box">
@@ -246,8 +221,8 @@ export class NotificationService {
           <p>Vous recevrez sous peu un email détaillant les étapes de votre procédure.</p>
           <p><strong>Félicitations pour cette première étape réussie !</strong></p>
         `;
-      } else if (rendezvous.avisAdmin === "Défavorable") {
-        subject = "Rendez-vous Terminé - Avis Défavorable - Paname Consulting";
+      } else if (rendezvous.avisAdmin === 'Défavorable') {
+        subject = 'Rendez-vous Terminé - Avis Défavorable - Paname Consulting';
         content = `
           <p>Votre rendez-vous est maintenant terminé.</p>
           <div class="info-box">
@@ -258,8 +233,8 @@ export class NotificationService {
           <p>N'hésitez pas à nous contacter pour plus d'informations.</p>
         `;
       }
-    } else if (rendezvous.status === "En attente") {
-      subject = "Statut Modifié - En Attente - Paname Consulting";
+    } else if (rendezvous.status === 'En attente') {
+      subject = 'Statut Modifié - En Attente - Paname Consulting';
       content = `
         <p>Le statut de votre rendez-vous a été modifié.</p>
         <div class="info-box">
@@ -274,27 +249,20 @@ export class NotificationService {
       await this.sendEmail(
         rendezvous.email,
         subject,
-        this.getEmailTemplate(
-          "Mise à jour de Rendez-vous",
-          content,
-          rendezvous.firstName,
-        ),
-        `mise à jour statut: ${rendezvous.status}`,
+        this.getEmailTemplate('Mise à jour de Rendez-vous', content, rendezvous.firstName),
+        `mise à jour statut: ${rendezvous.status}`
       );
     }
   }
 
+  // Send procedure update email to user when procedure status changes
   async sendProcedureUpdate(procedure: Procedure): Promise<void> {
-    const currentStep = procedure.steps.find(
-      (s) => s.statut === StepStatus.IN_PROGRESS,
-    );
-    const completedSteps = procedure.steps.filter(
-      (s) => s.statut === StepStatus.COMPLETED,
-    ).length;
+    const currentStep = procedure.steps.find(s => s.statut === StepStatus.IN_PROGRESS);
+    const completedSteps = procedure.steps.filter(s => s.statut === StepStatus.COMPLETED).length;
     const totalSteps = procedure.steps.length;
     const progress = Math.round((completedSteps / totalSteps) * 100);
 
-    let content = "";
+    let content = '';
     if (currentStep) {
       content = `
         <p>Votre procédure d'admission avance !</p>
@@ -302,7 +270,7 @@ export class NotificationService {
           <h3> Progression : ${progress}%</h3>
           <p><strong>Étape en cours :</strong> ${currentStep.nom}</p>
           <p><strong>Statut global :</strong> ${procedure.statut}</p>
-          ${currentStep.raisonRefus ? `<p><strong>Commentaire :</strong> ${currentStep.raisonRefus}</p>` : ""}
+          ${currentStep.raisonRefus ? `<p><strong>Commentaire :</strong> ${currentStep.raisonRefus}</p>` : ''}
         </div>
         <p>Nous travaillons activement sur votre dossier.</p>
       `;
@@ -318,29 +286,22 @@ export class NotificationService {
       `;
     }
 
-    const subject = currentStep
-      ? "Mise à jour de votre procédure - Paname Consulting"
-      : "Procédure Terminée - Paname Consulting";
-
+    const subject = currentStep ? 'Mise à jour de votre procédure - Paname Consulting' : 'Procédure Terminée - Paname Consulting';
+    
     await this.sendEmail(
       procedure.email,
       subject,
-      this.getEmailTemplate(
-        "Mise à jour de Procédure",
-        content,
-        procedure.prenom,
-      ),
-      "mise à jour procédure",
+      this.getEmailTemplate('Mise à jour de Procédure', content, procedure.prenom),
+      'mise à jour procédure'
     );
   }
 
-  async sendProcedureCreation(
-    procedure: Procedure,
-    _rendezvous: Rendezvous,
-  ): Promise<void> {
+
+  // Send procedure creation email to user when procedure is created
+  async sendProcedureCreation(procedure: Procedure, rendezvous: Rendezvous): Promise<void> {
     const content = `
       <p>Félicitations ! Suite à votre rendez-vous favorable, votre procédure d'admission a été entamée.</p>
-
+      
       <div class="info-box">
         <h3> Votre procédure est entamée</h3>
         <p><strong>Destination :</strong> ${procedure.destination}</p>
@@ -357,12 +318,13 @@ export class NotificationService {
 
     await this.sendEmail(
       procedure.email,
-      "Votre procédure est lancée ! - Paname Consulting",
-      this.getEmailTemplate("Procédure Créée", content, procedure.prenom),
-      "création procédure",
+      'Votre procédure est lancée ! - Paname Consulting',
+      this.getEmailTemplate('Procédure Créée', content, procedure.prenom),
+      'création procédure'
     );
   }
 
+  // Send contact reply email to user when contact is replied
   async sendContactReply(contact: Contact, reply: string): Promise<void> {
     const emailContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -370,7 +332,7 @@ export class NotificationService {
           <h1 style="color: white; margin: 0; font-size: 24px;">Paname Consulting</h1>
         </div>
         <div style="padding: 30px; background: white; border: 1px solid #e0e0e0;">
-          <h2 style="color: #333; margin-top: 0;">Bonjour ${contact.firstName || ""},</h2>
+          <h2 style="color: #333; margin-top: 0;">Bonjour ${contact.firstName || ''},</h2>
           <p style="color: #666; line-height: 1.6;">${reply}</p>
           <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
             <p style="margin: 0; color: #666; font-size: 14px;">
@@ -389,19 +351,18 @@ export class NotificationService {
 
     await this.sendEmail(
       contact.email,
-      "Réponse à votre message - Paname Consulting",
+      'Réponse à votre message - Paname Consulting',
       emailContent,
-      "réponse contact",
+      'réponse contact'
     );
   }
 
-  async sendContactNotification(contact: Contact): Promise<void> {
-    const adminEmail = this.configService.get("EMAIL_USER");
+  // Send contact notification email to admin when contact is sent
+ async sendContactNotification(contact: Contact): Promise<void> {
+    const adminEmail = this.configService.get('EMAIL_USER');
     if (!adminEmail) {
-      this.logger.warn(
-        "EMAIL_USER non configuré - notification contact ignorée",
-      );
-      return;
+        this.logger.warn('EMAIL_USER non configuré - notification contact ignorée');
+        return;
     }
 
     const emailContent = `
@@ -413,7 +374,7 @@ export class NotificationService {
           <h3 style="color: #333; margin-top: 0;">Nouveau message de contact reçu :</h3>
           <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
             <p><strong>De :</strong> ${contact.firstName} ${contact.lastName}</p>
-            <p><strong>Email :</strong> ${contact.email}</p>
+            <p><strong>Email :</strong> ${contact.email}</p> 
             <p><strong>Message :</strong><br/>${contact.message}</p>
           </div>
           <div style="margin-top: 20px; padding: 15px; background: #e8f4fd; border-radius: 8px;">
@@ -426,15 +387,15 @@ export class NotificationService {
     `;
 
     await this.sendEmail(
-      adminEmail,
-      "Nouveau message de contact - Paname Consulting",
-      emailContent,
-      "notification contact admin",
-      contact.email,
+        adminEmail, 
+        'Nouveau message de contact - Paname Consulting',
+        emailContent,
+        'notification contact admin',
+        contact.email // replyTo parameter
     );
-  }
-
-  async sendContactConfirmation(contact: Contact): Promise<void> {
+}
+  // Send contact confirmation email to user when contact is sent
+ async sendContactConfirmation(contact: Contact): Promise<void> {
     const emailContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
@@ -443,7 +404,7 @@ export class NotificationService {
         <div style="padding: 30px; background: white; border: 1px solid #e0e0e0;">
           <h2 style="color: #333; margin-top: 0;">Confirmation de réception</h2>
           <p style="color: #666; line-height: 1.6;">
-            Bonjour ${contact.firstName || ""},<br><br>
+            Bonjour ${contact.firstName || ''},<br><br>
             Nous accusons réception de votre message et vous remercions de l'intérêt que vous portez à Paname Consulting.
           </p>
           <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
@@ -465,14 +426,15 @@ export class NotificationService {
     `;
 
     await this.sendEmail(
-      contact.email,
-      "Confirmation de votre message - Paname Consulting",
-      emailContent,
-      "confirmation contact",
+        contact.email, 
+        'Confirmation de votre message - Paname Consulting',
+        emailContent,
+        'confirmation contact'
     );
-  }
+}
 
-  async sendCancellationNotification(_procedure: Procedure): Promise<void> {
+  // Send cancellation notification email to user when procedure is cancelled
+  async sendCancellationNotification(procedure: Procedure): Promise<void> {
     const emailContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
@@ -480,19 +442,13 @@ export class NotificationService {
         </div>
       </div>
     `;
-
+    
     await this.sendEmail(
-      _procedure.email,
-      "Annulation de votre procédure - Paname Consulting",
+      procedure.email,
+      'Annulation de votre procédure - Paname Consulting',
       emailContent,
-      "notification annulation",
+      'notification annulation'
     );
   }
 
-  private maskEmail(email: string): string {
-    if (!email || !email.includes("@")) return "***@***";
-    const [name, domain] = email.split("@");
-    if (name.length <= 2) return `***@${domain}`;
-    return `${name.substring(0, 2)}***@${domain}`;
-  }
 }
