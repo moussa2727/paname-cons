@@ -111,23 +111,23 @@ interface AuthContextType {
 
 // ==================== CONSTANTS SYNCHRONISÉES AVEC BACKEND ====================
 const AUTH_CONSTANTS = {
-  // Durées synchronisées avec backend
+  // Synchroniser avec backend
   ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000, // 15 minutes
-  PREVENTIVE_REFRESH_MS: 2 * 60 * 1000, // 2 minutes avant expiration
-  MAX_SESSION_DURATION_MS: 30 * 60 * 1000, // 30 minutes (synchronisé avec backend)
-  MAX_REFRESH_ATTEMPTS: 3,
-  SESSION_CHECK_INTERVAL: 60 * 1000, // Vérif toutes les minutes
-
+  REFRESH_TOKEN_EXPIRATION_MS: 10 * 60 * 1000, // 10 minutes (synchronisé avec backend)
+  MAX_SESSION_DURATION_MS: 30 * 60 * 1000, // 30 minutes
+  PREVENTIVE_REFRESH_MS: 1 * 60 * 1000, // 1 minute avant expiration
+  
+  // Synchroniser les codes d'erreur
   ERROR_CODES: {
     PASSWORD_RESET_REQUIRED: 'PASSWORD_RESET_REQUIRED',
     INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
-    COMPTE_DESACTIVE: 'COMPTE DESACTIVE',
-    COMPTE_TEMPORAIREMENT_DECONNECTE: 'COMPTE TEMPORAIREMENT DECONNECTE',
-    MAINTENANCE_MODE: 'MAINTENANCE MODE',
+    COMPTE_DESACTIVE: 'COMPTE_DESACTIVE', // Ajouter le code exact
+    COMPTE_TEMPORAIREMENT_DECONNECTE: 'COMPTE_TEMPORAIREMENT_DECONNECTE',
+    MAINTENANCE_MODE: 'MAINTENANCE_MODE',
     SESSION_EXPIRED: 'SESSION_EXPIRED',
     NO_PASSWORD_IN_DB: 'NO_PASSWORD_IN_DB',
   } as const,
-} as const;
+};
 
 const STORAGE_KEYS = {
   ACCESS_TOKEN: 'access_token',
@@ -141,11 +141,6 @@ const REDIRECT_PATHS = {
   LOGIN: '/connexion',
   HOME: '/',
   ADMIN_DASHBOARD: '/gestionnaire/statistiques',
-  // Ajoutez ces nouveaux chemins
-  USER_DASHBOARD: '/mon-profil',
-  REGISTER: '/inscription',
-  FORGOT_PASSWORD: '/mot-de-passe-oublie',
-  RESET_PASSWORD: '/reset-password',
 } as const;
 
 // Messages toast synchronisés avec backend
@@ -329,33 +324,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [fetchUserData, cleanupAuthData]);
 
-  const setupTokenRefresh = useCallback((exp: number): void => {
-    if (refreshTimeoutRef.current) {
-      window.clearTimeout(refreshTimeoutRef.current);
-    }
+ const setupTokenRefresh = useCallback((exp: number): void => {
+  if (refreshTimeoutRef.current) {
+    window.clearTimeout(refreshTimeoutRef.current);
+  }
 
-    const refreshTime = Math.max(
-      5000, // Minimum 5 secondes
-      exp * 1000 - Date.now() - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
-    );
+  // ✅ Synchroniser avec la durée réelle des refresh tokens (10 minutes)
+  const tokenLifetime = AUTH_CONSTANTS.REFRESH_TOKEN_EXPIRATION_MS;
+  const refreshTime = Math.max(
+    10000, // Minimum 10 secondes
+    tokenLifetime - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
+  );
 
-    if (refreshTime > 0) {
-      refreshTimeoutRef.current = window.setTimeout(async () => {
-        if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
-          const refreshed = await refreshToken();
-          if (refreshed) {
-            refreshAttemptsRef.current = 0;
-            toast.success(TOAST_MESSAGES.TOKEN_REFRESHED);
-          } else {
-            refreshAttemptsRef.current++;
-          }
-        } else {
-          logout();
-          toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-        }
-      }, refreshTime);
-    }
-  }, []);
+  if (refreshTime > 0) {
+    refreshTimeoutRef.current = window.setTimeout(async () => {
+      await refreshToken();
+    }, refreshTime);
+  }
+}, [refreshToken]);
 
   const handleAuthError = useCallback((error: any): void => {
     const errorMessage = error.message || 'Erreur inconnue';
@@ -384,134 +370,113 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // ==================== MÉTHODES D'AUTHENTIFICATION ====================
 
- const login = useCallback(
-  async (email: string, password: string): Promise<void> => {
-    setIsLoading(true);
-    setError(null);
+  const login = useCallback(
+    async (email: string, password: string): Promise<void> => {
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      const response = await window.fetch(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
-        {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'X-Client-Version': '1.0.0',
-          },
-          body: JSON.stringify({ email, password }),
-          credentials: 'include',
-        }
-      );
-
-      const data: LoginResponse = await response.json();
-
-      if (!response.ok) {
-        // Gestion unifiée des codes d'erreur backend
-        if (data.code === AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS) {
-          throw new Error(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS);
-        }
-        
-        // Propager les messages spécifiques du backend
-        if (data.message && data.message.includes('COMPTE DESACTIVE')) {
-          throw new Error(AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE);
-        }
-        
-        if (data.message && data.message.includes('COMPTE TEMPORAIREMENT DECONNECTE')) {
-          const hoursMatch = data.message.match(/:(\d+)/);
-          const hours = hoursMatch ? hoursMatch[1] : '24';
-          throw new Error(`${AUTH_CONSTANTS.ERROR_CODES.COMPTE_TEMPORAIREMENT_DECONNECTE}:${hours}`);
-        }
-        
-        if (data.message && data.message.includes('MAINTENANCE MODE')) {
-          throw new Error(AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE);
-        }
-        
-        if (data.message && data.message.includes('NO_PASSWORD_IN_DB')) {
-          throw new Error('NO_PASSWORD_IN_DB');
-        }
-        
-        throw new Error(data.message || 'Erreur de connexion');
-      }
-
-      // Validation des données reçues
-      if (!data.access_token || !data.user) {
-        throw new Error('Réponse invalide du serveur');
-      }
-
-      // Stockage du token
-      window.localStorage?.setItem(
-        STORAGE_KEYS.ACCESS_TOKEN,
-        data.access_token
-      );
-      setAccessToken(data.access_token);
-
-      const userData: User = {
-        id: data.user.id,
-        email: data.user.email,
-        firstName: data.user.firstName,
-        lastName: data.user.lastName,
-        role: data.user.role,
-        isActive: true,
-        isAdmin: data.user.role === UserRole.ADMIN,
-      };
-
-      setUser(userData);
-      window.localStorage?.setItem(
-        STORAGE_KEYS.USER_DATA,
-        JSON.stringify(userData)
-      );
-      window.localStorage?.setItem(
-        STORAGE_KEYS.SESSION_START,
-        Date.now().toString()
-      );
-
-      // Décode le token pour obtenir l'expiration
       try {
+        const response = await window.fetch(
+          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
+          {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'X-Client-Version': '1.0.0',
+            },
+            body: JSON.stringify({ email, password }),
+            credentials: 'include',
+          }
+        );
+
+        const data: LoginResponse = await response.json();
+
+        if (!response.ok) {
+          // Gestion unifiée des codes d'erreur backend
+          if (data.code === AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS) {
+            throw new Error(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS);
+          }
+          
+          // Propager les messages spécifiques du backend
+          if (data.message && data.message.includes('COMPTE DESACTIVE')) {
+            throw new Error(AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE);
+          }
+          
+          if (data.message && data.message.includes('COMPTE TEMPORAIREMENT DECONNECTE')) {
+            const hoursMatch = data.message.match(/:(\d+)/);
+            const hours = hoursMatch ? hoursMatch[1] : '24';
+            throw new Error(`${AUTH_CONSTANTS.ERROR_CODES.COMPTE_TEMPORAIREMENT_DECONNECTE}:${hours}`);
+          }
+          
+          if (data.message && data.message.includes('MAINTENANCE MODE')) {
+            throw new Error(AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE);
+          }
+          
+          if (data.message && data.message.includes('NO_PASSWORD_IN_DB')) {
+            throw new Error('NO_PASSWORD_IN_DB');
+          }
+          
+          throw new Error(data.message || 'Erreur de connexion');
+        }
+
+        // Validation des données reçues
+        if (!data.access_token || !data.user) {
+          throw new Error('Réponse invalide du serveur');
+        }
+
+        window.localStorage?.setItem(
+          STORAGE_KEYS.ACCESS_TOKEN,
+          data.access_token
+        );
+        setAccessToken(data.access_token);
+
+        const userData: User = {
+          id: data.user.id,
+          email: data.user.email,
+          firstName: data.user.firstName,
+          lastName: data.user.lastName,
+          role: data.user.role,
+          isActive: true,
+          isAdmin: data.user.role === UserRole.ADMIN,
+        };
+
+        setUser(userData);
+        window.localStorage?.setItem(
+          STORAGE_KEYS.USER_DATA,
+          JSON.stringify(userData)
+        );
+        window.localStorage?.setItem(
+          STORAGE_KEYS.SESSION_START,
+          Date.now().toString()
+        );
+
         const decoded = jwtDecode<JwtPayload>(data.access_token);
         setupTokenRefresh(decoded.exp);
-      } catch (decodeError) {
+
+        // Redirection centralisée
+        const redirectPath =
+          data.user.role === UserRole.ADMIN
+            ? REDIRECT_PATHS.ADMIN_DASHBOARD
+            : REDIRECT_PATHS.HOME;
+
+        navigate(redirectPath);
+        toast.success(TOAST_MESSAGES.LOGIN_SUCCESS);
+      } catch (err: any) {
         if (import.meta.env.DEV) {
-          console.error('Erreur lors du décodage du token:', decodeError);
+          console.error('Login error details:', {
+            message: err.message,
+            stack: err.stack,
+          });
         }
-        // On continue même si le décodage échoue
+        
+        handleAuthError(err);
+        throw err;
+      } finally {
+        setIsLoading(false);
       }
-
-      // Redirection basée sur le rôle
-      let redirectPath: string;
-      
-      if (data.user.role === UserRole.ADMIN) {
-        redirectPath = REDIRECT_PATHS.ADMIN_DASHBOARD;
-      } else {
-        // Pour les utilisateurs normaux, on vérifie si on a une redirection stockée
-        const storedRedirect = window.sessionStorage?.getItem('redirect_after_login');
-        if (storedRedirect) {
-          redirectPath = storedRedirect;
-          window.sessionStorage?.removeItem('redirect_after_login');
-        } else {
-          // Sinon, on redirige vers le dashboard utilisateur
-          redirectPath = '/mon-profil'; // ou REDIRECT_PATHS.USER_DASHBOARD si défini
-        }
-      }
-
-      navigate(redirectPath, { replace: true });
-      toast.success(TOAST_MESSAGES.LOGIN_SUCCESS);
-      
-    } catch (err: any) {
-      if (import.meta.env.DEV) {
-        console.error('Login error details:', {
-          message: err.message,
-          stack: err.stack,
-        });
-      }
-      
-      handleAuthError(err);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  },
-  [setupTokenRefresh, navigate, handleAuthError]
-);
+    },
+    [setupTokenRefresh, navigate, handleAuthError]
+  );
 
   const register = useCallback(
     async (formData: RegisterFormData): Promise<void> => {
