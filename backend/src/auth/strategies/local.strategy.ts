@@ -31,7 +31,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
         this.logger.warn(`Invalid credentials for: ${this.maskEmail(email)}`);
         throw new UnauthorizedException({
           message: "Email ou mot de passe incorrect",
-          code: "INVALID CREDENTIALS"
+          code: "INVALID_CREDENTIALS"
         });
       }
 
@@ -62,6 +62,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
           throw new UnauthorizedException({
             message: "Votre compte a été désactivé",
             code: AuthConstants.ERROR_MESSAGES.COMPTE_DESACTIVE,
+            requiresAdmin: true
           });
         }
         

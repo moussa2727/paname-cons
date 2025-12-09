@@ -436,7 +436,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
-              'X-Client-Version': '1.0.0',
             },
             body: JSON.stringify({ email, password }),
             credentials: 'include', // ✅ IMPORTANT: Pour recevoir les cookies
