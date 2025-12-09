@@ -114,15 +114,14 @@ interface AuthContextType {
 
 // ==================== CONSTANTS SYNCHRONISÉES AVEC BACKEND ====================
 const AUTH_CONSTANTS = {
-  // Durées synchronisées avec backend (auth.constants.ts)
-  ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000, // 15 minutes = 900 secondes
-  REFRESH_TOKEN_EXPIRATION_MS: 10 * 60 * 1000, // 10 minutes = 600 secondes (BACKEND: REFRESH_TOKEN_EXPIRATION_SECONDS)
-  MAX_SESSION_DURATION_MS: 30 * 60 * 1000, // 30 minutes (synchronisé avec backend)
-  PREVENTIVE_REFRESH_MS: 1 * 60 * 1000, // 1 minute avant expiration
+  ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000,
+  REFRESH_TOKEN_EXPIRATION_MS: 10 * 60 * 1000,
+  MAX_SESSION_DURATION_MS: 30 * 60 * 1000,
+  PREVENTIVE_REFRESH_MS: 1 * 60 * 1000,
   MAX_REFRESH_ATTEMPTS: 3,
-  SESSION_CHECK_INTERVAL: 30 * 1000, // Vérif toutes les 30 secondes
+  SESSION_CHECK_INTERVAL: 30 * 1000,
+  REQUEST_COOLDOWN_MS: 2000, // 🔥 Cooldown de 2s entre les requêtes
 
-  // ✅ CODES D'ERREUR SYNCHRONISÉS AVEC BACKEND (auth.constants.ts)
   ERROR_CODES: {
     PASSWORD_RESET_REQUIRED: 'PASSWORD_RESET_REQUIRED',
     INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
@@ -132,9 +131,9 @@ const AUTH_CONSTANTS = {
     SESSION_EXPIRED: 'SESSION_EXPIRED',
     NO_PASSWORD_IN_DB: 'NO_PASSWORD_IN_DB',
     AUTH_ERROR: 'AUTH_ERROR',
+    TOO_MANY_REQUESTS: 'TOO_MANY_REQUESTS',
   } as const,
 
-  // ✅ RAISONS DE RÉVOCATION SYNCHRONISÉES (auth.constants.ts)
   REVOCATION_REASONS: {
     USER_LOGOUT: 'user logout',
     ADMIN_GLOBAL_LOGOUT: 'admin global logout 24h',
@@ -148,9 +147,9 @@ const STORAGE_KEYS = {
   SESSION_START: 'session_start',
   REFRESH_ATTEMPTS: 'refresh_attempts',
   LAST_REFRESH_TIME: 'last_refresh_time',
+  LAST_REQUEST_TIME: 'last_request_time', // 🔥 Nouveau: timestamp dernière requête
 } as const;
 
-// Chemins de redirection
 const REDIRECT_PATHS = {
   LOGIN: '/connexion',
   HOME: '/',
@@ -158,7 +157,6 @@ const REDIRECT_PATHS = {
   RESET_PASSWORD_REQUIRED: '/reset-password-required',
 } as const;
 
-// Messages toast synchronisés avec backend
 const TOAST_MESSAGES = {
   LOGIN_SUCCESS: 'Connexion réussie !',
   LOGOUT_SUCCESS: 'Déconnexion réussie',
@@ -175,9 +173,9 @@ const TOAST_MESSAGES = {
   TOKEN_REFRESHED: 'Session rafraîchie',
   NETWORK_ERROR: 'Erreur réseau. Vérifiez votre connexion.',
   TOKEN_INVALID: 'Session invalide. Veuillez vous reconnecter.',
+  TOO_MANY_REQUESTS: 'Trop de requêtes. Veuillez patienter.', // 🔥 Nouveau message
 } as const;
 
-// URL du backend
 const API_CONFIG = {
   BASE_URL: import.meta.env.VITE_API_URL || 'https://panameconsulting.up.railway.app',
   ENDPOINTS: {
@@ -191,6 +189,29 @@ const API_CONFIG = {
     ME: '/api/auth/me',
   } as const,
 } as const;
+
+// ==================== UTILITAIRES ====================
+
+// 🔥 Fonction pour gérer le cooldown entre les requêtes
+const shouldMakeRequest = (): boolean => {
+  const lastRequestTime = window.localStorage?.getItem(STORAGE_KEYS.LAST_REQUEST_TIME);
+  if (!lastRequestTime) return true;
+  
+  const timeSinceLastRequest = Date.now() - parseInt(lastRequestTime);
+  return timeSinceLastRequest >= AUTH_CONSTANTS.REQUEST_COOLDOWN_MS;
+};
+
+const updateLastRequestTime = (): void => {
+  window.localStorage?.setItem(STORAGE_KEYS.LAST_REQUEST_TIME, Date.now().toString());
+};
+
+// 🔥 Fonction pour vérifier si le token est sur le point d'expirer
+const isTokenExpiringSoon = (exp: number): boolean => {
+  const tokenExpirationMs = exp * 1000;
+  const currentTimeMs = Date.now();
+  const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
+  return timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS;
+};
 
 // ==================== CONTEXT ====================
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -217,6 +238,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshTimeoutRef = useRef<number | null>(null);
   const sessionCheckIntervalRef = useRef<number | null>(null);
   const refreshAttemptsRef = useRef(0);
+  const isRefreshingRef = useRef(false); // 🔥 Évite les rafraîchissements simultanés
 
   // ==================== FONCTIONS ESSENTIELLES ====================
 
@@ -233,6 +255,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setError(null);
     refreshAttemptsRef.current = 0;
+    isRefreshingRef.current = false;
 
     if (refreshTimeoutRef.current) {
       window.clearTimeout(refreshTimeoutRef.current);
@@ -249,6 +272,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<Response> => {
+    // 🔥 Vérifier le cooldown avant de faire la requête
+    if (!shouldMakeRequest()) {
+      throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
+    }
+
+    updateLastRequestTime();
+
     const token = access_token || window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
     
     const headers = {
@@ -260,10 +290,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const response = await window.fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
       ...options,
       headers,
-      credentials: 'include', // ✅ IMPORTANT: Pour envoyer les cookies
+      credentials: 'include',
     });
 
-    // ✅ GESTION UNIFIÉE DES ERREURS 401 (synchronisée avec backend)
+    // 🔥 Gestion des erreurs 429 (Too Many Requests)
+    if (response.status === 429) {
+      toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS);
+      throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
+    }
+
+    // 🔥 Gestion des erreurs 401
     if (response.status === 401) {
       const errorData = await response.json().catch(() => ({}));
       
@@ -274,7 +310,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         cleanupAuthData();
         
-        // ✅ Ne pas montrer de toast si on est déjà sur la page login
         if (!window.location.pathname.includes('/connexion')) {
           toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
         }
@@ -283,7 +318,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('SESSION_EXPIRED');
       }
       
-      // ✅ Erreur d'authentification spécifique
       if (errorData.code) {
         throw new Error(errorData.code);
       }
@@ -293,6 +327,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [access_token, cleanupAuthData, navigate]);
 
   const fetchUserData = useCallback(async (): Promise<void> => {
+    // 🔥 Éviter les appels multiples
+    if (isRefreshingRef.current) {
+      return;
+    }
+
     try {
       const response = await fetchWithAuth(API_CONFIG.ENDPOINTS.ME);
       
@@ -337,53 +376,54 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await fetchUserData();
   }, [fetchUserData]);
 
-
-
   const setupTokenRefresh = useCallback((exp: number): void => {
     if (refreshTimeoutRef.current) {
       window.clearTimeout(refreshTimeoutRef.current);
     }
 
-    // ✅ SYNCHRONISÉ AVEC BACKEND: Rafraîchir 1 minute avant expiration
-    const tokenExpirationMs = exp * 1000;
-    const currentTimeMs = Date.now();
-    const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
-    
-    const refreshTime = Math.max(
-      10000, // Minimum 10 secondes
-      timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
-    );
+    // 🔥 Ne pas rafraîchir si le token n'expire pas bientôt
+    if (!isTokenExpiringSoon(exp)) {
+      const tokenExpirationMs = exp * 1000;
+      const currentTimeMs = Date.now();
+      const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
+      
+      // Planifier le rafraîchissement seulement quand nécessaire
+      const refreshTime = Math.max(
+        30000, // Minimum 30 secondes
+        timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
+      );
 
-    if (refreshTime > 0) {
-      refreshTimeoutRef.current = window.setTimeout(async () => {
-        if (import.meta.env.DEV) {
-          console.log('🔄 Rafraîchissement préventif du token...');
-        }
-        
-        if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
-          const refreshed = await refreshToken();
-          if (refreshed) {
-            refreshAttemptsRef.current = 0;
-            if (import.meta.env.DEV) {
-              console.log('✅ Token rafraîchi avec succès');
+      if (refreshTime > 0) {
+        refreshTimeoutRef.current = window.setTimeout(async () => {
+          if (import.meta.env.DEV) {
+            console.log('🔄 Rafraîchissement préventif du token...');
+          }
+          
+          if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
+            const refreshed = await refreshToken();
+            if (refreshed) {
+              refreshAttemptsRef.current = 0;
+              if (import.meta.env.DEV) {
+                console.log('✅ Token rafraîchi avec succès');
+              }
+            } else {
+              refreshAttemptsRef.current++;
+              if (import.meta.env.DEV) {
+                console.warn(`❌ Échec rafraîchissement (tentative ${refreshAttemptsRef.current}/${AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS})`);
+              }
             }
           } else {
-            refreshAttemptsRef.current++;
             if (import.meta.env.DEV) {
-              console.warn(`❌ Échec rafraîchissement (tentative ${refreshAttemptsRef.current}/${AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS})`);
+              console.error('❌ Trop de tentatives de rafraîchissement, déconnexion');
             }
+            logout();
+            toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
           }
-        } else {
-          if (import.meta.env.DEV) {
-            console.error('❌ Trop de tentatives de rafraîchissement, déconnexion');
-          }
-          logout();
-          toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+        }, refreshTime);
+        
+        if (import.meta.env.DEV) {
+          console.log(`⏰ Prochain rafraîchissement dans ${Math.round(refreshTime/1000)}s`);
         }
-      }, refreshTime);
-      
-      if (import.meta.env.DEV) {
-        console.log(`⏰ Prochain rafraîchissement dans ${Math.round(refreshTime/1000)}s`);
       }
     }
   }, []);
@@ -395,8 +435,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error(`❌ Erreur auth [${context}]:`, errorMessage);
     }
     
-    // ✅ GESTION DES ERREURS SYNCHRONISÉE AVEC BACKEND
-    if (errorMessage.includes(AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED)) {
+    // 🔥 Gestion spécifique pour Too Many Requests
+    if (errorMessage.includes(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS)) {
+      toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS, { autoClose: 5000 });
+    } else if (errorMessage.includes(AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED)) {
       toast.error(TOAST_MESSAGES.PASSWORD_RESET_REQUIRED, { autoClose: 8000 });
       navigate(REDIRECT_PATHS.RESET_PASSWORD_REQUIRED, { 
         state: { email: error.email || '', reason: 'password_reset_required' } 
@@ -412,7 +454,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } else if (errorMessage.includes(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS)) {
       toast.error(TOAST_MESSAGES.INVALID_CREDENTIALS, { autoClose: 4000 });
     } else if (errorMessage === 'SESSION_EXPIRED') {
-      // Ne pas montrer de toast supplémentaire, déjà géré
+      // Ne pas montrer de toast supplémentaire
     } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
       toast.error(TOAST_MESSAGES.NETWORK_ERROR, { autoClose: 5000 });
     } else {
@@ -429,6 +471,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
       setError(null);
 
+      // 🔥 Vérifier le cooldown
+      if (!shouldMakeRequest()) {
+        setIsLoading(false);
+        toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS);
+        return;
+      }
+
+      updateLastRequestTime();
+
       try {
         const response = await window.fetch(
           `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
@@ -438,14 +489,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ email, password }),
-            credentials: 'include', // ✅ IMPORTANT: Pour recevoir les cookies
+            credentials: 'include',
           }
         );
 
         const data: LoginResponse = await response.json();
 
         if (!response.ok) {
-          // ✅ GESTION UNIFIÉE DES ERREURS (synchronisée avec backend)
           if (data.code === AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS) {
             throw new Error(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS);
           }
@@ -466,11 +516,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             throw new Error(AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE);
           }
           
-          // Fallback sur le message si pas de code
           throw new Error(data.message || 'Erreur de connexion');
         }
 
-        // ✅ VALIDATION DES DONNÉES REÇUES
         if (!data.access_token || !data.user) {
           throw new Error('Réponse invalide du serveur');
         }
@@ -504,7 +552,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const decoded = jwtDecode<JwtPayload>(data.access_token);
         setupTokenRefresh(decoded.exp);
 
-        // ✅ REDIRECTION CENTRALISÉE
         const redirectPath =
           data.user.role === UserRole.ADMIN
             ? REDIRECT_PATHS.ADMIN_DASHBOARD
@@ -538,6 +585,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
       setError(null);
 
+      // 🔥 Vérifier le cooldown
+      if (!shouldMakeRequest()) {
+        setIsLoading(false);
+        toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS);
+        return;
+      }
+
+      updateLastRequestTime();
+
       try {
         const response = await window.fetch(
           `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REGISTER}`,
@@ -551,7 +607,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               telephone: formData.phone,
               password: formData.password,
             }),
-            credentials: 'include', // ✅ IMPORTANT: Pour recevoir les cookies
+            credentials: 'include',
           }
         );
 
@@ -613,7 +669,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = useCallback(async (): Promise<void> => {
     try {
-      if (access_token) {
+      if (access_token && shouldMakeRequest()) {
+        updateLastRequestTime();
         await fetchWithAuth(API_CONFIG.ENDPOINTS.LOGOUT, {
           method: 'POST',
         });
@@ -633,6 +690,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!access_token || user?.role !== UserRole.ADMIN) {
       throw new Error('Accès non autorisé - Admin seulement');
     }
+
+    // 🔥 Vérifier le cooldown
+    if (!shouldMakeRequest()) {
+      toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS);
+      throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
+    }
+
+    updateLastRequestTime();
 
     try {
       const response = await fetchWithAuth(API_CONFIG.ENDPOINTS.LOGOUT_ALL, {
@@ -654,6 +719,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [access_token, user, fetchWithAuth, handleAuthError]);
 
   const refreshToken = useCallback(async (): Promise<boolean> => {
+    // 🔥 Éviter les rafraîchissements simultanés
+    if (isRefreshingRef.current) {
+      if (import.meta.env.DEV) {
+        console.log('⚠️ Refresh déjà en cours, ignoré');
+      }
+      return false;
+    }
+
+    // 🔥 Vérifier le cooldown
+    if (!shouldMakeRequest()) {
+      if (import.meta.env.DEV) {
+        console.log('⚠️ Cooldown activé, refresh ignoré');
+      }
+      return false;
+    }
+
+    updateLastRequestTime();
+
     const currentToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
 
     if (!currentToken) {
@@ -663,20 +746,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return false;
     }
 
+    isRefreshingRef.current = true;
+
     try {
       if (import.meta.env.DEV) {
         console.log('🔄 Tentative de rafraîchissement du token...');
       }
 
-      // ✅ IMPORTANT: Ne pas mettre Content-Type pour les requêtes avec cookies
       const response = await window.fetch(
         `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REFRESH}`,
         {
           method: 'POST',
-          headers: {}, // ✅ Laisser vide pour que les cookies soient envoyés
-          credentials: 'include', // ✅ IMPORTANT: Pour envoyer les cookies
+          headers: {},
+          credentials: 'include',
         }
       );
+
+      if (response.status === 429) {
+        toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS);
+        return false;
+      }
 
       if (response.status === 401) {
         const errorData = await response.json().catch(() => ({}));
@@ -718,7 +807,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       window.localStorage?.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.access_token);
       setAccessToken(data.access_token);
       
-      // Mettre à jour le timestamp du dernier rafraîchissement
       window.localStorage?.setItem(
         STORAGE_KEYS.LAST_REFRESH_TIME,
         Date.now().toString()
@@ -755,6 +843,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       cleanupAuthData();
       return false;
+    } finally {
+      isRefreshingRef.current = false;
     }
   }, [fetchUserData, setupTokenRefresh, cleanupAuthData]);
 
@@ -762,6 +852,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     async (email: string): Promise<void> => {
       setIsLoading(true);
       setError(null);
+
+      // 🔥 Vérifier le cooldown
+      if (!shouldMakeRequest()) {
+        setIsLoading(false);
+        toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS);
+        return;
+      }
+
+      updateLastRequestTime();
 
       try {
         const response = await window.fetch(
@@ -790,7 +889,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [navigate, handleAuthError]
   );
 
-    const checkAuth = useCallback(async (): Promise<void> => {
+  const checkAuth = useCallback(async (): Promise<void> => {
     const savedToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
 
     if (!savedToken) {
@@ -803,17 +902,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const isTokenExpired = decoded.exp * 1000 < Date.now();
 
       if (!isTokenExpired) {
-        await fetchUserData();
+        // 🔥 Vérifier si le token est toujours valide avant de faire des requêtes
+        if (shouldMakeRequest()) {
+          updateLastRequestTime();
+          await fetchUserData();
+        }
         setupTokenRefresh(decoded.exp);
       } else {
         if (import.meta.env.DEV) {
           console.log('⏰ Token expiré, tentative de rafraîchissement...');
         }
         
-        // Tentative de rafraîchissement avant de nettoyer
-        const refreshed = await refreshToken();
-        if (!refreshed) {
-          cleanupAuthData();
+        // 🔥 Seulement si pas déjà en cours de rafraîchissement
+        if (!isRefreshingRef.current && shouldMakeRequest()) {
+          const refreshed = await refreshToken();
+          if (!refreshed) {
+            cleanupAuthData();
+          }
         }
       }
     } catch (error) {
@@ -824,20 +929,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [fetchUserData, refreshToken]);
+  }, [fetchUserData, refreshToken, setupTokenRefresh, cleanupAuthData]);
 
   const resetPassword = useCallback(
     async (token: string, newPassword: string): Promise<void> => {
       setIsLoading(true);
       setError(null);
 
+      // 🔥 Vérifier le cooldown
+      if (!shouldMakeRequest()) {
+        setIsLoading(false);
+        toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS);
+        return;
+      }
+
+      updateLastRequestTime();
+
       try {
-        // ✅ VALIDATION SYNCHRONISÉE AVEC BACKEND
         if (newPassword.length < 8) {
           throw new Error('Le mot de passe doit contenir au moins 8 caractères');
         }
 
-        // Vérifier les critères backend: minuscule, majuscule, chiffre
         const hasLowerCase = /[a-z]/.test(newPassword);
         const hasUpperCase = /[A-Z]/.test(newPassword);
         const hasNumber = /[0-9]/.test(newPassword);
@@ -854,7 +966,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             body: JSON.stringify({
               token,
               newPassword,
-              confirmPassword: newPassword, // ✅ Confirmé automatiquement dans le frontend
+              confirmPassword: newPassword,
             }),
           }
         );
@@ -887,7 +999,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await checkAuth();
 
       if (isMounted) {
-        // Vérifier régulièrement la durée de session
+        // 🔥 Réduire la fréquence de vérification de session
         sessionCheckIntervalRef.current = window.setInterval(() => {
           const sessionStart = window.localStorage?.getItem(
             STORAGE_KEYS.SESSION_START
@@ -902,7 +1014,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
             }
           }
-        }, AUTH_CONSTANTS.SESSION_CHECK_INTERVAL);
+        }, 60 * 1000); // 🔥 Vérifier toutes les minutes au lieu de 30 secondes
       }
     };
 
