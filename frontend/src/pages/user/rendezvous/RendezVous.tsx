@@ -989,6 +989,10 @@ const RendezVous = () => {
           rel='canonical'
           href='https://panameconsulting.vercel.app/rendez-vous'
         />
+        <meta 
+          name="viewport" 
+          content="width=device-width, initial-scale=1, maximum-scale=5" 
+        />
       </Helmet>
 
       <div className='min-h-screen bg-gradient-to-b from-sky-50 to-white py-6'>

@@ -130,6 +130,12 @@ function App() {
           name='description'
           content="Paname Consulting : expert en accompagnement étudiant à l'étranger, organisation de voyages d'affaires et demandes de visa. Conseil personnalisé pour votre réussite internationale."
         />
+          <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+        <meta 
+          name="viewport" 
+          content="width=device-width, initial-scale=1, maximum-scale=5" 
+        />
         <link rel='apple-touch-icon' href='/paname-consulting.png' />
         <link rel='icon' href='/paname-consulting.ico' sizes='any' />
         <link rel='icon' href='/paname-consulting.svg' type='image/svg+xml' />
