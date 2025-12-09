@@ -21,7 +21,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function Header(): React.JSX.Element {
-  const { user, isAuthenticated, logout, isLoading, updateProfile } = useAuth();
+  const { user, isAuthenticated, logout, updateProfile } = useAuth();
   const [showTopBar] = useState(true);
   const [nav, setNav] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -37,7 +37,7 @@ function Header(): React.JSX.Element {
   useEffect(() => {
     setIsMounted(true);
     
-    // Vérifier l'authentification au montage
+    // Utilisation de updateProfile depuis le contexte
     if (isAuthenticated) {
       updateProfile();
     }
@@ -185,72 +185,13 @@ function Header(): React.JSX.Element {
     },
   ];
 
-  // Générer les initiales de l'utilisateur
+  // Générer les initiales de l'utilisateur depuis le contexte
   const getUserInitials = (): string => {
     if (!user) return '';
-    const firstNameInitial = user.firstName ? user.firstName.charAt(0) : '';
-    const lastNameInitial = user.lastName ? user.lastName.charAt(0) : '';
+    const firstNameInitial = user.firstName ? user.firstName.charAt(0).toUpperCase() : '';
+    const lastNameInitial = user.lastName ? user.lastName.charAt(0).toUpperCase() : '';
     return `${firstNameInitial}${lastNameInitial}`;
   };
-
-  // Afficher un skeleton pendant le chargement
-  if (isLoading || !isMounted) {
-    return (
-      <header role='banner' className='fixed top-0 z-50 w-full'>
-        {/* Barre supérieure skeleton */}
-        <div className='bg-sky-500 text-white text-sm h-10 hidden md:block'>
-          <div className='mx-auto px-4 h-full flex flex-row items-center justify-between'>
-            <div className='flex items-center space-x-6'>
-              <div className='flex items-center'>
-                <div className='w-4 h-4 bg-sky-400 rounded mr-2 animate-pulse'></div>
-                <div className='w-32 h-4 bg-sky-400 rounded animate-pulse'></div>
-              </div>
-              <div className='flex items-center'>
-                <div className='w-4 h-4 bg-sky-400 rounded mr-2 animate-pulse'></div>
-                <div className='w-48 h-4 bg-sky-400 rounded animate-pulse'></div>
-              </div>
-            </div>
-            <div className='flex items-center'>
-              <div className='w-40 h-6 bg-sky-400 rounded animate-pulse'></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation principale skeleton */}
-        <nav className='bg-white backdrop-blur-md shadow-md'>
-          <div className='px-4'>
-            <div className='flex items-center justify-between py-3'>
-              {/* Logo skeleton */}
-              <div className='flex items-center'>
-                <div className='w-16 h-16 bg-gray-200 rounded animate-pulse'></div>
-              </div>
-
-              {/* Menu desktop skeleton */}
-              <div className='hidden lg:flex items-center space-x-4'>
-                <div className='flex space-x-2'>
-                  {[1, 2, 3, 4].map(i => (
-                    <div
-                      key={i}
-                      className='w-20 h-10 bg-gray-200 rounded-lg animate-pulse'
-                    ></div>
-                  ))}
-                </div>
-                <div className='w-10 h-10 bg-gray-200 rounded-full animate-pulse ml-4'></div>
-              </div>
-
-              {/* Bouton hamburger skeleton */}
-              <div className='lg:hidden p-2'>
-                <div className='w-6 h-6 bg-gray-200 rounded animate-pulse'></div>
-              </div>
-            </div>
-          </div>
-        </nav>
-      </header>
-    );
-  }
-
-  // NE PAS retourner null, retourner un loader minimal à la place
-  // if (!isMounted) return null; // ← SUPPRIMER CETTE LIGNE
 
   return (
     <header role='banner' className='fixed top-0 z-50 w-full'>
