@@ -88,7 +88,6 @@ function App() {
     }
   }, []);
 
-  // Gestion du scroll en haut lors du changement de route
   useEffect(() => {
     safeScrollToTop();
 
@@ -103,7 +102,6 @@ function App() {
     };
   }, [location.pathname, safeScrollToTop]);
 
-  // Initialisation AOS simplifiée
   useEffect(() => {
     if (typeof globalThis.window === 'undefined' || isAOSInitialized) return;
 
@@ -117,13 +115,9 @@ function App() {
     setIsAOSInitialized(true);
   }, [isAOSInitialized]);
 
-  // Afficher le loader pendant le chargement
   if (isLoading) {
     return <Loader />;
   }
-
-  // Fonction utilitaire pour déterminer si l'utilisateur est admin
-  const isAdminUser = user?.role === 'admin' || user?.isAdmin;
 
   return (
     <ErrorBoundary>
@@ -143,7 +137,6 @@ function App() {
 
       <div key={navigationKey}>
         <Routes>
-          {/* Routes publiques avec Header et Footer */}
           <Route
             path='/'
             element={
@@ -180,7 +173,6 @@ function App() {
             }
           />
 
-          {/* Rendez-vous - layout minimal */}
           <Route
             path='/rendez-vous'
             element={
@@ -207,13 +199,14 @@ function App() {
             }
           />
 
-          {/* Redirections uniformisées pour l'authentification */}
           <Route
             path='/connexion'
             element={
               isAuthenticated ? (
                 <Navigate
-                  to={isAdminUser ? '/gestionnaire/statistiques' : '/'}
+                  to={user?.role === 'admin' || user?.isAdmin === true 
+                    ? '/gestionnaire/statistiques' 
+                    : '/'}
                   replace
                 />
               ) : (
@@ -229,7 +222,9 @@ function App() {
             element={
               isAuthenticated ? (
                 <Navigate
-                  to={isAdminUser ? '/gestionnaire/statistiques' : '/'}
+                  to={user?.role === 'admin' || user?.isAdmin === true 
+                    ? '/gestionnaire/statistiques' 
+                    : '/'}
                   replace
                 />
               ) : (
@@ -245,7 +240,9 @@ function App() {
             element={
               isAuthenticated ? (
                 <Navigate
-                  to={isAdminUser ? '/gestionnaire/statistiques' : '/'}
+                  to={user?.role === 'admin' || user?.isAdmin === true 
+                    ? '/gestionnaire/statistiques' 
+                    : '/'}
                   replace
                 />
               ) : (
@@ -256,7 +253,6 @@ function App() {
             }
           />
 
-          {/* Routes utilisateur connecté - redirection si non authentifié */}
           <Route
             path='/mes-rendez-vous'
             element={
@@ -308,7 +304,6 @@ function App() {
             }
           />
 
-          {/* Administration - redirection si non admin */}
           <Route
             path='/gestionnaire/*'
             element={
@@ -329,7 +324,6 @@ function App() {
             <Route path='rendez-vous' element={<AdminRendezVous />} />
           </Route>
 
-          {/* Redirections pour compatibilité */}
           <Route
             path='/user-rendez-vous'
             element={<Navigate to='/mes-rendez-vous' replace />}
@@ -343,17 +337,12 @@ function App() {
             element={<Navigate to='/ma-procedure' replace />}
           />
 
-          {/* Redirection admin vers le dashboard */}
-          <Route
-            path='/admin'
-            element={<Navigate to='/gestionnaire/statistiques' replace />}
-          />
+         
           <Route
             path='/gestionnaire'
             element={<Navigate to='/gestionnaire/statistiques' replace />}
           />
 
-          {/* Route 404 */}
           <Route path='*' element={<NotFound />} />
         </Routes>
       </div>

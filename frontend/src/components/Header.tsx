@@ -36,14 +36,7 @@ function Header(): React.JSX.Element {
 
   useEffect(() => {
     setIsMounted(true);
-    
-    // Vérifier l'authentification quand le composant monte
-    console.log('Header - Auth state:', { 
-      isAuthenticated, 
-      user, 
-      hasToken: !!window.localStorage?.getItem('access_token') 
-    });
-  }, [isAuthenticated, user]);
+  }, []);
 
   const handleLogoClick = (): void => {
     if (!isMounted) return;
@@ -54,7 +47,6 @@ function Header(): React.JSX.Element {
     }
   };
 
-  // Fermer les menus quand on clique à l'extérieur ou avec la touche Escape
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent): void => {
       if (
@@ -92,7 +84,6 @@ function Header(): React.JSX.Element {
     };
   }, [nav, dropdownOpen]);
 
-  // Animation clignotante pour "Services"
   useEffect(() => {
     let blinkTimeout: ReturnType<typeof setTimeout>;
     setBlinkColor('text-gray-600');
@@ -111,12 +102,10 @@ function Header(): React.JSX.Element {
     };
   }, []);
 
-  // Gestion améliorée de la déconnexion
   const handleLogout = async (): Promise<void> => {
     setIsLoggingOut(true);
     try {
       await logout();
-      // Nettoyer toute redirection stockée
       window.sessionStorage?.removeItem('redirect_after_login');
     } catch (error) {
       if (import.meta.env.DEV) {
@@ -129,22 +118,15 @@ function Header(): React.JSX.Element {
     }
   };
 
-  // Fonction pour gérer la navigation protégée
   const handleProtectedNavigation = (path: string, isMobile: boolean = false): void => {
     if (!isAuthenticated) {
-      // Stocker la destination souhaitée
       window.sessionStorage?.setItem('redirect_after_login', path);
-      
-      // Rediriger vers la connexion avec le contexte
       navigate('/connexion', {
         state: {
           message: 'Veuillez vous connecter pour accéder à cette page',
           from: path,
         }
       });
-      
-      if (isMobile && nav) setNav(false);
-      if (!isMobile) setDropdownOpen(false);
     } else {
       navigate(path);
       if (isMobile && nav) setNav(false);
@@ -152,7 +134,6 @@ function Header(): React.JSX.Element {
     }
   };
 
-  // Menus principaux - seulement les pages publiques
   const navItems = [
     { name: 'Accueil', path: '/', icon: <HomeIcon className='w-5 h-5' /> },
     {
@@ -173,7 +154,6 @@ function Header(): React.JSX.Element {
     },
   ];
 
-  // Options du menu utilisateur
   const userMenuItems = [
     {
       name: 'Tableau de bord',
@@ -217,7 +197,6 @@ function Header(): React.JSX.Element {
     },
   ];
 
-  // Générer les initiales de l'utilisateur depuis le contexte
   const getUserInitials = (): string => {
     if (!user) return '';
     const firstNameInitial = user.firstName ? user.firstName.charAt(0).toUpperCase() : '';
@@ -225,7 +204,6 @@ function Header(): React.JSX.Element {
     return `${firstNameInitial}${lastNameInitial}`;
   };
 
-  // Afficher le nom complet ou l'email
   const getUserDisplayName = (): string => {
     if (!user) return '';
     if (user.firstName && user.lastName) {
@@ -236,7 +214,6 @@ function Header(): React.JSX.Element {
 
   return (
     <header role='banner' className='fixed top-0 z-50 w-full'>
-      {/* Barre supérieure avec coordonnées - visible uniquement sur desktop */}
       <div
         className={`bg-sky-500 text-white text-sm transition-all duration-300 ${showTopBar ? 'h-10' : 'h-0 overflow-hidden'} hidden md:block`}
         aria-hidden={!showTopBar}
@@ -271,7 +248,6 @@ function Header(): React.JSX.Element {
         </div>
       </div>
 
-      {/* Navigation principale */}
       <nav
         className='bg-white backdrop-blur-md shadow-md transition-colors duration-300'
         role='navigation'
@@ -279,7 +255,6 @@ function Header(): React.JSX.Element {
       >
         <div className='px-4'>
           <div className='flex items-center justify-between py-3'>
-            {/* Logo */}
             <div
               className='flex items-center group cursor-pointer'
               onClick={handleLogoClick}
@@ -304,7 +279,6 @@ function Header(): React.JSX.Element {
               </div>
             </div>
 
-            {/* Menu desktop - visible uniquement sur grand écran */}
             <div className='hidden lg:flex items-center space-x-4'>
               <ul
                 className='flex space-x-2'
@@ -332,7 +306,6 @@ function Header(): React.JSX.Element {
                 ))}
               </ul>
 
-              {/* Boutons de connexion/inscription ou menu utilisateur */}
               {isAuthenticated && user ? (
                 <div className='relative ml-4' ref={dropdownRef}>
                   <button
@@ -360,7 +333,7 @@ function Header(): React.JSX.Element {
                           {user?.email}
                         </p>
                         <p className='text-xs text-sky-600 mt-1'>
-                          {user?.role === 'admin' ? 'Administrateur' : 'Utilisateur'}
+                          {user?.role === 'admin' || user?.isAdmin === true ? 'Administrateur' : 'Utilisateur'}
                         </p>
                       </div>
 
@@ -423,7 +396,6 @@ function Header(): React.JSX.Element {
               )}
             </div>
 
-            {/* Bouton menu hamburger - visible uniquement sur mobile */}
             <button
               ref={hamburgerRef}
               className='lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200'
@@ -437,7 +409,6 @@ function Header(): React.JSX.Element {
             </button>
           </div>
 
-          {/* Menu mobile - visible uniquement sur mobile */}
           {nav && (
             <ul
               id='mobile-menu'
@@ -447,7 +418,6 @@ function Header(): React.JSX.Element {
               ref={mobileMenuRef}
             >
               <div className='bg-white rounded-lg shadow-lg border divide-y animate-slideDown'>
-                {/* Menus principaux */}
                 {navItems.map(item => (
                   <li key={item.path} role='none'>
                     <Link
@@ -469,7 +439,6 @@ function Header(): React.JSX.Element {
                   </li>
                 ))}
 
-                {/* Section utilisateur connecté */}
                 {isAuthenticated && user && (
                   <div className='px-4 py-3 border-t'>
                     <div className='flex items-center mb-3'>
@@ -484,7 +453,7 @@ function Header(): React.JSX.Element {
                           {user?.email}
                         </p>
                         <p className='text-xs text-sky-600 mt-1'>
-                          {user?.role === 'admin' ? 'Administrateur' : 'Utilisateur'}
+                          {user?.role === 'admin' || user?.isAdmin === true ? 'Administrateur' : 'Utilisateur'}
                         </p>
                       </div>
                     </div>
@@ -525,7 +494,6 @@ function Header(): React.JSX.Element {
                   </div>
                 )}
 
-                {/* Boutons de connexion/inscription - version mobile */}
                 {!isAuthenticated && (
                   <li className='px-4 py-2 space-y-2' role='none'>
                     <Link
