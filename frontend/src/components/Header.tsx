@@ -21,21 +21,32 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function Header(): React.JSX.Element {
-  const { user, isAuthenticated, logout, isLoading } = useAuth();
+  const { user, isAuthenticated, logout, isLoading, updateProfile } = useAuth();
   const [showTopBar] = useState(true);
   const [nav, setNav] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [blinkColor, setBlinkColor] = useState('text-gray-600');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const mobileMenuRef = useRef<HTMLUListElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const hamburgerRef = useRef<HTMLButtonElement>(null);
 
+  useEffect(() => {
+    setIsMounted(true);
+    
+    // Vérifier l'authentification au montage
+    if (isAuthenticated) {
+      updateProfile();
+    }
+  }, [isAuthenticated, updateProfile]);
+
   const handleLogoClick = (): void => {
+    if (!isMounted) return;
     if (location.pathname === '/') {
-      globalThis.window?.scrollTo({ top: 0, behavior: 'smooth' });
+      window?.scrollTo?.({ top: 0, behavior: 'smooth' });
     } else {
       navigate('/');
     }
@@ -70,17 +81,16 @@ function Header(): React.JSX.Element {
       }
     };
 
-    globalThis.document?.addEventListener('mousedown', handleClickOutside);
-    globalThis.document?.addEventListener('keydown', handleEscapeKey);
+    document?.addEventListener('mousedown', handleClickOutside);
+    document?.addEventListener('keydown', handleEscapeKey);
 
     return () => {
-      globalThis.document?.removeEventListener('mousedown', handleClickOutside);
-      globalThis.document?.removeEventListener('keydown', handleEscapeKey);
+      document?.removeEventListener('mousedown', handleClickOutside);
+      document?.removeEventListener('keydown', handleEscapeKey);
     };
   }, [nav, dropdownOpen]);
 
-  // Animation clignotante pour "Services" - version optimisée
-  // Animation clignotante pour "Services" - version optimisée
+  // Animation clignotante pour "Services"
   useEffect(() => {
     let blinkTimeout: ReturnType<typeof setTimeout>;
     setBlinkColor('text-gray-600');
@@ -105,7 +115,6 @@ function Header(): React.JSX.Element {
     try {
       await logout();
     } catch (error) {
-      // Log only in development
       if (import.meta.env.DEV) {
         console.error('Erreur lors de la déconnexion:', error);
       }
@@ -147,19 +156,19 @@ function Header(): React.JSX.Element {
     },
     {
       name: 'Ma Procédure',
-      path: '/user-procedure',
+      path: '/ma-procedure',
       icon: <FileText className='w-4 h-4' />,
       visible: user?.role === 'user',
     },
     {
       name: 'Mes Rendez-Vous',
-      path: '/user-rendez-vous',
+      path: '/mes-rendez-vous',
       icon: <Calendar className='w-4 h-4' />,
       visible: user?.role === 'user',
     },
     {
       name: 'Mon Profil',
-      path: '/user-profile',
+      path: '/mon-profil',
       icon: <UserIcon className='w-4 h-4' />,
       visible: user?.role === 'user',
     },
@@ -185,7 +194,7 @@ function Header(): React.JSX.Element {
   };
 
   // Afficher un skeleton pendant le chargement
-  if (isLoading) {
+  if (isLoading || !isMounted) {
     return (
       <header role='banner' className='fixed top-0 z-50 w-full'>
         {/* Barre supérieure skeleton */}
@@ -239,6 +248,9 @@ function Header(): React.JSX.Element {
       </header>
     );
   }
+
+  // NE PAS retourner null, retourner un loader minimal à la place
+  // if (!isMounted) return null; // ← SUPPRIMER CETTE LIGNE
 
   return (
     <header role='banner' className='fixed top-0 z-50 w-full'>

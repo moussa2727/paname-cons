@@ -23,32 +23,27 @@ const GlobalToastContainer = () => (
   />
 );
 
-// Vérification que nous sommes dans un environnement browser
-if (typeof window !== 'undefined') {
-  const rootElement = document.getElementById('root');
+// Vérification robuste du DOM
+const rootElement = document.getElementById('root');
 
-  if (rootElement) {
-    ReactDOM.createRoot(rootElement).render(
-      <React.StrictMode>
-        <HelmetProvider>
-          <BrowserRouter
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true,
-            }}
-          >
-            <AuthProvider>
-              <App />
-              <GlobalToastContainer />
-            </AuthProvider>
-          </BrowserRouter>
-        </HelmetProvider>
-      </React.StrictMode>
-    );
-  } else {
-    // Gestion d'erreur silencieuse en développement uniquement
-    if (import.meta.env.DEV) {
-      console.error("Élément 'root' non trouvé dans le DOM");
-    }
-  }
+if (!rootElement) {
+  throw new Error("Élément 'root' non trouvé dans le DOM");
 }
+
+ReactDOM.createRoot(rootElement).render(
+  <React.StrictMode>
+    <HelmetProvider>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <AuthProvider>
+          <App />
+          <GlobalToastContainer />
+        </AuthProvider>
+      </BrowserRouter>
+    </HelmetProvider>
+  </React.StrictMode>
+);
