@@ -49,6 +49,7 @@ interface JwtPayload {
 
 interface LoginResponse {
   code: string;
+  access_token: string;
   user: {
     id: string;
     email: string;
@@ -61,6 +62,7 @@ interface LoginResponse {
 }
 
 interface RegisterResponse {
+  access_token: string;
   user: {
     id: string;
     email: string;
@@ -82,21 +84,23 @@ interface LogoutAllResponse {
 }
 
 interface RefreshResponse {
+  access_token: string;
+  refresh_token?: string;
   message?: string;
   expiresIn?: number;
 }
 
 interface AuthContextType {
   user: User | null;
+  access_token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: () => void;
   logoutAll: () => Promise<LogoutAllResponse>;
   register: (data: RegisterFormData) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   refreshToken: () => Promise<boolean>;
   resetPassword: (token: string, newPassword: string) => Promise<void>;
   updateProfile: () => Promise<void>;
-  checkAuth: () => Promise<boolean>;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -104,11 +108,11 @@ interface AuthContextType {
 
 // ==================== CONSTANTS ====================
 const AUTH_CONSTANTS = {
-  ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000,
-  PREVENTIVE_REFRESH_MS: 2 * 60 * 1000,
-  MAX_SESSION_DURATION_MS: 25 * 60 * 1000,
+  ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000, // 15 minutes
+  PREVENTIVE_REFRESH_MS: 2 * 60 * 1000, // 2 minutes avant expiration
+  MAX_SESSION_DURATION_MS: 25 * 60 * 1000, // 25 minutes (synchronisé backend)
   MAX_REFRESH_ATTEMPTS: 3,
-  SESSION_CHECK_INTERVAL: 60 * 1000,
+  SESSION_CHECK_INTERVAL: 60 * 1000, // Vérif toutes les minutes
 
   ERROR_CODES: {
     PASSWORD_RESET_REQUIRED: 'PASSWORD_RESET_REQUIRED',
@@ -121,17 +125,20 @@ const AUTH_CONSTANTS = {
 } as const;
 
 const STORAGE_KEYS = {
+  ACCESS_TOKEN: 'access_token',
   USER_DATA: 'user_data',
   SESSION_START: 'session_start',
-  LAST_AUTH_CHECK: 'last_auth_check',
+  REFRESH_ATTEMPTS: 'refresh_attempts',
 } as const;
 
+// Chemins de redirection
 const REDIRECT_PATHS = {
   LOGIN: '/connexion',
   HOME: '/',
   ADMIN_DASHBOARD: '/gestionnaire/statistiques',
 } as const;
 
+// Messages toast
 const TOAST_MESSAGES = {
   LOGIN_SUCCESS: 'Connexion réussie !',
   LOGOUT_SUCCESS: 'Déconnexion réussie',
@@ -149,6 +156,7 @@ const TOAST_MESSAGES = {
   NETWORK_ERROR: 'Erreur réseau. Vérifiez votre connexion.',
 } as const;
 
+// URL du backend
 const API_CONFIG = {
   BASE_URL: import.meta.env.VITE_API_URL || 'https://panameconsulting.up.railway.app',
   ENDPOINTS: {
@@ -160,7 +168,6 @@ const API_CONFIG = {
     FORGOT_PASSWORD: '/api/auth/forgot-password',
     RESET_PASSWORD: '/api/auth/reset-password',
     ME: '/api/auth/me',
-    VALIDATE_SESSION: '/api/auth/validate-session',
   } as const,
 } as const;
 
@@ -169,35 +176,42 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
+
+  const [user, setUser] = useState<User | null>(() => {
+    const stored = window.localStorage?.getItem(STORAGE_KEYS.USER_DATA);
+    return stored ? JSON.parse(stored) : null;
+  });
+
+  const [access_token, setAccessToken] = useState<string | null>(
+    window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN)
+  );
+
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [lastAuthCheck, setLastAuthCheck] = useState<number>(0);
 
   const refreshTimeoutRef = useRef<number | null>(null);
   const sessionCheckIntervalRef = useRef<number | null>(null);
   const refreshAttemptsRef = useRef(0);
 
-  // ==================== FONCTIONS DE BASE ====================
+  // ==================== FONCTIONS ESSENTIELLES ====================
 
   const cleanupAuthData = useCallback((): void => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(STORAGE_KEYS.USER_DATA);
-      localStorage.removeItem(STORAGE_KEYS.SESSION_START);
-      localStorage.removeItem(STORAGE_KEYS.LAST_AUTH_CHECK);
-    }
+    Object.values(STORAGE_KEYS).forEach(key => {
+      window.localStorage?.removeItem(key);
+    });
 
+    setAccessToken(null);
     setUser(null);
     setError(null);
     refreshAttemptsRef.current = 0;
 
     if (refreshTimeoutRef.current) {
-      clearTimeout(refreshTimeoutRef.current);
+      window.clearTimeout(refreshTimeoutRef.current);
       refreshTimeoutRef.current = null;
     }
 
     if (sessionCheckIntervalRef.current) {
-      clearInterval(sessionCheckIntervalRef.current);
+      window.clearInterval(sessionCheckIntervalRef.current);
       sessionCheckIntervalRef.current = null;
     }
   }, []);
@@ -206,15 +220,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<Response> => {
-    const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
+    const token = access_token || window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...options.headers,
+    };
+
+    const response = await window.fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      credentials: 'include', // IMPORTANT: envoie les cookies
+      headers,
+      credentials: 'include',
     });
 
+    // Gestion des erreurs d'authentification
     if (response.status === 401) {
       const errorData = await response.json().catch(() => ({}));
       
@@ -227,84 +247,104 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     return response;
-  }, [cleanupAuthData, navigate]);
+  }, [access_token, cleanupAuthData, navigate]);
 
-  const checkAuth = useCallback(async (): Promise<boolean> => {
+  const fetchUserData = useCallback(async (): Promise<void> => {
     try {
-      const now = Date.now();
+      const response = await fetchWithAuth(API_CONFIG.ENDPOINTS.ME);
       
-      // Éviter de vérifier trop souvent (cache de 10 secondes)
-      if (now - lastAuthCheck < 10000 && user) {
-        return true;
+      if (!response.ok) {
+        throw new Error('Erreur de récupération du profil');
       }
 
-      setLastAuthCheck(now);
-      
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.VALIDATE_SESSION || API_CONFIG.ENDPOINTS.ME}`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const userData = await response.json();
 
-      if (response.ok) {
-        const userData = await response.json();
-        
-        const mappedUser: User = {
-          id: userData.id || userData._id,
-          email: userData.email,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          role: userData.role,
-          isActive: userData.isActive !== false,
-          telephone: userData.telephone,
-          isAdmin: userData.role === UserRole.ADMIN,
-        };
+      const mappedUser: User = {
+        id: userData.id || userData._id,
+        email: userData.email,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        role: userData.role,
+        isActive: userData.isActive !== false,
+        telephone: userData.telephone,
+        isAdmin: userData.role === UserRole.ADMIN,
+      };
 
-        setUser(mappedUser);
-        
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(mappedUser));
-          localStorage.setItem(STORAGE_KEYS.LAST_AUTH_CHECK, now.toString());
-        }
-
-        return true;
-      }
-      
-      return false;
+      setUser(mappedUser);
+      window.localStorage?.setItem(
+        STORAGE_KEYS.USER_DATA,
+        JSON.stringify(mappedUser)
+      );
     } catch (error) {
       if (import.meta.env.DEV) {
-        console.error('Erreur checkAuth:', error);
+        console.error('Erreur récupération utilisateur:', error);
       }
-      return false;
+      
+      if (error instanceof Error && error.message === AUTH_CONSTANTS.ERROR_CODES.SESSION_EXPIRED) {
+        throw error;
+      }
     }
-  }, [lastAuthCheck, user]);
+  }, [fetchWithAuth]);
 
   const updateProfile = useCallback(async (): Promise<void> => {
-    await checkAuth();
-  }, [checkAuth]);
+    await fetchUserData();
+  }, [fetchUserData]);
 
-  const setupAutoRefresh = useCallback(() => {
-    if (refreshTimeoutRef.current) {
-      clearTimeout(refreshTimeoutRef.current);
+  const checkAuth = useCallback(async (): Promise<void> => {
+    const savedToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+
+    if (!savedToken) {
+      setIsLoading(false);
+      return;
     }
 
-    // Rafraîchir automatiquement la session toutes les 10 minutes
-    refreshTimeoutRef.current = window.setTimeout(async () => {
-      if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
-        const refreshed = await refreshToken();
-        if (refreshed) {
-          refreshAttemptsRef.current = 0;
-        } else {
-          refreshAttemptsRef.current++;
-        }
+    try {
+      const decoded = jwtDecode<JwtPayload>(savedToken);
+      const isTokenExpired = decoded.exp * 1000 < Date.now();
+
+      if (!isTokenExpired) {
+        await fetchUserData();
+        setupTokenRefresh(decoded.exp);
       } else {
         cleanupAuthData();
-        toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
       }
-    }, 10 * 60 * 1000); // 10 minutes
-  }, [cleanupAuthData]);
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn('Erreur vérification auth:', error);
+      }
+      cleanupAuthData();
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchUserData, cleanupAuthData]);
+
+  const setupTokenRefresh = useCallback((exp: number): void => {
+    if (refreshTimeoutRef.current) {
+      window.clearTimeout(refreshTimeoutRef.current);
+    }
+
+    const refreshTime = Math.max(
+      5000, // Minimum 5 secondes
+      exp * 1000 - Date.now() - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
+    );
+
+    if (refreshTime > 0) {
+      refreshTimeoutRef.current = window.setTimeout(async () => {
+        if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
+          const refreshed = await refreshToken();
+          if (refreshed) {
+            refreshAttemptsRef.current = 0;
+            toast.success(TOAST_MESSAGES.TOKEN_REFRESHED);
+          } else {
+            refreshAttemptsRef.current++;
+          }
+        } else {
+          logout();
+          toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+        }
+      }, refreshTime);
+    }
+  }, []);
 
   const handleAuthError = useCallback((error: any): void => {
     const errorMessage = error.message || 'Erreur inconnue';
@@ -339,12 +379,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setError(null);
 
       try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-          credentials: 'include',
-        });
+        const response = await window.fetch(
+          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+            credentials: 'include',
+          }
+        );
 
         const data: LoginResponse = await response.json();
 
@@ -354,6 +397,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
           throw new Error(data.message || 'Erreur de connexion');
         }
+
+        window.localStorage?.setItem(
+          STORAGE_KEYS.ACCESS_TOKEN,
+          data.access_token
+        );
+        setAccessToken(data.access_token);
 
         const userData: User = {
           id: data.user.id,
@@ -366,15 +415,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
 
         setUser(userData);
-        
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
-          localStorage.setItem(STORAGE_KEYS.SESSION_START, Date.now().toString());
-          localStorage.setItem(STORAGE_KEYS.LAST_AUTH_CHECK, Date.now().toString());
-        }
+        window.localStorage?.setItem(
+          STORAGE_KEYS.USER_DATA,
+          JSON.stringify(userData)
+        );
+        window.localStorage?.setItem(
+          STORAGE_KEYS.SESSION_START,
+          Date.now().toString()
+        );
 
-        setupAutoRefresh();
+        const decoded = jwtDecode<JwtPayload>(data.access_token);
+        setupTokenRefresh(decoded.exp);
 
+        // Redirection centralisée
         const redirectPath =
           data.user.role === UserRole.ADMIN
             ? REDIRECT_PATHS.ADMIN_DASHBOARD
@@ -389,7 +442,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(false);
       }
     },
-    [setupAutoRefresh, navigate, handleAuthError]
+    [setupTokenRefresh, navigate, handleAuthError]
   );
 
   const register = useCallback(
@@ -398,24 +451,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setError(null);
 
       try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REGISTER}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            email: formData.email,
-            telephone: formData.phone,
-            password: formData.password,
-          }),
-          credentials: 'include',
-        });
+        const response = await window.fetch(
+          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REGISTER}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              firstName: formData.firstName,
+              lastName: formData.lastName,
+              email: formData.email,
+              telephone: formData.phone,
+              password: formData.password,
+            }),
+            credentials: 'include',
+          }
+        );
 
         const data: RegisterResponse = await response.json();
 
         if (!response.ok) {
           throw new Error(data.message || "Erreur lors de l'inscription");
         }
+
+        window.localStorage?.setItem(
+          STORAGE_KEYS.ACCESS_TOKEN,
+          data.access_token
+        );
+        setAccessToken(data.access_token);
 
         const userData: User = {
           id: data.user.id,
@@ -428,14 +490,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
 
         setUser(userData);
-        
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
-          localStorage.setItem(STORAGE_KEYS.SESSION_START, Date.now().toString());
-          localStorage.setItem(STORAGE_KEYS.LAST_AUTH_CHECK, Date.now().toString());
-        }
+        window.localStorage?.setItem(
+          STORAGE_KEYS.USER_DATA,
+          JSON.stringify(userData)
+        );
+        window.localStorage?.setItem(
+          STORAGE_KEYS.SESSION_START,
+          Date.now().toString()
+        );
 
-        setupAutoRefresh();
+        const decoded = jwtDecode<JwtPayload>(data.access_token);
+        setupTokenRefresh(decoded.exp);
 
         const redirectPath =
           data.user.role === UserRole.ADMIN
@@ -451,15 +516,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(false);
       }
     },
-    [setupAutoRefresh, navigate, handleAuthError]
+    [setupTokenRefresh, navigate, handleAuthError]
   );
 
   const logout = useCallback(async (): Promise<void> => {
     try {
-      await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGOUT}`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+      if (access_token) {
+        await fetchWithAuth(API_CONFIG.ENDPOINTS.LOGOUT, {
+          method: 'POST',
+        });
+      }
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error('Erreur logout backend:', error);
@@ -469,49 +535,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       navigate(REDIRECT_PATHS.LOGIN);
       toast.info(TOAST_MESSAGES.LOGOUT_SUCCESS);
     }
-  }, [cleanupAuthData, navigate]);
-
-  const refreshToken = useCallback(async (): Promise<boolean> => {
-    try {
-      if (import.meta.env.DEV) {
-        console.log('🔄 Tentative de rafraîchissement du token...');
-      }
-
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REFRESH}`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.status === 401) {
-        return false;
-      }
-
-      if (!response.ok) {
-        return false;
-      }
-
-      const data: RefreshResponse = await response.json();
-
-      // Vérifier à nouveau l'authentification après le refresh
-      await checkAuth();
-      
-      if (import.meta.env.DEV) {
-        console.log('✅ Token rafraîchi avec succès');
-      }
-      return true;
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('❌ Erreur lors du refresh:', error);
-      }
-      return false;
-    }
-  }, [checkAuth]);
+  }, [access_token, cleanupAuthData, navigate, fetchWithAuth]);
 
   const logoutAll = useCallback(async (): Promise<LogoutAllResponse> => {
-    if (user?.role !== UserRole.ADMIN) {
+    if (!access_token || user?.role !== UserRole.ADMIN) {
       throw new Error('Accès non autorisé - Admin seulement');
     }
 
@@ -532,7 +559,94 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       handleAuthError(err);
       throw err;
     }
-  }, [user, fetchWithAuth, handleAuthError]);
+  }, [access_token, user, fetchWithAuth, handleAuthError]);
+
+  const refreshToken = useCallback(async (): Promise<boolean> => {
+    const currentToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+
+    if (!currentToken) {
+      if (import.meta.env.DEV) {
+        console.log('❌ Pas de token à rafraîchir');
+      }
+      return false;
+    }
+
+    try {
+      if (import.meta.env.DEV) {
+        console.log('🔄 Tentative de rafraîchissement du token...');
+      }
+
+      const response = await window.fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REFRESH}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        }
+      );
+
+      if (response.status === 401) {
+        const errorData = await response.json().catch(() => ({}));
+        
+        if (errorData.sessionExpired || errorData.loggedOut) {
+          if (import.meta.env.DEV) {
+            console.log('❌ Session expirée');
+          }
+          return false;
+        }
+      }
+
+      if (!response.ok) {
+        if (import.meta.env.DEV) {
+          console.warn(`❌ Refresh échoué: ${response.status}`);
+        }
+        return false;
+      }
+
+      const data: RefreshResponse = await response.json();
+
+      if (!data.access_token) {
+        if (import.meta.env.DEV) {
+          console.error('❌ Pas de nouveau token reçu');
+        }
+        return false;
+      }
+
+      window.localStorage?.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.access_token);
+      setAccessToken(data.access_token);
+
+      await fetchUserData();
+
+      try {
+        const decoded = jwtDecode<JwtPayload>(data.access_token);
+        setupTokenRefresh(decoded.exp);
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.error('Erreur mise à jour timer:', error);
+        }
+      }
+
+      if (import.meta.env.DEV) {
+        console.log('✅ Token rafraîchi avec succès');
+      }
+      return true;
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('❌ Erreur lors du refresh:', error);
+      }
+
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        if (import.meta.env.DEV) {
+          console.warn('🌐 Erreur réseau - le token actuel reste valable');
+        }
+        return false;
+      }
+
+      return false;
+    }
+  }, [fetchUserData, setupTokenRefresh]);
 
   const forgotPassword = useCallback(
     async (email: string): Promise<void> => {
@@ -540,11 +654,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setError(null);
 
       try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.FORGOT_PASSWORD}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
-        });
+        const response = await window.fetch(
+          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.FORGOT_PASSWORD}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+          }
+        );
 
         if (!response.ok) {
           const data = await response.json();
@@ -573,14 +690,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           throw new Error('Le mot de passe doit contenir au moins 8 caractères');
         }
 
-        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.RESET_PASSWORD}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token,
-            newPassword,
-          }),
-        });
+        const response = await window.fetch(
+          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.RESET_PASSWORD}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token,
+              newPassword,
+            }),
+          }
+        );
 
         if (!response.ok) {
           const data = await response.json();
@@ -607,44 +727,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const initializeAuth = async (): Promise<void> => {
       if (!isMounted) return;
 
-      try {
-        // Récupérer les données utilisateur depuis localStorage si elles existent
-        if (typeof window !== 'undefined') {
-          const storedUser = localStorage.getItem(STORAGE_KEYS.USER_DATA);
-          const lastCheck = localStorage.getItem(STORAGE_KEYS.LAST_AUTH_CHECK);
-          
-          if (storedUser) {
-            setUser(JSON.parse(storedUser));
-            setLastAuthCheck(lastCheck ? parseInt(lastCheck) : 0);
-          }
-        }
+      await checkAuth();
 
-        // Vérifier l'authentification auprès du backend
-        await checkAuth();
-        
-        if (isMounted) {
-          setupAutoRefresh();
-          
-          // Vérifier la session toutes les minutes
-          sessionCheckIntervalRef.current = window.setInterval(async () => {
-            const sessionStart = localStorage.getItem(STORAGE_KEYS.SESSION_START);
-            if (sessionStart) {
-              const sessionAge = Date.now() - parseInt(sessionStart);
-              if (sessionAge > AUTH_CONSTANTS.MAX_SESSION_DURATION_MS) {
-                logout();
-                toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-              }
+      if (isMounted) {
+        sessionCheckIntervalRef.current = window.setInterval(() => {
+          const sessionStart = window.localStorage?.getItem(
+            STORAGE_KEYS.SESSION_START
+          );
+          if (sessionStart) {
+            const sessionAge = Date.now() - parseInt(sessionStart);
+            if (sessionAge > AUTH_CONSTANTS.MAX_SESSION_DURATION_MS) {
+              logout();
+              toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
             }
-          }, AUTH_CONSTANTS.SESSION_CHECK_INTERVAL);
-        }
-      } catch (error) {
-        if (import.meta.env.DEV) {
-          console.error('Erreur initialisation auth:', error);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+          }
+        }, AUTH_CONSTANTS.SESSION_CHECK_INTERVAL);
       }
     };
 
@@ -653,19 +750,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       isMounted = false;
       if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
+        window.clearTimeout(refreshTimeoutRef.current);
       }
       if (sessionCheckIntervalRef.current) {
-        clearInterval(sessionCheckIntervalRef.current);
+        window.clearInterval(sessionCheckIntervalRef.current);
       }
     };
-  }, [checkAuth, logout, setupAutoRefresh]);
+  }, [checkAuth]);
 
   // ==================== VALEUR DU CONTEXT ====================
 
   const value: AuthContextType = {
     user,
-    isAuthenticated: !!user,
+    access_token,
+    isAuthenticated: !!user && !!access_token,
     isLoading,
     error,
     login,
@@ -676,7 +774,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     resetPassword,
     refreshToken,
     updateProfile,
-    checkAuth,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
