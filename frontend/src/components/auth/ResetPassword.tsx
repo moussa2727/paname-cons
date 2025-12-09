@@ -91,7 +91,6 @@ const ResetPassword: React.FC = () => {
     setMessage({ text: '', type: 'success' });
 
     try {
-      // Utilisation de la méthode du contexte Auth
       await resetPassword(token, formData.newPassword);
 
       setMessage({
@@ -101,15 +100,26 @@ const ResetPassword: React.FC = () => {
 
       window.setTimeout(() => navigate('/connexion'), 3000);
     } catch (error: any) {
-      // Log only in development
-      if (import.meta.env.DEV) {
-        console.error('Erreur réinitialisation:', error.message);
+      // Gestion des erreurs spécifiques au backend
+      let errorMessage = error.message || 'Erreur lors de la réinitialisation';
+      
+      if (errorMessage.includes('Token invalide ou expiré')) {
+        errorMessage = 'Le lien de réinitialisation a expiré ou est invalide. Veuillez en demander un nouveau.';
+      } else if (errorMessage.includes('Utilisateur non trouvé')) {
+        errorMessage = 'Le compte associé à ce lien n\'existe plus.';
+      } else if (errorMessage.includes('Le mot de passe doit contenir au moins 8 caractères')) {
+        errorMessage = 'Le mot de passe doit contenir au moins 8 caractères, avec majuscule, minuscule, chiffre et caractère spécial.';
       }
 
       setMessage({
-        text: error.message || 'Erreur lors de la réinitialisation',
+        text: errorMessage,
         type: 'error',
       });
+      
+      // Log seulement en développement
+      if (import.meta.env.DEV) {
+        console.error('Erreur réinitialisation:', error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -195,6 +205,7 @@ const ResetPassword: React.FC = () => {
                     className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-sky-500 focus:ring-none focus:outline-none transition-colors duration-200'
                     aria-describedby='passwordRequirements'
                     required
+                    minLength={8}
                   />
                   <button
                     type='button'
@@ -275,6 +286,7 @@ const ResetPassword: React.FC = () => {
                         : 'border-gray-300'
                     }`}
                     required
+                    minLength={8}
                   />
                   <button
                     type='button'

@@ -51,7 +51,7 @@ const Login: React.FC = (): React.JSX.Element => {
 
       if (
         message.includes('MAINTENANCE_MODE') ||
-        message.includes('Mode maintenance')
+        message.includes('MAINTENANCE MODE')
       ) {
         toast.error(
           <div>
@@ -68,6 +68,7 @@ const Login: React.FC = (): React.JSX.Element => {
         );
       } else if (
         message.includes('COMPTE_DESACTIVE') ||
+        message.includes('COMPTE DESACTIVE') ||
         message.includes('désactivé') ||
         message.includes('Compte désactivé')
       ) {
@@ -85,9 +86,10 @@ const Login: React.FC = (): React.JSX.Element => {
         );
       } else if (
         message.includes('COMPTE_TEMPORAIREMENT_DECONNECTE') ||
+        message.includes('COMPTE TEMPORAIREMENT DECONNECTE') ||
         message.includes('Déconnecté temporairement')
       ) {
-        const match = message.match(/\(reste (\d+)h\)/);
+        const match = message.match(/:(\d+)/) || message.match(/\(reste (\d+)h\)/);
         const hours = match ? match[1] : '24';
         toast.warning(
           <div>
@@ -112,14 +114,29 @@ const Login: React.FC = (): React.JSX.Element => {
           </div>,
           { autoClose: 6000 }
         );
-      } else if (message.includes('PASSWORD_RESET_REQUIRED')) {
-        // Déjà géré dans AuthContext - redirection vers mot de passe oublié
-        if (import.meta.env.DEV) {
-          console.log('Password reset required - handled in AuthContext');
-        }
+      } else if (
+        message.includes('PASSWORD_RESET_REQUIRED') ||
+        message.includes('NO_PASSWORD_IN_DB')
+      ) {
+        toast.info(
+          <div>
+            <div className='font-semibold'>Configuration du compte requise</div>
+            <div className='text-sm mt-1'>
+              Veuillez définir votre mot de passe pour la première connexion
+            </div>
+          </div>,
+          {
+            autoClose: 8000,
+            icon: <FiAlertCircle className='text-blue-500 text-xl' />,
+          }
+        );
+        navigate('/reset-password-required', { 
+          state: { email, reason: 'first_time_setup' } 
+        });
       } else if (
         message.includes('Email ou mot de passe incorrect') ||
-        message.includes('Unauthorized')
+        message.includes('Unauthorized') ||
+        message.includes('INVALID_CREDENTIALS')
       ) {
         toast.error('Email ou mot de passe incorrect', { autoClose: 4000 });
       } else {
@@ -136,8 +153,8 @@ const Login: React.FC = (): React.JSX.Element => {
 
   const isAccountDisabledError =
     error.includes('COMPTE_DESACTIVE') ||
-    error.includes('désactivé') ||
-    error.includes('COMPTE DESACTIVE');
+    error.includes('COMPTE DESACTIVE') ||
+    error.includes('désactivé');
 
   return (
     <div className='flex items-center justify-center p-4 min-h-screen bg-sky-50'>
