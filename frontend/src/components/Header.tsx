@@ -21,7 +21,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function Header(): React.JSX.Element {
-  const { user, isAuthenticated, logout, updateProfile } = useAuth();
+  const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
   const [showTopBar] = useState(true);
   const [nav, setNav] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -37,11 +37,13 @@ function Header(): React.JSX.Element {
   useEffect(() => {
     setIsMounted(true);
     
-    // Utilisation de updateProfile depuis le contexte
-    if (isAuthenticated) {
-      updateProfile();
-    }
-  }, [isAuthenticated, updateProfile]);
+    // Vérifier l'authentification quand le composant monte
+    console.log('Header - Auth state:', { 
+      isAuthenticated, 
+      user, 
+      hasToken: !!window.localStorage?.getItem('access_token') 
+    });
+  }, [isAuthenticated, user]);
 
   const handleLogoClick = (): void => {
     if (!isMounted) return;
@@ -114,6 +116,8 @@ function Header(): React.JSX.Element {
     setIsLoggingOut(true);
     try {
       await logout();
+      // Nettoyer toute redirection stockée
+      window.sessionStorage?.removeItem('redirect_after_login');
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error('Erreur lors de la déconnexion:', error);
@@ -122,6 +126,29 @@ function Header(): React.JSX.Element {
       setIsLoggingOut(false);
       setDropdownOpen(false);
       if (nav) setNav(false);
+    }
+  };
+
+  // Fonction pour gérer la navigation protégée
+  const handleProtectedNavigation = (path: string, isMobile: boolean = false): void => {
+    if (!isAuthenticated) {
+      // Stocker la destination souhaitée
+      window.sessionStorage?.setItem('redirect_after_login', path);
+      
+      // Rediriger vers la connexion avec le contexte
+      navigate('/connexion', {
+        state: {
+          message: 'Veuillez vous connecter pour accéder à cette page',
+          from: path,
+        }
+      });
+      
+      if (isMobile && nav) setNav(false);
+      if (!isMobile) setDropdownOpen(false);
+    } else {
+      navigate(path);
+      if (isMobile && nav) setNav(false);
+      if (!isMobile) setDropdownOpen(false);
     }
   };
 
@@ -152,36 +179,41 @@ function Header(): React.JSX.Element {
       name: 'Tableau de bord',
       path: '/gestionnaire/statistiques',
       icon: <LayoutDashboard className='w-4 h-4' />,
-      visible: user?.role === 'admin',
+      visible: user?.role === 'admin' || user?.isAdmin === true,
+      requiresAuth: true,
     },
     {
       name: 'Ma Procédure',
       path: '/ma-procedure',
       icon: <FileText className='w-4 h-4' />,
       visible: user?.role === 'user',
+      requiresAuth: true,
     },
     {
       name: 'Mes Rendez-Vous',
       path: '/mes-rendez-vous',
       icon: <Calendar className='w-4 h-4' />,
       visible: user?.role === 'user',
+      requiresAuth: true,
     },
     {
       name: 'Mon Profil',
       path: '/mon-profil',
       icon: <UserIcon className='w-4 h-4' />,
-      visible: user?.role === 'user',
+      visible: true,
+      requiresAuth: true,
     },
     {
       name: 'Déconnexion',
       action: handleLogout,
       icon: isLoggingOut ? (
-        <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+        <div className='w-4 h-4 border-2 border-gray-700 border-t-transparent rounded-full animate-spin'></div>
       ) : (
         <LogOut className='w-4 h-4' />
       ),
-      visible: true,
+      visible: isAuthenticated,
       disabled: isLoggingOut,
+      requiresAuth: true,
     },
   ];
 
@@ -191,6 +223,15 @@ function Header(): React.JSX.Element {
     const firstNameInitial = user.firstName ? user.firstName.charAt(0).toUpperCase() : '';
     const lastNameInitial = user.lastName ? user.lastName.charAt(0).toUpperCase() : '';
     return `${firstNameInitial}${lastNameInitial}`;
+  };
+
+  // Afficher le nom complet ou l'email
+  const getUserDisplayName = (): string => {
+    if (!user) return '';
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    return user.email || '';
   };
 
   return (
@@ -292,7 +333,7 @@ function Header(): React.JSX.Element {
               </ul>
 
               {/* Boutons de connexion/inscription ou menu utilisateur */}
-              {isAuthenticated ? (
+              {isAuthenticated && user ? (
                 <div className='relative ml-4' ref={dropdownRef}>
                   <button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -300,6 +341,7 @@ function Header(): React.JSX.Element {
                     aria-label='Menu utilisateur'
                     aria-expanded={dropdownOpen}
                     aria-haspopup='true'
+                    disabled={authLoading}
                   >
                     {getUserInitials() || <UserIcon className='w-5 h-5' />}
                   </button>
@@ -312,10 +354,13 @@ function Header(): React.JSX.Element {
                     >
                       <div className='px-4 py-2 border-b border-gray-100'>
                         <p className='text-sm font-medium text-gray-800 truncate'>
-                          {user?.firstName} {user?.lastName}
+                          {getUserDisplayName()}
                         </p>
                         <p className='text-xs text-gray-500 truncate'>
                           {user?.email}
+                        </p>
+                        <p className='text-xs text-sky-600 mt-1'>
+                          {user?.role === 'admin' ? 'Administrateur' : 'Utilisateur'}
                         </p>
                       </div>
 
@@ -324,17 +369,17 @@ function Header(): React.JSX.Element {
                           .filter(item => item.visible)
                           .map((item, index) =>
                             item.path ? (
-                              <Link
+                              <button
                                 key={index}
-                                to={item.path}
-                                className='flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-150'
-                                onClick={() => setDropdownOpen(false)}
+                                onClick={() => handleProtectedNavigation(item.path)}
+                                className='flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-150'
                                 role='menuitem'
-                                tabIndex={0}
+                                disabled={item.disabled}
+                                aria-disabled={item.disabled}
                               >
                                 {item.icon}
                                 <span className='ml-3'>{item.name}</span>
-                              </Link>
+                              </button>
                             ) : (
                               <button
                                 key={index}
@@ -361,6 +406,7 @@ function Header(): React.JSX.Element {
                     to='/connexion'
                     className='flex items-center px-4 py-2 text-sky-600 hover:bg-sky-50 border border-sky-200 transition-colors duration-200 rounded-full'
                     aria-label='Se connecter'
+                    state={{ from: location.pathname }}
                   >
                     <LogIn className='w-5 h-5 mr-2' />
                     <span>Connexion</span>
@@ -385,6 +431,7 @@ function Header(): React.JSX.Element {
               aria-label={nav ? 'Fermer le menu' : 'Ouvrir le menu'}
               aria-expanded={nav}
               aria-controls='mobile-menu'
+              disabled={authLoading}
             >
               {nav ? <X className='w-6 h-6' /> : <Menu className='w-6 h-6' />}
             </button>
@@ -423,7 +470,7 @@ function Header(): React.JSX.Element {
                 ))}
 
                 {/* Section utilisateur connecté */}
-                {isAuthenticated && (
+                {isAuthenticated && user && (
                   <div className='px-4 py-3 border-t'>
                     <div className='flex items-center mb-3'>
                       <div className='flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-medium mr-3'>
@@ -431,10 +478,13 @@ function Header(): React.JSX.Element {
                       </div>
                       <div>
                         <p className='text-sm font-medium text-gray-800 truncate'>
-                          {user?.firstName} {user?.lastName}
+                          {getUserDisplayName()}
                         </p>
                         <p className='text-xs text-gray-500 truncate'>
                           {user?.email}
+                        </p>
+                        <p className='text-xs text-sky-600 mt-1'>
+                          {user?.role === 'admin' ? 'Administrateur' : 'Utilisateur'}
                         </p>
                       </div>
                     </div>
@@ -444,16 +494,17 @@ function Header(): React.JSX.Element {
                         .filter(item => item.visible)
                         .map((item, index) =>
                           item.path ? (
-                            <Link
+                            <button
                               key={index}
-                              to={item.path}
-                              onClick={() => setNav(false)}
-                              className='flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors duration-150'
+                              onClick={() => handleProtectedNavigation(item.path, true)}
+                              className='flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors duration-150'
                               role='menuitem'
+                              disabled={item.disabled}
+                              aria-disabled={item.disabled}
                             >
                               {item.icon}
                               <span className='ml-3'>{item.name}</span>
-                            </Link>
+                            </button>
                           ) : (
                             <button
                               key={index}
@@ -482,6 +533,7 @@ function Header(): React.JSX.Element {
                       onClick={() => setNav(false)}
                       className='flex items-center justify-center w-full px-4 py-2 text-sky-600 hover:bg-sky-50 border border-sky-200 rounded-lg transition-colors duration-200'
                       role='menuitem'
+                      state={{ from: location.pathname }}
                     >
                       <LogIn className='w-5 h-5 mr-2' />
                       <span>Connexion</span>

@@ -141,6 +141,11 @@ const REDIRECT_PATHS = {
   LOGIN: '/connexion',
   HOME: '/',
   ADMIN_DASHBOARD: '/gestionnaire/statistiques',
+  // Ajoutez ces nouveaux chemins
+  USER_DASHBOARD: '/mon-profil',
+  REGISTER: '/inscription',
+  FORGOT_PASSWORD: '/mot-de-passe-oublie',
+  RESET_PASSWORD: '/reset-password',
 } as const;
 
 // Messages toast synchronisés avec backend
@@ -379,113 +384,134 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // ==================== MÉTHODES D'AUTHENTIFICATION ====================
 
-  const login = useCallback(
-    async (email: string, password: string): Promise<void> => {
-      setIsLoading(true);
-      setError(null);
+ const login = useCallback(
+  async (email: string, password: string): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
 
-      try {
-        const response = await window.fetch(
-          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
-          {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'X-Client-Version': '1.0.0',
-            },
-            body: JSON.stringify({ email, password }),
-            credentials: 'include',
-          }
-        );
-
-        const data: LoginResponse = await response.json();
-
-        if (!response.ok) {
-          // Gestion unifiée des codes d'erreur backend
-          if (data.code === AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS) {
-            throw new Error(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS);
-          }
-          
-          // Propager les messages spécifiques du backend
-          if (data.message && data.message.includes('COMPTE DESACTIVE')) {
-            throw new Error(AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE);
-          }
-          
-          if (data.message && data.message.includes('COMPTE TEMPORAIREMENT DECONNECTE')) {
-            const hoursMatch = data.message.match(/:(\d+)/);
-            const hours = hoursMatch ? hoursMatch[1] : '24';
-            throw new Error(`${AUTH_CONSTANTS.ERROR_CODES.COMPTE_TEMPORAIREMENT_DECONNECTE}:${hours}`);
-          }
-          
-          if (data.message && data.message.includes('MAINTENANCE MODE')) {
-            throw new Error(AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE);
-          }
-          
-          if (data.message && data.message.includes('NO_PASSWORD_IN_DB')) {
-            throw new Error('NO_PASSWORD_IN_DB');
-          }
-          
-          throw new Error(data.message || 'Erreur de connexion');
+    try {
+      const response = await window.fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
+        {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Client-Version': '1.0.0',
+          },
+          body: JSON.stringify({ email, password }),
+          credentials: 'include',
         }
+      );
 
-        // Validation des données reçues
-        if (!data.access_token || !data.user) {
-          throw new Error('Réponse invalide du serveur');
-        }
+      const data: LoginResponse = await response.json();
 
-        window.localStorage?.setItem(
-          STORAGE_KEYS.ACCESS_TOKEN,
-          data.access_token
-        );
-        setAccessToken(data.access_token);
-
-        const userData: User = {
-          id: data.user.id,
-          email: data.user.email,
-          firstName: data.user.firstName,
-          lastName: data.user.lastName,
-          role: data.user.role,
-          isActive: true,
-          isAdmin: data.user.role === UserRole.ADMIN,
-        };
-
-        setUser(userData);
-        window.localStorage?.setItem(
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify(userData)
-        );
-        window.localStorage?.setItem(
-          STORAGE_KEYS.SESSION_START,
-          Date.now().toString()
-        );
-
-        const decoded = jwtDecode<JwtPayload>(data.access_token);
-        setupTokenRefresh(decoded.exp);
-
-        // Redirection centralisée
-        const redirectPath =
-          data.user.role === UserRole.ADMIN
-            ? REDIRECT_PATHS.ADMIN_DASHBOARD
-            : REDIRECT_PATHS.HOME;
-
-        navigate(redirectPath);
-        toast.success(TOAST_MESSAGES.LOGIN_SUCCESS);
-      } catch (err: any) {
-        if (import.meta.env.DEV) {
-          console.error('Login error details:', {
-            message: err.message,
-            stack: err.stack,
-          });
+      if (!response.ok) {
+        // Gestion unifiée des codes d'erreur backend
+        if (data.code === AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS) {
+          throw new Error(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS);
         }
         
-        handleAuthError(err);
-        throw err;
-      } finally {
-        setIsLoading(false);
+        // Propager les messages spécifiques du backend
+        if (data.message && data.message.includes('COMPTE DESACTIVE')) {
+          throw new Error(AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE);
+        }
+        
+        if (data.message && data.message.includes('COMPTE TEMPORAIREMENT DECONNECTE')) {
+          const hoursMatch = data.message.match(/:(\d+)/);
+          const hours = hoursMatch ? hoursMatch[1] : '24';
+          throw new Error(`${AUTH_CONSTANTS.ERROR_CODES.COMPTE_TEMPORAIREMENT_DECONNECTE}:${hours}`);
+        }
+        
+        if (data.message && data.message.includes('MAINTENANCE MODE')) {
+          throw new Error(AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE);
+        }
+        
+        if (data.message && data.message.includes('NO_PASSWORD_IN_DB')) {
+          throw new Error('NO_PASSWORD_IN_DB');
+        }
+        
+        throw new Error(data.message || 'Erreur de connexion');
       }
-    },
-    [setupTokenRefresh, navigate, handleAuthError]
-  );
+
+      // Validation des données reçues
+      if (!data.access_token || !data.user) {
+        throw new Error('Réponse invalide du serveur');
+      }
+
+      // Stockage du token
+      window.localStorage?.setItem(
+        STORAGE_KEYS.ACCESS_TOKEN,
+        data.access_token
+      );
+      setAccessToken(data.access_token);
+
+      const userData: User = {
+        id: data.user.id,
+        email: data.user.email,
+        firstName: data.user.firstName,
+        lastName: data.user.lastName,
+        role: data.user.role,
+        isActive: true,
+        isAdmin: data.user.role === UserRole.ADMIN,
+      };
+
+      setUser(userData);
+      window.localStorage?.setItem(
+        STORAGE_KEYS.USER_DATA,
+        JSON.stringify(userData)
+      );
+      window.localStorage?.setItem(
+        STORAGE_KEYS.SESSION_START,
+        Date.now().toString()
+      );
+
+      // Décode le token pour obtenir l'expiration
+      try {
+        const decoded = jwtDecode<JwtPayload>(data.access_token);
+        setupTokenRefresh(decoded.exp);
+      } catch (decodeError) {
+        if (import.meta.env.DEV) {
+          console.error('Erreur lors du décodage du token:', decodeError);
+        }
+        // On continue même si le décodage échoue
+      }
+
+      // Redirection basée sur le rôle
+      let redirectPath: string;
+      
+      if (data.user.role === UserRole.ADMIN) {
+        redirectPath = REDIRECT_PATHS.ADMIN_DASHBOARD;
+      } else {
+        // Pour les utilisateurs normaux, on vérifie si on a une redirection stockée
+        const storedRedirect = window.sessionStorage?.getItem('redirect_after_login');
+        if (storedRedirect) {
+          redirectPath = storedRedirect;
+          window.sessionStorage?.removeItem('redirect_after_login');
+        } else {
+          // Sinon, on redirige vers le dashboard utilisateur
+          redirectPath = '/mon-profil'; // ou REDIRECT_PATHS.USER_DASHBOARD si défini
+        }
+      }
+
+      navigate(redirectPath, { replace: true });
+      toast.success(TOAST_MESSAGES.LOGIN_SUCCESS);
+      
+    } catch (err: any) {
+      if (import.meta.env.DEV) {
+        console.error('Login error details:', {
+          message: err.message,
+          stack: err.stack,
+        });
+      }
+      
+      handleAuthError(err);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  },
+  [setupTokenRefresh, navigate, handleAuthError]
+);
 
   const register = useCallback(
     async (formData: RegisterFormData): Promise<void> => {
