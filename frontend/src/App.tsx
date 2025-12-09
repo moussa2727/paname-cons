@@ -136,9 +136,12 @@ function App() {
           name="viewport" 
           content="width=device-width, initial-scale=1, maximum-scale=5" 
         />
-        <link rel='apple-touch-icon' href='/paname-consulting.png' />
-        <link rel='icon' href='/paname-consulting.ico' sizes='any' />
-        <link rel='icon' href='/paname-consulting.svg' type='image/svg+xml' />
+        <link rel="icon" href="/paname-consulting.ico" sizes="any" />
+        <link rel="icon" href="/paname-consulting.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/paname-consulting.png" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta property="og:url" content="https://panameconsulting.vercel.app" />
+
       </Helmet>
 
       <div key={navigationKey}>
