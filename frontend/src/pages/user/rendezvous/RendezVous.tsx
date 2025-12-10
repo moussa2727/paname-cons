@@ -161,11 +161,10 @@ const RendezVous = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // ✅ Validation simplifiée du téléphone
+  // ✅ Validation STRICTE du téléphone (identique au backend)
   const validatePhone = (phone: string): boolean => {
     const cleanedPhone = phone.replace(/[\s\-()]/g, '');
-    // Validation basique pour éviter les erreurs
-    return /^\+?[0-9]{8,15}$/.test(cleanedPhone);
+    return /^\+?[1-9]\d{1,14}$/.test(cleanedPhone);
   };
 
   const formatDateDisplay = (dateStr: string): string => {
@@ -241,7 +240,7 @@ const RendezVous = () => {
           !formData.telephone?.trim() ||
           !validatePhone(formData.telephone)
         ) {
-          toast.error('Numéro de téléphone invalide');
+          toast.error('Numéro de téléphone invalide (format: +22812345678, 8-15 chiffres, ne doit pas commencer par 0)');
         }
       } else if (currentStep === 2) {
         if (!formData.destination) {
@@ -356,9 +355,9 @@ const RendezVous = () => {
       return;
     }
 
-    // Validation des données
+    // Validation STRICTE des données (identique au backend)
     if (!validatePhone(formData.telephone)) {
-      toast.error('Numéro de téléphone invalide (format: +228XXXXXXXXX)');
+      toast.error('Numéro de téléphone invalide (format: +228XXXXXXXXX, 8-15 chiffres, ne doit pas commencer par 0)');
       return;
     }
 
@@ -375,7 +374,28 @@ const RendezVous = () => {
       return;
     }
 
-    // ✅ Préparation des données cohérente avec backend
+    // Validation email (regex identique au backend)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      toast.error('Format d\'email invalide');
+      return;
+    }
+
+    // Vérifier que la date n'est pas passée
+    if (isDatePassed(formData.date)) {
+      toast.error('Vous ne pouvez pas réserver une date passée');
+      return;
+    }
+
+    // Vérifier que le créneau n'est pas passé (si date d'aujourd'hui)
+    if (formData.date === new Date().toISOString().split('T')[0] && formData.time) {
+      if (isTimePassed(formData.time, formData.date)) {
+        toast.error('Vous ne pouvez pas réserver un créneau passé');
+        return;
+      }
+    }
+
+    // ✅ Préparation des données COHÉRENTES avec backend
     const submitData: Record<string, any> = {
       firstName: formData.firstName.trim(),
       lastName: formData.lastName.trim(),
@@ -384,21 +404,27 @@ const RendezVous = () => {
       niveauEtude: formData.niveauEtude,
       date: formData.date,
       time: formData.time,
+      // IMPORTANT: Le userId est requis par le backend
+      userId: user?.id
     };
 
-    // Gestion des champs "Autre"
+    // Gestion STRICTE des champs "Autre" (identique au backend)
     if (formData.destination === 'Autre') {
-      submitData.destination = 'Autre'; // ✅ Envoyer "Autre" comme backend s'attend
+      submitData.destination = 'Autre';
       submitData.destinationAutre = formData.destinationAutre!.trim();
     } else {
       submitData.destination = formData.destination;
+      // Ne pas envoyer destinationAutre si pas "Autre"
+      delete submitData.destinationAutre;
     }
 
     if (formData.filiere === 'Autre') {
-      submitData.filiere = 'Autre'; // ✅ Envoyer "Autre" comme backend s'attend
+      submitData.filiere = 'Autre';
       submitData.filiereAutre = formData.filiereAutre!.trim();
     } else {
       submitData.filiere = formData.filiere;
+      // Ne pas envoyer filiereAutre si pas "Autre"
+      delete submitData.filiereAutre;
     }
 
     setLoading(true);
@@ -418,7 +444,7 @@ const RendezVous = () => {
 
       let response = await makeRequest(access_token);
 
-      // ✅ Gestion améliorée des erreurs 401
+      // ✅ Gestion STRICTE des erreurs 401 (identique au backend)
       if (response.status === 401) {
         try {
           const refreshed = await refreshToken();
@@ -447,33 +473,44 @@ const RendezVous = () => {
           const errorData = await response.json();
           errorMessage = errorData.message || errorData.error || errorMessage;
 
-          // Gestion des erreurs spécifiques
-          if (errorMessage.includes('Vous avez déjà un rendez-vous en cours')) {
-            toast.error('Vous avez déjà un rendez-vous en cours.', {
+          // Gestion des erreurs spécifiques du backend
+          if (errorMessage.includes('Vous avez déjà un rendez-vous confirmé')) {
+            toast.error('Vous avez déjà un rendez-vous confirmé. Annulez-le avant d\'en créer un nouveau.', {
               autoClose: 5000,
             });
             setTimeout(() => {
-              navigate('/mes-rendez-vous'); // ✅ Redirection vers profil
+              navigate('/mes-rendez-vous');
             }, 2000);
+            return;
+          }
+
+          if (errorMessage.includes('Email ne correspond pas')) {
+            toast.error('L\'email doit correspondre à votre compte. Veuillez utiliser votre email de connexion.');
             return;
           }
 
           if (
             errorMessage.includes('créneau') ||
-            errorMessage.includes('disponible')
+            errorMessage.includes('disponible') ||
+            errorMessage.includes('complets')
           ) {
             toast.error(
-              "Ce créneau n'est plus disponible. Veuillez choisir un autre horaire."
+              'Ce créneau n\'est plus disponible. Veuillez choisir un autre horaire.'
             );
             if (formData.date) fetchAvailableSlots(formData.date);
             setFormData(prev => ({ ...prev, time: '' }));
             return;
           }
 
-          if (errorMessage.includes('complets')) {
-            toast.error(
-              'Tous les créneaux sont complets pour cette date. Veuillez choisir une autre date.'
-            );
+          if (errorMessage.includes('weekend') || errorMessage.includes('week-end')) {
+            toast.error('Les réservations sont fermées le week-end');
+            fetchAvailableDates();
+            setFormData(prev => ({ ...prev, date: '', time: '' }));
+            return;
+          }
+
+          if (errorMessage.includes('férié')) {
+            toast.error('Les réservations sont fermées les jours fériés');
             fetchAvailableDates();
             setFormData(prev => ({ ...prev, date: '', time: '' }));
             return;
@@ -482,9 +519,7 @@ const RendezVous = () => {
           toast.error(errorMessage);
           return;
         } catch {
-          // Si la réponse n'est pas du JSON
           const textError = await response.text();
-
           console.error('Erreur serveur (non-JSON):', textError);
           toast.error('Erreur serveur. Veuillez réessayer.');
           return;
@@ -509,9 +544,9 @@ const RendezVous = () => {
         throw new Error('Réponse serveur invalide');
       }
 
-      // ✅ SUCCÈS - Affichage message et redirection
+      // ✅ SUCCÈS - Rendez-vous IMMÉDIATEMENT "Confirmé" (comme backend)
       setSuccess(true);
-      toast.success('✅ Rendez-vous créé avec succès !');
+      toast.success('✅ Rendez-vous créé et confirmé avec succès !');
 
       setTimeout(() => {
         navigate('/mes-rendez-vous');
@@ -569,6 +604,8 @@ const RendezVous = () => {
             className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-none hover:border-sky-400'
             placeholder='Votre prénom'
             required
+            minLength={2}
+            maxLength={50}
           />
         </div>
 
@@ -588,6 +625,8 @@ const RendezVous = () => {
             className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-none hover:border-sky-400'
             placeholder='Votre nom'
             required
+            minLength={2}
+            maxLength={50}
           />
         </div>
       </div>
@@ -613,6 +652,7 @@ const RendezVous = () => {
             placeholder='exemple@email.com'
             required
             readOnly={!!user?.email}
+            maxLength={100}
           />
         </div>
 
@@ -637,12 +677,13 @@ const RendezVous = () => {
                 ? 'border-red-300 focus:border-red-500'
                 : 'border-gray-300 focus:border-sky-500'
             }`}
-            placeholder='+228 XX XX XX XX'
+            placeholder='+22812345678'
             required
+            maxLength={20}
           />
           {formData.telephone && !validatePhone(formData.telephone) && (
             <p className='mt-1 text-xs text-red-600'>
-              Format: +22812345678 (8-15 chiffres)
+              Format: +22812345678 (8-15 chiffres, ne doit pas commencer par 0)
             </p>
           )}
         </div>
@@ -953,8 +994,9 @@ const RendezVous = () => {
         Rendez-vous confirmé !
       </h2>
       <p className='mb-6 text-sm text-gray-600'>
-        Votre rendez-vous a été pris avec succès. Vous allez être redirigé vers
-        votre profil.
+        Votre rendez-vous a été créé et confirmé avec succès. 
+        <br />
+        Vous allez être redirigé vers vos rendez-vous.
       </p>
       <div className='animate-pulse'>
         <div className='inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2'>
@@ -1110,6 +1152,8 @@ const RendezVous = () => {
               <div className='border-t border-gray-100 bg-gray-50 px-6 py-4'>
                 <p className='text-center text-xs text-gray-500'>
                   Tous les champs marqués d'un * sont obligatoires.
+                  <br />
+                  Les rendez-vous sont immédiatement confirmés après création.
                   <br />
                   Vous recevrez une confirmation par email.
                 </p>
