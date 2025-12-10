@@ -62,7 +62,7 @@ export class AuthController {
     if (!req.user) {
       return res.status(401).json({
         message: "Email ou mot de passe incorrect",
-        code: "INVALID_CREDENTIALS",
+        code: "INVALID CREDENTIALS",
         timestamp: new Date().toISOString()
       });
     }
@@ -81,18 +81,19 @@ export class AuthController {
       maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000, // 15 minutes
     });
 
-    return res.json({
-      access_token: result.access_token,
-      user: {
-        id: result.user.id,
-        email: result.user.email,
-        firstName: result.user.firstName,
-        lastName: result.user.lastName,
-        role: result.user.role,
-        isAdmin: result.user.role === UserRole.ADMIN,
-      },
-      message: "Connexion réussie",
-    });
+   return res.json({
+  access_token: result.access_token,
+  user: {
+    id: result.user.id,
+    email: result.user.email,
+    firstName: result.user.firstName,
+    lastName: result.user.lastName,
+    telephone: result.user.telephone, // ✅ AJOUTER
+    role: result.user.role,
+    isAdmin: result.user.role === UserRole.ADMIN,
+  },
+  message: "Connexion réussie",
+});
   }
 
   @Post("refresh")
@@ -189,19 +190,20 @@ export class AuthController {
         maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000, // 15 minutes
       });
 
-      return res.status(201).json({
-        access_token: result.access_token,
-        user: {
-          id: result.user.id,
-          email: result.user.email,
-          firstName: result.user.firstName,
-          lastName: result.user.lastName,
-          role: result.user.role,
-          isAdmin: result.user.role === UserRole.ADMIN,
-          isActive: result.user.isActive,
-        },
-        message: "Inscription réussie",
-      });
+     return res.status(201).json({
+  access_token: result.access_token,
+  user: {
+    id: result.user.id,
+    email: result.user.email,
+    firstName: result.user.firstName,
+    lastName: result.user.lastName,
+    telephone: result.user.telephone, // ✅ AJOUTER
+    role: result.user.role,
+    isAdmin: result.user.role === UserRole.ADMIN,
+    isActive: result.user.isActive,
+  },
+  message: "Inscription réussie",
+});
 
     } catch (error: any) {
       if (error instanceof BadRequestException) {

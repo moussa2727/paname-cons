@@ -212,13 +212,14 @@ async register(registerDto: RegisterDto) {
         email: newUser.email,
         firstName: newUser.firstName,
         lastName: newUser.lastName,
+        telephone: newUser.telephone,
         role: newUser.role,
         isAdmin: newUser.role === UserRole.ADMIN,
         isActive: newUser.isActive,
       },
     };
 
-  } catch (error) {
+    } catch (error) {
     // ✅ Log plus détaillé
     this.logger.error(`Erreur lors de l'enregistrement: ${error.message}`, error.stack);
     
@@ -287,6 +288,7 @@ async register(registerDto: RegisterDto) {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
+        telephone: user.telephone, 
         role: user.role,
       },
     };

@@ -195,49 +195,65 @@ export class RendezvousController {
   @Get('user')
   @UseGuards(JwtAuthGuard)
   async findByUser(
-    @Req() req: AuthenticatedRequest,
-    @Query('email') email: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('status') status?: string,
-  ) {
-    // ✅ DÉCODER l'email reçu
-    let decodedEmail: string;
-    try {
-      decodedEmail = decodeURIComponent(email?.trim() || '');
-    } catch {
-      decodedEmail = email?.trim() || '';
-    }
+      @Req() req: AuthenticatedRequest,
+      @Query('email') email: string,
+      @Query('page') page: number = 1,
+      @Query('limit') limit: number = 10,
+      @Query('status') status?: string,
+    ) {
+      // ✅ CORRECTION : Décodage URL COMPLET
+      let requestedEmail: string;
+      try {
+        // Décoder les caractères URL-encoded
+        requestedEmail = decodeURIComponent(email?.trim() || '');
+        // Remplacer les %40 restants
+        requestedEmail = requestedEmail.replace(/%40/g, '@');
+        // Normaliser
+        requestedEmail = requestedEmail.toLowerCase().trim();
+      } catch {
+        // Fallback
+        requestedEmail = email?.replace(/%40/g, '@').toLowerCase().trim() || '';
+      }
 
-    // Normaliser
-    const userEmail = req.user?.email?.toLowerCase().trim();
-    const requestedEmail = decodedEmail.toLowerCase().trim();
-    
-    // Log pour débogage
-    this.logger.debug(`Email reçu: ${email}`);
-    this.logger.debug(`Email décodé: ${decodedEmail}`);
-    this.logger.debug(`User email: ${userEmail}`);
-    
-    // Vérification
-    if (!userEmail) {
-      throw new BadRequestException("Informations d'authentification manquantes");
-    }
+      // ✅ CORRECTION 2 : Vérification du format email APRES décodage
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(requestedEmail)) {
+        this.logger.warn(`Format email invalide après décodage: ${this.maskEmail(requestedEmail)} (original: ${email?.substring(0, 20)}...)`);
+        throw new BadRequestException('Format d\'email invalide');
+      }
 
-    if (!requestedEmail || requestedEmail !== userEmail) {
-      const userMasked = this.maskEmail(userEmail);
-      const requestedMasked = this.maskEmail(decodedEmail);
-      this.logger.warn(`Accès non autorisé: ${userMasked} -> ${requestedMasked}`);
-      throw new ForbiddenException('Vous ne pouvez accéder qu\'à vos propres rendez-vous');
-    }
+      // Email de l'utilisateur connecté (normalisé AVEC décodage)
+      let userEmail = req.user?.email || '';
+      try {
+        userEmail = decodeURIComponent(userEmail);
+        userEmail = userEmail.replace(/%40/g, '@');
+        userEmail = userEmail.toLowerCase().trim();
+      } catch {
+        userEmail = userEmail.replace(/%40/g, '@').toLowerCase().trim();
+      }
+      
+      if (!userEmail) {
+        throw new BadRequestException("Informations d'authentification manquantes");
+      }
 
-    // Validation
-    if (page < 1) throw new BadRequestException('Page invalide');
-    if (limit < 1 || limit > 100) throw new BadRequestException('Limite invalide');
+      // ✅ CORRECTION 3 : Comparaison APRÈS décodage complet
+      const emailsMatch = requestedEmail === userEmail;
+      
+      if (!emailsMatch) {
+        this.logger.warn(`Accès non autorisé:`, {
+          userEmail: this.maskEmail(userEmail),
+          rawRequestedEmail: email?.substring(0, 20) + '...',
+          match: emailsMatch
+        });
+        throw new ForbiddenException('Vous ne pouvez accéder qu\'à vos propres rendez-vous');
+      }
 
-    const maskedEmail = this.maskEmail(decodedEmail);
-    this.logger.log(`Liste rendez-vous utilisateur: ${maskedEmail}`);
-    
-    return this.rendezvousService.findByUser(requestedEmail, page, limit, status);
+      // Validation des paramètres
+      if (page < 1) throw new BadRequestException('Page invalide');
+      if (limit < 1 || limit > 100) throw new BadRequestException('Limite invalide');
+
+      // ✅ PASSER l'email DÉCODÉ au service
+      return this.rendezvousService.findByUser(requestedEmail, page, limit, status);
   }
 
   @Get('available-slots')

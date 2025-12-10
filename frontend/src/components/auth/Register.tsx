@@ -15,7 +15,7 @@ interface RegisterFormData {
   firstName: string;
   lastName: string;
   email: string;
-  phone: string;
+  telephone: string;
   password: string;
   confirmPassword: string;
 }
@@ -29,7 +29,7 @@ const Register: React.FC = () => {
     firstName: '',
     lastName: '',
     email: '',
-    phone: '',
+    telephone: '',
     password: '',
     confirmPassword: '',
   });
@@ -63,22 +63,25 @@ const Register: React.FC = () => {
     }
   }, [authError]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const { name, value } = e.target;
 
-    // Validation en temps réel pour le téléphone
-    if (name === 'phone') {
-      const cleanedValue = value.replace(/\s/g, '').replace(/[^\d+]/g, '');
-      setFormData(prev => ({ ...prev, [name]: cleanedValue }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
+  if (name === 'telephone') {
+    
+    const cleanedValue = value
+      .replace(/\s/g, '') // Supprimer tous les espaces
+      .replace(/[^\d+]/g, '') // Garder uniquement les chiffres et le +
+      .replace(/(?<!^)\+/g, ''); // Supprimer les + qui ne sont pas au début
+    
+    setFormData(prev => ({ ...prev, [name]: cleanedValue }));
+  } else {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  }
 
-    if (formError) setFormError('');
-  };
+  if (formError) setFormError('');
+};
 
   const validateForm = (): boolean => {
-    // Validation du prénom et nom
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
       setFormError('Le prénom et le nom sont obligatoires');
       return false;
@@ -96,10 +99,9 @@ const Register: React.FC = () => {
       return false;
     }
 
-    // Validation du téléphone
-    const phoneDigits = formData.phone.replace(/\D/g, '');
-    if (phoneDigits.length < 5) {
-      setFormError('Le téléphone doit contenir au moins 5 chiffres');
+    const phoneDigits = formData.telephone.replace(/\D/g, '');
+    if (phoneDigits.length < 8) {
+      setFormError('Le téléphone doit contenir au moins 8 chiffres');
       return false;
     }
 
@@ -127,22 +129,26 @@ const Register: React.FC = () => {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError('');
+      e.preventDefault();
+      setFormError('');
 
-    if (!validateForm()) {
-      return;
-    }
+      if (!validateForm()) {
+        return;
+      }
 
-    try {
-      // Le contexte gère tout : inscription, redirection, toast
-      await register(formData);
-      // La redirection est gérée automatiquement par le contexte
-    } catch (err: any) {
-      // Les erreurs sont déjà gérées dans le contexte Auth
-      setFormError(err.message || 'Erreur lors de la création du compte');
-    }
-  };
+      try {
+        
+        await register(formData);
+        
+      } catch (err: any) {
+        console.error('Erreur inscription frontend:', {
+          message: err.message,
+          data: formData
+        });
+        
+        setFormError(err.message || 'Erreur lors de la création du compte');
+      }
+    };
 
   return (
     <div className='flex items-center justify-center p-4 min-h-screen bg-sky-50'>
@@ -245,23 +251,25 @@ const Register: React.FC = () => {
                     <FiPhone className='text-gray-400' />
                   </div>
                   <input
-                    name='phone'
-                    type='tel'
-                    value={formData.phone}
-                    onChange={handleChange}
-                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition-colors'
-                    placeholder='Ex: +33123456789'
-                    required
-                    disabled={isLoading}
-                    autoComplete='tel'
-                    minLength={5}
-                    maxLength={20}
-                  />
+                      name='telephone'
+                      type='tel'
+                      value={formData.telephone}
+                      onChange={handleChange}
+                      className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition-colors'
+                      placeholder='Ex: +33123456789 ou 0123456789'
+                      required
+                      disabled={isLoading}
+                      autoComplete='tel'
+                      minLength={8} // Changé de 10 à 8
+                      maxLength={20}
+                    />
+                    <p className='text-xs text-gray-500 mt-1'>
+                    Format: +33123456789 ou 0123456789 (minimum 8 chiffres, + optionnel)
+                    </p>
                 </div>
-                <p className='text-xs text-gray-500 mt-1'>
-                  Minimum 5 chiffres
-                </p>
               </div>
+
+
 
               {/* Mot de passe */}
               <div>

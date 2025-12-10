@@ -287,59 +287,92 @@ export class RendezvousService {
     };
   }
 
-async findByUser(
-  email: string,
-  page: number = 1,
-  limit: number = 10,
-  status?: string,
-): Promise<{ 
-  data: Rendezvous[]; 
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}> {
-  const maskedEmail = this.maskEmail(email);
-  this.logger.log(`Recherche rendez-vous pour: ${maskedEmail}`);
+  async findByUser(
+      email: string,
+      page: number = 1,
+      limit: number = 10,
+      status?: string,
+    ): Promise<{ 
+      data: Rendezvous[]; 
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }> {
+      // ✅ CORRECTION : Normalisation STRICTE avec décodage URL
+      const normalizedEmail = this.normalizeEmailWithDecode(email);
+      
+      // Validation finale
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(normalizedEmail)) {
+        this.logger.warn(`Email invalide dans findByUser: ${this.maskEmail(email)} -> ${this.maskEmail(normalizedEmail)}`);
+        throw new BadRequestException('Format d\'email invalide');
+      }
 
-  // ✅ Email vient déjà décodé du controller
-  const normalizedEmail = this.normalizeEmail(email);
-  
-  // ✅ Validation stricte
-  if (!normalizedEmail) {
-    throw new BadRequestException("Email requis");
-  }
+      const maskedEmail = this.maskEmail(normalizedEmail);
+      this.logger.log(`Recherche rendez-vous pour: ${maskedEmail}`);
 
-  const filters: any = { 
-    email: normalizedEmail 
-  };
-  
-  if (status) {
-    filters.status = status;
-  }
+      const filters: any = { 
+        email: normalizedEmail 
+      };
+      
+      if (status) {
+        filters.status = status;
+      }
 
-  // ✅ Log sécurisé
-  this.logger.debug(`Filtres appliqués pour ${maskedEmail}`);
+      this.logger.debug(`Filtres appliqués pour ${maskedEmail}`);
 
-  const [data, total] = await Promise.all([
-    this.rendezvousModel
-      .find(filters)
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .sort({ date: -1, time: 1 })
-      .lean()
-      .exec(),
-    this.rendezvousModel.countDocuments(filters).exec(),
-  ]);
+      const [data, total] = await Promise.all([
+        this.rendezvousModel
+          .find(filters)
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .sort({ date: -1, time: 1 })
+          .lean()
+          .exec(),
+        this.rendezvousModel.countDocuments(filters).exec(),
+      ]);
 
-  return {
-    data: data as Rendezvous[],
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-  };
-}
+      return {
+        data: data as Rendezvous[],
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    }
+
+    // ==================== NOUVELLE MÉTHODE POUR DÉCODER EMAIL ====================
+
+    private normalizeEmailWithDecode(email: string): string {
+      if (!email || typeof email !== 'string') {
+        return '';
+      }
+      
+      try {
+        // 1. Décoder les caractères URL-encoded (%40 pour @, %2B pour +, etc.)
+        let decodedEmail = decodeURIComponent(email);
+        
+        // 2. Remplacer les %40 restants par @ (double sécurité)
+        decodedEmail = decodedEmail.replace(/%40/g, '@');
+        
+        // 3. Normalisation standard
+        decodedEmail = decodedEmail.toLowerCase().trim();
+        
+        // 4. Vérifier qu'il y a bien un @ dans l'email
+        if (!decodedEmail.includes('@')) {
+          // Log pour déboguer
+          this.logger.warn(`Email sans @ après décodage: ${email.substring(0, 10)}... -> ${decodedEmail}`);
+        }
+        
+        return decodedEmail;
+      } catch (error) {
+        // Fallback en cas d'erreur de décodage
+        this.logger.warn(`Erreur décodage email: ${email.substring(0, 10)}...`);
+        return email.replace(/%40/g, '@').toLowerCase().trim();
+      }
+    }
+
 
 // ==================== MÉTHODES UTILITAIRES PRIVÉES ====================
 
@@ -654,12 +687,22 @@ async findByUser(
 
   // ==================== PRIVATE METHODS ====================
 
+  
   private normalizeEmail(email: string): string {
     if (!email || typeof email !== 'string') {
-      this.logger.warn(`Email invalide fourni pour normalisation: ${typeof email} - ${email}`);
       return '';
     }
-    return email.toLowerCase().trim();
+    
+    try {
+      // ✅ TOUJOURS décoder d'abord
+      let cleanEmail = decodeURIComponent(email);
+      cleanEmail = cleanEmail.replace(/%40/g, '@');
+      cleanEmail = cleanEmail.toLowerCase().trim();
+      return cleanEmail;
+    } catch (error) {
+      // Fallback
+      return email.replace(/%40/g, '@').toLowerCase().trim();
+    }
   }
 
   private processAndValidateRendezvousData(
@@ -836,14 +879,14 @@ async findByUser(
 
   private maskEmail(email: string): string {
     if (!email || typeof email !== 'string') {
-      this.logger.warn(`Email invalide fourni: ${typeof email} - ${email}`);
-      return 'email_non_disponible';
+      this.logger.warn(`Email invalide fourni: ${typeof email}`);
+      return 'email non disponible';
     }
     
     const [localPart, domain] = email.split('@');
     if (!localPart || !domain) {
       this.logger.warn(`Format email invalide: ${email}`);
-      return 'format_email_invalide';
+      return 'format email invalide';
     }
     
     // Masquage cohérent

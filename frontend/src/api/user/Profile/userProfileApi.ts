@@ -86,17 +86,17 @@ class UserProfileService {
       const userData = await response.json();
 
       // ✅ CORRECTION : Inclure le téléphone dans le retour
-      return {
-        id: userData.id || userData._id,
-        email: userData.email,
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-        telephone: userData.telephone || '', // ✅ Maintenant inclus
-        isActive: userData.isActive !== false,
-        logoutUntil: userData.logoutUntil,
-        createdAt: userData.createdAt,
-        updatedAt: userData.updatedAt
-      };
+     return {
+      id: userData.id || userData._id,
+      email: userData.email,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      telephone: userData.telephone,
+      isActive: userData.isActive !== false,
+      logoutUntil: userData.logoutUntil,
+      createdAt: userData.createdAt,
+      updatedAt: userData.updatedAt
+    };
 
     } catch (error) {
       console.error('Erreur lors de la récupération du profil:', error);
@@ -181,7 +181,7 @@ class UserProfileService {
       email: result.email,
       firstName: result.firstName,
       lastName: result.lastName,
-      telephone: result.telephone || '', // ✅ Maintenant inclus
+      telephone: result.telephone, 
       isActive: result.isActive,
       logoutUntil: result.logoutUntil,
     };

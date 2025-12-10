@@ -45,6 +45,71 @@ export const TIME_SLOTS = [
 // Expressions régulières EXACTEMENT comme dans le backend
 export const TIME_SLOT_REGEX = /^(09|1[0-6]):(00|30)$/;
 export const DATE_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
+export const PHONE_REGEX = /^\+?[1-9]\d{1,14}$/;
+export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// ==================== UTILITAIRES DE NORMALISATION ====================
+
+/**
+ * Normalise un email de manière stricte (identique au backend)
+ * - Décodage URI si nécessaire
+ * - Conversion en minuscules
+ * - Suppression des espaces
+ * - Remplacement des %40 par @
+ */
+export function normalizeEmail(email: string): string {
+  if (!email || typeof email !== 'string') {
+    return '';
+  }
+  
+  try {
+    // 1. Décoder d'abord les caractères encodés
+    let normalized = decodeURIComponent(email);
+    
+    // 2. Remplacer les %40 restants par @ (double sécurité)
+    normalized = normalized.replace(/%40/g, '@');
+    
+    // 3. Normalisation standard
+    normalized = normalized.toLowerCase().trim();
+    
+    return normalized;
+  } catch (error) {
+    // Fallback en cas d'erreur de décodage
+    return email.replace(/%40/g, '@').toLowerCase().trim();
+  }
+}
+
+/**
+ * Valide et normalise un email pour l'API
+ * @throws Error si l'email est invalide
+ */
+export function validateAndNormalizeEmail(email: string): string {
+  const normalized = normalizeEmail(email);
+  
+  if (!EMAIL_REGEX.test(normalized)) {
+    throw new Error(`Format d'email invalide: ${email}`);
+  }
+  
+  return normalized;
+}
+
+/**
+ * Masque un email pour les logs (identique au backend)
+ */
+export function maskEmail(email: string): string {
+  if (!email) return '***@***';
+  
+  const normalized = normalizeEmail(email);
+  const [localPart, domain] = normalized.split('@');
+  
+  if (!localPart || !domain) return '***@***';
+  
+  const maskedLocal = localPart.length <= 2 
+    ? localPart.charAt(0) + '*'
+    : localPart.charAt(0) + '***' + (localPart.length > 1 ? localPart.charAt(localPart.length - 1) : '');
+  
+  return `${maskedLocal}@${domain}`;
+}
 
 // ==================== TYPES PRINCIPAUX (ADAPTÉS AU SCHEMA MONGOOSE) ====================
 
@@ -164,10 +229,18 @@ export interface ApiResponse<T = any> {
 
 // Paramètres pour GET /rendezvous/user - EXACTEMENT comme le backend attend
 export interface UserRendezvousParams {
-  email: string; // REQUIS
+  email: string; // REQUIS (sera normalisé automatiquement)
   page?: number; // default: 1
   limit?: number; // default: 10
   status?: RendezvousStatus; // optionnel
+}
+
+// Fonction pour normaliser les paramètres utilisateur
+export function normalizeUserRendezvousParams(params: UserRendezvousParams): UserRendezvousParams {
+  return {
+    ...params,
+    email: validateAndNormalizeEmail(params.email),
+  };
 }
 
 // Paramètres pour GET /rendezvous (admin) - EXACTEMENT comme le backend
@@ -428,14 +501,16 @@ export function validateCreateRendezvousData(
   const errors: string[] = [];
 
   // Validation email
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(data.email)) {
-    errors.push("Format d'email invalide");
+  try {
+    const normalizedEmail = validateAndNormalizeEmail(data.email);
+    // Si validation réussie, mettre à jour l'email normalisé
+    data.email = normalizedEmail;
+  } catch (error: any) {
+    errors.push(error.message);
   }
 
   // Validation téléphone
-  const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-  if (!phoneRegex.test(data.telephone)) {
+  if (!PHONE_REGEX.test(data.telephone)) {
     errors.push('Format de téléphone invalide');
   }
 
@@ -479,6 +554,15 @@ export function processOtherFieldsForUpdate(
 ): UpdateRendezvousDto {
   const processed = { ...data };
 
+  // Normalisation email si présent
+  if (processed.email) {
+    try {
+      processed.email = validateAndNormalizeEmail(processed.email);
+    } catch {
+      // Si email invalide, le laisser pour que la validation backend échoue
+    }
+  }
+
   // Traitement destination
   if (processed.destination === 'Autre' && processed.destinationAutre) {
     processed.destination = 'Autre'; // Garder "Autre" comme valeur
@@ -495,11 +579,6 @@ export function processOtherFieldsForUpdate(
     delete processed.filiereAutre;
   }
 
-  // Normalisation email
-  if (processed.email) {
-    processed.email = processed.email.toLowerCase().trim();
-  }
-
   return processed;
 }
 
@@ -510,3 +589,11 @@ export const RDV_STATUS = RENDEZVOUS_STATUS;
 export const ADMIN_AVIS = ADMIN_OPINION;
 export const NIVEAUX_ETUDE = EDUCATION_LEVELS;
 export const CRENEAUX_HORAIRES = TIME_SLOTS;
+
+// Export des utilitaires de normalisation
+export const EmailUtils = {
+  normalize: normalizeEmail,
+  validateAndNormalize: validateAndNormalizeEmail,
+  mask: maskEmail,
+  regex: EMAIL_REGEX,
+};

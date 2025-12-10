@@ -214,172 +214,93 @@ export class RendezvousApiService {
 
   // ==================== ENDPOINTS RENDEZ-VOUS ====================
 
-static async getUserRendezvous(
-  params: UserRendezvousParams,
-  refreshTokenCallback?: () => Promise<boolean>
-): Promise<{
-  data: Rendezvous[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}> {
-  const { email, page = 1, limit = 10, status } = params;
-
-  // ✅ DÉCODAGE IMMÉDIAT et NORMALISATION de l'email
-  let cleanEmail: string;
-  try {
-    // D'abord décoder l'URL si elle est encodée
-    // Si email contient déjà %40, decodeURIComponent le transformera en @
-    cleanEmail = decodeURIComponent(email.trim().toLowerCase());
-  } catch (error) {
-    // Si échec (email invalide), utiliser tel quel
-    cleanEmail = email.trim().toLowerCase();
-  }
-
-  // VALIDATIONS STRICTES
-  if (!cleanEmail || cleanEmail.trim() === '') {
-    throw new Error("L'email est requis");
-  }
-
-  // Vérifier que l'email contient bien un @ (pas %40)
-  if (cleanEmail.includes('%40')) {
-    // Essayer de décoder à nouveau
-    cleanEmail = decodeURIComponent(cleanEmail);
-  }
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(cleanEmail)) {
-    console.error('Email invalide après décodage:', {
-      containsAt: cleanEmail.includes('@'),
-      containsPercent40: cleanEmail.includes('%40')
-    });
-    throw new Error(`Format d'email invalide`);
-  }
-
-  if (page < 1) {
-    throw new Error('Le numéro de page doit être supérieur à 0');
-  }
-
-  if (limit < 1 || limit > 100) {
-    throw new Error('La limite doit être entre 1 et 100');
-  }
-
-  if (status && !Object.values(RENDEZVOUS_STATUS).includes(status as any)) {
-    throw new Error(
-      `Statut invalide. Valeurs autorisées: ${Object.values(RENDEZVOUS_STATUS).join(', ')}`
-    );
-  }
-
-  const token = this.getAuthToken();
-  if (!token) {
-    const error = new Error('Session expirée') as ApiError;
-    error.status = 401;
-    error.code = 'SESSION_EXPIRED';
-    throw error;
-  }
-
-  // ✅ Construction des paramètres SANS encoder manuellement
-  // URLSearchParams encode automatiquement les valeurs
-  const queryParams = new URLSearchParams();
-  queryParams.append('email', cleanEmail); // cleanEmail contient déjà @, pas %40
-  queryParams.append('page', page.toString());
-  queryParams.append('limit', limit.toString());
-  
-  if (status) {
-    queryParams.append('status', status);
-  }
-
-  const queryString = queryParams.toString();
-  
-  // DEBUG: Vérifier ce qui est envoyé
-  console.log('DEBUG API CALL:', {
-    originalEmail: email,
-    cleanEmail: cleanEmail,
-    containsAt: cleanEmail.includes('@'),
-    queryString: queryString,
-    url: `/api/rendezvous/user?${queryString}`
-  });
-
-  const requestId = `get-user-rendezvous-${cleanEmail}-${page}-${Date.now()}`;
-
-  try {
-    const response = await this.makeRequest<{
+  static async getUserRendezvous(
+      params: UserRendezvousParams,
+      refreshTokenCallback?: () => Promise<boolean>
+    ): Promise<{
       data: Rendezvous[];
       total: number;
       page: number;
       limit: number;
       totalPages: number;
-    }>(
-      `/api/rendezvous/user?${queryString}`,
-      {
-        method: 'GET',
-        headers: this.createAuthHeaders(),
-      },
-      refreshTokenCallback,
-      requestId
-    );
+    }> {
+      const { email, page = 1, limit = 10, status } = params;
 
-    // VALIDATION DE LA RÉPONSE
-    if (!response || typeof response !== 'object') {
-      throw new Error('Réponse du serveur invalide');
-    }
+      // ✅ CORRECTION : Décodage URL avant construction de la requête
+      let cleanEmail: string;
+      try {
+        // 1. Décoder les caractères URL-encoded
+        cleanEmail = decodeURIComponent(email);
+        // 2. Remplacer les %40 restants
+        cleanEmail = cleanEmail.replace(/%40/g, '@');
+        // 3. Normaliser
+        cleanEmail = cleanEmail.toLowerCase().trim();
+      } catch (error) {
+        // Fallback
+        cleanEmail = email.replace(/%40/g, '@').toLowerCase().trim();
+      }
 
-    const validatedData = Array.isArray(response.data) ? response.data : [];
-    const validatedTotal =
-      typeof response.total === 'number'
-        ? response.total
-        : validatedData.length;
-    const validatedPage =
-      typeof response.page === 'number' ? response.page : page;
-    const validatedLimit =
-      typeof response.limit === 'number' ? response.limit : limit;
-    const validatedTotalPages =
-      typeof response.totalPages === 'number'
-        ? response.totalPages
-        : Math.ceil(validatedTotal / validatedLimit);
+      // Vérification STRICTE du format email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        console.error('❌ Email invalide après normalisation:', {
+          original: email.substring(0, 20) + '...',
+          normalized: cleanEmail,
+          containsAt: cleanEmail.includes('@'),
+          containsPercent40: cleanEmail.includes('%40')
+        });
+        throw new Error('Format d\'email invalide');
+      }
 
-    return {
-      data: validatedData,
-      total: validatedTotal,
-      page: validatedPage,
-      limit: validatedLimit,
-      totalPages: validatedTotalPages,
-    };
-  } catch (error: any) {
-    // ✅ Log sécurisé
-    console.error('Erreur API getUserRendezvous:', {
-      status: error.status,
-      code: error.code,
-      message: error.message,
-      page,
-      limit
-    });
-    
-    if (error.status === 401) {
-      const authError = new Error('Session expirée ou non autorisée') as ApiError;
-      authError.status = 401;
-      authError.code = 'UNAUTHORIZED';
-      throw authError;
+      // Construction des paramètres avec email DÉCODÉ
+      const queryParams = new URLSearchParams();
+      queryParams.append('email', cleanEmail); // Email déjà décodé avec @
+      queryParams.append('page', page.toString());
+      queryParams.append('limit', limit.toString());
+      
+      if (status) {
+        queryParams.append('status', status);
+      }
+
+      const queryString = queryParams.toString();
+      
+      console.log('🔍 Debug - Paramètres envoyés:', {
+        original: email.substring(0, 20) + '...',
+        cleanEmail: cleanEmail,
+        queryString: queryString.substring(0, 100) + '...'
+      });
+
+      const requestId = `get-user-rendezvous-${Date.now()}`;
+
+      try {
+        const response = await this.makeRequest<{
+          data: Rendezvous[];
+          total: number;
+          page: number;
+          limit: number;
+          totalPages: number;
+        }>(
+          `/api/rendezvous/user?${queryString}`,
+          {
+            method: 'GET',
+            headers: this.createAuthHeaders(),
+          },
+          refreshTokenCallback,
+          requestId
+        );
+
+        return response;
+      } catch (error: any) {
+        // Logs sécurisés
+        console.error('Erreur API:', {
+          status: error.status,
+          message: error.message?.substring(0, 100),
+          url: error.config?.url?.substring(0, 100) + '...'
+        });
+        
+        throw error;
+      }
     }
-    
-    if (error.status === 403) {
-      const forbiddenError = new Error('Accès interdit à ces données') as ApiError;
-      forbiddenError.status = 403;
-      forbiddenError.code = 'FORBIDDEN';
-      throw forbiddenError;
-    }
-    
-    if (error.message.includes('Failed to fetch')) {
-      const networkError = new Error('Erreur réseau. Vérifiez votre connexion.') as ApiError;
-      networkError.status = 0;
-      networkError.code = 'NETWORK_ERROR';
-      throw networkError;
-    }
-    
-    throw error;
-  }
-}
 
   static async getRendezvousById(
     id: string,
@@ -748,58 +669,67 @@ export function useRendezvousApi() {
     });
   };
 
- const getUserRendezvous = useCallback(
-  async (
-    params: UserRendezvousParams
-  ): Promise<{
-    data: any[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  }> => {
-    const { email, page = 1 } = params;
+  const getUserRendezvous = useCallback(
+    async (
+      params: UserRendezvousParams
+    ): Promise<{
+      data: any[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }> => {
+      const { email, page = 1 } = params;
 
-    try {
-      if (!email) {
-        throw new Error("L'email est requis");
+      try {
+        if (!email) {
+          throw new Error("L'email est requis");
+        }
+
+        // ✅ DÉCODER l'email AVANT de l'envoyer
+        let decodedEmail: string;
+        try {
+          decodedEmail = decodeURIComponent(email);
+          // Remplacer les %40 restants
+          decodedEmail = decodedEmail.replace(/%40/g, '@');
+        } catch {
+          decodedEmail = email.replace(/%40/g, '@');
+        }
+        
+        const response = await RendezvousApiService.getUserRendezvous(
+          {
+            ...params,
+            email: decodedEmail // Email décodé
+          },
+          refreshToken
+        );
+
+        return {
+          data: response.data || [],
+          total: response.total || 0,
+          page: response.page || page,
+          limit: response.limit || params.limit || 10,
+          totalPages:
+            response.totalPages ||
+            Math.ceil(
+              (response.total || 0) / (response.limit || params.limit || 10)
+            ),
+        };
+      } catch (error: any) {
+        console.error('Erreur getUserRendezvous:', {
+          error: error.message,
+          email: params.email?.substring(0, 20) + '...'
+        });
+        
+        if (error.message.includes('Session')) {
+          throw new Error('Votre session a expiré');
+        }
+        
+        throw error;
       }
-
-      // ✅ DÉCODER l'email AVANT de l'envoyer
-      const decodedEmail = decodeURIComponent(email);
-      
-      const response = await RendezvousApiService.getUserRendezvous(
-        {
-          ...params,
-          email: decodedEmail // Email décodé
-        },
-        refreshToken
-      );
-
-      return {
-        data: response.data || [],
-        total: response.total || 0,
-        page: response.page || page,
-        limit: response.limit || params.limit || 10,
-        totalPages:
-          response.totalPages ||
-          Math.ceil(
-            (response.total || 0) / (response.limit || params.limit || 10)
-          ),
-      };
-    } catch (error: any) {
-      console.error('Erreur getUserRendezvous:', {error: error.message
-      });
-      
-      if (error.message.includes('Session')) {
-        throw new Error('Votre session a expiré');
-      }
-      
-      throw error;
-    }
-  },
-  [refreshToken]
-);
+    },
+    [refreshToken]
+  );
 
   const getRendezvousById = useCallback(
     async (id: string): Promise<Rendezvous> => {

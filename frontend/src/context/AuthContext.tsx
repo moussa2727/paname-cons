@@ -63,6 +63,7 @@ interface LoginResponse {
 }
 
 interface RegisterResponse {
+  errors: any;
   access_token: string;
   user: {
     id: string;
@@ -497,7 +498,7 @@ const fetchUserData = useCallback(async (): Promise<void> => {
 
         const userData: User = {
           id: data.user.id,
-          email: data.user.email.trim().toLowerCase(), // ✅ Normaliser ici
+        email: data.user.email,
           firstName: data.user.firstName,
           lastName: data.user.lastName,
           role: data.user.role,
@@ -611,12 +612,14 @@ const fetchUserData = useCallback(async (): Promise<void> => {
           `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REGISTER}`,
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
-              firstName: formData.firstName,
-              lastName: formData.lastName,
-              email: formData.email,
-              telephone: formData.telephone,
+              firstName: formData.firstName.trim(),
+              lastName: formData.lastName.trim(),
+              email: formData.email.toLowerCase().trim(),
+              telephone: formData.telephone.trim(),
               password: formData.password,
             }),
             credentials: 'include',
@@ -626,15 +629,30 @@ const fetchUserData = useCallback(async (): Promise<void> => {
         const data: RegisterResponse = await response.json();
 
         if (!response.ok) {
+          if (response.status === 400) {
+            const errorMessage = data.message || "Données invalides";
+            
+            if (data.errors) {
+              const validationErrors = Object.values(data.errors).join(', ');
+              throw new Error(`Validation échouée : ${validationErrors}`);
+            }
+            
+            throw new Error(errorMessage);
+          }
+          
           throw new Error(data.message || "Erreur lors de l'inscription");
         }
 
-        window.localStorage?.setItem(
-          STORAGE_KEYS.ACCESS_TOKEN,
-          data.access_token
-        );
-        setAccessToken(data.access_token);
+        // ✅ CORRECTION 1: Stocker le token reçu
+        if (data.access_token) {
+          window.localStorage?.setItem(
+            STORAGE_KEYS.ACCESS_TOKEN,
+            data.access_token
+          );
+          setAccessToken(data.access_token);
+        }
 
+        // ✅ CORRECTION 2: Créer l'objet utilisateur
         const userData: User = {
           id: data.user.id,
           email: data.user.email,
@@ -642,10 +660,11 @@ const fetchUserData = useCallback(async (): Promise<void> => {
           lastName: data.user.lastName,
           role: data.user.role,
           telephone: data.user.telephone,
-          isActive: data.user.isActive,
+          isActive: data.user.isActive !== false,
           isAdmin: data.user.role === UserRole.ADMIN,
         };
 
+        // ✅ CORRECTION 3: Mettre à jour l'état utilisateur
         setUser(userData);
         window.localStorage?.setItem(
           STORAGE_KEYS.USER_DATA,
@@ -656,63 +675,69 @@ const fetchUserData = useCallback(async (): Promise<void> => {
           Date.now().toString()
         );
 
-        const decoded = jwtDecode<JwtPayload>(data.access_token);
-        
-        // Planifier le rafraîchissement du token
-        if (refreshTimeoutRef.current) {
-          window.clearTimeout(refreshTimeoutRef.current);
-        }
-        
-        const tokenExpirationMs = decoded.exp * 1000;
-        const currentTimeMs = Date.now();
-        const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
-        
-        const refreshTime = Math.max(
-          30000,
-          timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
-        );
-
-        if (refreshTime > 0) {
-          refreshTimeoutRef.current = window.setTimeout(async () => {
-            if (import.meta.env.DEV) {
-              console.log('🔄 Rafraîchissement préventif du token...');
+        // ✅ CORRECTION 4: Décoder le token pour planifier le rafraîchissement
+        if (data.access_token) {
+          try {
+            const decoded = jwtDecode<JwtPayload>(data.access_token);
+            
+            // Planifier le rafraîchissement du token
+            if (refreshTimeoutRef.current) {
+              window.clearTimeout(refreshTimeoutRef.current);
             }
             
-            if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
-              const refreshed = await refreshToken();
-              if (refreshed) {
-                refreshAttemptsRef.current = 0;
-                if (import.meta.env.DEV) {
-                  console.log('✅ Token rafraîchi avec succès');
+            const tokenExpirationMs = decoded.exp * 1000;
+            const currentTimeMs = Date.now();
+            const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
+            
+            const refreshTime = Math.max(
+              30000,
+              timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
+            );
+
+            if (refreshTime > 0) {
+              refreshTimeoutRef.current = window.setTimeout(async () => {
+                if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
+                  const refreshed = await refreshToken();
+                  if (refreshed) {
+                    refreshAttemptsRef.current = 0;
+                  } else {
+                    refreshAttemptsRef.current++;
+                  }
+                } else {
+                  logout();
+                  toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
                 }
-              } else {
-                refreshAttemptsRef.current++;
-                if (import.meta.env.DEV) {
-                  console.warn(`❌ Échec rafraîchissement (tentative ${refreshAttemptsRef.current}/${AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS})`);
-                }
-              }
-            } else {
-              if (import.meta.env.DEV) {
-                console.error('❌ Trop de tentatives de rafraîchissement, déconnexion');
-              }
-              logout();
-              toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+              }, refreshTime);
             }
-          }, refreshTime);
+          } catch (error) {
+            console.warn('⚠️ Erreur décodage token après inscription:', error);
+          }
         }
 
-        const redirectPath =
-          data.user.role === UserRole.ADMIN
-            ? REDIRECT_PATHS.ADMIN_DASHBOARD
-            : REDIRECT_PATHS.HOME;
+        // ✅ CORRECTION 5: Rediriger automatiquement
+        const redirectPath = userData.role === UserRole.ADMIN
+          ? REDIRECT_PATHS.ADMIN_DASHBOARD
+          : REDIRECT_PATHS.HOME;
 
         navigate(redirectPath, { replace: true });
+        
+        // ✅ CORRECTION 6: Afficher le toast de succès
         toast.success(TOAST_MESSAGES.REGISTER_SUCCESS);
         
         if (import.meta.env.DEV) {
-          console.log('✅ Inscription réussie pour:', data.user.email);
+          console.log('✅ Inscription et connexion réussies pour:', data.user.email);
         }
       } catch (err: any) {
+        console.error('❌ Erreur inscription:', {
+          message: err.message,
+          stack: err.stack,
+          formData: {
+            ...formData,
+            password: '[HIDDEN]',
+            confirmPassword: '[HIDDEN]'
+          }
+        });
+        
         handleAuthError(err, 'register');
         throw err;
       } finally {
