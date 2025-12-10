@@ -54,7 +54,7 @@ export class MailService implements OnModuleInit {
         pass: config.pass,
       },
       tls: {
-        rejectUnauthorized: true, // Désactivez temporairement pour le debug
+        rejectUnauthorized: true,
       },
       connectionTimeout: 30000,
       greetingTimeout: 15000,
@@ -76,7 +76,7 @@ export class MailService implements OnModuleInit {
   private getEmailConfig(): Partial<EmailConfig> {
     return {
       host: this.configService.get('EMAIL_HOST'),
-      port: parseInt(this.configService.get('EMAIL_PORT') || '587'),
+      port: parseInt(this.configService.get('EMAIL_PORT') || '465'),
       secure: this.configService.get('EMAIL_SECURE') === 'true',
       user: this.configService.get('EMAIL_USER'),
       pass: this.configService.get('EMAIL_PASS'),

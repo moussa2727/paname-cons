@@ -387,7 +387,7 @@ async function bootstrap() {
     app.use(
       rateLimit({
         windowMs: 15 * 60 * 1000,
-        max: 100,
+        max: 600,
         message: {
           status: 429,
           message: "Trop de requêtes, veuillez réessayer plus tard.",
@@ -395,7 +395,7 @@ async function bootstrap() {
         standardHeaders: true,
         legacyHeaders: false,
         skipSuccessfulRequests: false,
-        keyGenerator: (req) => {
+        keyGenerator: (req: { ip: any; headers: { [x: string]: any; }; }) => {
           return req.ip || req.headers['x-forwarded-for'] || 'unknown';
         }
       }),
