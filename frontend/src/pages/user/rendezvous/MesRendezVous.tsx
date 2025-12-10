@@ -404,90 +404,68 @@ const MesRendezVous: React.FC = () => {
     search: '',
   });
   const [showFilters, setShowFilters] = useState(false);
+const loadRendezvous = useCallback(
+  async (reset = false) => {
+    if (!isAuthenticated) {
+      setError('Vous devez être connecté');
+      setLoading(false);
+      return;
+    }
 
-  const loadRendezvous = useCallback(
-    async (reset = false) => {
-      if (!isAuthenticated) {
-        setError('Vous devez être connecté pour voir vos rendez-vous');
-        setLoading(false);
-        return;
+    if (!user?.email) {
+      setError('Informations utilisateur incomplètes');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const currentPage = reset ? 1 : page;
+      
+      // ✅ Email normalisé sans encodage excessif
+      const userEmail = user.email.trim().toLowerCase();
+      
+      const params: UserRendezvousParams = {
+        email: userEmail, // ✅ Directement l'email
+        page: currentPage,
+        limit: 10,
+        status:
+          filters.status !== 'all'
+            ? (filters.status as RendezvousStatus)
+            : undefined,
+      };
+
+      const response = await getUserRendezvous(params);
+      
+      // ✅ Gestion cohérente des données
+      if (reset) {
+        setRendezvousList(response.data || []);
+      } else {
+        setRendezvousList(prev => [...prev, ...(response.data || [])]);
       }
-
-      if (!user?.email) {
-        setError('Informations utilisateur incomplètes');
-        setLoading(false);
-        return;
+      
+      setHasMore(response.page < response.totalPages);
+      setStats({
+        total: response.total || 0,
+        upcoming: (response.data || []).filter(isUpcoming).length,
+        pending: (response.data || []).filter(r => 
+          r.status === RENDEZVOUS_STATUS.PENDING
+        ).length,
+      });
+    } catch (err: any) {
+      // ✅ Gestion cohérente des erreurs avec backend
+      if (err.status === 401) {
+        setError('Session expirée. Veuillez vous reconnecter.');
+        logout();
+      } else {
+        setError(`Erreur: ${err.message || 'Erreur de chargement'}`);
       }
-
-      try {
-        const currentPage = reset ? 1 : page;
-        const params: UserRendezvousParams = {
-          email: user.email.trim().toLowerCase(),
-          page: currentPage,
-          limit: 10,
-          status:
-            filters.status !== 'all'
-              ? (filters.status as RendezvousStatus)
-              : undefined,
-        };
-
-        const response = await getUserRendezvous(params);
-
-        if (reset) {
-          setRendezvousList(response.data);
-        } else {
-          setRendezvousList(prev => [...prev, ...response.data]);
-        }
-
-        // CORRECTION ICI : Vérification de totalPages
-        setHasMore(currentPage < (response.totalPages || 1));
-
-        const upcomingCount = response.data.filter((rdv: any) => {
-          const isActiveStatus =
-            rdv.status === RENDEZVOUS_STATUS.PENDING ||
-            rdv.status === RENDEZVOUS_STATUS.CONFIRMED;
-          return isActiveStatus && isUpcoming(rdv);
-        }).length;
-
-        const pendingCount = response.data.filter(
-          (rdv: any) => rdv.status === RENDEZVOUS_STATUS.PENDING
-        ).length;
-
-        setStats({
-          total: response.total || 0,
-          upcoming: upcomingCount,
-          pending: pendingCount,
-        });
-
-        setGlobalError(null);
-        setError(null);
-      } catch (err: any) {
-        if (
-          err.message.includes('session') ||
-          err.message.includes('expirée')
-        ) {
-          setError('Votre session a expiré. Veuillez vous reconnecter.');
-          logout();
-        } else {
-          console.error('Erreur détaillée:', err);
-          setError(`Impossible de charger vos rendez-vous: ${err.message}`);
-        }
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [
-      isAuthenticated,
-      user?.email,
-      page,
-      filters.status,
-      getUserRendezvous,
-      logout,
-      isUpcoming,
-      RENDEZVOUS_STATUS,
-    ]
-  );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  },
+  [isAuthenticated, user?.email, page, filters.status, getUserRendezvous, logout]
+);
 
   useEffect(() => {
     if (isAuthenticated && user?.email) {

@@ -194,66 +194,50 @@ export class RendezvousController {
 
   @Get('user')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ 
-    summary: 'Lister les rendez-vous d\'un utilisateur',
-    description: 'Récupérer les rendez-vous d\'un utilisateur spécifique par email'
-  })
-  @ApiQuery({ 
-    name: 'email', 
-    required: true, 
-    type: String, 
-    description: 'Email de l\'utilisateur',
-    example: 'jean.dupont@example.com'
-  })
-  @ApiQuery({ 
-    name: 'page', 
-    required: false, 
-    type: Number, 
-    description: 'Numéro de page',
-    example: 1 
-  })
-  @ApiQuery({ 
-    name: 'limit', 
-    required: false, 
-    type: Number, 
-    description: 'Limite par page',
-    example: 10 
-  })
-  @ApiQuery({ 
-    name: 'status', 
-    required: false, 
-    type: String, 
-    description: `Filtrer par statut: ${Object.values(RENDEZVOUS_STATUS).join(', ')}`,
-    example: 'En attente'
-  })
-  @ApiResponse({ status: 200, description: 'Liste des rendez-vous de l\'utilisateur' })
-  @ApiResponse({ status: 400, description: 'Email requis ou paramètres invalides' })
-  @ApiResponse({ status: 401, description: 'Non authentifié' })
   async findByUser(
+    @Req() req: AuthenticatedRequest,
     @Query('email') email: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('status') status?: string,
   ) {
-    if (!email) {
-      throw new BadRequestException("L'email est requis pour cette requête");
+    // ✅ DÉCODER l'email reçu
+    let decodedEmail: string;
+    try {
+      decodedEmail = decodeURIComponent(email?.trim() || '');
+    } catch {
+      decodedEmail = email?.trim() || '';
     }
 
-    // Validation des paramètres
-    if (page < 1) {
-      throw new BadRequestException('Le numéro de page doit être supérieur à 0');
-    }
-    if (limit < 1 || limit > 100) {
-      throw new BadRequestException('La limite doit être entre 1 et 100');
-    }
-    if (status && !Object.values(RENDEZVOUS_STATUS).includes(status as any)) {
-      throw new BadRequestException(`Statut invalide. Valeurs autorisées: ${Object.values(RENDEZVOUS_STATUS).join(', ')}`);
-    }
-
-    const maskedEmail = this.maskEmail(email);
-    this.logger.log(`Liste rendez-vous utilisateur: ${maskedEmail} - Page: ${page}, Limit: ${limit}`);
+    // Normaliser
+    const userEmail = req.user?.email?.toLowerCase().trim();
+    const requestedEmail = decodedEmail.toLowerCase().trim();
     
-    return this.rendezvousService.findByUser(email, page, limit, status);
+    // Log pour débogage
+    this.logger.debug(`Email reçu: ${email}`);
+    this.logger.debug(`Email décodé: ${decodedEmail}`);
+    this.logger.debug(`User email: ${userEmail}`);
+    
+    // Vérification
+    if (!userEmail) {
+      throw new BadRequestException("Informations d'authentification manquantes");
+    }
+
+    if (!requestedEmail || requestedEmail !== userEmail) {
+      const userMasked = this.maskEmail(userEmail);
+      const requestedMasked = this.maskEmail(decodedEmail);
+      this.logger.warn(`Accès non autorisé: ${userMasked} -> ${requestedMasked}`);
+      throw new ForbiddenException('Vous ne pouvez accéder qu\'à vos propres rendez-vous');
+    }
+
+    // Validation
+    if (page < 1) throw new BadRequestException('Page invalide');
+    if (limit < 1 || limit > 100) throw new BadRequestException('Limite invalide');
+
+    const maskedEmail = this.maskEmail(decodedEmail);
+    this.logger.log(`Liste rendez-vous utilisateur: ${maskedEmail}`);
+    
+    return this.rendezvousService.findByUser(requestedEmail, page, limit, status);
   }
 
   @Get('available-slots')

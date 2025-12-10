@@ -208,7 +208,7 @@ export class UsersService {
   async checkUserAccess(userId: string): Promise<{
   canAccess: boolean;
   reason?: string;
-  user?: any; // ✅ Change de User à any pour flexibilité
+  user?: any;
   details?: any;
 }> {
   const cacheKey = this.getCacheKey("checkUserAccess", userId);
@@ -241,7 +241,7 @@ export class UsersService {
         lastName: user.lastName,
         role: user.role,
         isActive: user.isActive,
-        isAdmin: UserRole.ADMIN
+        isAdmin: user.role === UserRole.ADMIN as any
       },
       details: { maintenanceMode: true }
     };
@@ -261,7 +261,7 @@ export class UsersService {
         lastName: user.lastName,
         role: user.role,
         isActive: user.isActive,
-        isAdmin:UserRole.ADMIN
+        isAdmin: user.role === UserRole.ADMIN as any
       }
     };
     this.setCache(cacheKey, result);
@@ -284,7 +284,7 @@ export class UsersService {
         role: user.role,
         isActive: user.isActive,
         logoutUntil: user.logoutUntil,
-        isAdmin: user.role === UserRole.ADMIN
+        isAdmin: user.role === UserRole.ADMIN // ✅ CORRIGÉ
       },
       details: {
         logoutUntil: user.logoutUntil,
@@ -307,7 +307,7 @@ export class UsersService {
       role: user.role,
       isActive: user.isActive,
       logoutUntil: user.logoutUntil,
-      isAdmin: user.role === UserRole.ADMIN
+      isAdmin: user.role === UserRole.ADMIN // ✅ CORRIGÉ
     },
     details: {
       isTemporarilyLoggedOut: false,

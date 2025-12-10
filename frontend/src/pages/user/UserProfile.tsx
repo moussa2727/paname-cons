@@ -15,7 +15,7 @@ import {
   Phone,
 } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
-import { userService } from '../../api/user/Profile/userProfileApi';
+import { userProfileService} from '../../api/user/Profile/userProfileApi';
 
 /* global fetch */
 
@@ -182,7 +182,7 @@ const UserProfile = () => {
 
     try {
       // DÉLÉGATION TOTALE AU SERVICE API
-      await userService.updateProfile(access_token, {
+      await userProfileService.updateProfile(access_token, {
         email: profileData.email,
         telephone: profileData.telephone,
       });

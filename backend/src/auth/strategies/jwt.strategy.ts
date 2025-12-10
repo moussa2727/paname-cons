@@ -39,12 +39,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
       // ✅ Retourner les informations utilisateur formatées
       return {
-        sub: payload.sub, // ID utilisateur
+        sub: payload.sub,
         email: accessCheck.user.email,
         role: accessCheck.user.role,
         firstName: accessCheck.user.firstName,
         lastName: accessCheck.user.lastName,
-        userId: payload.sub, // Alias pour compatibilité
+        userId: payload.sub,
+        isActive: accessCheck.user.isActive,
+        telephone: accessCheck.user.telephone, 
       };
     } catch (error) {
       // ✅ Log détaillé des erreurs

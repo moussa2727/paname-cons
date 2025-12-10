@@ -287,121 +287,59 @@ export class RendezvousService {
     };
   }
 
-  async findByUser(
-      email: string,
-      page: number = 1,
-      limit: number = 10,
-      status?: string,
-    ): Promise<{ 
-      data: Rendezvous[]; 
-      total: number;
-      page: number;
-      limit: number;
-      totalPages: number;
-    }> {
-      const maskedEmail = this.maskEmail(email);
-      this.logger.log(`Recherche des rendez-vous pour l'utilisateur: ${maskedEmail} - Page: ${page}, Limit: ${limit}, Statut: ${status || 'tous'}`);
+async findByUser(
+  email: string,
+  page: number = 1,
+  limit: number = 10,
+  status?: string,
+): Promise<{ 
+  data: Rendezvous[]; 
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}> {
+  const maskedEmail = this.maskEmail(email);
+  this.logger.log(`Recherche rendez-vous pour: ${maskedEmail}`);
 
-      // ✅ CORRECTION : Décode d'abord l'email (car il vient encodé dans l'URL)
-      const decodedEmail = decodeURIComponent(email);
-      
-      // ✅ Ensuite normalise l'email pour la recherche
-      const normalizedEmail = this.normalizeEmail(decodedEmail);
-      
-      // VALIDATIONS STRICTES (cohérentes avec le controller)
-      if (!normalizedEmail || normalizedEmail.trim() === '') {
-        this.logger.warn(`Email vide ou invalide fourni: ${email}`);
-        throw new BadRequestException("L'email est requis pour cette requête");
-      }
+  // ✅ Email vient déjà décodé du controller
+  const normalizedEmail = this.normalizeEmail(email);
+  
+  // ✅ Validation stricte
+  if (!normalizedEmail) {
+    throw new BadRequestException("Email requis");
+  }
 
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(normalizedEmail)) {
-        this.logger.warn(`Format email invalide: ${maskedEmail}`);
-        throw new BadRequestException("Format d'email invalide");
-      }
+  const filters: any = { 
+    email: normalizedEmail 
+  };
+  
+  if (status) {
+    filters.status = status;
+  }
 
-      if (page < 1) {
-        throw new BadRequestException('Le numéro de page doit être supérieur à 0');
-      }
+  // ✅ Log sécurisé
+  this.logger.debug(`Filtres appliqués pour ${maskedEmail}`);
 
-      if (limit < 1 || limit > 100) {
-        throw new BadRequestException('La limite doit être entre 1 et 100');
-      }
+  const [data, total] = await Promise.all([
+    this.rendezvousModel
+      .find(filters)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .sort({ date: -1, time: 1 })
+      .lean()
+      .exec(),
+    this.rendezvousModel.countDocuments(filters).exec(),
+  ]);
 
-      if (status && !Object.values(RENDEZVOUS_STATUS).includes(status as RendezvousStatus)) {
-        throw new BadRequestException(`Statut invalide. Valeurs autorisées: ${Object.values(RENDEZVOUS_STATUS).join(', ')}`);
-      }
-
-      // Calcul du skip pour la pagination
-      const skip = (page - 1) * limit;
-
-      // Construction des filtres (identique au frontend)
-      const filters: any = { 
-        email: normalizedEmail 
-      };
-      
-      if (status) {
-        filters.status = status;
-      }
-
-      this.logger.debug(`Filtres appliqués: ${JSON.stringify(filters)}`);
-      this.logger.debug(`Pagination: skip=${skip}, limit=${limit}`);
-
-      try {
-        // Exécution parallèle pour performance
-        const [data, total] = await Promise.all([
-          this.rendezvousModel
-            .find(filters)
-            .skip(skip)
-            .limit(limit)
-            .sort({ 
-              date: -1,   // Les plus récents d'abord
-              time: 1     // Puis par heure croissante
-            })
-            .lean()       // Retourne des objets JavaScript simples
-            .exec(),
-          this.rendezvousModel.countDocuments(filters).exec(),
-        ]);
-
-        // Calcul du nombre total de pages
-        const totalPages = Math.ceil(total / limit);
-
-        this.logger.log(`Rendez-vous trouvés pour ${maskedEmail}: ${data.length} sur ${total} (page ${page}/${totalPages})`);
-        
-        // LOG détaillé pour débogage
-        if (data.length > 0) {
-          this.logger.debug(`Premier rendez-vous: ID=${data[0]._id}, Date=${data[0].date}, Statut=${data[0].status}`);
-        } else {
-          this.logger.debug(`Aucun rendez-vous trouvé pour ${maskedEmail} avec les filtres appliqués`);
-        }
-
-        // Retourne la structure EXACTEMENT comme attendue par le frontend
-        return {
-          data: data as Rendezvous[], // Cast pour TypeScript
-          total,
-          page,
-          limit,
-          totalPages,
-        };
-
-      } catch (error: any) {
-        this.logger.error(`Erreur lors de la recherche des rendez-vous pour ${maskedEmail}: ${error.message}`);
-        this.logger.error(`Stack trace: ${error.stack}`);
-        
-        // Gestion spécifique des erreurs de base de données
-        if (error.name === 'MongoError' || error.name === 'MongoServerError') {
-          this.logger.error(`Erreur MongoDB: ${error.code} - ${error.message}`);
-          throw new BadRequestException('Erreur de base de données lors de la recherche');
-        }
-        
-        // Pour les autres erreurs
-        if (error instanceof BadRequestException) {
-          throw error; // Propagation des erreurs de validation
-        }
-        
-        throw new BadRequestException('Erreur lors de la récupération des rendez-vous');
-      }
-    }
+  return {
+    data: data as Rendezvous[],
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
 
 // ==================== MÉTHODES UTILITAIRES PRIVÉES ====================
 
@@ -411,7 +349,7 @@ export class RendezvousService {
     if (rdv) {
       const maskedEmail = this.maskEmail(rdv.email);
       this.logger.log(`Rendez-vous trouvé: ${id} pour ${maskedEmail}`);
-      this.logger.debug(`Email du rendez-vous: ${rdv.email}`);
+      this.logger.debug(`Email du rendez-vous: ${maskedEmail}`);
     } else {
       this.logger.warn(`Rendez-vous non trouvé: ${id}`);
     }
@@ -436,8 +374,8 @@ export class RendezvousService {
     if (user.role !== UserRole.ADMIN && 
         this.normalizeEmail(rdv.email) !== this.normalizeEmail(user.email)) {
       this.logger.warn(`Tentative d'accès non autorisé au rendez-vous: ${id} par ${maskedEmail}`);
-      this.logger.debug(`Email rdv: ${rdv.email}, Email user: ${user.email}`);
-      this.logger.debug(`Email rdv normalisé: ${this.normalizeEmail(rdv.email)}, Email user normalisé: ${this.normalizeEmail(user.email)}`);
+      this.logger.debug(`Email rdv: ${maskedEmail}, Email user: ${maskedEmail}`);
+      this.logger.debug(`Email rdv normalisé .`);
       throw new ForbiddenException(
         "Vous ne pouvez modifier que vos propres rendez-vous",
       );
