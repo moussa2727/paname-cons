@@ -150,7 +150,6 @@ const MesRendezvous = () => {
     
     console.log('🔍 État auth:', {
       isAuthenticated,
-      userEmail: user?.email,
       path: location.pathname
     });
     

@@ -128,7 +128,6 @@ const UserProfile = () => {
     
     console.log('🔍 [UserProfile] État auth:', {
       isAuthenticated,
-      userEmail: user?.email,
       path: location.pathname
     });
     
