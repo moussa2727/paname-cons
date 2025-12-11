@@ -141,6 +141,8 @@ const MesRendezvous = () => {
     }
   }, [authLoading, isAuthenticated, navigate, location.pathname]);
 
+  
+
   if (authLoading) {
     return <LoadingScreen message="Chargement de l'authentification..." />;
   }
@@ -179,50 +181,38 @@ const MesRendezvous = () => {
   }, [location.pathname]);
 
   // Fonction pour charger les rendez-vous
- // Fonction pour charger les rendez-vous - VERSION COMPLÈTE CORRIGÉE
 const fetchRendezvous = useCallback(async (forceRefresh = false) => {
-  // Vérification basique de l'authentification
+  // Vérifications basiques
   if (!isAuthenticated || !user) {
-    if (import.meta.env.DEV) {
-      console.warn('⚠️ fetchRendezvous appelé sans authentification valide');
-    }
     return;
   }
 
-  // Éviter les requêtes multiples simultanées
+  // Éviter les requêtes simultanées
   if (loading && !forceRefresh) {
-    if (import.meta.env.DEV) {
-      console.log('⏳ Requête déjà en cours, ignorée');
-    }
     return;
   }
 
-  // Vérifier la dernière requête pour éviter le rate limiting
-  const lastFetchTime = localStorage.getItem('last_rendezvous_fetch');
+  // Vérifier la dernière requête
+  const lastFetchKey = 'last_rendezvous_fetch_time';
+  const lastFetchTime = localStorage.getItem(lastFetchKey);
+  
   if (lastFetchTime && !forceRefresh) {
     const timeSinceLastFetch = Date.now() - parseInt(lastFetchTime);
-    const minDelay = 2000; // 2 secondes entre les requêtes
+    const minDelay = 3000; // 3 secondes minimum
     
     if (timeSinceLastFetch < minDelay) {
       if (import.meta.env.DEV) {
-        console.log(`⏳ Trop tôt pour fetch (${timeSinceLastFetch}ms, attendre ${minDelay}ms)`);
+        console.log(`⏳ Trop tôt pour recharger (${Math.round(timeSinceLastFetch/1000)}s)`);
       }
       return;
     }
   }
 
   setLoading(true);
-  
-  try {
-    // Ajouter un petit délai pour éviter le rate limiting
-    await new Promise(resolve => setTimeout(resolve, 500));
 
+  try {
     if (import.meta.env.DEV) {
-      console.log('🔄 Chargement des rendez-vous...', {
-        page: pagination.page,
-        limit: pagination.limit,
-        status: selectedStatus || 'tous'
-      });
+      console.log('🔄 Chargement des rendez-vous...');
     }
 
     const data = await rendezvousService.fetchUserRendezvous({
@@ -231,7 +221,6 @@ const fetchRendezvous = useCallback(async (forceRefresh = false) => {
       status: selectedStatus || undefined,
     });
     
-    // Mettre à jour les données
     setRendezvous(data.data);
     setPagination(prev => ({
       ...prev,
@@ -239,19 +228,13 @@ const fetchRendezvous = useCallback(async (forceRefresh = false) => {
       totalPages: data.totalPages,
     }));
     
-    // Sauvegarder le timestamp de la requête
-    localStorage.setItem('last_rendezvous_fetch', Date.now().toString());
+    // Sauvegarder le timestamp
+    localStorage.setItem(lastFetchKey, Date.now().toString());
     
-    // Log de succès
     if (import.meta.env.DEV) {
-      console.log('✅ Rendez-vous chargés avec succès:', {
-        count: data.data.length,
-        total: data.total,
-        pages: data.totalPages
-      });
+      console.log('✅ Rendez-vous chargés:', data.data.length, 'éléments');
     }
     
-    // Afficher un message si aucun résultat avec filtre
     if (data.data.length === 0 && selectedStatus) {
       toast.info(`Aucun rendez-vous avec le statut "${selectedStatus}"`, {
         autoClose: 3000,
@@ -259,94 +242,79 @@ const fetchRendezvous = useCallback(async (forceRefresh = false) => {
     }
     
   } catch (error: any) {
-    // Gestion spécifique des erreurs
-    if (error.message === 'SESSION_EXPIRED') {
-      // Ne rien faire - la redirection est déjà gérée par fetchWithAuth
-      if (import.meta.env.DEV) {
-        console.log('🔒 Session expirée détectée dans fetchRendezvous');
-      }
-    } 
-    else if (error.message === 'SESSION_CHECK_IN_PROGRESS') {
-      // Attendre un peu et réessayer
-      if (import.meta.env.DEV) {
-        console.log('⏳ Vérification de session en cours, réessai...');
-      }
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Réessayer une fois
-      try {
-        const data = await rendezvousService.fetchUserRendezvous({
-          page: pagination.page,
-          limit: pagination.limit,
-          status: selectedStatus || undefined,
-        });
-        
-        setRendezvous(data.data);
-        setPagination(prev => ({
-          ...prev,
-          total: data.total,
-          totalPages: data.totalPages,
-        }));
-        
-        localStorage.setItem('last_rendezvous_fetch', Date.now().toString());
-      } catch (retryError: any) {
-        if (retryError.message !== 'SESSION_EXPIRED') {
-          toast.error('Impossible de charger vos rendez-vous après réessai');
-        }
-      }
+    // Ne rien faire pour les erreurs de session (gérées ailleurs)
+    if (error.message === 'SESSION_EXPIRED' || 
+        error.message === 'SESSION_CHECK_IN_PROGRESS') {
+      return;
     }
-    else if (error.message.includes('TOO MANY REQUESTS')) {
-      // Gestion spécifique du rate limiting
-      toast.error('Trop de requêtes, veuillez patienter quelques secondes', {
-        autoClose: 5000,
-      });
+    
+    // Gestion spécifique du rate limiting
+    if (error.message.includes('TOO MANY REQUESTS') || 
+        error.message.includes('RATE_LIMIT')) {
       
-      // Attendre plus longtemps avant la prochaine tentative
-      localStorage.setItem('last_rendezvous_fetch', (Date.now() + 10000).toString());
-    }
-    else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-      // Erreur réseau
-      toast.error('Erreur de connexion. Vérifiez votre connexion internet.', {
-        autoClose: 4000,
-      });
+      // Attendre plus longtemps pour la prochaine tentative
+      localStorage.setItem(lastFetchKey, (Date.now() + 15000).toString());
       
-      if (import.meta.env.DEV) {
-        console.error('🌐 Erreur réseau:', error.message);
-      }
-    }
-    else if (error.message.includes('Failed to parse URL')) {
-      // Erreur d'URL - problème de configuration
-      toast.error('Problème de configuration de l\'application', {
+      toast.error('Trop de requêtes, veuillez patienter 15 secondes', {
         autoClose: 5000,
       });
       
       if (import.meta.env.DEV) {
-        console.error('🔧 Erreur d\'URL:', error.message);
-        console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
+        console.warn('🚫 Rate limiting détecté, attente de 15s');
       }
-    }
-    else {
-      // Erreur générique
+    } else {
       toast.error('Impossible de charger vos rendez-vous', {
         autoClose: 4000,
       });
       
       if (import.meta.env.DEV) {
-        console.error('❌ Erreur fetchRendezvous:', error.message);
+        console.error('❌ Erreur:', error.message);
       }
     }
-    
   } finally {
     setLoading(false);
   }
-}, [rendezvousService, pagination.page, pagination.limit, selectedStatus, isAuthenticated, user, loading]);
+}, [
+  rendezvousService, 
+  pagination.page, 
+  pagination.limit, 
+  selectedStatus, 
+  isAuthenticated, 
+  user,
+  loading
+]);
 
-  // Charger les rendez-vous quand les dépendances changent
-  useEffect(() => {
-    if (location.pathname === '/mes-rendez-vous' && isAuthenticated) {
-      fetchRendezvous();
+
+ // Dans MesRendezvous.tsx - Intervalle de rafraîchissement
+useEffect(() => {
+  let refreshInterval: NodeJS.Timeout;
+  
+  const setupRefresh = () => {
+    if (location.pathname === '/mes-rendez-vous' && isAuthenticated && !loading) {
+      // Rafraîchir automatiquement toutes les 30 secondes
+      refreshInterval = setInterval(() => {
+        const lastFetchKey = 'last_rendezvous_fetch_time';
+        const lastFetchTime = localStorage.getItem(lastFetchKey);
+        
+        if (!lastFetchTime || (Date.now() - parseInt(lastFetchTime) > 30000)) {
+          if (import.meta.env.DEV) {
+            console.log('🔄 Rafraîchissement automatique des rendez-vous');
+          }
+          fetchRendezvous(true);
+        }
+      }, 30000); // 30 secondes
     }
-  }, [location.pathname, isAuthenticated, fetchRendezvous]);
+  };
+  
+  // Démarrer l'intervalle
+  setupRefresh();
+  
+  return () => {
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+    }
+  };
+}, [location.pathname, isAuthenticated, loading, fetchRendezvous]);
 
   // Annuler un rendez-vous
   const handleCancelRendezvous = async (rdvId: string) => {
