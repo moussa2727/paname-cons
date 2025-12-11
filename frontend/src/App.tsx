@@ -334,19 +334,6 @@ function App() {
             <Route path='rendez-vous' element={<AdminRendezVous />} />
           </Route>
 
-          <Route
-            path='/user-rendez-vous'
-            element={<Navigate to='/mes-rendez-vous' replace />}
-          />
-          <Route
-            path='/user-profile'
-            element={<Navigate to='/mon-profil' replace />}
-          />
-          <Route
-            path='/user-procedure'
-            element={<Navigate to='/ma-procedure' replace />}
-          />
-
          
           <Route
             path='/gestionnaire'
