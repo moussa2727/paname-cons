@@ -1,4 +1,4 @@
-// MesRendezvous.tsx - VERSION CORRIGÉE POUR PROD
+// MesRendezvous.tsx - VERSION ALLÉGÉE
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
@@ -31,7 +31,7 @@ import {
   AuthFunctions 
 } from '../../../api/user/Rendezvous/UserRendezvousService';
 
-// Composant de chargement réutilisable
+// Composant de chargement
 const LoadingScreen = ({ message = "Chargement..." }: { message?: string }) => (
   <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
     <div className="text-center">
@@ -106,7 +106,6 @@ const avisColors: Record<string, string> = {
 const MesRendezvous = () => {
   const { 
     user,
-    isAuthenticated, 
     access_token,  
     refreshToken, 
     logout,
@@ -131,42 +130,9 @@ const MesRendezvous = () => {
     totalPages: 1,
   });
 
-  // === GESTION D'AUTHENTIFICATION SIMPLIFIÉE ===
-  useEffect(() => {
-    if (user && !user.isActive) {
-      console.log('🚫 Compte inactif détecté');
-      toast.error('Votre compte a été désactivé');
-    }
-  }, [user, logout]);
-
-  // 2. Vérification d'authentification
-  useEffect(() => {
-    if (authLoading) {
-      console.log('⏳ Chargement auth en cours...');
-      return;
-    }
-    
-    console.log('🔍 État auth:', {
-      isAuthenticated,
-      path: location.pathname
-    });
-    
-    if (!isAuthenticated) {
-      console.log('🔒 Non authentifié - Redirection vers /connexion');
-      navigate('/connexion', { 
-        replace: true,
-        state: { from: location.pathname }
-      });
-    }
-  }, [authLoading, isAuthenticated, user, navigate, location.pathname]);
-
-  // === ÉTATS DE CHARGEMENT ===
+  // === CHARGEMENT SIMPLE ===
   if (authLoading) {
     return <LoadingScreen message="Chargement de l'authentification..." />;
-  }
-
-  if (!isAuthenticated) {
-    return null; // Redirection en cours via useEffect
   }
 
   if (!user) {
@@ -181,11 +147,10 @@ const MesRendezvous = () => {
     fetchWithAuth
   }), [access_token, refreshToken, logout, fetchWithAuth]);
 
-  // Créer le service une seule fois avec les fonctions d'auth
+  // Créer le service
   const rendezvousService = useMemo(() => {
-    if (!isAuthenticated) return null;
     return new UserRendezvousService(authFunctions);
-  }, [isAuthenticated, authFunctions]);
+  }, [authFunctions]);
 
   // Gestion d'AOS
   useEffect(() => {
@@ -205,14 +170,8 @@ const MesRendezvous = () => {
 
   // Fonction pour charger les rendez-vous
   const fetchRendezvous = useCallback(async () => {
-    if (!isAuthenticated || !rendezvousService) {
-      console.log('⚠️ Service non disponible ou non authentifié');
-      return;
-    }
-
     setLoading(true);
     try {
-      console.log('📡 Chargement des rendez-vous...');
       const data = await rendezvousService.fetchUserRendezvous({
         page: pagination.page,
         limit: pagination.limit,
@@ -225,8 +184,6 @@ const MesRendezvous = () => {
         total: data.total,
         totalPages: data.totalPages,
       }));
-
-      console.log(`✅ ${data.data.length} rendez-vous chargés`);
       
       if (data.data.length === 0 && selectedStatus) {
         toast.info(`Aucun rendez-vous avec le statut "${selectedStatus}"`);
@@ -234,35 +191,26 @@ const MesRendezvous = () => {
     } catch (error: any) {
       // Gérer spécifiquement les sessions expirées
       if (error.message === 'SESSION_EXPIRED') {
-        console.log('🔒 Session expirée détectée, déconnexion...');
-        logout();
+        console.log('🔒 Session expirée détectée');
         toast.info('Session expirée. Veuillez vous reconnecter.');
         navigate('/connexion', { replace: true });
       } else {
-        console.error('❌ Erreur fetchRendezvous:', error.message);
         toast.error('Impossible de charger vos rendez-vous');
       }
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, rendezvousService, pagination.page, pagination.limit, selectedStatus, navigate, logout]);
+  }, [rendezvousService, pagination.page, pagination.limit, selectedStatus, navigate]);
 
   // Charger les rendez-vous quand les dépendances changent
   useEffect(() => {
-    if (isAuthenticated && location.pathname === '/mes-rendez-vous' && rendezvousService) {
-      console.log('🔄 Déclenchement du chargement des rendez-vous');
+    if (location.pathname === '/mes-rendez-vous' && rendezvousService) {
       fetchRendezvous();
     }
-  }, [isAuthenticated, location.pathname, rendezvousService, pagination.page, selectedStatus, fetchRendezvous]);
+  }, [location.pathname, rendezvousService, pagination.page, selectedStatus, fetchRendezvous]);
 
   // Annuler un rendez-vous
   const handleCancelRendezvous = async (rdvId: string) => {
-    if (!isAuthenticated || !rendezvousService) {
-      toast.error('Veuillez vous connecter');
-      navigate('/connexion');
-      return;
-    }
-
     if (!window.confirm('Êtes-vous sûr de vouloir annuler ce rendez-vous ?')) {
       return;
     }
@@ -280,12 +228,9 @@ const MesRendezvous = () => {
       toast.success('Rendez-vous annulé avec succès');
     } catch (error: any) {
       if (error.message === 'SESSION_EXPIRED') {
-        console.log('🔒 Session expirée lors de l\'annulation');
-        logout();
         toast.info('Session expirée');
         navigate('/connexion');
       }
-      // L'erreur est déjà affichée dans le service
     } finally {
       setCancelling(null);
     }

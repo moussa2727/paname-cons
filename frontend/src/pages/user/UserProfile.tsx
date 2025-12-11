@@ -1,4 +1,4 @@
-// UserProfile.tsx - VERSION CORRIGÉE POUR PROD
+// UserProfile.tsx - VERSION ALLÉGÉE
 import { useState, useEffect, FormEvent, FC, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
@@ -15,13 +15,12 @@ import {
   Mail,
   Phone,
   RefreshCw,
-  AlertCircle,
 } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import { userProfileService } from '../../api/user/Profile/userProfileApi';
 import { toast } from 'react-toastify';
 
-// Composant de chargement réutilisable
+// Composant de chargement
 const LoadingScreen = ({ message = "Chargement..." }: { message?: string }) => (
   <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
     <div className="text-center">
@@ -35,8 +34,6 @@ const UserProfile = () => {
   const { 
     user, 
     access_token,
-    isAuthenticated, 
-    logout, 
     updateProfile, 
     isLoading: authLoading 
   } = useAuth();
@@ -46,7 +43,7 @@ const UserProfile = () => {
   const headerRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
 
-  // Configuration des pages avec leurs titres spécifiques
+  // Configuration des pages
   const pageConfigs = {
     '/mon-profil': {
       title: 'Mon Profil',
@@ -109,43 +106,9 @@ const UserProfile = () => {
   const currentPage = getCurrentPageConfig();
   const activeTabId = navTabs.find(tab => location.pathname.startsWith(tab.to))?.id || 'profile';
 
-  // === GESTION D'AUTHENTIFICATION SIMPLIFIÉE ===
-  // 1. Gestion du compte inactif
-  useEffect(() => {
-    if (user && !user.isActive) {
-      console.log('🚫 [UserProfile] Compte inactif détecté');
-      toast.error('Votre compte a été désactivé');
-    }
-  }, [user, logout]);
-
-  // 2. Vérification d'authentification
-  useEffect(() => {
-    if (authLoading) {
-      console.log('⏳ [UserProfile] Chargement auth en cours...');
-      return;
-    }
-    
-    console.log('🔍 [UserProfile] État auth:', {
-      isAuthenticated,
-      path: location.pathname
-    });
-    
-    if (!isAuthenticated) {
-      console.log('🔒 [UserProfile] Non authentifié - Redirection');
-      navigate('/connexion', { 
-        replace: true,
-        state: { from: location.pathname }
-      });
-    }
-  }, [authLoading, isAuthenticated, user, navigate, location.pathname]);
-
-  // === ÉTATS DE CHARGEMENT ===
+  // === CHARGEMENT SIMPLE ===
   if (authLoading) {
     return <LoadingScreen message="Chargement de l'authentification..." />;
-  }
-
-  if (!isAuthenticated) {
-    return null; // Redirection en cours via useEffect
   }
 
   if (!user) {
@@ -259,6 +222,7 @@ const UserProfile = () => {
 
     if (!access_token || !user) {
       toast.error('Session expirée, veuillez vous reconnecter');
+      navigate('/connexion');
       return;
     }
 
@@ -315,9 +279,8 @@ const UserProfile = () => {
       const err = error as Error;
       
       if (err.message.includes('Session expirée') || err.message.includes('401') || err.message.includes('SESSION_EXPIRED')) {
-        console.log('🔒 [UserProfile] Session expirée lors de la mise à jour');
-        toast.error('Session expirée, redirection...');
-        setTimeout(() => logout(), 2000);
+        toast.error('Session expirée');
+        navigate('/connexion');
       } else {
         toast.error(err.message || 'Erreur lors de la mise à jour du profil');
       }
@@ -332,6 +295,7 @@ const UserProfile = () => {
 
     if (!access_token) {
       toast.error('Session expirée, veuillez vous reconnecter');
+      navigate('/connexion');
       return;
     }
 
@@ -366,9 +330,8 @@ const UserProfile = () => {
       const err = error as Error;
       
       if (err.message.includes('Session expirée') || err.message.includes('401') || err.message.includes('SESSION_EXPIRED')) {
-        console.log('🔒 [UserProfile] Session expirée lors du changement de mot de passe');
-        toast.error('Session expirée, redirection...');
-        setTimeout(() => logout(), 2000);
+        toast.error('Session expirée');
+        navigate('/connexion');
       } else {
         toast.error(err.message || 'Erreur lors de la modification du mot de passe');
       }

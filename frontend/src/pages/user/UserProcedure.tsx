@@ -1,4 +1,4 @@
-// UserProcedure.tsx - VERSION CORRIGÉE POUR PROD
+// UserProcedure.tsx - VERSION ALLÉGÉE
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -29,14 +29,13 @@ import {
   XCircle,
   AlertCircle,
   RefreshCw,
-  Plus,
   Search,
   Filter,
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 
-// Composant de chargement réutilisable
+// Composant de chargement
 const LoadingScreen = ({ message = "Chargement..." }: { message?: string }) => (
   <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
     <div className="text-center">
@@ -47,13 +46,13 @@ const LoadingScreen = ({ message = "Chargement..." }: { message?: string }) => (
 );
 
 const UserProcedureComponent = (): React.JSX.Element => {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const headerRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
 
-  // Configuration des pages avec leurs titres spécifiques
+  // Configuration des pages
   const pageConfigs = {
     '/mon-profil': {
       title: 'Mon Profil',
@@ -116,32 +115,9 @@ const UserProcedureComponent = (): React.JSX.Element => {
   const currentPage = getCurrentPageConfig();
   const activeTabId = navTabs.find(tab => location.pathname.startsWith(tab.to))?.id || 'procedures';
 
-  // === GESTION D'AUTHENTIFICATION SIMPLIFIÉE ===
-  useEffect(() => {
-    if (user && !user.isActive) {
-      console.log('🚫 [UserProcedure] Compte inactif détecté');
-    }
-  }, [user, logout]);
-
-  // 2. Vérification d'authentification
-  useEffect(() => {
-    console.log('🔍 [UserProcedure] État auth:', {
-      isAuthenticated,
-      path: location.pathname
-    });
-    
-    if (!isAuthenticated) {
-      console.log('🔒 [UserProcedure] Non authentifié - Redirection');
-      navigate('/connexion', { 
-        replace: true,
-        state: { from: location.pathname }
-      });
-    }
-  }, [isAuthenticated, user, navigate, location.pathname]);
-
-  // === ÉTATS DE CHARGEMENT ===
-  if (!isAuthenticated) {
-    return <></> ; // Redirection en cours via useEffect
+  // === CHARGEMENT SIMPLE ===
+  if (authLoading) {
+    return <LoadingScreen message="Chargement de l'authentification..." />;
   }
 
   if (!user) {
@@ -171,7 +147,7 @@ const UserProcedureComponent = (): React.JSX.Element => {
     refetch: refetchProcedures,
   } = useUserProcedures(currentPageNum, limit);
 
-  const { procedure: detailedProcedure, error: detailsError } =
+  const { procedure: detailedProcedure } =
     useProcedureDetails(selectedProcedure?._id || null);
 
   const { cancelProcedure, loading: cancelLoading } = useCancelProcedure();
@@ -200,15 +176,10 @@ const UserProcedureComponent = (): React.JSX.Element => {
 
   // === GESTION DES ERREURS DE SESSION ===
   useEffect(() => {
-    if (
-      proceduresError === 'SESSION_EXPIRED' ||
-      detailsError === 'SESSION_EXPIRED'
-    ) {
-      console.log('🔒 [UserProcedure] Session expirée détectée');
-      logout();
-      return;
+    if (proceduresError === 'SESSION_EXPIRED') {
+      navigate('/connexion');
     }
-  }, [proceduresError, detailsError, logout]);
+  }, [proceduresError, navigate]);
 
   useEffect(() => {
     if (
