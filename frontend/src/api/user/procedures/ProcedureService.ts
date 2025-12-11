@@ -1,4 +1,5 @@
-// ProcedureService.ts - VERSION COMPLÈTE SYNCHRONISÉE AVEC BACKEND
+// [file name]: ProcedureService.ts
+// Service API - Version finale synchronisée avec backend
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { toast } from 'react-toastify';

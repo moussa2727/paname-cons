@@ -34,7 +34,8 @@ import MotdePasseoublie from './pages/MotdePasseoublie';
 // Pages admin (lazy loaded)
 const UsersManagement = lazy(() => import('./pages/admin/UsersManagement'));
 const AdminLayout = lazy(() => import('./AdminLayout'));
-const AdminMessages = lazy(() => import('./pages/admin/AdminMessages'));
+const AdminMessages = lazy(() =>
+  import('./pages/admin/AdminMessages'));
 const AdminProfile = lazy(() => import('./pages/admin/AdminProfile'));
 const AdminProcedure = lazy(() => import('./pages/admin/AdminProcedure'));
 const AdminDestinations = lazy(() => import('./pages/admin/AdminDestinations'));

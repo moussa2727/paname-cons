@@ -1,22 +1,21 @@
-// AdminRendezVousService.ts
-import { useAuth } from '../../context/AuthContext';
-import { useRef, useCallback } from 'react';
+import { toast } from 'react-toastify';
 
 export interface Rendezvous {
   _id: string;
+  userId: string;
   firstName: string;
   lastName: string;
   email: string;
   telephone: string;
-  date: string;
-  time: string;
-  status: 'En attente' | 'Confirmé' | 'Terminé' | 'Annulé';
   destination: string;
   destinationAutre?: string;
   niveauEtude: string;
   filiere: string;
   filiereAutre?: string;
-  avisAdmin?: 'Favorable' | 'Défavorable';
+  date: string;
+  time: string;
+  status: RendezvousStatus;
+  avisAdmin?: AdminOpinion;
   cancelledAt?: string;
   cancelledBy?: 'admin' | 'user';
   cancellationReason?: string;
@@ -24,19 +23,8 @@ export interface Rendezvous {
   updatedAt: string;
 }
 
-export interface CreateRendezVousData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  telephone: string;
-  date: string;
-  time: string;
-  destination: string;
-  destinationAutre?: string;
-  niveauEtude: string;
-  filiere: string;
-  filiereAutre?: string;
-}
+export type RendezvousStatus = 'En attente' | 'Confirmé' | 'Terminé' | 'Annulé';
+export type AdminOpinion = 'Favorable' | 'Défavorable';
 
 export interface RendezvousListResponse {
   data: Rendezvous[];
@@ -46,909 +34,659 @@ export interface RendezvousListResponse {
   totalPages: number;
 }
 
-// ✅ CONSTANTES DE CONFIGURATION
-const API_URL = import.meta.env.VITE_API_URL;
+export interface CreateRendezvousData {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  telephone: string;
+  destination: string;
+  destinationAutre?: string;
+  niveauEtude: string;
+  filiere: string;
+  filiereAutre?: string;
+  date: string;
+  time: string;
+}
 
-// ✅ CONFIGURATION DE RATE LIMITING
-const RATE_LIMIT_CONFIG = {
-  MIN_REQUEST_INTERVAL: 3000, // 3 secondes entre les requêtes
-  MAX_CONCURRENT_REQUESTS: 3, // Maximum 3 requêtes simultanées
-  REQUEST_TIMEOUT: 30000, // 30 secondes timeout
-  RETRY_DELAY: 2000, // 2 secondes avant retry
-  MAX_RETRIES: 2, // Maximum 2 retries
-  BATCH_SIZE: 50, // Nombre max d'éléments par requête pour les listes
+export interface UpdateRendezvousData {
+  firstName?: string;
+  lastName?: string;
+  telephone?: string;
+  destination?: string;
+  destinationAutre?: string;
+  niveauEtude?: string;
+  filiere?: string;
+  filiereAutre?: string;
+  date?: string;
+  time?: string;
+  status?: RendezvousStatus;
+  avisAdmin?: AdminOpinion;
+}
+
+export interface FilterParams {
+  page?: number;
+  limit?: number;
+  status?: RendezvousStatus;
+  date?: string;
+  search?: string;
+}
+
+type FetchWithAuth = (endpoint: string, options?: RequestInit) => Promise<Response>;
+
+const API_ENDPOINTS = {
+  BASE: '/api/rendezvous',
+  LIST: '/api/rendezvous',
+  CREATE: '/api/rendezvous',
+  GET_ONE: (id: string) => `/api/rendezvous/${id}`,
+  UPDATE: (id: string) => `/api/rendezvous/${id}`,
+  UPDATE_STATUS: (id: string) => `/api/rendezvous/${id}/status`,
+  DELETE: (id: string) => `/api/rendezvous/${id}`,
+  CONFIRM: (id: string) => `/api/rendezvous/${id}/confirm`,
+  AVAILABLE_SLOTS: '/api/rendezvous/available-slots',
+  AVAILABLE_DATES: '/api/rendezvous/available-dates',
 } as const;
 
-// ✅ GESTIONNAIRE DE REQUÊTES AVEC RATE LIMITING
-class RequestManager {
-  private static instance: RequestManager;
-  private pendingRequests: Map<string, Promise<any>> = new Map();
-  private requestTimestamps: Map<string, number> = new Map();
-  private concurrentRequests = 0;
-  private requestQueue: Array<() => Promise<any>> = [];
-  private isProcessingQueue = false;
+const TOAST_MESSAGES = {
+  FETCH_SUCCESS: 'Rendez-vous chargés',
+  CREATE_SUCCESS: 'Rendez-vous créé avec succès',
+  UPDATE_SUCCESS: 'Rendez-vous mis à jour',
+  STATUS_UPDATE_SUCCESS: 'Statut mis à jour',
+  DELETE_SUCCESS: 'Rendez-vous annulé',
+  CONFIRM_SUCCESS: 'Rendez-vous confirmé',
+  FETCH_ERROR: 'Erreur lors du chargement',
+  CREATE_ERROR: 'Erreur lors de la création',
+  UPDATE_ERROR: 'Erreur lors de la mise à jour',
+  DELETE_ERROR: "Erreur lors de l'annulation",
+  NETWORK_ERROR: 'Erreur réseau',
+  UNAUTHORIZED: 'Accès non autorisé',
+  VALIDATION_ERROR: 'Données invalides',
+  RATE_LIMIT_ERROR: 'Trop de requêtes, veuillez patienter',
+} as const;
 
-  static getInstance(): RequestManager {
-    if (!RequestManager.instance) {
-      RequestManager.instance = new RequestManager();
-    }
-    return RequestManager.instance;
+export class AdminRendezVousService {
+  private fetchWithAuth: FetchWithAuth;
+  private lastRequestTime: number = 0;
+  private  MIN_REQUEST_INTERVAL = 2000; // 2 secondes minimum entre les requêtes
+  private requestQueue: Promise<any> = Promise.resolve();
+  private isProcessingQueue: boolean = false;
+  private activeRequests: Set<string> = new Set();
+  private requestTimeout: number = 30000; // 30 secondes timeout
+
+  constructor(fetchWithAuth: FetchWithAuth) {
+    this.fetchWithAuth = fetchWithAuth;
   }
 
-  // ✅ Générer un ID unique pour chaque requête
-  private generateRequestId(endpoint: string, params?: any): string {
-    const paramsHash = params ? JSON.stringify(params).slice(0, 100) : '';
-    return `${endpoint}:${paramsHash}:${Date.now()}`;
+  private buildQueryString(params: FilterParams): string {
+    const searchParams = new URLSearchParams();
+
+    if (params.page) searchParams.append('page', params.page.toString());
+    if (params.limit) searchParams.append('limit', params.limit.toString());
+    if (params.status) searchParams.append('status', params.status);
+    if (params.date) searchParams.append('date', params.date);
+    if (params.search) searchParams.append('search', params.search);
+
+    const queryString = searchParams.toString();
+    return queryString ? `?${queryString}` : '';
   }
 
-  // ✅ Vérifier si on peut faire une requête (rate limiting)
-  private canMakeRequest(requestId: string): boolean {
-    const lastRequestTime = this.requestTimestamps.get(requestId);
-    if (!lastRequestTime) return true;
-
-    const timeSinceLastRequest = Date.now() - lastRequestTime;
-    return timeSinceLastRequest >= RATE_LIMIT_CONFIG.MIN_REQUEST_INTERVAL;
-  }
-
-  // ✅ Gérer la file d'attente
-  private async processQueue(): Promise<void> {
-    if (this.isProcessingQueue || this.requestQueue.length === 0) return;
-
-    this.isProcessingQueue = true;
-
-    while (this.requestQueue.length > 0 && this.concurrentRequests < RATE_LIMIT_CONFIG.MAX_CONCURRENT_REQUESTS) {
-      const requestFn = this.requestQueue.shift();
-      if (requestFn) {
-        this.concurrentRequests++;
-        requestFn().finally(() => {
-          this.concurrentRequests--;
-          if (this.requestQueue.length > 0) {
-            this.processQueue();
-          }
+  private async rateLimitedFetch(endpoint: string, options?: RequestInit): Promise<Response> {
+    const requestId = `${endpoint}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      this.activeRequests.add(requestId);
+      
+      const now = Date.now();
+      const timeSinceLastRequest = now - this.lastRequestTime;
+      
+      // Attendre si la dernière requête était trop récente
+      if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
+        const waitTime = this.MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+        console.log(`⏰ Attente requise (${waitTime}ms, minimum ${this.MIN_REQUEST_INTERVAL}ms)`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+      
+      this.lastRequestTime = Date.now();
+      
+      // Ajouter un timeout à la requête
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.requestTimeout);
+      
+      try {
+        const response = await this.fetchWithAuth(endpoint, {
+          ...options,
+          signal: controller.signal,
         });
+        
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+      }
+      
+    } finally {
+      this.activeRequests.delete(requestId);
+    }
+  }
+
+  private async queueRequest<T>(operation: () => Promise<T>, operationName: string): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const requestId = `${operationName}-${Date.now()}`;
+      
+      this.requestQueue = this.requestQueue
+        .then(async () => {
+          this.isProcessingQueue = true;
+          try {
+            console.log(`⌛ Début de l'opération: ${operationName}`);
+            const result = await operation();
+            console.log(`✅ Opération réussie: ${operationName}`);
+            resolve(result);
+          } catch (error) {
+            console.error(`❌ Erreur dans l'opération ${operationName}:`, error);
+            reject(error);
+          } finally {
+            this.isProcessingQueue = false;
+          }
+        })
+        .catch((error) => {
+          console.error(`❌ Erreur dans la file d'attente pour ${operationName}:`, error);
+          reject(error);
+        });
+    });
+  }
+
+  private async handleResponse<T>(response: Response, operation: string): Promise<T> {
+    if (!response.ok) {
+      // Gestion spécifique du rate limiting (429)
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After') || '2';
+        const waitTime = parseInt(retryAfter) * 1000;
+        console.warn(`⚠️ Rate limiting détecté: ${retryAfter} secondes`);
+        toast.warning(`Trop de requêtes. Réessayez dans ${retryAfter} secondes`, {
+          autoClose: 3000,
+        });
+        throw new Error('TOO MANY REQUESTS');
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        toast.error(TOAST_MESSAGES.UNAUTHORIZED, {
+          autoClose: 3000,
+        });
+        throw new Error('Unauthorized');
+      }
+
+      if (response.status === 400) {
+        try {
+          const errorData = await response.json();
+          const errorMessage = errorData.message || TOAST_MESSAGES.VALIDATION_ERROR;
+          toast.error(errorMessage, {
+            autoClose: 3000,
+          });
+          throw new Error(errorMessage);
+        } catch {
+          toast.error(TOAST_MESSAGES.VALIDATION_ERROR, {
+            autoClose: 3000,
+          });
+          throw new Error(TOAST_MESSAGES.VALIDATION_ERROR);
+        }
+      }
+
+      if (response.status === 404) {
+        toast.error('Rendez-vous non trouvé', {
+          autoClose: 3000,
+        });
+        throw new Error('Not found');
+      }
+
+      try {
+        const errorData = await response.json();
+        const errorMessage = errorData.message || `Erreur: ${response.status}`;
+        toast.error(errorMessage, {
+          autoClose: 3000,
+        });
+        throw new Error(errorMessage);
+      } catch {
+        toast.error(`Erreur serveur: ${response.status}`, {
+          autoClose: 3000,
+        });
+        throw new Error(`HTTP ${response.status}`);
       }
     }
 
+    try {
+      const data = await response.json();
+      return data as T;
+    } catch (error) {
+      console.error('Erreur de parsing JSON:', error);
+      toast.error('Erreur lors du traitement de la réponse', {
+        autoClose: 3000,
+      });
+      throw new Error('Erreur lors du traitement de la réponse');
+    }
+  }
+
+  async getAllRendezvous(filters: FilterParams = {}): Promise<RendezvousListResponse> {
+    return this.queueRequest(async () => {
+      try {
+        const queryString = this.buildQueryString(filters);
+        console.log(`📤 Requête GET: ${API_ENDPOINTS.LIST}${queryString}`);
+        
+        const response = await this.rateLimitedFetch(`${API_ENDPOINTS.LIST}${queryString}`);
+
+        const data = await this.handleResponse<RendezvousListResponse>(
+          response,
+          'getAllRendezvous'
+        );
+
+        console.log(`✅ ${data.data.length} rendez-vous chargés sur ${data.total} total`);
+        return data;
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.name === 'AbortError') {
+            toast.error('La requête a expiré. Veuillez réessayer.', {
+              autoClose: 3000,
+            });
+            throw new Error('Request timeout');
+          }
+          
+          if (error.message === 'Unauthorized') {
+            throw error;
+          }
+          
+          if (error.message === 'TOO MANY REQUESTS') {
+            // Ne pas afficher de toast supplémentaire, déjà géré dans handleResponse
+            throw error;
+          }
+          
+          if (!error.message.includes('TOO MANY REQUESTS') && 
+              !error.message.includes('Unauthorized')) {
+            toast.error(TOAST_MESSAGES.FETCH_ERROR, {
+              autoClose: 3000,
+            });
+          }
+        }
+        throw error;
+      }
+    }, 'getAllRendezvous');
+  }
+
+  async getRendezvousById(id: string): Promise<Rendezvous> {
+    return this.queueRequest(async () => {
+      if (!id || id.trim() === '') {
+        toast.error('ID rendez-vous invalide', {
+          autoClose: 3000,
+        });
+        throw new Error('Invalid ID');
+      }
+
+      try {
+        console.log(`📤 Requête GET: ${API_ENDPOINTS.GET_ONE(id)}`);
+        const response = await this.rateLimitedFetch(API_ENDPOINTS.GET_ONE(id));
+
+        const data = await this.handleResponse<Rendezvous>(
+          response,
+          'getRendezvousById'
+        );
+
+        console.log(`✅ Rendez-vous ${id} chargé avec succès`);
+        return data;
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message !== 'Unauthorized') {
+            toast.error(TOAST_MESSAGES.FETCH_ERROR, {
+              autoClose: 3000,
+            });
+          }
+        }
+        throw error;
+      }
+    }, 'getRendezvousById');
+  }
+
+  async createRendezvous(data: CreateRendezvousData): Promise<Rendezvous> {
+    return this.queueRequest(async () => {
+      try {
+        // Validation des données requises
+        const requiredFields = ['userId', 'firstName', 'lastName', 'email', 'date', 'time', 'destination', 'filiere', 'niveauEtude'];
+        const missingFields = requiredFields.filter(field => !data[field as keyof CreateRendezvousData]);
+        
+        if (missingFields.length > 0) {
+          toast.error(`Champs manquants: ${missingFields.join(', ')}`, {
+            autoClose: 3000,
+          });
+          throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+        }
+
+        console.log(`📤 Requête POST: ${API_ENDPOINTS.CREATE}`);
+        const response = await this.rateLimitedFetch(API_ENDPOINTS.CREATE, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+
+        const result = await this.handleResponse<Rendezvous>(
+          response,
+          'createRendezvous'
+        );
+
+        toast.success(TOAST_MESSAGES.CREATE_SUCCESS, {
+          autoClose: 3000,
+        });
+        console.log(`✅ Rendez-vous créé avec ID: ${result._id}`);
+        return result;
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message !== 'Unauthorized') {
+            toast.error(TOAST_MESSAGES.CREATE_ERROR, {
+              autoClose: 3000,
+            });
+          }
+        }
+        throw error;
+      }
+    }, 'createRendezvous');
+  }
+
+  async updateRendezvous(id: string, data: UpdateRendezvousData): Promise<Rendezvous> {
+    return this.queueRequest(async () => {
+      if (!id || id.trim() === '') {
+        toast.error('ID rendez-vous invalide', {
+          autoClose: 3000,
+        });
+        throw new Error('Invalid ID');
+      }
+
+      try {
+        console.log(`📤 Requête PUT: ${API_ENDPOINTS.UPDATE(id)}`);
+        const response = await this.rateLimitedFetch(API_ENDPOINTS.UPDATE(id), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+
+        const result = await this.handleResponse<Rendezvous>(
+          response,
+          'updateRendezvous'
+        );
+
+        toast.success(TOAST_MESSAGES.UPDATE_SUCCESS, {
+          autoClose: 3000,
+        });
+        console.log(`✅ Rendez-vous ${id} mis à jour`);
+        return result;
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message !== 'Unauthorized') {
+            toast.error(TOAST_MESSAGES.UPDATE_ERROR, {
+              autoClose: 3000,
+            });
+          }
+        }
+        throw error;
+      }
+    }, 'updateRendezvous');
+  }
+
+  async updateStatus(
+    id: string,
+    status: RendezvousStatus,
+    avisAdmin?: AdminOpinion
+  ): Promise<Rendezvous> {
+    return this.queueRequest(async () => {
+      if (!id || id.trim() === '') {
+        toast.error('ID rendez-vous invalide', {
+          autoClose: 3000,
+        });
+        throw new Error('Invalid ID');
+      }
+
+      if (status === 'Terminé' && !avisAdmin) {
+        toast.error('Avis admin requis pour terminer un rendez-vous', {
+          autoClose: 3000,
+        });
+        throw new Error('Missing avisAdmin');
+      }
+
+      try {
+        console.log(`📤 Requête PUT: ${API_ENDPOINTS.UPDATE_STATUS(id)}`);
+        const response = await this.rateLimitedFetch(API_ENDPOINTS.UPDATE_STATUS(id), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ status, avisAdmin }),
+        });
+
+        const result = await this.handleResponse<Rendezvous>(
+          response,
+          'updateStatus'
+        );
+
+        toast.success(TOAST_MESSAGES.STATUS_UPDATE_SUCCESS, {
+          autoClose: 3000,
+        });
+        console.log(`✅ Statut du rendez-vous ${id} mis à jour: ${status}`);
+        return result;
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message !== 'Unauthorized') {
+            toast.error(TOAST_MESSAGES.UPDATE_ERROR, {
+              autoClose: 3000,
+            });
+          }
+        }
+        throw error;
+      }
+    }, 'updateStatus');
+  }
+
+  async confirmRendezvous(id: string): Promise<Rendezvous> {
+    return this.queueRequest(async () => {
+      if (!id || id.trim() === '') {
+        toast.error('ID rendez-vous invalide', {
+          autoClose: 3000,
+        });
+        throw new Error('Invalid ID');
+      }
+
+      try {
+        console.log(`📤 Requête PUT: ${API_ENDPOINTS.CONFIRM(id)}`);
+        const response = await this.rateLimitedFetch(API_ENDPOINTS.CONFIRM(id), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const result = await this.handleResponse<Rendezvous>(
+          response,
+          'confirmRendezvous'
+        );
+
+        toast.success(TOAST_MESSAGES.CONFIRM_SUCCESS, {
+          autoClose: 3000,
+        });
+        console.log(`✅ Rendez-vous ${id} confirmé`);
+        return result;
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message !== 'Unauthorized') {
+            toast.error(TOAST_MESSAGES.UPDATE_ERROR, {
+              autoClose: 3000,
+            });
+          }
+        }
+        throw error;
+      }
+    }, 'confirmRendezvous');
+  }
+
+  async cancelRendezvous(id: string): Promise<Rendezvous> {
+    return this.queueRequest(async () => {
+      if (!id || id.trim() === '') {
+        toast.error('ID rendez-vous invalide', {
+          autoClose: 3000,
+        });
+        throw new Error('Invalid ID');
+      }
+
+      try {
+        console.log(`📤 Requête DELETE: ${API_ENDPOINTS.DELETE(id)}`);
+        const response = await this.rateLimitedFetch(API_ENDPOINTS.DELETE(id), {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const result = await this.handleResponse<Rendezvous>(
+          response,
+          'cancelRendezvous'
+        );
+
+        toast.success(TOAST_MESSAGES.DELETE_SUCCESS, {
+          autoClose: 3000,
+        });
+        console.log(`✅ Rendez-vous ${id} annulé`);
+        return result;
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message !== 'Unauthorized') {
+            toast.error(TOAST_MESSAGES.DELETE_ERROR, {
+              autoClose: 3000,
+            });
+          }
+        }
+        throw error;
+      }
+    }, 'cancelRendezvous');
+  }
+
+  async getAvailableSlots(date: string): Promise<string[]> {
+    return this.queueRequest(async () => {
+      if (!date || date.trim() === '') {
+        toast.error('Date requise', {
+          autoClose: 3000,
+        });
+        throw new Error('Missing date');
+      }
+
+      try {
+        console.log(`📤 Requête GET: ${API_ENDPOINTS.AVAILABLE_SLOTS}?date=${date}`);
+        const response = await this.rateLimitedFetch(
+          `${API_ENDPOINTS.AVAILABLE_SLOTS}?date=${encodeURIComponent(date)}`
+        );
+
+        const data = await this.handleResponse<string[]>(
+          response,
+          'getAvailableSlots'
+        );
+
+        console.log(`✅ ${data.length} créneaux disponibles pour ${date}`);
+        return data;
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message !== 'Unauthorized') {
+            toast.error('Erreur lors du chargement des créneaux', {
+              autoClose: 3000,
+            });
+          }
+        }
+        throw error;
+      }
+    }, 'getAvailableSlots');
+  }
+
+  async getAvailableDates(): Promise<string[]> {
+    return this.queueRequest(async () => {
+      try {
+        console.log(`📤 Requête GET: ${API_ENDPOINTS.AVAILABLE_DATES}`);
+        const response = await this.rateLimitedFetch(API_ENDPOINTS.AVAILABLE_DATES);
+
+        const data = await this.handleResponse<string[]>(
+          response,
+          'getAvailableDates'
+        );
+
+        console.log(`✅ ${data.length} dates disponibles`);
+        return data;
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message !== 'Unauthorized') {
+            toast.error('Erreur lors du chargement des dates', {
+              autoClose: 3000,
+            });
+          }
+        }
+        throw error;
+      }
+    }, 'getAvailableDates');
+  }
+
+  // ==================== MÉTHODES UTILITAIRES ====================
+
+  resetRateLimiting(): void {
+    console.log('🔄 Réinitialisation du rate limiting');
+    this.lastRequestTime = 0;
+    this.requestQueue = Promise.resolve();
+    this.isProcessingQueue = false;
+    this.activeRequests.clear();
+  }
+
+  isBusy(): boolean {
+    const isRateLimited = Date.now() - this.lastRequestTime < this.MIN_REQUEST_INTERVAL;
+    return this.isProcessingQueue || isRateLimited || this.activeRequests.size > 0;
+  }
+
+  getEstimatedWaitTime(): number {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    
+    if (timeSinceLastRequest >= this.MIN_REQUEST_INTERVAL) {
+      return 0;
+    }
+    
+    const rateLimitWait = this.MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+    const queueWait = this.activeRequests.size * this.MIN_REQUEST_INTERVAL;
+    
+    return rateLimitWait + queueWait;
+  }
+
+  getActiveRequestCount(): number {
+    return this.activeRequests.size;
+  }
+
+  cancelAllRequests(): void {
+    console.log('🚫 Annulation de toutes les requêtes en cours');
+    this.activeRequests.clear();
+    this.requestQueue = Promise.resolve();
     this.isProcessingQueue = false;
   }
 
-  // ✅ Exécuter une requête avec rate limiting et retry
-  async executeWithRateLimit<T>(
-    endpoint: string,
-    requestFn: () => Promise<T>,
-    params?: any,
-    retryCount = 0
-  ): Promise<T> {
-    const requestId = this.generateRequestId(endpoint, params);
-
-    // ✅ Vérifier si une requête identique est déjà en cours
-    if (this.pendingRequests.has(requestId)) {
-      return this.pendingRequests.get(requestId) as Promise<T>;
+  // Méthode pour mettre à jour l'intervalle minimum entre les requêtes
+  setMinRequestInterval(intervalMs: number): void {
+    if (intervalMs < 500) {
+      console.warn(`Intervalle ${intervalMs}ms trop court, utilisation de 500ms minimum`);
+      this.MIN_REQUEST_INTERVAL = 500;
+    } else {
+      this.MIN_REQUEST_INTERVAL = intervalMs;
     }
-
-    // ✅ Créer une promesse pour cette requête
-    const requestPromise = new Promise<T>(async (resolve, reject) => {
-      try {
-        // ✅ Vérifier le rate limiting
-        if (!this.canMakeRequest(requestId)) {
-          const delay = RATE_LIMIT_CONFIG.MIN_REQUEST_INTERVAL;
-          if (import.meta.env.DEV) {
-            console.log(`⏳ Rate limiting: attente de ${delay}ms avant ${endpoint}`);
-          }
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-
-        // ✅ Limiter les requêtes concurrentes
-        if (this.concurrentRequests >= RATE_LIMIT_CONFIG.MAX_CONCURRENT_REQUESTS) {
-          this.requestQueue.push(async () => {
-            try {
-              const result = await requestFn();
-              resolve(result);
-            } catch (error) {
-              reject(error);
-            }
-          });
-          await this.processQueue();
-          return;
-        }
-
-        // ✅ Enregistrer le timestamp
-        this.requestTimestamps.set(requestId, Date.now());
-
-        // ✅ Exécuter la requête avec timeout
-        const timeoutPromise = new Promise<never>((_, rejectTimeout) => {
-          setTimeout(() => {
-            rejectTimeout(new Error(`Timeout après ${RATE_LIMIT_CONFIG.REQUEST_TIMEOUT}ms`));
-          }, RATE_LIMIT_CONFIG.REQUEST_TIMEOUT);
-        });
-
-        this.concurrentRequests++;
-        const result = await Promise.race([requestFn(), timeoutPromise]);
-        this.concurrentRequests--;
-
-        resolve(result);
-      } catch (error: unknown) {
-        // ✅ Gestion des retries
-        if (retryCount < RATE_LIMIT_CONFIG.MAX_RETRIES) {
-          if (import.meta.env.DEV) {
-            console.warn(`🔄 Retry ${retryCount + 1} pour ${endpoint}:`, (error as Error).message);
-          }
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.RETRY_DELAY * (retryCount + 1)));
-          try {
-            const retryResult = await this.executeWithRateLimit(endpoint, requestFn, params, retryCount + 1);
-            resolve(retryResult);
-          } catch (retryError) {
-            reject(retryError);
-          }
-        } else {
-          reject(error);
-        }
-      } finally {
-        // ✅ Nettoyer
-        this.pendingRequests.delete(requestId);
-        setTimeout(() => {
-          this.requestTimestamps.delete(requestId);
-        }, RATE_LIMIT_CONFIG.MIN_REQUEST_INTERVAL);
-        
-        if (this.requestQueue.length > 0) {
-          this.processQueue();
-        }
-      }
-    });
-
-    // ✅ Stocker la promesse
-    this.pendingRequests.set(requestId, requestPromise);
-    
-    return requestPromise;
+    console.log(`⏱️ Intervalle minimum entre requêtes défini à ${this.MIN_REQUEST_INTERVAL}ms`);
   }
 
-  // ✅ Annuler toutes les requêtes en cours
-  cancelAllRequests(): void {
-    this.pendingRequests.clear();
-    this.requestQueue = [];
-    this.concurrentRequests = 0;
-    if (import.meta.env.DEV) {
-      console.log('🚫 Toutes les requêtes ont été annulées');
+  // Méthode pour mettre à jour le timeout des requêtes
+  setRequestTimeout(timeoutMs: number): void {
+    if (timeoutMs < 1000) {
+      console.warn(`Timeout ${timeoutMs}ms trop court, utilisation de 1000ms minimum`);
+      this.requestTimeout = 1000;
+    } else {
+      this.requestTimeout = timeoutMs;
     }
+    console.log(`⏱️ Timeout des requêtes défini à ${this.requestTimeout}ms`);
   }
 }
-
-// ✅ Constantes pour la cohérence avec le backend
-export const RENDEZVOUS_STATUS = {
-  PENDING: 'En attente',
-  CONFIRMED: 'Confirmé',
-  COMPLETED: 'Terminé',
-  CANCELLED: 'Annulé',
-} as const;
-
-export const ADMIN_OPINION = {
-  FAVORABLE: 'Favorable',
-  UNFAVORABLE: 'Défavorable',
-} as const;
-
-const EDUCATION_LEVELS = [
-  'Bac',
-  'Bac+1',
-  'Bac+2',
-  'Licence',
-  'Master I',
-  'Master II',
-  'Doctorat',
-] as const;
-
-const TIME_SLOTS = [
-  '09:00',
-  '09:30',
-  '10:00',
-  '10:30',
-  '11:00',
-  '11:30',
-  '12:00',
-  '12:30',
-  '13:00',
-  '13:30',
-  '14:00',
-  '14:30',
-  '15:00',
-  '15:30',
-  '16:00',
-  '16:30',
-] as const;
-
-// ✅ Utilitaire pour créer une requête authentifiée
-const createAuthenticatedFetch = (access_token: string | null) => {
-  const requestManager = RequestManager.getInstance();
-
-  return async <T>(url: string, options: RequestInit = {}): Promise<T> => {
-    const requestFn = async (): Promise<T> => {
-      if (import.meta.env.DEV) {
-        console.log(`📡 Requête API: ${API_URL}${url}`);
-      }
-
-      if (!access_token) {
-        console.error('❌ Token non disponible');
-        throw new Error('Token non disponible. Veuillez vous reconnecter.');
-      }
-
-      const headers: HeadersInit = {
-        Authorization: `Bearer ${access_token}`,
-        'Content-Type': 'application/json',
-        ...((options.headers as Record<string, string>) || {}),
-      };
-
-      const fullUrl = `${API_URL}${url}`;
-
-      const response = await fetch(fullUrl, {
-        ...options,
-        headers,
-        credentials: 'include',
-        signal: AbortSignal.timeout(RATE_LIMIT_CONFIG.REQUEST_TIMEOUT),
-      });
-
-      // ✅ Gérer les erreurs HTTP
-      if (response.status === 401) {
-        throw new Error('Session expirée. Veuillez vous reconnecter.');
-      }
-
-      if (response.status === 403) {
-        throw new Error('Accès non autorisé. Administrateur requis.');
-      }
-
-      if (response.status === 429) {
-        throw new Error('Trop de requêtes. Veuillez patienter.');
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage = `Erreur ${response.status}: ${response.statusText}`;
-
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch {
-          if (errorText) {
-            errorMessage = errorText;
-          }
-        }
-
-        throw new Error(errorMessage);
-      }
-
-      const responseText = await response.text();
-
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch {
-        throw new Error(
-          `Réponse invalide du serveur: ${responseText.substring(0, 100)}...`
-        );
-      }
-
-      return data;
-    };
-
-    // ✅ Utiliser le gestionnaire de requêtes
-    return requestManager.executeWithRateLimit(url, requestFn);
-  };
-};
-
-// ✅ Service admin utilisant UNIQUEMENT les endpoints backend existants
-export const createAdminRendezVousService = (access_token: string | null) => {
-  const authenticatedFetch = createAuthenticatedFetch(access_token);
-  const requestManager = RequestManager.getInstance();
-
-  // ✅ Déclarer les méthodes principales d'abord pour les utiliser dans les autres méthodes
-  const serviceMethods = {
-    // ==================== ENDPOINTS ADMIN EXCLUSIFS ====================
-
-    /**
-     * 1. LISTER TOUS LES RENDEZ-VOUS (Admin seulement) avec pagination intelligente
-     * GET /api/rendezvous?page=1&limit=10&status=Confirmé&date=2024-12-25&search=Dupont
-     */
-    fetchAllRendezvous: async (
-      page: number = 1,
-      limit: number = 10,
-      filters?: {
-        status?: string;
-        date?: string;
-        search?: string;
-      }
-    ): Promise<RendezvousListResponse> => {
-      if (import.meta.env.DEV) {
-        console.log('🔍 fetchAllRendezvous appelé:', { page, limit, filters });
-      }
-
-      // ✅ Limiter la taille de la requête
-      const safeLimit = Math.min(limit, RATE_LIMIT_CONFIG.BATCH_SIZE);
-
-      const params = new URLSearchParams();
-      params.append('page', page.toString());
-      params.append('limit', safeLimit.toString());
-
-      if (filters?.status && filters.status !== 'tous') {
-        params.append('status', filters.status);
-      }
-
-      if (filters?.date) {
-        const dateRegex = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
-        if (!dateRegex.test(filters.date)) {
-          throw new Error('Format de date invalide (YYYY-MM-DD requis)');
-        }
-        params.append('date', filters.date);
-      }
-
-      if (filters?.search) {
-        params.append('search', filters.search.trim().substring(0, 100)); // Limiter la recherche
-      }
-
-      const url = `/api/rendezvous?${params.toString()}`;
-      
-      if (import.meta.env.DEV) {
-        console.log('🌐 URL de la requête:', url);
-      }
-
-      return authenticatedFetch<RendezvousListResponse>(url);
-    },
-
-    /**
-     * 2. LISTER TOUS LES RENDEZ-VOUS AVEC FRAGMENTATION (pour les grosses listes)
-     */
-    fetchAllRendezvousBatched: async (
-      totalItems: number,
-      batchSize: number = RATE_LIMIT_CONFIG.BATCH_SIZE,
-      filters?: {
-        status?: string;
-        date?: string;
-        search?: string;
-      }
-    ): Promise<Rendezvous[]> => {
-      const batches = Math.ceil(totalItems / batchSize);
-      const allResults: Rendezvous[] = [];
-
-      if (import.meta.env.DEV) {
-        console.log(`📦 Chargement par batch: ${batches} batchs de ${batchSize} éléments`);
-      }
-
-      // ✅ Charger par batch avec délai entre chaque batch
-      for (let batch = 0; batch < batches; batch++) {
-        const page = batch + 1;
-        if (import.meta.env.DEV) {
-          console.log(`📦 Chargement batch ${page}/${batches}`);
-        }
-
-        try {
-          // ✅ CORRECTION: Utiliser serviceMethods au lieu de this
-          const response = await serviceMethods.fetchAllRendezvous(page, batchSize, filters);
-          allResults.push(...response.data);
-
-          // ✅ Attendre entre les batchs (sauf le dernier)
-          if (batch < batches - 1) {
-            await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.MIN_REQUEST_INTERVAL));
-          }
-        } catch (error: unknown) {
-          console.error(`❌ Erreur lors du chargement du batch ${page}:`, (error as Error).message);
-          // Continuer avec les batchs suivants
-        }
-      }
-
-      return allResults;
-    },
-
-    /**
-     * 3. METTRE À JOUR LE STATUT (Admin seulement)
-     * PUT /api/rendezvous/:id/status
-     */
-    updateRendezvousStatus: async (
-      id: string,
-      status: string,
-      avisAdmin?: string
-    ): Promise<Rendezvous> => {
-      if (!id || id.trim() === '') {
-        throw new Error('ID de rendez-vous requis');
-      }
-
-      if (!status || status.trim() === '') {
-        throw new Error('Le statut est requis');
-      }
-
-      if (!Object.values(RENDEZVOUS_STATUS).includes(status as any)) {
-        throw new Error(
-          `Statut invalide. Valeurs autorisées: ${Object.values(RENDEZVOUS_STATUS).join(', ')}`
-        );
-      }
-
-      const url = `/api/rendezvous/${id}/status`;
-
-      const bodyData: any = { status };
-
-      if (status === RENDEZVOUS_STATUS.COMPLETED) {
-        if (!avisAdmin || avisAdmin.trim() === '') {
-          throw new Error(
-            "L'avis admin est obligatoire pour terminer un rendez-vous"
-          );
-        }
-        if (!Object.values(ADMIN_OPINION).includes(avisAdmin as any)) {
-          throw new Error(
-            'Avis admin invalide. Valeurs autorisées: Favorable ou Défavorable'
-          );
-        }
-        bodyData.avisAdmin = avisAdmin;
-      }
-
-      if (import.meta.env.DEV) {
-        console.log('🔄 Mise à jour statut:', { id, status, avisAdmin });
-      }
-
-      return authenticatedFetch<Rendezvous>(url, {
-        method: 'PUT',
-        body: JSON.stringify(bodyData),
-      });
-    },
-
-    /**
-     * 4. METTRE À JOUR PLUSIEURS STATUTS EN BATCH
-     */
-    updateMultipleRendezvousStatus: async (
-      ids: string[],
-      status: string,
-      avisAdmin?: string
-    ): Promise<Rendezvous[]> => {
-      const results: Rendezvous[] = [];
-
-      // ✅ Limiter le nombre de mises à jour simultanées
-      const batchSize = 5;
-      const batches = Math.ceil(ids.length / batchSize);
-
-      for (let i = 0; i < batches; i++) {
-        const batchIds = ids.slice(i * batchSize, (i + 1) * batchSize);
-        const batchPromises = batchIds.map(id => 
-          // ✅ CORRECTION: Utiliser serviceMethods au lieu de this
-          serviceMethods.updateRendezvousStatus(id, status, avisAdmin)
-            .catch((error: Error) => {
-              console.error(`❌ Erreur mise à jour ${id}:`, error.message);
-              return null;
-            })
-        );
-
-        const batchResults = await Promise.all(batchPromises);
-        results.push(...batchResults.filter(Boolean) as Rendezvous[]);
-
-        // ✅ Attendre entre les batchs
-        if (i < batches - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.MIN_REQUEST_INTERVAL));
-        }
-      }
-
-      return results;
-    },
-
-    /**
-     * 5. ANNULER SANS RESTRICTION (Admin seulement)
-     * DELETE /api/rendezvous/:id
-     */
-    cancelRendezvousAdmin: async (id: string): Promise<Rendezvous> => {
-      if (!id || id.trim() === '') {
-        throw new Error('ID de rendez-vous requis');
-      }
-
-      if (import.meta.env.DEV) {
-        console.log('🗑️ Annulation admin pour:', id);
-      }
-
-      return authenticatedFetch<Rendezvous>(`/api/rendezvous/${id}`, {
-        method: 'DELETE',
-      });
-    },
-
-    /**
-     * 6. ANNULER PLUSIEURS RENDEZ-VOUS EN BATCH
-     */
-    cancelMultipleRendezvousAdmin: async (ids: string[]): Promise<Rendezvous[]> => {
-      const results: Rendezvous[] = [];
-
-      const batchSize = 3;
-      const batches = Math.ceil(ids.length / batchSize);
-
-      for (let i = 0; i < batches; i++) {
-        const batchIds = ids.slice(i * batchSize, (i + 1) * batchSize);
-        const batchPromises = batchIds.map(id =>
-          // ✅ CORRECTION: Utiliser serviceMethods au lieu de this
-          serviceMethods.cancelRendezvousAdmin(id)
-            .catch((error: Error) => {
-              console.error(`❌ Erreur annulation ${id}:`, error.message);
-              return null;
-            })
-        );
-
-        const batchResults = await Promise.all(batchPromises);
-        results.push(...batchResults.filter(Boolean) as Rendezvous[]);
-
-        // ✅ Attendre entre les batchs
-        if (i < batches - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.MIN_REQUEST_INTERVAL * 2));
-        }
-      }
-
-      return results;
-    },
-
-    // ==================== ENDPOINTS PARTAGÉS (EXISTANTS) ====================
-
-    /**
-     * CRÉER UN RENDEZ-VOUS (identique backend)
-     * POST /api/rendezvous
-     */
-    createRendezvous: async (
-      createData: CreateRendezVousData
-    ): Promise<Rendezvous> => {
-      // Validation stricte comme backend
-      const errors: string[] = [];
-
-      if (!createData.firstName?.trim()) errors.push('Le prénom est obligatoire');
-      if (!createData.lastName?.trim()) errors.push('Le nom est obligatoire');
-      if (!createData.email?.trim()) errors.push("L'email est obligatoire");
-      if (!createData.telephone?.trim()) errors.push('Le téléphone est obligatoire');
-      if (!createData.date?.trim()) errors.push('La date est obligatoire');
-      if (!createData.time?.trim()) errors.push("L'heure est obligatoire");
-      if (!createData.destination?.trim()) errors.push('La destination est obligatoire');
-      if (!createData.niveauEtude?.trim()) errors.push("Le niveau d'étude est obligatoire");
-      if (!createData.filiere?.trim()) errors.push('La filière est obligatoire');
-
-      if (errors.length > 0) {
-        throw new Error(errors.join(', '));
-      }
-
-      const emailRegex = /^\S+@\S+\.\S+$/;
-      if (!emailRegex.test(createData.email)) {
-        throw new Error('Format email invalide');
-      }
-
-      const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-      if (!phoneRegex.test(createData.telephone.replace(/\s/g, ''))) {
-        throw new Error('Format téléphone invalide');
-      }
-
-      const dateRegex = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
-      if (!dateRegex.test(createData.date)) {
-        throw new Error('Format de date invalide (YYYY-MM-DD requis)');
-      }
-
-      const timeRegex = /^(09|1[0-6]):(00|30)$/;
-      if (!timeRegex.test(createData.time)) {
-        throw new Error('Créneau horaire invalide (09:00-16:30, par pas de 30min)');
-      }
-
-      // Préparation des données - STRICTEMENT comme le backend
-      const processedData: any = {
-        firstName: createData.firstName.trim(),
-        lastName: createData.lastName.trim(),
-        email: createData.email.toLowerCase().trim(),
-        telephone: createData.telephone.trim(),
-        date: createData.date,
-        time: createData.time,
-        niveauEtude: createData.niveauEtude,
-      };
-
-      // Gestion des champs "Autre" - STRICTEMENT comme le backend
-      if (createData.destination === 'Autre') {
-        if (!createData.destinationAutre || createData.destinationAutre.trim() === '') {
-          throw new Error('La destination "Autre" nécessite une précision');
-        }
-        processedData.destination = 'Autre';
-        processedData.destinationAutre = createData.destinationAutre.trim();
-      } else {
-        processedData.destination = createData.destination;
-      }
-
-      if (createData.filiere === 'Autre') {
-        if (!createData.filiereAutre || createData.filiereAutre.trim() === '') {
-          throw new Error('La filière "Autre" nécessite une précision');
-        }
-        processedData.filiere = 'Autre';
-        processedData.filiereAutre = createData.filiereAutre.trim();
-      } else {
-        processedData.filiere = createData.filiere;
-      }
-
-      if (import.meta.env.DEV) {
-        console.log('📤 Création rendez-vous:', processedData);
-      }
-
-      return authenticatedFetch<Rendezvous>('/api/rendezvous', {
-        method: 'POST',
-        body: JSON.stringify(processedData),
-      });
-    },
-
-    /**
-     * RÉCUPÉRER UN RENDEZ-VOUS SPÉCIFIQUE
-     * GET /api/rendezvous/:id
-     */
-    fetchRendezvousById: async (id: string): Promise<Rendezvous> => {
-      if (!id || id.trim() === '') {
-        throw new Error('ID de rendez-vous requis');
-      }
-
-      return authenticatedFetch<Rendezvous>(`/api/rendezvous/${id}`);
-    },
-
-    /**
-     * METTRE À JOUR UN RENDEZ-VOUS
-     * PUT /api/rendezvous/:id
-     */
-    updateRendezvous: async (
-      id: string,
-      updateData: Partial<CreateRendezVousData>
-    ): Promise<Rendezvous> => {
-      if (!id || id.trim() === '') {
-        throw new Error('ID de rendez-vous requis');
-      }
-
-      return authenticatedFetch<Rendezvous>(`/api/rendezvous/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(updateData),
-      });
-    },
-
-    /**
-     * CONFIRMER UN RENDEZ-VOUS (Endpoint pour utilisateur)
-     * PUT /api/rendezvous/:id/confirm
-     */
-    confirmRendezvous: async (id: string): Promise<Rendezvous> => {
-      if (!id || id.trim() === '') {
-        throw new Error('ID de rendez-vous requis');
-      }
-
-      return authenticatedFetch<Rendezvous>(`/api/rendezvous/${id}/confirm`, {
-        method: 'PUT',
-      });
-    },
-
-    /**
-     * RENDEZ-VOUS PAR UTILISATEUR
-     * GET /api/rendezvous/user?email=test@example.com&page=1&limit=10&status=En attente
-     */
-    fetchRendezvousByUser: async (
-      email: string,
-      page: number = 1,
-      limit: number = 10,
-      status?: string
-    ): Promise<RendezvousListResponse> => {
-      if (!email || email.trim() === '') {
-        throw new Error('Email requis');
-      }
-
-      const emailRegex = /^\S+@\S+\.\S+$/;
-      if (!emailRegex.test(email)) {
-        throw new Error('Format email invalide');
-      }
-
-      const safeLimit = Math.min(limit, RATE_LIMIT_CONFIG.BATCH_SIZE);
-
-      const params = new URLSearchParams();
-      params.append('email', encodeURIComponent(email));
-      params.append('page', page.toString());
-      params.append('limit', safeLimit.toString());
-
-      if (status && status !== 'tous') {
-        params.append('status', status);
-      }
-
-      const url = `/api/rendezvous/user?${params.toString()}`;
-      
-      return authenticatedFetch<RendezvousListResponse>(url);
-    },
-
-    // ==================== FONCTIONNALITÉS DISPONIBILITÉ ====================
-
-    /**
-     * CRÉNEAUX DISPONIBLES POUR UNE DATE
-     * GET /api/rendezvous/available-slots?date=2024-12-25
-     */
-    fetchAvailableSlots: async (date: string): Promise<string[]> => {
-      if (!date || date.trim() === '') {
-        throw new Error('La date est requise');
-      }
-
-      const dateRegex = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
-      if (!dateRegex.test(date)) {
-        throw new Error('Format de date invalide (YYYY-MM-DD requis)');
-      }
-
-      return authenticatedFetch<string[]>(
-        `/api/rendezvous/available-slots?date=${encodeURIComponent(date)}`
-      );
-    },
-
-    /**
-     * DATES DISPONIBLES
-     * GET /api/rendezvous/available-dates
-     */
-    fetchAvailableDates: async (): Promise<string[]> => {
-      return authenticatedFetch<string[]>('/api/rendezvous/available-dates');
-    },
-
-    // ==================== UTILITAIRES DE GESTION ====================
-
-    /**
-     * ANNULER TOUTES LES REQUÊTES EN COURS
-     */
-    cancelAllRequests: (): void => {
-      requestManager.cancelAllRequests();
-    },
-
-    /**
-     * RÉINITIALISER LE SERVICE
-     */
-    reset: (): void => {
-      requestManager.cancelAllRequests();
-    },
-
-    // ==================== CONSTANTES ET UTILITAIRES ====================
-
-    /**
-     * NIVEAUX D'ÉTUDE (constants)
-     */
-    getEducationLevels: (): string[] => {
-      return [...EDUCATION_LEVELS];
-    },
-
-    /**
-     * CRÉNEAUX HORAIRES (constants)
-     */
-    getTimeSlots: (): string[] => {
-      return [...TIME_SLOTS];
-    },
-
-    /**
-     * STATUTS DISPONIBLES (constants)
-     */
-    getStatusOptions: (): string[] => {
-      return Object.values(RENDEZVOUS_STATUS);
-    },
-
-    /**
-     * AVIS ADMIN (constants)
-     */
-    getAdminOpinionOptions: (): string[] => {
-      return Object.values(ADMIN_OPINION);
-    },
-
-    /**
-     * MASQUER L'EMAIL (pour l'affichage)
-     */
-    maskEmail: (email: string): string => {
-      if (!email) return '';
-
-      const [localPart, domain] = email.split('@');
-
-      if (!localPart || !domain) {
-        return 'email_non_disponible';
-      }
-
-      const maskedLocal =
-        localPart.length <= 2
-          ? localPart.charAt(0) + '*'
-          : localPart.charAt(0) +
-            '***' +
-            localPart.charAt(localPart.length - 1);
-
-      return `${maskedLocal}@${domain}`;
-    },
-
-    /**
-     * VALIDER LES DONNÉES DE CRÉATION (comme backend)
-     */
-    validateCreateData: (data: CreateRendezVousData): string[] => {
-      const errors: string[] = [];
-
-      if (!data.firstName?.trim()) errors.push('Le prénom est obligatoire');
-      if (!data.lastName?.trim()) errors.push('Le nom est obligatoire');
-      if (!data.email?.trim()) errors.push("L'email est obligatoire");
-      if (!data.telephone?.trim()) errors.push('Le téléphone est obligatoire');
-      if (!data.date?.trim()) errors.push('La date est obligatoire');
-      if (!data.time?.trim()) errors.push("L'heure est obligatoire");
-      if (!data.destination?.trim()) errors.push('La destination est obligatoire');
-      if (!data.niveauEtude?.trim()) errors.push("Le niveau d'étude est obligatoire");
-      if (!data.filiere?.trim()) errors.push('La filière est obligatoire');
-
-      if (data.email && !/^\S+@\S+\.\S+$/.test(data.email)) {
-        errors.push('Format email invalide');
-      }
-
-      if (data.destination === 'Autre' && !data.destinationAutre?.trim()) {
-        errors.push('La destination "Autre" nécessite une précision');
-      }
-
-      if (data.filiere === 'Autre' && !data.filiereAutre?.trim()) {
-        errors.push('La filière "Autre" nécessite une précision');
-      }
-
-      return errors;
-    },
-  };
-
-  return serviceMethods;
-};
-
-// ✅ Hook custom avec debouncing intégré
-export const useAdminRendezVousService = () => {
-  const { access_token } = useAuth();
-  const serviceRef = useRef(createAdminRendezVousService(access_token));
-  const pendingRequestsRef = useRef<Set<string>>(new Set());
-
-  // ✅ Mettre à jour le service quand le token change
-  serviceRef.current = createAdminRendezVousService(access_token);
-
-  // ✅ Debouncer pour éviter les requêtes multiples
-  const debouncedFetch = useCallback(
-    <T>(
-      fetchFn: () => Promise<T>,
-      key: string,
-      delay: number = RATE_LIMIT_CONFIG.MIN_REQUEST_INTERVAL
-    ): Promise<T> => {
-      return new Promise<T>((resolve, reject) => {
-        if (pendingRequestsRef.current.has(key)) {
-          reject(new Error(`Requête en cours pour: ${key}`));
-          return;
-        }
-
-        pendingRequestsRef.current.add(key);
-
-        setTimeout(async () => {
-          try {
-            const result = await fetchFn();
-            resolve(result);
-          } catch (error: unknown) {
-            reject(error as Error);
-          } finally {
-            pendingRequestsRef.current.delete(key);
-          }
-        }, delay);
-      });
-    },
-    []
-  );
-
-  // ✅ Retourner le service avec debouncing
-  return {
-    ...serviceRef.current,
-    
-    // ✅ Version debounced des méthodes principales
-    fetchAllRendezvousDebounced: async (
-      page: number = 1,
-      limit: number = 10,
-      filters?: any
-    ) => {
-      const key = `fetchAllRendezvous:${page}:${limit}:${JSON.stringify(filters)}`;
-      return debouncedFetch(
-        () => serviceRef.current.fetchAllRendezvous(page, limit, filters),
-        key
-      );
-    },
-
-    updateRendezvousStatusDebounced: async (
-      id: string,
-      status: string,
-      avisAdmin?: string
-    ) => {
-      const key = `updateStatus:${id}:${status}`;
-      return debouncedFetch(
-        () => serviceRef.current.updateRendezvousStatus(id, status, avisAdmin),
-        key,
-        1000 // Délai plus court pour les mises à jour
-      );
-    },
-
-    cancelAllRequests: () => {
-      serviceRef.current.cancelAllRequests();
-      pendingRequestsRef.current.clear();
-    },
-
-    // ✅ Propriété pour vérifier l'état
-    get isProcessing() {
-      return pendingRequestsRef.current.size > 0;
-    },
-  };
-};

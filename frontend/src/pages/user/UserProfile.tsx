@@ -1,6 +1,6 @@
-import { useState, useEffect, FormEvent, FC, useMemo, useCallback } from 'react';
+import { useState, useEffect, FormEvent, FC, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   User,
   FileText,
@@ -19,8 +19,6 @@ import { Helmet } from 'react-helmet-async';
 import { userProfileService } from '../../api/user/Profile/userProfileApi';
 import { toast } from 'react-toastify';
 
-/* global fetch */
-
 const UserProfile = () => {
   const { 
     user, 
@@ -31,18 +29,84 @@ const UserProfile = () => {
     isLoading: authLoading 
   } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
 
-  // États optimisés avec useMemo
-  const initialProfileData = useMemo(() => ({
+  // Configuration des pages avec leurs titres spécifiques
+  const pageConfigs = {
+    '/mon-profil': {
+      title: 'Mon Profil',
+      subtitle: 'Gérez vos informations personnelles',
+      pageTitle: 'Mon Profil - Paname Consulting',
+      description: 'Gérez vos informations personnelles avec Paname Consulting'
+    },
+    '/mes-rendez-vous': {
+      title: 'Mes Rendez-vous',
+      subtitle: 'Consultez et gérez vos rendez-vous',
+      pageTitle: 'Mes Rendez-vous - Paname Consulting',
+      description: 'Consultez et gérez vos rendez-vous avec Paname Consulting'
+    },
+    '/ma-procedure': {
+      title: 'Ma Procédure',
+      subtitle: 'Suivez l\'avancement de votre dossier',
+      pageTitle: 'Ma Procédure - Paname Consulting',
+      description: 'Suivez l\'avancement de votre dossier avec Paname Consulting'
+    },
+  };
+
+  // Onglets de navigation
+  const navTabs = [
+    {
+      id: 'profile',
+      label: 'Profil',
+      to: '/mon-profil',
+      icon: User,
+    },
+    {
+      id: 'rendezvous',
+      label: 'RDV',
+      to: '/mes-rendez-vous',
+      icon: Calendar,
+    },
+    {
+      id: 'procedures',
+      label: 'Dossier',
+      to: '/ma-procedure',
+      icon: FileText,
+    },
+  ];
+
+  // Obtenir la configuration de la page actuelle
+  const getCurrentPageConfig = () => {
+    const currentPath = location.pathname;
+    if (pageConfigs[currentPath as keyof typeof pageConfigs]) {
+      return pageConfigs[currentPath as keyof typeof pageConfigs];
+    }
+    
+    for (const [path, config] of Object.entries(pageConfigs)) {
+      if (currentPath.startsWith(path)) {
+        return config;
+      }
+    }
+    
+    return pageConfigs['/mon-profil'];
+  };
+
+  const currentPage = getCurrentPageConfig();
+  const activeTabId = navTabs.find(tab => location.pathname.startsWith(tab.to))?.id || 'profile';
+
+  // États optimisés
+  const initialProfileData = {
     email: user?.email || '',
     telephone: user?.telephone || '',
-  }), [user?.email, user?.telephone]);
+  };
 
-  const initialPasswordData = useMemo(() => ({
+  const initialPasswordData = {
     currentPassword: '',
     newPassword: '',
     confirmNewPassword: '',
-  }), []);
+  };
 
   const [profileData, setProfileData] = useState(initialProfileData);
   const [passwordData, setPasswordData] = useState(initialPasswordData);
@@ -70,6 +134,13 @@ const UserProfile = () => {
       return;
     }
   }, [isAuthenticated, user, navigate, logout]);
+
+  // ==================== MESURE HAUTEUR HEADER ====================
+  useEffect(() => {
+    if (headerRef.current) {
+      setHeaderHeight(headerRef.current.offsetHeight);
+    }
+  }, [location.pathname]);
 
   // ==================== SYNC DES DONNÉES AVEC LE CONTEXTE ====================
   useEffect(() => {
@@ -181,16 +252,13 @@ const UserProfile = () => {
     setIsLoading(true);
 
     try {
-      // ✅ UTILISATION OPTIMISÉE DU SERVICE API
       const updatedUser = await userProfileService.updateProfile(access_token, {
         email: profileData.email,
         telephone: profileData.telephone,
       });
 
-      // ✅ MISE À JOUR DU CONTEXTE AUTH
       await updateProfile();
       
-      // ✅ MISE À JOUR LOCALE DES DONNÉES
       setProfileData({
         email: updatedUser.email || user.email,
         telephone: updatedUser.telephone || user.telephone,
@@ -241,7 +309,6 @@ const UserProfile = () => {
     setIsLoading(true);
 
     try {
-      // ✅ UTILISATION DU SERVICE API POUR LE MOT DE PASSE
       const result = await userProfileService.updatePassword(access_token, passwordData);
 
       if (result.success) {
@@ -299,6 +366,21 @@ const UserProfile = () => {
     );
   }, [passwordData]);
 
+  // ==================== FONCTION DE RECHARGEMENT ====================
+  const refreshUserData = async () => {
+    if (!access_token) return;
+    
+    setIsLoading(true);
+    try {
+      await updateProfile();
+      toast.success('Données utilisateur rafraîchies');
+    } catch (error) {
+      toast.error('Erreur lors du rafraîchissement des données');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // ==================== COMPOSANT INTERNE ====================
   interface PasswordStrengthIndicatorProps {
     password: string;
@@ -340,21 +422,6 @@ const UserProfile = () => {
     );
   };
 
-  // ==================== FONCTION DE RECHARGEMENT ====================
-  const refreshUserData = async () => {
-    if (!access_token) return;
-    
-    setIsLoading(true);
-    try {
-      await updateProfile();
-      toast.success('Données utilisateur rafraîchies');
-    } catch (error) {
-      toast.error('Erreur lors du rafraîchissement des données');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // ==================== RENDERING ====================
   if (!isAuthenticated || authLoading) {
     return (
@@ -370,92 +437,118 @@ const UserProfile = () => {
   return (
     <>
       <Helmet>
-        <title>Votre Profil utilisateur - Paname Consulting</title>
-        <meta name='robots' content='noindex, nofollow' />
-        <meta name='googlebot' content='noindex, nofollow' />
-        <meta name='bingbot' content='noindex, nofollow' />
-        <meta name='yandexbot' content='noindex, nofollow' />
-        <meta name='duckduckbot' content='noindex, nofollow' />
-        <meta name='baidu' content='noindex, nofollow' />
-        <meta name='naver' content='noindex, nofollow' />
-        <meta name='seznam' content='noindex, nofollow' />
+        <title>{currentPage.pageTitle}</title>
+        <meta name="description" content={currentPage.description} />
       </Helmet>
-      
-      <div className='min-h-screen bg-gray-50'>
-        {/* Header avec bouton de rafraîchissement */}
-        <header className='bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50'>
-          <div className='px-4 py-3'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center space-x-3'>
-                <button
-                  onClick={() => navigate('/')}
-                  className='p-2 hover:bg-gray-100 rounded-xl transition-colors'
-                  title="Retour à l'accueil"
-                >
-                  <Home className='w-5 h-5 text-gray-600' />
-                </button>
-                <h1 className='text-lg font-semibold text-gray-800'>
-                  Mon Profil
-                </h1>
-              </div>
-              <button
-                onClick={refreshUserData}
-                disabled={isLoading}
-                className='p-2 hover:bg-gray-100 rounded-xl transition-colors disabled:opacity-50'
-                title="Rafraîchir les données"
-              >
-                <RefreshCw className={`w-5 h-5 text-gray-600 ${isLoading ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
 
-            {/* Navigation */}
-            <div className='mt-3'>
-              <nav className='flex space-x-1'>
-                {[
-                  {
-                    id: 'profile',
-                    label: 'Profil',
-                    to: '/user-profile',
-                    icon: User,
-                    active: true,
-                  },
-                  {
-                    id: 'rendezvous',
-                    label: 'Rendez-vous',
-                    to: '/user-rendez-vous',
-                    icon: Calendar,
-                  },
-                  {
-                    id: 'procedures',
-                    label: 'Procédures',
-                    to: '/user-procedure',
-                    icon: FileText,
-                  },
-                ].map(tab => (
+      {/* Header fixe */}
+      <header 
+        ref={headerRef} 
+        className='bg-white shadow-lg border-b border-gray-100 fixed top-0 left-0 right-0 z-50'
+      >
+        <div className='px-4 py-3'>
+          {/* Barre supérieure */}
+          <div className='flex items-center justify-between mb-3'>
+            <div className='flex items-center gap-2'>
+              <button
+                onClick={() => navigate('/')}
+                className='p-2 bg-sky-50 rounded-xl hover:bg-sky-100 active:scale-95 transition-all duration-200'
+                title="Retour à l'accueil"
+                aria-label="Retour à l'accueil"
+              >
+                <Home className='w-4 h-4 text-sky-600' />
+              </button>
+              <div className='flex flex-col'>
+                <h1 className='text-base font-bold text-gray-900 leading-tight'>
+                  {currentPage.title}
+                </h1>
+                <p className='text-xs text-gray-500'>
+                  {currentPage.subtitle}
+                </p>
+              </div>
+            </div>
+            
+            <button
+              onClick={refreshUserData}
+              disabled={isLoading}
+              className='p-2 bg-sky-50 rounded-xl hover:bg-sky-100 active:scale-95 transition-all duration-200 disabled:opacity-50'
+              title="Actualiser"
+              aria-label="Actualiser"
+            >
+              <RefreshCw className={`w-4 h-4 text-sky-600 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+
+          {/* Navigation */}
+          <div className='overflow-x-auto pb-1 no-scrollbar'>
+            <nav className='flex gap-1.5 min-w-max'>
+              {navTabs.map(tab => {
+                const isActive = activeTabId === tab.id;
+                return (
                   <Link
                     key={tab.id}
                     to={tab.to}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      tab.active
-                        ? 'bg-blue-500 text-white shadow-lg'
-                        : 'bg-white text-gray-600 border border-gray-300 hover:border-blue-500'
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 flex-shrink-0 relative ${
+                      isActive
+                        ? 'bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sm'
+                        : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-sky-300 hover:bg-sky-50 active:scale-95'
                     }`}
+                    aria-current={isActive ? 'page' : undefined}
                   >
-                    <tab.icon className='w-4 h-4' />
-                    {tab.label}
+                    <tab.icon className={`w-3.5 h-3.5 ${
+                      isActive ? 'text-white' : 'text-gray-500'
+                    }`} />
+                    <span className={`text-xs font-medium whitespace-nowrap ${
+                      isActive ? 'text-white' : 'text-gray-700'
+                    }`}>
+                      {tab.label}
+                    </span>
+                    {isActive && (
+                      <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-4 h-0.5 bg-sky-400 rounded-full"></div>
+                    )}
                   </Link>
-                ))}
-              </nav>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* Indicateur de statut */}
+          <div className='mt-2 pt-2 border-t border-gray-100'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-1.5'>
+                <div className='w-1.5 h-1.5 bg-emerald-500 rounded-full'></div>
+                <span className='text-xs text-gray-600'>
+                  {new Date().toLocaleDateString('fr-FR', { 
+                    day: 'numeric',
+                    month: 'short'
+                  })}
+                </span>
+              </div>
+              <span className='text-xs text-gray-500'>
+                {new Date().toLocaleTimeString('fr-FR', { 
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </span>
             </div>
           </div>
-        </header>
+        </div>
 
+        {/* Effet de séparation */}
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-sky-100 to-transparent"></div>
+      </header>
+
+      {/* Contenu principal avec padding pour compenser le header fixe */}
+      <div 
+        className="min-h-screen bg-gradient-to-b from-sky-50 to-white"
+        style={{ paddingTop: `${headerHeight}px` }}
+      >
         <div className='py-8 px-4 sm:px-6 lg:px-8'>
           <div className='max-w-4xl mx-auto'>
             {/* En-tête avec informations utilisateur */}
             <div className='text-center mb-12'>
-              <div className='inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-2xl mb-4'>
-                <User className='w-8 h-8 text-blue-600' />
+              <div className='inline-flex items-center justify-center w-16 h-16 bg-sky-100 rounded-2xl mb-4'>
+                <User className='w-8 h-8 text-sky-600' />
               </div>
               <h1 className='text-2xl font-bold text-gray-800 mb-2'>
                 Bonjour, {user?.firstName} {user?.lastName}
@@ -491,8 +584,8 @@ const UserProfile = () => {
                   onClick={() => setActiveTab(tab.id as 'profile' | 'password')}
                   className={`flex items-center gap-3 px-6 py-3 rounded-xl text-sm font-medium transition-all flex-1 ${
                     activeTab === tab.id
-                      ? 'bg-blue-500 text-white shadow-lg'
-                      : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                      ? 'bg-sky-500 text-white shadow-lg'
+                      : 'text-gray-600 hover:text-sky-600 hover:bg-sky-50'
                   }`}
                   disabled={isLoading}
                 >
@@ -532,7 +625,7 @@ const UserProfile = () => {
                           value={profileData.email}
                           onChange={e => handleProfileChange('email', e.target.value)}
                           disabled={isLoading}
-                          className={`block w-full pl-10 pr-3 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-blue-600 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                          className={`block w-full pl-10 pr-3 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-sky-600 focus:border-sky-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
                             profileErrors.email ? 'border-red-300' : 'border-gray-300'
                           }`}
                           placeholder='votre@email.com'
@@ -561,7 +654,7 @@ const UserProfile = () => {
                           value={profileData.telephone}
                           onChange={e => handleProfileChange('telephone', e.target.value)}
                           disabled={isLoading}
-                          className={`block w-full pl-10 pr-3 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-blue-600 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                          className={`block w-full pl-10 pr-3 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-sky-600 focus:border-sky-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
                             profileErrors.telephone ? 'border-red-300' : 'border-gray-300'
                           }`}
                           placeholder='+33 1 23 45 67 89'
@@ -592,7 +685,7 @@ const UserProfile = () => {
                           isLoading ||
                           Object.keys(profileErrors).some(key => profileErrors[key])
                         }
-                        className='flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium shadow-sm flex items-center justify-center gap-2'
+                        className='flex-1 px-6 py-3 bg-sky-600 text-white rounded-xl hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium shadow-sm flex items-center justify-center gap-2'
                       >
                         {isLoading ? (
                           <>
@@ -636,7 +729,7 @@ const UserProfile = () => {
                           value={passwordData.currentPassword}
                           onChange={e => handlePasswordChange('currentPassword', e.target.value)}
                           disabled={isLoading}
-                          className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-blue-600 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                          className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-sky-600 focus:border-sky-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
                             passwordErrors.currentPassword ? 'border-red-300' : 'border-gray-300'
                           }`}
                           placeholder='Votre mot de passe actuel'
@@ -673,7 +766,7 @@ const UserProfile = () => {
                           value={passwordData.newPassword}
                           onChange={e => handlePasswordChange('newPassword', e.target.value)}
                           disabled={isLoading}
-                          className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-blue-600 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                          className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-sky-600 focus:border-sky-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
                             passwordErrors.newPassword ? 'border-red-300' : 'border-gray-300'
                           }`}
                           placeholder='Votre nouveau mot de passe'
@@ -711,7 +804,7 @@ const UserProfile = () => {
                           value={passwordData.confirmNewPassword}
                           onChange={e => handlePasswordChange('confirmNewPassword', e.target.value)}
                           disabled={isLoading}
-                          className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-blue-600 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                          className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-sky-600 focus:border-sky-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
                             passwordErrors.confirmNewPassword ? 'border-red-300' : 'border-gray-300'
                           }`}
                           placeholder='Confirmez votre nouveau mot de passe'
@@ -759,7 +852,7 @@ const UserProfile = () => {
                           isLoading ||
                           Object.keys(passwordErrors).some(key => passwordErrors[key])
                         }
-                        className='flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium shadow-sm flex items-center justify-center gap-2'
+                        className='flex-1 px-6 py-3 bg-sky-600 text-white rounded-xl hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium shadow-sm flex items-center justify-center gap-2'
                       >
                         {isLoading ? (
                           <>
@@ -774,11 +867,11 @@ const UserProfile = () => {
                   </form>
 
                   {/* Conseils de sécurité */}
-                  <div className='mt-8 p-4 bg-blue-50 border border-blue-200 rounded-xl'>
-                    <h3 className='text-sm font-semibold text-blue-800 mb-2'>
+                  <div className='mt-8 p-4 bg-sky-50 border border-sky-200 rounded-xl'>
+                    <h3 className='text-sm font-semibold text-sky-800 mb-2'>
                       Conseils de sécurité
                     </h3>
-                    <ul className='text-sm text-blue-700 space-y-1'>
+                    <ul className='text-sm text-sky-700 space-y-1'>
                       <li>• Utilisez un mot de passe unique et complexe</li>
                       <li>• Évitez les mots de passe que vous utilisez sur d'autres sites</li>
                       <li>• Changez régulièrement votre mot de passe</li>

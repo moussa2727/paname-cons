@@ -15,40 +15,16 @@ import {
   UserCheck,
   MessageSquare,
 } from 'lucide-react';
-import { useDashboardData } from '../../api/admin/AdminDashboardService';
+import { 
+  useDashboardData, 
+  adminDashboardService,
+  useQuickStats 
+} from '../../api/admin/AdminDashboardService'; // Import ajouté
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 
-// Types
-interface DashboardStats {
-  totalUsers: number;
-  activeUsers: number;
-  inactiveUsers: number;
-  adminUsers: number;
-  regularUsers: number;
-  totalProcedures: number;
-  proceduresByStatus: { _id: string; count: number }[];
-  proceduresByDestination: { _id: string; count: number }[];
-  totalRendezvous: number;
-  rendezvousStats: {
-    pending: number;
-    confirmed: number;
-    completed: number;
-    cancelled: number;
-  };
-  totalContacts?: number;
-  unreadContacts?: number;
-}
-
-interface RecentActivity {
-  _id: string;
-  type: 'procedure' | 'rendezvous' | 'user' | 'contact';
-  action: string;
-  description: string;
-  timestamp: Date;
-  userEmail?: string;
-}
+// Types (déjà définis dans votre service, donc inutile de les redéfinir ici)
 
 // Composant d'icône pour les activités
 const ActivityIcon = ({ type }: { type: string }) => {
@@ -67,17 +43,18 @@ const ActivityIcon = ({ type }: { type: string }) => {
 };
 
 const AdminDashboard = () => {
-  const { user, isAuthenticated } = useAuth();
-  const { stats, activities, error, refresh } = useDashboardData();
+  const { user, isAuthenticated, fetchWithAuth } = useAuth();
+  const { stats, activities, error, refresh, lastRefresh } = useDashboardData();
+  const { quickStats, loading: quickStatsLoading } = useQuickStats(); // Hook ajouté pour les stats rapides
 
   // États locaux
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastRefreshTime, setLastRefreshTime] = useState<string>('');
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
 
   // Références
   const isMountedRef = useRef(true);
 
-  // Initialisation
+  // Initialisation améliorée
   useEffect(() => {
     isMountedRef.current = true;
 
@@ -98,12 +75,7 @@ const AdminDashboard = () => {
       // Chargement initial des données
       try {
         await refresh();
-        setLastRefreshTime(
-          new Date().toLocaleTimeString('fr-FR', {
-            hour: '2-digit',
-            minute: '2-digit',
-          })
-        );
+        startAutoRefresh(); // Démarrer le rafraîchissement automatique
       } catch (err) {
         // Gestion d'erreur silencieuse pour l'initialisation
         if (import.meta.env.DEV) {
@@ -119,24 +91,48 @@ const AdminDashboard = () => {
     return () => {
       isMountedRef.current = false;
       window.clearTimeout(initTimer);
+      stopAutoRefresh(); // Arrêter le rafraîchissement automatique
     };
   }, [isAuthenticated, user?.role, refresh]);
 
-  // Gestion du rafraîchissement
+  // Fonction pour le rafraîchissement automatique (toutes les 5 minutes)
+  const startAutoRefresh = useCallback(() => {
+    stopAutoRefresh(); // S'assurer qu'aucun intervalle n'est déjà en cours
+    
+    const interval = setInterval(async () => {
+      if (!isMountedRef.current || !isAuthenticated || user?.role !== 'admin') return;
+      
+      try {
+        // Rafraîchir silencieusement sans toast
+        await refresh();
+        console.log('🔄 Rafraîchissement automatique du dashboard');
+      } catch (err) {
+        // Ignorer les erreurs silencieuses pour le rafraîchissement automatique
+        if (import.meta.env.DEV) {
+          console.warn('⚠️ Erreur lors du rafraîchissement automatique:', err);
+        }
+      }
+    }, 300000); // 5 minutes
+
+    setAutoRefreshInterval(interval);
+  }, [isAuthenticated, user?.role, refresh]);
+
+  const stopAutoRefresh = useCallback(() => {
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval);
+      setAutoRefreshInterval(null);
+    }
+  }, [autoRefreshInterval]);
+
+  // Gestion du rafraîchissement manuel amélioré
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
 
     setIsRefreshing(true);
 
     try {
+      // Utiliser la méthode de rafraîchissement du service
       await refresh();
-
-      setLastRefreshTime(
-        new Date().toLocaleTimeString('fr-FR', {
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      );
 
       toast.success('Données actualisées avec succès', {
         position: 'top-right',
@@ -187,7 +183,7 @@ const AdminDashboard = () => {
     );
   }
 
-  // Gestion des erreurs
+  // Gestion des erreurs améliorée
   if (error) {
     return (
       <div className='min-h-screen flex items-center justify-center'>
@@ -199,38 +195,60 @@ const AdminDashboard = () => {
             Erreur de chargement
           </div>
           <div className='text-gray-600 mb-6'>{error}</div>
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className='bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2 mx-auto'
-          >
-            <RefreshCw
-              size={18}
-              className={isRefreshing ? 'animate-spin' : ''}
-            />
-            {isRefreshing ? 'Rechargement...' : 'Réessayer'}
-          </button>
+          <div className='flex flex-col sm:flex-row gap-3 justify-center'>
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className='bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2'
+            >
+              <RefreshCw
+                size={18}
+                className={isRefreshing ? 'animate-spin' : ''}
+              />
+              {isRefreshing ? 'Rechargement...' : 'Réessayer'}
+            </button>
+            <button
+              onClick={() => {
+                // Vider le cache et réessayer
+                adminDashboardService.clearCache();
+                handleRefresh();
+              }}
+              className='bg-white text-gray-700 border border-gray-300 px-6 py-3 rounded-lg hover:bg-gray-50 transition-all shadow-sm hover:shadow-md flex items-center gap-2'
+            >
+              <AlertTriangle size={18} />
+              Vider le cache
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  // Configuration des cartes de statistiques
+  // Formatage de l'heure du dernier rafraîchissement
+  const lastRefreshTime = lastRefresh 
+    ? new Date(lastRefresh).toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '';
+
+  // Configuration des cartes de statistiques - utilisation des stats rapides si disponibles
   const statCards = [
     {
       title: 'Utilisateurs',
-      value: stats?.totalUsers || 0,
+      value: quickStats.totalUsers > 0 ? quickStats.totalUsers : (stats?.totalUsers || 0),
       icon: Users,
       color: 'from-blue-500 to-blue-600',
       iconBg: 'bg-blue-100',
       iconColor: 'text-blue-600',
-      description: `${stats?.activeUsers || 0} actifs`,
-      trend: (stats?.activeUsers || 0) > 0 ? 'positive' : 'neutral',
+      description: `${quickStats.activeUsers > 0 ? quickStats.activeUsers : (stats?.activeUsers || 0)} actifs`,
+      trend: (quickStats.activeUsers > 0 ? quickStats.activeUsers : (stats?.activeUsers || 0)) > 0 ? 'positive' : 'neutral',
       detail: `${stats?.inactiveUsers || 0} inactifs`,
+      loading: quickStatsLoading && quickStats.totalUsers === 0,
     },
     {
       title: 'Rendez-vous',
-      value: stats?.totalRendezvous || 0,
+      value: quickStats.totalRendezvous > 0 ? quickStats.totalRendezvous : (stats?.totalRendezvous || 0),
       icon: Calendar,
       color: 'from-emerald-500 to-emerald-600',
       iconBg: 'bg-emerald-100',
@@ -238,10 +256,11 @@ const AdminDashboard = () => {
       description: `${stats?.rendezvousStats?.confirmed || 0} confirmés`,
       trend: 'neutral',
       detail: `${stats?.rendezvousStats?.pending || 0} en attente`,
+      loading: quickStatsLoading && quickStats.totalRendezvous === 0,
     },
     {
       title: 'Procédures',
-      value: stats?.totalProcedures || 0,
+      value: quickStats.totalProcedures > 0 ? quickStats.totalProcedures : (stats?.totalProcedures || 0),
       icon: FileText,
       color: 'from-violet-500 to-violet-600',
       iconBg: 'bg-violet-100',
@@ -249,6 +268,7 @@ const AdminDashboard = () => {
       description: 'En cours et terminées',
       trend: 'neutral',
       detail: `${stats?.proceduresByStatus?.length || 0} statuts`,
+      loading: quickStatsLoading && quickStats.totalProcedures === 0,
     },
     {
       title: 'Administrateurs',
@@ -261,6 +281,7 @@ const AdminDashboard = () => {
       trend: 'neutral',
       detail: `${stats?.regularUsers || 0} utilisateurs réguliers`,
       isAdmin: true,
+      loading: false,
     },
     {
       title: 'Messages',
@@ -272,6 +293,7 @@ const AdminDashboard = () => {
       description: `${stats?.unreadContacts || 0} non lus`,
       trend: (stats?.unreadContacts || 0) > 0 ? 'attention' : 'positive',
       detail: 'Dernières 24h',
+      loading: false,
     },
     {
       title: 'Système',
@@ -283,6 +305,7 @@ const AdminDashboard = () => {
       description: 'Normal',
       trend: 'positive',
       isSystem: true,
+      loading: false,
     },
   ];
 
@@ -384,6 +407,10 @@ const AdminDashboard = () => {
                       <div className='text-xs text-gray-500'>
                         ID: {user?.id?.substring(0, 8)}...
                       </div>
+                      <div className='h-1 w-1 bg-gray-300 rounded-full'></div>
+                      <div className='text-xs text-gray-500'>
+                        Mode: Admin
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -401,6 +428,11 @@ const AdminDashboard = () => {
                     <div className='flex items-center gap-2 text-sm text-gray-500'>
                       <Clock size={14} />
                       <span>Dernière mise à jour: {lastRefreshTime}</span>
+                      {autoRefreshInterval && (
+                        <span className='text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full'>
+                          Auto-rafraîchi
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -420,19 +452,37 @@ const AdminDashboard = () => {
                     {isRefreshing ? 'Actualisation...' : 'Actualiser'}
                   </span>
                 </button>
+                <button
+                  onClick={() => {
+                    adminDashboardService.clearCache();
+                    toast.info('Cache vidé avec succès', { autoClose: 1500 });
+                    handleRefresh();
+                  }}
+                  className='flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl hover:bg-amber-100 transition-all shadow-sm hover:shadow-md'
+                  title='Vider le cache'
+                >
+                  <AlertTriangle size={16} />
+                  <span className='font-medium text-sm'>Vider Cache</span>
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Cartes de statistiques */}
+          {/* Cartes de statistiques - avec indicateurs de chargement */}
           <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4'>
             {statCards.map((card, index) => {
               const Icon = card.icon;
               return (
                 <div
                   key={index}
-                  className={`bg-white rounded-2xl shadow-sm border p-5 hover:shadow-md transition-all duration-200 group border-gray-200 hover:border-gray-300`}
+                  className={`bg-white rounded-2xl shadow-sm border p-5 hover:shadow-md transition-all duration-200 group border-gray-200 hover:border-gray-300 relative ${card.loading ? 'opacity-70' : ''}`}
                 >
+                  {card.loading && (
+                    <div className='absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center rounded-2xl'>
+                      <RefreshCw size={20} className='text-blue-500 animate-spin' />
+                    </div>
+                  )}
+                  
                   <div className='flex items-start justify-between mb-3'>
                     <div className={`p-2.5 rounded-xl ${card.iconBg}`}>
                       <Icon className={`w-5 h-5 ${card.iconColor}`} />
@@ -771,7 +821,7 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Pied de page sécurisé */}
+          {/* Pied de page sécurisé amélioré */}
           <div className='pt-6 border-t border-gray-200'>
             <div className='flex flex-col md:flex-row md:items-center justify-between gap-4 text-sm text-gray-500'>
               <div className='flex items-center gap-4'>
@@ -782,12 +832,25 @@ const AdminDashboard = () => {
                 <div className='h-4 w-px bg-gray-300'></div>
                 <div className='flex items-center gap-2'>
                   <Clock size={14} className='text-gray-400' />
-                  <span>Dernière activité: maintenant</span>
+                  <span>
+                    Dernière activité: {lastRefreshTime || 'maintenant'}
+                  </span>
                 </div>
               </div>
-              <div className='flex items-center gap-2'>
-                <div className='w-2 h-2 bg-emerald-500 rounded-full animate-pulse'></div>
-                <span>Système opérationnel</span>
+              <div className='flex items-center gap-4'>
+                <div className='flex items-center gap-2'>
+                  <div className='w-2 h-2 bg-emerald-500 rounded-full animate-pulse'></div>
+                  <span>Système opérationnel</span>
+                </div>
+                <div className='h-4 w-px bg-gray-300'></div>
+                <button
+                  onClick={() => {
+                    toast.info('Fonctionnalité de logs à venir', { autoClose: 1500 });
+                  }}
+                  className='text-blue-600 hover:text-blue-800 text-sm font-medium'
+                >
+                  Voir les logs
+                </button>
               </div>
             </div>
           </div>
