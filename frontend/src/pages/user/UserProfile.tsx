@@ -1,4 +1,4 @@
-// UserProfile.tsx - VERSION ALLÉGÉE
+// UserProfile.tsx - VERSION CORRIGÉE
 import { useState, useEffect, FormEvent, FC, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
@@ -17,7 +17,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
-import { userProfileService } from '../../api/user/Profile/userProfileApi';
+import { userProfileService, type AuthFunctions } from '../../api/user/Profile/userProfileApi';
 import { toast } from 'react-toastify';
 
 // Composant de chargement
@@ -35,7 +35,10 @@ const UserProfile = () => {
     user, 
     access_token,
     updateProfile, 
-    isLoading: authLoading 
+    isLoading: authLoading,
+    fetchWithAuth,
+    refreshToken,
+    logout
   } = useAuth();
   
   const navigate = useNavigate();
@@ -114,6 +117,11 @@ const UserProfile = () => {
   if (!user) {
     return <LoadingScreen message="Récupération du profil..." />;
   }
+
+  // Créer l'objet authFunctions pour passer au service
+  const authFunctions: AuthFunctions = {
+    fetchWithAuth
+  };
 
   // États optimisés
   const initialProfileData = {
@@ -220,7 +228,7 @@ const UserProfile = () => {
   const handleProfileSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!access_token || !user) {
+    if (!user) {
       toast.error('Session expirée, veuillez vous reconnecter');
       navigate('/connexion');
       return;
@@ -259,10 +267,13 @@ const UserProfile = () => {
     setIsLoading(true);
 
     try {
-      const updatedUser = await userProfileService.updateProfile(access_token, {
-        email: profileData.email,
-        telephone: profileData.telephone,
-      });
+      const updatedUser = await userProfileService.updateProfile(
+        authFunctions, // ← Passer l'objet authFunctions, pas le token
+        {
+          email: profileData.email,
+          telephone: profileData.telephone,
+        }
+      );
 
       await updateProfile();
       
@@ -293,7 +304,7 @@ const UserProfile = () => {
   const handlePasswordSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!access_token) {
+    if (!user) {
       toast.error('Session expirée, veuillez vous reconnecter');
       navigate('/connexion');
       return;
@@ -317,7 +328,10 @@ const UserProfile = () => {
     setIsLoading(true);
 
     try {
-      const result = await userProfileService.updatePassword(access_token, passwordData);
+      const result = await userProfileService.updatePassword(
+        authFunctions, // ← Passer l'objet authFunctions, pas le token
+        passwordData
+      );
 
       if (result.success) {
         setPasswordData(initialPasswordData);
@@ -376,7 +390,7 @@ const UserProfile = () => {
 
   // ==================== FONCTION DE RECHARGEMENT ====================
   const refreshUserData = async () => {
-    if (!access_token) return;
+    if (!user) return;
     
     setIsLoading(true);
     try {
