@@ -1,5 +1,5 @@
-// MesRendezvous.tsx
-import { useState, useEffect, useCallback, useRef } from 'react';
+// MesRendezvous.tsx - VERSION CORRIGÉE AVEC INTÉGRATION D'AUTH
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
@@ -24,7 +24,12 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../../../context/AuthContext';
 import { Home, RefreshCw, User, Calendar, FileText } from 'lucide-react';
-import { UserRendezvousService, Rendezvous, PaginationState } from '../../../api/user/Rendezvous/UserRendezvousService';
+import { 
+  UserRendezvousService, 
+  Rendezvous, 
+  PaginationState,
+  AuthFunctions 
+} from '../../../api/user/Rendezvous/UserRendezvousService';
 
 const pageConfigs = {
   '/mon-profil': {
@@ -90,13 +95,16 @@ const avisColors: Record<string, string> = {
 };
 
 const MesRendezvous = () => {
+  // Récupérer TOUTES les fonctions d'authentification du contexte
   const { 
     user,
     isAuthenticated, 
     access_token,  
     refreshToken, 
-    logout, 
-    isLoading: authLoading 
+    logout,
+    fetchWithAuth,
+    isLoading: authLoading,
+    updateProfile
   } = useAuth();
   
   const navigate = useNavigate();
@@ -115,67 +123,21 @@ const MesRendezvous = () => {
     totalPages: 1,
   });
 
-  const [rendezvousService, setRendezvousService] = useState<UserRendezvousService | null>(null);
-  const [hasAccess, setHasAccess] = useState<boolean>(true);
+  // Créer l'objet authFunctions pour passer au service
+  const authFunctions: AuthFunctions = useMemo(() => ({
+    getAccessToken: () => access_token,
+    refreshToken,
+    logout,
+    fetchWithAuth
+  }), [access_token, refreshToken, logout, fetchWithAuth]);
 
-  // Afficher un loader pendant que l'auth se charge
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Chargement de l'authentification...</p>
-        </div>
-      </div>
-    );
-  }
+  // Créer le service une seule fois avec les fonctions d'auth
+  const rendezvousService = useMemo(() => {
+    if (!isAuthenticated) return null;
+    return new UserRendezvousService(authFunctions);
+  }, [isAuthenticated, authFunctions]);
 
-  // === GESTION D'AUTHENTIFICATION SIMPLIFIÉE ===
-  useEffect(() => {
-    if (!isAuthenticated) {
-      console.log('🚫 [MesRendezVous] Non authentifié, redirection vers login');
-      navigate('/connexion');
-      return;
-    }
-
-    if (user && !user.isActive) {
-      console.log('🚫 [MesRendezVous] Compte inactif, déconnexion');
-      logout();
-      setHasAccess(false);
-      return;
-    }
-
-    setHasAccess(true);
-  }, [isAuthenticated, user, navigate, logout]);
-
-  // Initialiser le service seulement quand l'authentification est prête
-  useEffect(() => {
-    if (isAuthenticated && access_token) {
-      setRendezvousService(
-        new UserRendezvousService(access_token, refreshToken, logout)
-      );
-    }
-  }, [isAuthenticated, access_token, refreshToken, logout]);
-
-  // Obtenir la configuration de la page actuelle
-  const getCurrentPageConfig = () => {
-    const currentPath = location.pathname;
-    if (pageConfigs[currentPath as keyof typeof pageConfigs]) {
-      return pageConfigs[currentPath as keyof typeof pageConfigs];
-    }
-    
-    for (const [path, config] of Object.entries(pageConfigs)) {
-      if (currentPath.startsWith(path)) {
-        return config;
-      }
-    }
-    
-    return pageConfigs['/mes-rendez-vous'];
-  };
-
-  const currentPage = getCurrentPageConfig();
-  const activeTabId = navTabs.find(tab => location.pathname.startsWith(tab.to))?.id || 'rendezvous';
-
+  // Gestion d'AOS
   useEffect(() => {
     AOS.init({
       duration: 300,
@@ -191,14 +153,35 @@ const MesRendezvous = () => {
     }
   }, [location.pathname]);
 
+  // === GESTION D'AUTHENTIFICATION ===
+  useEffect(() => {
+    if (authLoading) return; // Attendre que l'auth se charge
+    
+    if (!isAuthenticated) {
+      console.log('🔒 Redirection vers login - non authentifié');
+      toast.info('Veuillez vous connecter pour accéder à cette page');
+      navigate('/connexion', { replace: true });
+      return;
+    }
+
+    if (user && !user.isActive) {
+      console.log('🚫 Compte inactif, déconnexion');
+      toast.error('Votre compte a été désactivé');
+      logout();
+      return;
+    }
+  }, [authLoading, isAuthenticated, user, navigate, logout]);
+
+  // Fonction pour charger les rendez-vous
   const fetchRendezvous = useCallback(async () => {
     if (!isAuthenticated || !rendezvousService) {
-      console.log('⚠️ [MesRendezVous] fetchRendezvous ignoré - non authentifié ou service non initialisé');
+      console.log('⚠️ Service non disponible ou non authentifié');
       return;
     }
 
     setLoading(true);
     try {
+      console.log('📡 Chargement des rendez-vous...');
       const data = await rendezvousService.fetchUserRendezvous({
         page: pagination.page,
         limit: pagination.limit,
@@ -212,27 +195,36 @@ const MesRendezvous = () => {
         totalPages: data.totalPages,
       }));
 
-      if (data.data.length === 0) {
-        toast.info('Aucun rendez-vous trouvé');
+      console.log(`✅ ${data.data.length} rendez-vous chargés`);
+      
+      if (data.data.length === 0 && selectedStatus) {
+        toast.info(`Aucun rendez-vous avec le statut "${selectedStatus}"`);
       }
     } catch (error: any) {
-      // Ne pas gérer SESSION_EXPIRED ici, laisser le service throw
-      if (error.message !== 'SESSION_EXPIRED') {
+      // Gérer spécifiquement les sessions expirées
+      if (error.message === 'SESSION_EXPIRED') {
+        console.log('🔒 Session expirée détectée, déconnexion...');
+        logout();
+        toast.info('Session expirée. Veuillez vous reconnecter.');
+        navigate('/connexion', { replace: true });
+      } else {
+        console.error('❌ Erreur fetchRendezvous:', error.message);
         toast.error('Impossible de charger vos rendez-vous');
-        console.error('❌ [MesRendezVous] Erreur fetchRendezvous:', error.message);
       }
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, rendezvousService, pagination.page, pagination.limit, selectedStatus]);
+  }, [isAuthenticated, rendezvousService, pagination.page, pagination.limit, selectedStatus, navigate, logout]);
 
+  // Charger les rendez-vous quand les dépendances changent
   useEffect(() => {
     if (isAuthenticated && location.pathname === '/mes-rendez-vous' && rendezvousService) {
-      console.log('✅ [MesRendezVous] Chargement des rendez-vous');
+      console.log('🔄 Déclenchement du chargement des rendez-vous');
       fetchRendezvous();
     }
-  }, [isAuthenticated, pagination.page, selectedStatus, location.pathname, rendezvousService, fetchRendezvous]);
+  }, [isAuthenticated, location.pathname, rendezvousService, pagination.page, selectedStatus, fetchRendezvous]);
 
+  // Annuler un rendez-vous
   const handleCancelRendezvous = async (rdvId: string) => {
     if (!isAuthenticated || !rendezvousService) {
       toast.error('Veuillez vous connecter');
@@ -253,11 +245,16 @@ const MesRendezvous = () => {
           rdv._id === rdvId ? { ...rdv, ...updatedRdv } : rdv
         )
       );
+      
+      toast.success('Rendez-vous annulé avec succès');
     } catch (error: any) {
-      // L'erreur est déjà gérée dans le service
       if (error.message === 'SESSION_EXPIRED') {
-        console.log('🔒 [MesRendezVous] Session expirée lors de l\'annulation');
+        console.log('🔒 Session expirée lors de l\'annulation');
+        logout();
+        toast.info('Session expirée');
+        navigate('/connexion');
       }
+      // L'erreur est déjà affichée dans le service
     } finally {
       setCancelling(null);
     }
@@ -268,7 +265,8 @@ const MesRendezvous = () => {
       fetchRendezvous();
       toast.info('Liste actualisée');
     } else {
-      toast.info('Page actualisée');
+      updateProfile();
+      toast.info('Profil actualisé');
     }
   };
 
@@ -278,15 +276,25 @@ const MesRendezvous = () => {
     }
   };
 
-  const refreshUserData = async () => {
-    if (location.pathname === '/mes-rendez-vous') {
-      await fetchRendezvous();
-      toast.success('Rendez-vous actualisés');
-    } else {
-      toast.success('Données actualisées');
+  const getCurrentPageConfig = () => {
+    const currentPath = location.pathname;
+    if (pageConfigs[currentPath as keyof typeof pageConfigs]) {
+      return pageConfigs[currentPath as keyof typeof pageConfigs];
     }
+    
+    for (const [path, config] of Object.entries(pageConfigs)) {
+      if (currentPath.startsWith(path)) {
+        return config;
+      }
+    }
+    
+    return pageConfigs['/mes-rendez-vous'];
   };
 
+  const currentPage = getCurrentPageConfig();
+  const activeTabId = navTabs.find(tab => location.pathname.startsWith(tab.to))?.id || 'rendezvous';
+
+  // === RENDU DES ÉLÉMENTS UI ===
   const renderStatusBadge = (status: string) => (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusColors[status] || 'bg-gray-100 text-gray-800 border-gray-300'}`}>
       {status === 'En attente' && <FiAlertCircle className="mr-1 h-3 w-3" />}
@@ -394,33 +402,20 @@ const MesRendezvous = () => {
     </div>
   );
 
-  // === ÉCRAN D'ACCÈS REFUSÉ ===
-  if (!hasAccess) {
+  // === ÉCRAN DE CHARGEMENT ===
+  if (authLoading) {
     return (
-      <div className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4'>
-        <div className="text-center max-w-sm">
-          <div className="w-20 h-20 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <FiAlertCircle className="w-10 h-10 text-red-500" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-3">
-            Accès révoqué
-          </h2>
-          <p className="text-slate-600 mb-6">
-            Votre compte est temporairement désactivé. Contactez l'administrateur.
-          </p>
-          <button
-            onClick={() => navigate('/connexion')}
-            className="inline-flex items-center px-6 py-3 bg-sky-500 text-white rounded-xl hover:bg-sky-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
-          >
-            Se reconnecter
-          </button>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement de l'authentification...</p>
         </div>
       </div>
     );
   }
 
-  // === ÉCRAN DE SESSION EXPIRÉE ===
-  if (!isAuthenticated || !user) {
+  // === ÉCRAN DE NON AUTHENTIFIÉ ===
+  if (!isAuthenticated) {
     return (
       <div className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4'>
         <div className="text-center max-w-sm">
@@ -444,7 +439,7 @@ const MesRendezvous = () => {
     );
   }
 
-  // Rendu conditionnel basé sur la page actuelle
+  // === RENDU CONDITIONNEL PAR PAGE ===
   const renderPageContent = () => {
     if (location.pathname !== '/mes-rendez-vous') {
       return (
@@ -675,7 +670,6 @@ const MesRendezvous = () => {
       <Helmet>
         <title>{currentPage.pageTitle}</title>
         <meta name="description" content={currentPage.description} />
-        
       </Helmet>
 
       {/* Header fixe */}
@@ -705,76 +699,67 @@ const MesRendezvous = () => {
               </div>
             </div>
             
-            {isAuthenticated && (
-              <button
-                onClick={refreshUserData}
-                disabled={loading}
-                className='p-2 bg-sky-50 rounded-xl hover:bg-sky-100 active:scale-95 transition-all duration-200 disabled:opacity-50'
-                title="Actualiser"
-                aria-label="Actualiser"
-              >
-                <RefreshCw className={`w-4 h-4 text-sky-600 ${loading ? 'animate-spin' : ''}`} />
-              </button>
-            )}
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className='p-2 bg-sky-50 rounded-xl hover:bg-sky-100 active:scale-95 transition-all duration-200 disabled:opacity-50'
+              title="Actualiser"
+              aria-label="Actualiser"
+            >
+              <RefreshCw className={`w-4 h-4 text-sky-600 ${loading ? 'animate-spin' : ''}`} />
+            </button>
           </div>
 
-          {/* Navigation - SEULEMENT si authentifié */}
-          {isAuthenticated && (
-            <>
-              <div className='overflow-x-auto pb-1 no-scrollbar'>
-                <nav className='flex gap-1.5 min-w-max'>
-                  {navTabs.map(tab => {
-                    const isActive = activeTabId === tab.id;
-                    return (
-                      <Link
-                        key={tab.id}
-                        to={tab.to}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 flex-shrink-0 relative ${
-                          isActive
-                            ? 'bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sm'
-                            : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-sky-300 hover:bg-sky-50 active:scale-95'
-                        }`}
-                        aria-current={isActive ? 'page' : undefined}
-                      >
-                        <tab.icon className={`w-3.5 h-3.5 ${
-                          isActive ? 'text-white' : 'text-gray-500'
-                        }`} />
-                        <span className={`text-xs font-medium whitespace-nowrap ${
-                          isActive ? 'text-white' : 'text-gray-700'
-                        }`}>
-                          {tab.label}
-                        </span>
-                        {isActive && (
-                          <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-4 h-0.5 bg-sky-400 rounded-full"></div>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </nav>
-              </div>
-
-              {/* Indicateur de statut */}
-              <div className='mt-2 pt-2 border-t border-gray-100'>
-                <div className='flex items-center justify-between'>
-                  <div className='flex items-center gap-1.5'>
-                    <div className='w-1.5 h-1.5 bg-emerald-500 rounded-full'></div>
-                    <span className='text-xs text-gray-600'>
-                      {new Date().toLocaleDateString('fr-FR', { 
-                        day: 'numeric',
-                        month: 'short'
-                      })}
+          {/* Navigation */}
+          <div className='overflow-x-auto pb-1 no-scrollbar'>
+            <nav className='flex gap-1.5 min-w-max'>
+              {navTabs.map(tab => {
+                const isActive = activeTabId === tab.id;
+                return (
+                  <Link
+                    key={tab.id}
+                    to={tab.to}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 flex-shrink-0 relative ${
+                      isActive
+                        ? 'bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sm'
+                        : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-sky-300 hover:bg-sky-50 active:scale-95'
+                    }`}
+                    aria-current={isActive ? 'page' : undefined}
+                  >
+                    <tab.icon className={`w-3.5 h-3.5 ${
+                      isActive ? 'text-white' : 'text-gray-500'
+                    }`} />
+                    <span className={`text-xs font-medium whitespace-nowrap ${
+                      isActive ? 'text-white' : 'text-gray-700'
+                    }`}>
+                      {tab.label}
                     </span>
-                  </div>
-                  <span className='text-xs text-gray-500'>
-                    {new Date().toLocaleTimeString('fr-FR', { 
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </span>
-                </div>
+                    {isActive && (
+                      <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-4 h-0.5 bg-sky-400 rounded-full"></div>
+                    )}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* Indicateur de statut */}
+          <div className='mt-2 pt-2 border-t border-gray-100'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-1.5'>
+                <div className='w-1.5 h-1.5 bg-emerald-500 rounded-full'></div>
+                <span className='text-xs text-gray-600'>
+                  Connecté: {user?.email}
+                </span>
               </div>
-            </>
-          )}
+              <span className='text-xs text-gray-500'>
+                {new Date().toLocaleTimeString('fr-FR', { 
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Effet de séparation */}
@@ -786,7 +771,6 @@ const MesRendezvous = () => {
         className="min-h-screen"
         style={{ paddingTop: `${headerHeight}px` }}
       >
-        {/* Afficher le contenu de la page si authentifié */}
         {renderPageContent()}
       </div>
     </>

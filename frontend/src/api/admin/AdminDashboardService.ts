@@ -1,155 +1,66 @@
-/* eslint-disable no-undef */
-
-import React, { useCallback, useEffect, useState } from 'react';
+// services/AdminDashboardService.ts - VERSION CORRIGÉE
 import { useAuth } from '../../context/AuthContext';
 
-export interface DashboardStats {
+interface DashboardStats {
+  totalProcedures: number;
+  activeProcedures: number;
+  pendingProcedures: number;
+  completedProcedures: number;
+  cancelledProcedures: number;
   totalUsers: number;
   activeUsers: number;
-  inactiveUsers: number;
-  adminUsers: number;
-  regularUsers: number;
-  totalProcedures: number;
-  proceduresByStatus: { _id: string; count: number }[];
-  proceduresByDestination: { _id: string; count: number }[];
-  totalRendezvous: number;
-  rendezvousStats: {
-    pending: number;
-    confirmed: number;
-    completed: number;
-    cancelled: number;
-  };
-  totalContacts?: number;
-  unreadContacts?: number;
+  pendingRendezvous: number;
+  unreadMessages: number;
+  recentActivities: Array<{
+    id: string;
+    type: 'procedure' | 'user' | 'rendezvous' | 'message';
+    action: string;
+    timestamp: string;
+    userEmail?: string;
+    details?: string;
+  }>;
 }
 
-export interface RecentActivity {
-  _id: string;
-  type: 'procedure' | 'rendezvous' | 'user' | 'contact';
-  action: string;
-  description: string;
-  timestamp: Date;
-  userEmail?: string;
-}
-
-export interface RendezvousData {
-  _id: string;
-  userId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  telephone: string;
-  destination: string;
-  niveauEtude: string;
-  filiere: string;
-  date: string;
-  time: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
-export interface UserStatsResponse {
-  totalUsers: number;
-  activeUsers: number;
-  inactiveUsers: number;
-  adminUsers: number;
-  regularUsers: number;
-}
-
-export interface ProcedureStatsResponse {
-  totalProcedures: number;
-  proceduresByStatus: { _id: string; count: number }[];
-  proceduresByDestination: { _id: string; count: number }[];
-}
-
-class AdminDashboardService {
-  private static instance: AdminDashboardService;
-  private baseUrl: string;
-  private cache = new Map<string, { data: any; timestamp: number }>();
-  private readonly CACHE_TTL = 120000; // 2 minutes
+export class AdminDashboardService {
+  [x: string]: any;
+  private fetchWithAuth: ReturnType<typeof useAuth>['fetchWithAuth'];
+  private API_URL = import.meta.env.VITE_API_URL || 'https://panameconsulting.up.railway.app';
   
-  // Propriétés pour le rate-limiting
+  // Système de throttling
   private requestQueue: Map<string, Promise<any>> = new Map();
   private lastRequestTime: number = 0;
-  private readonly REQUEST_DELAY = 200; // 200ms entre les requêtes
-  private readonly MAX_RETRIES = 2;
-  private readonly RETRY_DELAY = 1000;
+  private readonly MIN_REQUEST_INTERVAL = 1000; // 1 seconde entre les batchs
 
-  private constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL;
-    console.log(`📡 AdminDashboardService initialisé avec URL: ${this.baseUrl}`);
+  constructor(fetchWithAuth: ReturnType<typeof useAuth>['fetchWithAuth']) {
+    this.fetchWithAuth = fetchWithAuth;
   }
 
-  static getInstance(): AdminDashboardService {
-    if (!AdminDashboardService.instance) {
-      AdminDashboardService.instance = new AdminDashboardService();
-    }
-    return AdminDashboardService.instance;
-  }
-
-  private getDefaultStats(): DashboardStats {
-    return {
-      totalUsers: 0,
-      activeUsers: 0,
-      inactiveUsers: 0,
-      adminUsers: 0,
-      regularUsers: 0,
-      totalProcedures: 0,
-      proceduresByStatus: [],
-      proceduresByDestination: [],
-      totalRendezvous: 0,
-      rendezvousStats: {
-        pending: 0,
-        confirmed: 0,
-        completed: 0,
-        cancelled: 0,
-      },
-      totalContacts: 0,
-      unreadContacts: 0,
-    };
-  }
-
-  // ==================== MÉTHODES UTILITAIRES ====================
+  // ==================== GESTION DES REQUÊTES ====================
 
   /**
-   * Méthode de rate-limiting et de file d'attente
+   * Méthode sécurisée pour éviter les requêtes simultanées excessives
    */
-  private async rateLimitedFetch<T>(
-    key: string,
-    fetchFn: () => Promise<T>
-  ): Promise<T> {
-    // Vérifier si une requête est déjà en cours
+  private async throttledFetch<T>(key: string, fetchFn: () => Promise<T>): Promise<T> {
+    // Vérifier si une requête identique est déjà en cours
     if (this.requestQueue.has(key)) {
-      console.log(`⏳ Requête ${key} déjà en cours, réutilisation...`);
-      return this.requestQueue.get(key)!;
+      return this.requestQueue.get(key) as Promise<T>;
     }
 
-    // Respecter un délai minimum entre les requêtes
+    // Respecter un intervalle minimal entre les batchs de requêtes
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
     
-    if (timeSinceLastRequest < this.REQUEST_DELAY) {
-      const delay = this.REQUEST_DELAY - timeSinceLastRequest;
-      console.log(`⏳ Délai rate-limiting: ${delay}ms`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+    if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
+      await new Promise(resolve => 
+        setTimeout(resolve, this.MIN_REQUEST_INTERVAL - timeSinceLastRequest)
+      );
     }
 
-    this.lastRequestTime = Date.now();
-    
-    // Exécuter la requête
-    const promise = fetchFn();
-    this.requestQueue.set(key, promise);
-
     try {
+      const promise = fetchFn();
+      this.requestQueue.set(key, promise);
+      this.lastRequestTime = Date.now();
+      
       const result = await promise;
       return result;
     } finally {
@@ -158,581 +69,338 @@ class AdminDashboardService {
   }
 
   /**
-   * Méthode de retry automatique pour les erreurs 429
+   * Récupérer UNIQUEMENT les stats essentielles en parallèle
    */
-  private async fetchWithRetry<T>(
-    fetchFn: () => Promise<T>,
-    maxRetries = this.MAX_RETRIES,
-    baseDelay = this.RETRY_DELAY
-  ): Promise<T> {
-    let lastError: Error;
-    
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        if (attempt > 0) {
-          const delay = baseDelay * Math.pow(1.5, attempt - 1); // Augmentation progressive
-          console.log(`🔄 Tentative ${attempt + 1}/${maxRetries + 1} dans ${Math.round(delay)}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-        
-        return await fetchFn();
-      } catch (error: any) {
-        lastError = error;
-        
-        // Si c'est une erreur 429 et qu'on a encore des tentatives
-        if ((error.message === 'TOO_MANY_REQUESTS' || error.message.includes('429')) && attempt < maxRetries) {
-          console.warn(`⚠️ Rate limit détecté, nouvelle tentative...`);
-          continue;
-        }
-        
-        // Si c'est une erreur d'authentification, on propage
-        if (error.message === 'SESSION_EXPIRED' || error.message === 'UNAUTHORIZED') {
-          throw error;
-        }
-        
-        // Pour les autres erreurs, on arrête après la première tentative
-        break;
-      }
+  async getDashboardStats(): Promise<DashboardStats> {
+    try {
+      console.log('🔍 Récupération optimisée des statistiques dashboard...');
+      
+      // Récupérer UNIQUEMENT 2 stats en parallèle max
+      const [proceduresStats, usersStats] = await Promise.all([
+        this.throttledFetch('procedures_stats', () => this.getProceduresStats()),
+        this.throttledFetch('users_stats', () => this.getUsersStats())
+      ]);
+
+      // Récupérer les autres stats séquentiellement pour réduire la charge
+      const contactStats = await this.throttledFetch('contact_stats', () => this.getContactStats());
+      
+      // Pour rendezvous, utiliser l'endpoint spécifique si disponible, sinon calculer localement
+      const rendezvousStats = await this.getOptimizedRendezvousStats();
+
+      console.log('✅ Statistiques récupérées de manière optimisée');
+
+      return {
+        totalProcedures: proceduresStats.total || 0,
+        activeProcedures: proceduresStats.active || 0,
+        pendingProcedures: proceduresStats.pending || 0,
+        completedProcedures: proceduresStats.completed || 0,
+        cancelledProcedures: proceduresStats.cancelled || 0,
+        totalUsers: usersStats.totalUsers || 0,
+        activeUsers: usersStats.activeUsers || 0,
+        pendingRendezvous: rendezvousStats.pending || 0,
+        unreadMessages: contactStats.unread || 0,
+        recentActivities: await this.getOptimizedRecentActivities()
+      };
+    } catch (error) {
+      console.error('❌ Erreur récupération statistiques:', error);
+      throw new Error(`Impossible de charger les statistiques: ${(error as Error).message}`);
     }
-    
-    throw lastError!;
   }
 
-  // ==================== MÉTHODES DE STATISTIQUES ====================
-
   /**
-   * Récupère les statistiques utilisateurs depuis /users/stats
+   * Version optimisée des stats rendezvous
    */
-  async getUserStats(fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>): Promise<UserStatsResponse> {
-    return this.rateLimitedFetch('user_stats', async () => {
-      try {
-        console.log('📊 Récupération des statistiques utilisateurs');
+  private async getOptimizedRendezvousStats() {
+    try {
+      // UNE seule requête avec des filtres côté serveur
+      const response = await this.throttledFetch('rendezvous_stats_all', () =>
+        this.fetchWithAuth(`${this.API_URL}/api/rendezvous?limit=1&includeStats=true`)
+      );
+      
+      if (!response.ok) {
+        // Fallback: compter seulement les pending
+        const pendingResponse = await this.fetchWithAuth(
+          `${this.API_URL}/api/rendezvous?status=En attente&limit=1`
+        );
         
-        const cacheKey = 'user_stats';
-        const cached = this.cache.get(cacheKey);
-        if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-          console.log('📦 Utilisation du cache pour les stats utilisateurs');
-          return cached.data;
+        if (pendingResponse.ok) {
+          const data = await pendingResponse.json();
+          return {
+            total: 0, // Non disponible sans endpoint spécifique
+            pending: data.total || 0,
+            confirmed: 0,
+            completed: 0,
+            cancelled: 0
+          };
         }
-
-        return await this.fetchWithRetry(async () => {
-          const response = await fetchWithAuth('/api/users/stats');
-          if (!response.ok) {
-            if (response.status === 429) {
-              throw new Error('TOO_MANY_REQUESTS');
-            }
-            throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`);
-          }
-
-          const stats = await response.json();
-          
-          this.cache.set(cacheKey, { data: stats, timestamp: Date.now() });
-          
-          console.log('✅ Statistiques utilisateurs récupérées');
-          return stats;
-        });
-      } catch (error: any) {
-        console.error('❌ Erreur récupération stats utilisateurs:', error.message);
-        // Retourner des valeurs par défaut au lieu de propager l'erreur
-        return {
-          totalUsers: 0,
-          activeUsers: 0,
-          inactiveUsers: 0,
-          adminUsers: 0,
-          regularUsers: 0,
-        };
+        throw new Error('Erreur API rendez-vous');
       }
-    });
+      
+      const data = await response.json();
+      
+      // Si le backend renvoie des stats détaillées
+      if (data.stats) {
+        return data.stats;
+      }
+      
+      return {
+        total: data.total || 0,
+        pending: 0,
+        confirmed: 0,
+        completed: 0,
+        cancelled: 0
+      };
+    } catch (error) {
+      console.error('❌ Erreur stats rendez-vous:', error);
+      return {
+        total: 0,
+        pending: 0,
+        confirmed: 0,
+        completed: 0,
+        cancelled: 0
+      };
+    }
   }
 
   /**
-   * Récupère les statistiques procédures depuis /procedures/admin/stats
+   * Version optimisée des activités récentes
    */
-  async getProcedureStats(fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>): Promise<ProcedureStatsResponse> {
-    return this.rateLimitedFetch('procedure_stats', async () => {
+  private async getOptimizedRecentActivities() {
+    try {
+      // UNE seule requête combinée si possible, sinon séquentielle
+      const activities: { id: any; type: "procedure" | "message"; action: string; timestamp: any; userEmail: any; details: any; }[] = [];
+      
+      // Option 1: Endpoint combiné si disponible
       try {
-        console.log('📊 Récupération statistiques procédures');
+        const response = await this.throttledFetch('recent_activities', () =>
+          this.fetchWithAuth(`${this.API_URL}/api/admin/recent-activities?limit=10`)
+        );
         
-        const cacheKey = 'procedure_stats';
-        const cached = this.cache.get(cacheKey);
-        if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-          console.log('📦 Utilisation du cache pour les stats procédures');
-          return cached.data;
-        }
-
-        return await this.fetchWithRetry(async () => {
-          const response = await fetchWithAuth('/api/procedures/admin/stats');
-          if (!response.ok) {
-            if (response.status === 429) {
-              throw new Error('TOO_MANY_REQUESTS');
-            }
-            throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`);
-          }
-
-          const stats = await response.json();
-          
-          this.cache.set(cacheKey, { data: stats, timestamp: Date.now() });
-          
-          console.log('✅ Statistiques procédures récupérées');
-          return stats;
-        });
-      } catch (error: any) {
-        console.error('❌ Erreur récupération stats procédures:', error.message);
-        // Retourner des valeurs par défaut
-        return {
-          totalProcedures: 0,
-          proceduresByStatus: [],
-          proceduresByDestination: [],
-        };
-      }
-    });
-  }
-
-  /**
-   * Récupère les rendez-vous avec pagination et calcul les statistiques
-   */
-  async getRendezvousStats(
-    fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>,
-    page: number = 1,
-    limit: number = 1000
-  ): Promise<{
-    totalRendezvous: number;
-    stats: {
-      pending: number;
-      confirmed: number;
-      completed: number;
-      cancelled: number;
-    };
-  }> {
-    return this.rateLimitedFetch('rendezvous_stats', async () => {
-      try {
-        console.log(`📅 Récupération statistiques rendez-vous`);
-        
-        return await this.fetchWithRetry(async () => {
-          // Construire l'URL avec les paramètres
-          const params = new URLSearchParams();
-          params.append('page', page.toString());
-          params.append('limit', limit.toString());
-          
-          const url = `/api/rendezvous?${params.toString()}`;
-          const response = await fetchWithAuth(url);
-          
-          if (!response.ok) {
-            if (response.status === 429) {
-              throw new Error('TOO_MANY_REQUESTS');
-            }
-            throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`);
-          }
-
+        if (response.ok) {
           const data = await response.json();
-          
-          // Calculer les stats par statut
-          const statusCounts = {
-            pending: 0,
-            confirmed: 0,
-            completed: 0,
-            cancelled: 0
-          };
-          
-          if (data.data && Array.isArray(data.data)) {
-            data.data.forEach((rdv: RendezvousData) => {
-              const status = rdv.status?.toLowerCase();
-              if (status === 'en attente') statusCounts.pending++;
-              else if (status === 'confirmé') statusCounts.confirmed++;
-              else if (status === 'terminé') statusCounts.completed++;
-              else if (status === 'annulé') statusCounts.cancelled++;
-            });
-          }
-          
-          const result = {
-            totalRendezvous: data.total || 0,
-            stats: statusCounts
-          };
-          
-          console.log(`✅ Statistiques rendez-vous récupérées (total: ${data.total})`);
-          return result;
-        });
-      } catch (error: any) {
-        console.error('❌ Erreur récupération stats rendez-vous:', error.message);
-        // Retourner des valeurs par défaut
-        return {
-          totalRendezvous: 0,
-          stats: {
-            pending: 0,
-            confirmed: 0,
-            completed: 0,
-            cancelled: 0
-          }
-        };
-      }
-    });
-  }
-
-  /**
-   * Récupère TOUTES les statistiques du dashboard en une seule méthode
-   */
- async getDashboardStats(fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>): Promise<DashboardStats> {
-  try {
-    console.log('📊 Récupération complète des statistiques du dashboard');
-
-    // Vérifier le cache d'abord
-    const cacheKey = 'dashboard_stats';
-    const cached = this.cache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-      console.log('📦 Utilisation du cache pour les stats dashboard');
-      return cached.data;
-    }
-
-    const stats = this.getDefaultStats();
-
-    // MODIFICATION : Chargement séquentiel au lieu de parallèle
-    try {
-      const userStats = await this.getUserStats(fetchWithAuth);
-      Object.assign(stats, userStats);
-    } catch (userError) {
-      console.warn('⚠️ Erreur stats utilisateurs, utilisation valeurs par défaut');
-    }
-
-    // Pause entre les requêtes
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    try {
-      const procedureStats = await this.getProcedureStats(fetchWithAuth);
-      stats.totalProcedures = procedureStats.totalProcedures || 0;
-      stats.proceduresByStatus = procedureStats.proceduresByStatus || [];
-      stats.proceduresByDestination = procedureStats.proceduresByDestination || [];
-    } catch (procError) {
-      console.warn('⚠️ Erreur stats procédures, utilisation valeurs par défaut');
-    }
-
-    // Pause entre les requêtes
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    try {
-      const rendezvousStats = await this.getRendezvousStats(fetchWithAuth, 1, 1000);
-      stats.totalRendezvous = rendezvousStats.totalRendezvous || 0;
-      stats.rendezvousStats = rendezvousStats.stats;
-    } catch (rdvError) {
-      console.warn('⚠️ Erreur stats rendez-vous, utilisation valeurs par défaut');
-    }
-
-    // Mettre en cache
-    this.cache.set(cacheKey, { data: stats, timestamp: Date.now() });
-
-    console.log('✅ Statistiques dashboard récupérées avec succès');
-    return stats;
-  } catch (error: any) {
-    console.error('❌ Erreur récupération stats dashboard:', error.message);
-    return this.getDefaultStats();
-  }
-}
-
-  /**
-   * Récupère les statistiques rapides (utilise le cache existant si possible)
-   */
-  async getQuickStats(fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>): Promise<{
-    totalUsers: number;
-    activeUsers: number;
-    totalProcedures: number;
-    totalRendezvous: number;
-  }> {
-    try {
-      console.log('⚡ Récupération des quick stats');
-      
-      // Si on a déjà les stats complètes en cache, les utiliser
-      const dashboardCached = this.cache.get('dashboard_stats');
-      if (dashboardCached && Date.now() - dashboardCached.timestamp < this.CACHE_TTL) {
-        console.log('📦 Utilisation des stats dashboard pour quick stats');
-        return {
-          totalUsers: dashboardCached.data.totalUsers || 0,
-          activeUsers: dashboardCached.data.activeUsers || 0,
-          totalProcedures: dashboardCached.data.totalProcedures || 0,
-          totalRendezvous: dashboardCached.data.totalRendezvous || 0,
-        };
-      }
-      
-      // Sinon, retourner des valeurs par défaut (ne pas faire de nouvelle requête)
-      return {
-        totalUsers: 0,
-        activeUsers: 0,
-        totalProcedures: 0,
-        totalRendezvous: 0,
-      };
-    } catch (error: any) {
-      console.error('❌ Erreur récupération quick stats:', error.message);
-      return {
-        totalUsers: 0,
-        activeUsers: 0,
-        totalProcedures: 0,
-        totalRendezvous: 0,
-      };
-    }
-  }
-
-  /**
-   * Récupère les activités récentes (pour le dashboard)
-   */
-  async getRecentActivities(
-    fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>,
-    limit = 5
-  ): Promise<RecentActivity[]> {
-    return this.rateLimitedFetch(`activities_${limit}`, async () => {
-      try {
-        console.log(`📋 Récupération des ${limit} activités récentes`);
-
-        // Cache pour les activités
-        const cacheKey = `recent_activities_${limit}`;
-        const cached = this.cache.get(cacheKey);
-        if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-          console.log('📦 Utilisation du cache pour les activités');
-          return cached.data;
+          return data.activities || [];
         }
-
-        return await this.fetchWithRetry(async () => {
-          // Récupérer les rendez-vous récents (source principale)
-          const params = new URLSearchParams();
-          params.append('page', '1');
-          params.append('limit', limit.toString());
-          
-          const response = await fetchWithAuth(`/api/rendezvous?${params.toString()}`);
-          
-          if (!response.ok) {
-            if (response.status === 429) {
-              throw new Error('TOO_MANY_REQUESTS');
-            }
-            throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`);
-          }
-          
-          const rendezvousResponse = await response.json();
-
-          const activities: RecentActivity[] = [];
-
-          // Traiter les rendez-vous
-          if (rendezvousResponse && rendezvousResponse.data) {
-            const rendezvous = rendezvousResponse.data || [];
-            rendezvous.forEach((rdv: RendezvousData) => {
-              activities.push({
-                _id: rdv._id,
-                type: 'rendezvous',
-                action: rdv.status,
-                description: `Rendez-vous ${rdv.status} pour ${rdv.firstName} ${rdv.lastName}`,
-                timestamp: new Date(rdv.createdAt || rdv.updatedAt),
-                userEmail: rdv.email,
-              });
+      } catch {
+        // Fallback à l'ancienne méthode mais avec throttling
+      }
+      
+      // Option 2: Méthode actuelle avec améliorations
+      const [proceduresRes, contactRes] = await Promise.all([
+        this.throttledFetch('recent_procedures', () =>
+          this.fetchWithAuth(`${this.API_URL}/api/procedures/admin/all?limit=5&sort=-createdAt`)
+        ),
+        this.throttledFetch('recent_contacts', () =>
+          this.fetchWithAuth(`${this.API_URL}/api/contact?limit=3&isRead=false&sort=-createdAt`)
+        )
+      ]);
+      
+      if (proceduresRes.ok) {
+        const procedures = await proceduresRes.json();
+        if (procedures.data) {
+          procedures.data.slice(0, 5).forEach((proc: any) => {
+            activities.push({
+              id: proc._id,
+              type: 'procedure' as const,
+              action: proc.status === 'pending' ? 'Nouvelle procédure créée' : 'Procédure mise à jour',
+              timestamp: proc.updatedAt || proc.createdAt,
+              userEmail: proc.userEmail || proc.user?.email,
+              details: `Procédure ${proc.type || 'sans type'} - ${proc.status || 'sans statut'}`
             });
-          }
-
-          // Trier par date décroissante et limiter
-          const sortedActivities = activities
-            .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-            .slice(0, limit);
-
-          // Mettre en cache
-          this.cache.set(cacheKey, { data: sortedActivities, timestamp: Date.now() });
-
-          return sortedActivities;
-        });
-      } catch (error: any) {
-        console.error('❌ Erreur récupération activités récentes:', error.message);
-        if (error.message === 'SESSION_EXPIRED' || error.message === 'UNAUTHORIZED') {
-          throw error;
+          });
         }
-        return []; // Retourner un tableau vide en cas d'erreur
       }
-    });
+      
+      if (contactRes.ok) {
+        const contacts = await contactRes.json();
+        if (contacts.data) {
+          contacts.data.slice(0, 3).forEach((contact: any) => {
+            activities.push({
+              id: contact._id,
+              type: 'message' as const,
+              action: 'Nouveau message de contact',
+              timestamp: contact.createdAt,
+              userEmail: contact.email,
+              details: contact.subject || 'Sans sujet'
+            });
+          });
+        }
+      }
+      
+      return activities
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 8); // Réduit de 10 à 8
+    } catch (error) {
+      console.error('❌ Erreur activités récentes:', error);
+      return [];
+    }
   }
 
   /**
-   * Récupère toutes les données du dashboard (stats + activités)
+   * Autres méthodes restent similaires mais avec throttling
    */
- async getAllDashboardData(
-  fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>
-): Promise<{
-  stats: DashboardStats;
-  activities: RecentActivity[];
-}> {
-  try {
-    console.log('🚀 Récupération de toutes les données du dashboard');
-
-    const cacheKey = 'all_dashboard_data';
-    const cached = this.cache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-      console.log('📦 Utilisation du cache complet');
-      return cached.data;
-    }
-
-    // MODIFICATION : Récupérer les données SÉQUENTIELLEMENT
-    // Au lieu de Promise.all, on fait les appels un par un
-    const stats = await this.getDashboardStats(fetchWithAuth);
-    
-    // Petite pause pour éviter le rate limiting
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    const activities = await this.getRecentActivities(fetchWithAuth, 5);
-
-    const result = {
-      stats,
-      activities,
-    };
-
-    // Mettre en cache
-    this.cache.set(cacheKey, { data: result, timestamp: Date.now() });
-
-    console.log('✅ Toutes les données récupérées');
-    return result;
-  } catch (error: any) {
-    console.error('❌ Erreur récupération données complètes:', error.message);
-    return {
-      stats: this.getDefaultStats(),
-      activities: [],
-    };
-  }
-}
-
-  /**
-   * Nettoyer le cache
-   */
-  clearCache(): void {
-    const cacheSize = this.cache.size;
-    this.cache.clear();
-    this.requestQueue.clear();
-    console.log(`🧹 Cache vidé - ${cacheSize} entrées supprimées`);
-  }
-}
-
-// Instance unique du service
-export const adminDashboardService = AdminDashboardService.getInstance();
-
-// ==================== HOOKS REACT ====================
-
-/**
- * Hook principal pour les données du dashboard
- */
-export const useDashboardData = () => {
-  const { fetchWithAuth, isAuthenticated, user } = useAuth();
-  const [data, setData] = useState<{
-    stats: DashboardStats | null;
-    activities: RecentActivity[];
-  } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-
-  const fetchData = useCallback(async (isRetry = false) => {
-    // Vérifier que l'utilisateur est admin et authentifié
-    if (!isAuthenticated || user?.role !== 'admin') {
-      console.log('🔒 Utilisateur non admin ou non authentifié');
-      setLoading(false);
-      return;
-    }
-
-    if (!fetchWithAuth) {
-      console.error('❌ fetchWithAuth non disponible');
-      setError('Service d\'authentification non disponible');
-      setLoading(false);
-      return;
-    }
-
-    if (!isRetry) {
-      setLoading(true);
-      setError(null);
-    }
-
-    try {
-      console.log('🔄 Chargement données dashboard...');
-      const dashboardData = await adminDashboardService.getAllDashboardData(fetchWithAuth);
-      
-      setData(dashboardData);
-      setLastRefresh(new Date());
-      setError(null);
-      console.log('✅ Données chargées avec succès');
-    } catch (err: any) {
-      console.error('❌ Erreur chargement dashboard:', err.message);
-      
-      // Les erreurs d'authentification sont gérées par AuthContext
-      if (err.message === 'SESSION_EXPIRED' || err.message === 'UNAUTHORIZED') {
-        return; // AuthContext va rediriger
-      }
-      
-      // Pour les erreurs de rate limiting, on affiche un message spécifique
-      if (err.message === 'TOO_MANY_REQUESTS') {
-        setError('Serveur temporairement surchargé. Veuillez réessayer dans quelques instants.');
-      } else {
-        setError('Impossible de charger les données du dashboard. Veuillez réessayer.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchWithAuth, isAuthenticated, user?.role]);
-
-  // Initial load
-  useEffect(() => {
-    if (isAuthenticated && user?.role === 'admin') {
-      // Délai pour s'assurer que le contexte auth est prêt et éviter les conflits
-      const timer = setTimeout(() => {
-        fetchData();
-      }, 800);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [fetchData, isAuthenticated, user?.role]);
-
-  const refresh = useCallback(async () => {
-    console.log('🔄 Rafraîchissement manuel');
-    adminDashboardService.clearCache();
-    await fetchData(true);
-  }, [fetchData]);
-
-  return {
-    stats: data?.stats || null,
-    activities: data?.activities || [],
-    loading,
-    error,
-    refresh,
-    lastRefresh,
-    isAdmin: user?.role === 'admin',
-  };
-};
-
-/**
- * Hook simplifié pour les statistiques rapides (utilise le cache)
- */
-export const useQuickStats = () => {
-  const { fetchWithAuth, isAuthenticated, user } = useAuth();
-  const [quickStats, setQuickStats] = useState({
-    totalUsers: 0,
-    activeUsers: 0,
-    totalProcedures: 0,
-    totalRendezvous: 0,
-  });
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!isAuthenticated || !fetchWithAuth || user?.role !== 'admin') {
-      return;
-    }
-
-    const loadQuickStats = async () => {
-      setLoading(true);
+  async getProceduresStats() {
+    return this.throttledFetch('detailed_procedures_stats', async () => {
       try {
-        // Utiliser la méthode optimisée qui réutilise le cache
-        const stats = await adminDashboardService.getQuickStats(fetchWithAuth);
-        setQuickStats(stats);
+        const response = await this.fetchWithAuth(`${this.API_URL}/api/procedures/admin/stats`);
+        if (!response.ok) throw new Error(`Erreur API: ${response.status}`);
+        return await response.json();
       } catch (error) {
-        console.error('❌ Erreur chargement quick stats:', error);
-        // Ne rien faire - les erreurs sont silencieuses pour quick stats
-      } finally {
-        setLoading(false);
+        console.error('❌ Erreur stats procédures:', error);
+        return { total: 0, active: 0, pending: 0, completed: 0, cancelled: 0 };
       }
+    });
+  }
+
+  async getUsersStats() {
+    return this.throttledFetch('detailed_users_stats', async () => {
+      try {
+        const response = await this.fetchWithAuth(`${this.API_URL}/api/users/stats`);
+        if (!response.ok) throw new Error(`Erreur API: ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        console.error('❌ Erreur stats utilisateurs:', error);
+        return { totalUsers: 0, activeUsers: 0, inactiveUsers: 0 };
+      }
+    });
+  }
+
+  async getContactStats() {
+    return this.throttledFetch('detailed_contact_stats', async () => {
+      try {
+        const response = await this.fetchWithAuth(`${this.API_URL}/api/contact/stats`);
+        if (!response.ok) throw new Error(`Erreur API: ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        console.error('❌ Erreur stats contact:', error);
+        return { total: 0, read: 0, unread: 0 };
+      }
+    });
+  }
+
+  // ==================== CACHE AMÉLIORÉ ====================
+
+  /**
+   * Cache avec expiration et prévention des requêtes simultanées
+   */
+  async refreshStats(forceRefresh: boolean = false): Promise<DashboardStats> {
+    const cacheKey = 'admin_dashboard_stats_v2';
+    const cacheTime = 2 * 60 * 1000; // 2 minutes (réduit de 5)
+    
+    try {
+      // Vérifier le cache
+      if (!forceRefresh) {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const { data, timestamp, version = '1' } = JSON.parse(cached);
+          
+          // Version du cache - invalider si ancienne version
+          if (version !== '2') {
+            localStorage.removeItem(cacheKey);
+          } else if (Date.now() - timestamp < cacheTime) {
+            console.log('📦 Utilisation du cache valide');
+            return data;
+          }
+        }
+      }
+      
+      console.log('🔄 Rafraîchissement des statistiques avec throttling...');
+      const stats = await this.getDashboardStats();
+      
+      // Mettre en cache avec version
+      localStorage.setItem(cacheKey, JSON.stringify({
+        data: stats,
+        timestamp: Date.now(),
+        version: '2'
+      }));
+      
+      return stats;
+    } catch (error) {
+      console.error('❌ Erreur rafraîchissement:', error);
+      
+      // Fallback au cache même expiré
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const { data } = JSON.parse(cached);
+        console.log('⚠️ Utilisation du cache expiré en fallback');
+        return data;
+      }
+      
+      // Données minimales en dernier recours
+      return {
+        totalProcedures: 0,
+        activeProcedures: 0,
+        pendingProcedures: 0,
+        completedProcedures: 0,
+        cancelledProcedures: 0,
+        totalUsers: 0,
+        activeUsers: 0,
+        pendingRendezvous: 0,
+        unreadMessages: 0,
+        recentActivities: []
+      };
+    }
+  }
+
+  // ==================== RECOMMANDATIONS BACKEND ====================
+
+  /**
+   * Suggestions pour optimiser le backend
+   */
+  static getBackendOptimizations() {
+    return {
+      recommendations: [
+        "Créer un endpoint /api/admin/dashboard-stats combinant toutes les stats",
+        "Ajouter un endpoint /api/rendezvous/stats pour les statistiques détaillées",
+        "Implémenter un endpoint /api/admin/recent-activities combiné",
+        "Ajouter des en-têtes Cache-Control appropriés",
+        "Considérer l'implémentation de GraphQL pour les requêtes combinées"
+      ],
+      currentIssues: [
+        "Trop de requêtes parallèles au dashboard",
+        "Requêtes redondantes pour les rendez-vous",
+        "Pas de cache côté serveur pour les stats",
+        "Pas de pagination pour les activités récentes"
+      ]
     };
+  }
+}
 
-    // Attendre que le dashboard principal ait chargé
-    const timer = setTimeout(() => {
-      loadQuickStats();
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [isAuthenticated, fetchWithAuth, user?.role]);
-
-  return { quickStats, loading };
+// Hook personnalisé avec protection supplémentaire
+export const useAdminDashboard = () => {
+  const { fetchWithAuth, isAuthenticated, user, isLoading: authLoading } = useAuth();
+  
+  // Vérifier l'authentification et le rôle admin
+  const isAdmin = isAuthenticated && user?.role === 'admin';
+  
+  if (!isAdmin && !authLoading) {
+    throw new Error('Accès non autorisé - Administrateur requis');
+  }
+  
+  const service = new AdminDashboardService(fetchWithAuth);
+  
+  // Limiter la fréquence des rafraîchissements
+  let lastRefresh = 0;
+  const MIN_REFRESH_INTERVAL = 30000; // 30 secondes
+  
+  const safeRefreshStats = async (force: boolean = false) => {
+    const now = Date.now();
+    
+    if (!force && (now - lastRefresh < MIN_REFRESH_INTERVAL)) {
+      console.log('⏳ Trop tôt pour rafraîchir, utilisation du cache');
+      return service.refreshStats(false);
+    }
+    
+    lastRefresh = now;
+    return service.refreshStats(force);
+  };
+  
+  return {
+    service,
+    refreshStats: safeRefreshStats,
+    getDashboardStats: service.getDashboardStats.bind(service),
+    user,
+    isAuthenticated: isAdmin,
+    isLoading: authLoading,
+    optimizations: AdminDashboardService.getBackendOptimizations()
+  };
 };
