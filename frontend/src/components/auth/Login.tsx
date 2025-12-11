@@ -157,7 +157,10 @@ const Login: React.FC = (): React.JSX.Element => {
     error.includes('désactivé');
 
   return (
-    <div className='flex items-center justify-center p-4 min-h-screen bg-sky-50'>
+    <div 
+      className='flex items-center justify-center p-4 min-h-screen bg-sky-50'
+      role='main'
+    >
       <div className='w-full max-w-sm'>
         <div className='bg-white rounded-lg shadow-md overflow-hidden mt-8'>
           <div className='bg-gradient-to-r from-sky-500 to-sky-600 p-4 text-center'>
@@ -176,14 +179,14 @@ const Login: React.FC = (): React.JSX.Element => {
           <div className='p-4'>
             <form className='space-y-3' onSubmit={handleSubmit}>
               {/* Champ username caché pour l'accessibilité */}
-              <div className='sr-only' aria-hidden='true'>
-                <label htmlFor='username'>Nom d'utilisateur</label>
+              <div className='sr-only'>
+                <label htmlFor='hidden-username'>Nom d'utilisateur</label>
                 <input
-                  id='username'
+                  id='hidden-username'
                   type='text'
                   name='username'
                   autoComplete='username'
-                  value={email}
+                  defaultValue={email}
                   readOnly
                   tabIndex={-1}
                   className='sr-only'
@@ -247,8 +250,12 @@ const Login: React.FC = (): React.JSX.Element => {
                   />
                   <button
                     type='button'
-                    className='absolute inset-y-0 right-0 pr-3 flex items-center'
-                    onClick={() => setShowPassword(!showPassword)}
+                    className='absolute inset-y-0 right-0 pr-3 flex items-center focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1 rounded'
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowPassword(prev => !prev);
+                    }}
                     disabled={isLoading}
                     aria-label={
                       showPassword
@@ -257,6 +264,7 @@ const Login: React.FC = (): React.JSX.Element => {
                     }
                     aria-describedby='password-toggle-description'
                     aria-controls='password'
+                    aria-pressed={showPassword}
                   >
                     {showPassword ? (
                       <FiEyeOff
@@ -320,7 +328,7 @@ const Login: React.FC = (): React.JSX.Element => {
                   <p className='text-xs text-gray-600'>
                     <Link
                       to='/mot-de-passe-oublie'
-                      className='font-medium text-sky-600 hover:text-sky-500 transition-colors'
+                      className='font-medium text-sky-700 hover:text-sky-800 transition-colors'
                     >
                       Mot de passe oublié?
                     </Link>
@@ -329,7 +337,7 @@ const Login: React.FC = (): React.JSX.Element => {
                     Vous n'avez pas de compte?{' '}
                     <Link
                       to='/inscription'
-                      className='font-medium text-sky-600 hover:text-sky-500 transition-colors'
+                      className='font-medium text-sky-700 hover:text-sky-800 transition-colors'
                     >
                       S'inscrire
                     </Link>
