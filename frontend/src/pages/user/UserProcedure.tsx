@@ -157,6 +157,24 @@ const UserProcedureComponent = (): React.JSX.Element => {
     }
   };
 
+  // === EFFETS DE GESTION D'AUTHENTIFICATION SIMPLIFIÉE ===
+  useEffect(() => {
+    if (!isAuthenticated) {
+      console.log('🚫 Non authentifié, redirection vers login');
+      navigate('/connexion');
+      return;
+    }
+
+    if (user && !user.isActive) {
+      console.log('🚫 Compte inactif, déconnexion');
+      logout();
+      setHasAccess(false);
+      return;
+    }
+
+    setHasAccess(true);
+  }, [isAuthenticated, user, navigate, logout]);
+
   // === GESTION DES ERREURS DE SESSION ===
   useEffect(() => {
     if (

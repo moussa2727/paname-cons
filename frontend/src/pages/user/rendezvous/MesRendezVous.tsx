@@ -1,3 +1,4 @@
+// MesRendezvous.tsx - VERSION CORRIGÉE POUR PROD
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
@@ -30,6 +31,16 @@ import {
   AuthFunctions 
 } from '../../../api/user/Rendezvous/UserRendezvousService';
 
+// Composant de chargement réutilisable
+const LoadingScreen = ({ message = "Chargement..." }: { message?: string }) => (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mx-auto mb-4"></div>
+      <p className="text-gray-600">{message}</p>
+    </div>
+  </div>
+);
+
 const pageConfigs = {
   '/mon-profil': {
     title: 'Mon Profil',
@@ -51,7 +62,6 @@ const pageConfigs = {
   },
 };
 
-// Onglets de navigation
 const navTabs = [
   {
     id: 'profile',
@@ -94,7 +104,6 @@ const avisColors: Record<string, string> = {
 };
 
 const MesRendezvous = () => {
-  // Récupérer TOUTES les fonctions d'authentification du contexte
   const { 
     user,
     isAuthenticated, 
@@ -121,6 +130,51 @@ const MesRendezvous = () => {
     total: 0,
     totalPages: 1,
   });
+
+  // === GESTION D'AUTHENTIFICATION SIMPLIFIÉE ===
+  // 1. Gestion du compte inactif
+  useEffect(() => {
+    if (user && !user.isActive) {
+      console.log('🚫 Compte inactif détecté');
+      logout();
+      toast.error('Votre compte a été désactivé');
+    }
+  }, [user, logout]);
+
+  // 2. Vérification d'authentification
+  useEffect(() => {
+    if (authLoading) {
+      console.log('⏳ Chargement auth en cours...');
+      return;
+    }
+    
+    console.log('🔍 État auth:', {
+      isAuthenticated,
+      userEmail: user?.email,
+      path: location.pathname
+    });
+    
+    if (!isAuthenticated) {
+      console.log('🔒 Non authentifié - Redirection vers /connexion');
+      navigate('/connexion', { 
+        replace: true,
+        state: { from: location.pathname }
+      });
+    }
+  }, [authLoading, isAuthenticated, user, navigate, location.pathname]);
+
+  // === ÉTATS DE CHARGEMENT ===
+  if (authLoading) {
+    return <LoadingScreen message="Chargement de l'authentification..." />;
+  }
+
+  if (!isAuthenticated) {
+    return null; // Redirection en cours via useEffect
+  }
+
+  if (!user) {
+    return <LoadingScreen message="Récupération des informations..." />;
+  }
 
   // Créer l'objet authFunctions pour passer au service
   const authFunctions: AuthFunctions = useMemo(() => ({
@@ -381,43 +435,6 @@ const MesRendezvous = () => {
       )}
     </div>
   );
-
-  // === ÉCRAN DE CHARGEMENT ===
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Chargement de l'authentification...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // === ÉCRAN DE NON AUTHENTIFIÉ ===
-  if (!isAuthenticated) {
-    return (
-      <div className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4'>
-        <div className="text-center max-w-sm">
-          <div className="w-20 h-20 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <FiAlertCircle className="w-10 h-10 text-orange-500" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-3">
-            Session expirée
-          </h2>
-          <p className="text-slate-600 mb-6">
-            Votre session a expiré. Veuillez vous reconnecter.
-          </p>
-          <button
-            onClick={() => navigate('/connexion')}
-            className="inline-flex items-center px-6 py-3 bg-sky-500 text-white rounded-xl hover:bg-sky-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
-          >
-            Se connecter
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   // === RENDU CONDITIONNEL PAR PAGE ===
   const renderPageContent = () => {

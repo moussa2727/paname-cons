@@ -111,7 +111,27 @@ const UserProfile = () => {
     );
   }
 
+  // MesRendezvous.tsx, UserProfile.tsx, UserProcedure.tsx
+// Garde CE code SEULEMENT :
+
+useEffect(() => {
+  if (authLoading) return;
   
+  console.log('🔍 État auth:', {
+    isAuthenticated,
+    path: location.pathname
+  });
+  
+  if (!isAuthenticated) {
+    console.log('🔒 Redirection vers /connexion');
+    navigate('/connexion', { 
+      replace: true,
+      state: { from: location.pathname }
+    });
+    return;
+  }
+}, [authLoading, isAuthenticated, navigate, location.pathname]);
+
   // États optimisés
   const initialProfileData = {
     email: user?.email || '',
