@@ -4,6 +4,7 @@ import { useAdminContactService } from '../../api/admin/AdminContactService';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 import { Helmet } from 'react-helmet-async';
+import RequireAdmin from '../../context/RequireAdmin';
 
 // Import Lucide Icons
 import {
@@ -21,16 +22,48 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { Key, ReactElement, JSXElementConstructor, ReactNode, ReactPortal } from 'react';
+
+// Interface locale alignée avec le service API
+interface ContactItem {
+  _id: string;
+  firstName?: string;
+  lastName?: string;
+  email: string;
+  message: string;
+  isRead: boolean;
+  adminResponse?: string;
+  respondedAt?: Date;
+  respondedBy?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Interface pour les statistiques
+interface ContactStats {
+  total: number;
+  unread: number;
+  read: number;
+  responded: number;
+  thisMonth: number;
+  lastMonth: number;
+}
+
+// Interface pour les filtres - page et limit sont obligatoires
+interface ContactFilters {
+  page: number;
+  limit: number;
+  isRead?: boolean;
+  search?: string;
+}
 
 const AdminMessages: React.FC = () => {
   const contactService = useAdminContactService();
   const { user } = useAuth();
 
-  // État pour les contacts
-  const [contacts, setContacts] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>(null);
-  const [selectedContact, setSelectedContact] = useState<any>(null);
+  // État pour les contacts avec typage strict
+  const [contacts, setContacts] = useState<ContactItem[]>([]);
+  const [stats, setStats] = useState<ContactStats | null>(null);
+  const [selectedContact, setSelectedContact] = useState<ContactItem | null>(null);
   
   // États pour les modales
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -42,28 +75,42 @@ const AdminMessages: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // États pour la pagination et filtres
-  const [filters, setFilters] = useState({
+  // États pour la pagination et filtres - page et limit sont toujours définis
+  const [filters, setFilters] = useState<ContactFilters>({
     page: 1,
     limit: 10,
     search: '',
-    isRead: undefined as boolean | undefined,
+    isRead: undefined,
   });
 
   const [showFilters, setShowFilters] = useState(false);
   const [totalContacts, setTotalContacts] = useState(0);
 
-  // Charger les contacts
+  // Charger les contacts avec gestion d'erreur robuste
   const loadContacts = async () => {
     try {
       setLoading(true);
       const response = await contactService.getAllContacts(filters);
-      setContacts(response.data);
+      // Conversion explicite des dates si nécessaire
+      const contactsData = response.data.map(contact => ({
+        ...contact,
+        createdAt: new Date(contact.createdAt),
+        updatedAt: new Date(contact.updatedAt),
+        respondedAt: contact.respondedAt ? new Date(contact.respondedAt) : undefined,
+      }));
+      setContacts(contactsData);
       setTotalContacts(response.total);
     } catch (error: any) {
-      if (error.message !== 'Accès refusé : droits administrateur requis') {
-        toast.error('Erreur lors du chargement des messages');
+      const errorMessage = error.message || 'Erreur lors du chargement des messages';
+      
+      // Ne pas afficher de toast pour les erreurs d'accès - géré par RequireAdmin
+      if (!errorMessage.includes('Accès refusé')) {
+        toast.error(errorMessage);
       }
+      
+      // Réinitialiser les données en cas d'erreur
+      setContacts([]);
+      setTotalContacts(0);
     } finally {
       setLoading(false);
     }
@@ -75,33 +122,36 @@ const AdminMessages: React.FC = () => {
       const statsData = await contactService.getContactStats();
       setStats(statsData);
     } catch (error: any) {
-      if (error.message !== 'Accès refusé : droits administrateur requis') {
-        toast.error('Erreur lors du chargement des statistiques');
+      const errorMessage = error.message || 'Erreur lors du chargement des statistiques';
+      
+      // Ne pas afficher de toast pour les erreurs d'accès
+      if (!errorMessage.includes('Accès refusé')) {
+        toast.error(errorMessage);
       }
     }
   };
 
+  // Charger les données quand les filtres changent
   useEffect(() => {
-    // Vérifier si l'utilisateur est admin
-    if (!user || user.role !== 'admin') {
-      toast.error('Accès refusé : droits administrateur requis');
-      return;
-    }
-
-    loadContacts();
-    loadStats();
+    const fetchData = async () => {
+      await Promise.all([loadContacts(), loadStats()]);
+    };
+    
+    fetchData();
   }, [filters]);
 
-  // Gestionnaires d'actions
+  // Gestionnaires d'actions avec typage strict
   const handleMarkAsRead = async (id: string) => {
     try {
       setActionLoading(`read-${id}`);
       await contactService.markAsRead(id);
-      await loadContacts();
-      await loadStats();
+      await Promise.all([loadContacts(), loadStats()]);
+      toast.success('Message marqué comme lu');
     } catch (error: any) {
-      if (error.message !== 'Accès refusé : droits administrateur requis') {
-        toast.error('Erreur lors du marquage du message');
+      const errorMessage = error.message || 'Erreur lors du marquage du message';
+      
+      if (!errorMessage.includes('Accès refusé')) {
+        toast.error(errorMessage);
       }
     } finally {
       setActionLoading(null);
@@ -117,14 +167,15 @@ const AdminMessages: React.FC = () => {
     try {
       setActionLoading('reply');
       await contactService.replyToMessage(selectedContact._id, replyMessage);
-      await loadContacts();
-      await loadStats();
+      await Promise.all([loadContacts(), loadStats()]);
       setIsReplyModalOpen(false);
       setReplyMessage('');
       toast.success('Réponse envoyée avec succès');
     } catch (error: any) {
-      if (error.message !== 'Accès refusé : droits administrateur requis') {
-        toast.error("Erreur lors de l'envoi de la réponse");
+      const errorMessage = error.message || "Erreur lors de l'envoi de la réponse";
+      
+      if (!errorMessage.includes('Accès refusé')) {
+        toast.error(errorMessage);
       }
     } finally {
       setActionLoading(null);
@@ -135,26 +186,27 @@ const AdminMessages: React.FC = () => {
     try {
       setActionLoading(`delete-${id}`);
       await contactService.deleteContact(id);
-      await loadContacts();
-      await loadStats();
+      await Promise.all([loadContacts(), loadStats()]);
       setIsDeleteModalOpen(false);
       setSelectedContact(null);
       toast.success('Message supprimé avec succès');
     } catch (error: any) {
-      if (error.message !== 'Accès refusé : droits administrateur requis') {
-        toast.error('Erreur lors de la suppression du message');
+      const errorMessage = error.message || 'Erreur lors de la suppression du message';
+      
+      if (!errorMessage.includes('Accès refusé')) {
+        toast.error(errorMessage);
       }
     } finally {
       setActionLoading(null);
     }
   };
 
-  const confirmDelete = (contact: any) => {
+  const confirmDelete = (contact: ContactItem) => {
     setSelectedContact(contact);
     setIsDeleteModalOpen(true);
   };
 
-  const handleViewDetails = async (contact: any) => {
+  const handleViewDetails = async (contact: ContactItem) => {
     try {
       setSelectedContact(contact);
       setIsDetailModalOpen(true);
@@ -164,13 +216,15 @@ const AdminMessages: React.FC = () => {
         await handleMarkAsRead(contact._id);
       }
     } catch (error: any) {
-      if (error.message !== 'Accès refusé : droits administrateur requis') {
-        toast.error('Erreur lors de la récupération des détails');
+      const errorMessage = error.message || 'Erreur lors de la récupération des détails';
+      
+      if (!errorMessage.includes('Accès refusé')) {
+        toast.error(errorMessage);
       }
     }
   };
 
-  const handleOpenReply = (contact: any) => {
+  const handleOpenReply = (contact: ContactItem) => {
     setSelectedContact(contact);
     setIsReplyModalOpen(true);
   };
@@ -188,13 +242,13 @@ const AdminMessages: React.FC = () => {
 
   // Gestion des filtres
   const handleFilterChange = (
-    key: string,
-    value: string | boolean | undefined
+    key: keyof ContactFilters,
+    value: string | boolean | number | undefined
   ) => {
-    setFilters((prev: any) => ({
+    setFilters(prev => ({
       ...prev,
       [key]: value,
-      page: 1,
+      page: 1, // Retour à la première page quand on change les filtres
     }));
   };
 
@@ -241,19 +295,12 @@ const AdminMessages: React.FC = () => {
     );
   };
 
-  // Vérifier l'accès admin
-  if (!user || user.role !== 'admin') {
-    return (
-      <div className='min-h-screen bg-slate-50 p-3 flex items-center justify-center'>
-        <div className='text-center'>
-          <div className='bg-red-100 p-4 rounded-lg inline-block mb-4'>
-            <X className='w-12 h-12 text-red-600 mx-auto' />
-          </div>
-          <h2 className='text-lg font-bold text-slate-900 mb-2'>Accès refusé</h2>
-          <p className='text-slate-600'>Vous n'avez pas les droits administrateur nécessaires pour accéder à cette page.</p>
-        </div>
-      </div>
-    );
+  // Vérifier si l'utilisateur peut accéder à l'admin (déjà vérifié par RequireAdmin)
+  const canAccessAdmin = contactService.canAccessAdmin;
+
+  // Si l'utilisateur n'a pas accès, RequireAdmin aura redirigé
+  if (!canAccessAdmin) {
+    return null; // RequireAdmin gère la redirection
   }
 
   // Affichage du chargement
@@ -461,7 +508,7 @@ const AdminMessages: React.FC = () => {
           </div>
 
           <div className='divide-y divide-slate-200'>
-            {contacts.map((contact: { _id: Key | null | undefined; isRead: boolean; firstName: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | null | undefined; lastName: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | null | undefined; email: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | null | undefined; adminResponse: any; message: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | null | undefined; createdAt: string | Date; }) => (
+            {contacts.map((contact) => (
               <div
                 key={contact._id}
                 className={`p-3 hover:bg-slate-50 transition-colors ${
@@ -797,4 +844,9 @@ const AdminMessages: React.FC = () => {
   );
 };
 
-export default AdminMessages;
+// Export direct avec RequireAdmin wrapper
+export default () => (
+  <RequireAdmin>
+    <AdminMessages />
+  </RequireAdmin>
+);

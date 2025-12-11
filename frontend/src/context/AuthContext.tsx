@@ -1499,7 +1499,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     rateLimitState,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return(
+    <> 
+    <AuthContext.Provider 
+     value={value}>{children}
+     </AuthContext.Provider>
+    </>
+  )
+   ;
 };
 
 // ==================== HOOKS ====================
