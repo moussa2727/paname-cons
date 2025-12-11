@@ -1,4 +1,4 @@
-// MesRendezvous.tsx - VERSION ALLÉGÉE
+// MesRendezvous.tsx - VERSION SIMPLIFIÉE ET SÉCURISÉE
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
@@ -111,7 +111,8 @@ const MesRendezvous = () => {
     logout,
     fetchWithAuth,
     isLoading: authLoading,
-    updateProfile
+    updateProfile,
+    isAuthenticated
   } = useAuth();
   
   const navigate = useNavigate();
@@ -130,13 +131,20 @@ const MesRendezvous = () => {
     totalPages: 1,
   });
 
-  // === CHARGEMENT SIMPLE ===
+  // === VÉRIFICATION DE SESSION SIMPLIFIÉE ===
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated && location.pathname !== '/connexion') {
+      console.log('🔒 Session non valide, redirection vers /connexion');
+      navigate('/connexion', { replace: true });
+    }
+  }, [authLoading, isAuthenticated, navigate, location.pathname]);
+
   if (authLoading) {
     return <LoadingScreen message="Chargement de l'authentification..." />;
   }
 
-  if (!user) {
-    return <LoadingScreen message="Récupération des informations..." />;
+  if (!user || !isAuthenticated) {
+    return <LoadingScreen message="Redirection vers la connexion..." />;
   }
 
   // Créer l'objet authFunctions pour passer au service
@@ -170,6 +178,11 @@ const MesRendezvous = () => {
 
   // Fonction pour charger les rendez-vous
   const fetchRendezvous = useCallback(async () => {
+    if (!isAuthenticated) {
+      console.warn('⚠️ Tentative de fetchRendezvous sans authentification');
+      return;
+    }
+
     setLoading(true);
     try {
       const data = await rendezvousService.fetchUserRendezvous({
@@ -189,25 +202,22 @@ const MesRendezvous = () => {
         toast.info(`Aucun rendez-vous avec le statut "${selectedStatus}"`);
       }
     } catch (error: any) {
-      // Gérer spécifiquement les sessions expirées
-      if (error.message === 'SESSION_EXPIRED') {
-        console.log('🔒 Session expirée détectée');
-        toast.info('Session expirée. Veuillez vous reconnecter.');
-        navigate('/connexion', { replace: true });
-      } else {
+      // La gestion de SESSION_EXPIRED est déjà faite par fetchWithAuth
+      // On ne fait rien de spécial ici
+      if (error.message !== 'SESSION_EXPIRED' && error.message !== 'SESSION_CHECK_IN_PROGRESS') {
         toast.error('Impossible de charger vos rendez-vous');
       }
     } finally {
       setLoading(false);
     }
-  }, [rendezvousService, pagination.page, pagination.limit, selectedStatus, navigate]);
+  }, [rendezvousService, pagination.page, pagination.limit, selectedStatus, isAuthenticated]);
 
   // Charger les rendez-vous quand les dépendances changent
   useEffect(() => {
-    if (location.pathname === '/mes-rendez-vous' && rendezvousService) {
+    if (location.pathname === '/mes-rendez-vous' && isAuthenticated) {
       fetchRendezvous();
     }
-  }, [location.pathname, rendezvousService, pagination.page, selectedStatus, fetchRendezvous]);
+  }, [location.pathname, isAuthenticated, fetchRendezvous]);
 
   // Annuler un rendez-vous
   const handleCancelRendezvous = async (rdvId: string) => {
@@ -227,9 +237,9 @@ const MesRendezvous = () => {
       
       toast.success('Rendez-vous annulé avec succès');
     } catch (error: any) {
-      if (error.message === 'SESSION_EXPIRED') {
-        toast.info('Session expirée');
-        navigate('/connexion');
+      // La gestion de SESSION_EXPIRED est déjà faite
+      if (error.message !== 'SESSION_EXPIRED' && error.message !== 'SESSION_CHECK_IN_PROGRESS') {
+        toast.error('Erreur lors de l\'annulation');
       }
     } finally {
       setCancelling(null);

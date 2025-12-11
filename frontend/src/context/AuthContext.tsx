@@ -121,6 +121,10 @@ interface AuthContextType {
   };
 }
 
+
+// ==================== VARIABLE GLOBALE POUR ÉVITER LES BOUCLES ====================
+let isGlobalSessionCheck = false;
+
 // ==================== CONSTANTS SYNCHRONISÉES AVEC BACKEND ====================
 const AUTH_CONSTANTS = {
   ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000,
@@ -417,10 +421,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+ // ==================== FONCTION fetchWithAuth MODIFIÉE ====================
   const fetchWithAuth = useCallback(async (
     endpoint: string,
     options: RequestInit = {}
   ): Promise<Response> => {
+    // Éviter les boucles infinies
+    if (isGlobalSessionCheck) {
+      if (import.meta.env.DEV) {
+        console.warn('⚠️ fetchWithAuth appelé pendant une vérification de session globale - Ignoré');
+      }
+      throw new Error('SESSION_CHECK_IN_PROGRESS');
+    }
+
     // Vérifier le rate limiting local d'abord
     const rateLimitCheck = checkRateLimit();
     if (!rateLimitCheck.allowed) {
@@ -466,12 +479,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (response.status === 401) {
+        // Marquer que nous sommes en train de gérer une session expirée
+        isGlobalSessionCheck = true;
+        
         const errorData = await response.json().catch(() => ({}));
         
         if (errorData.sessionExpired || errorData.loggedOut || errorData.requiresReauth) {
           if (import.meta.env.DEV) {
             console.log('🔒 Session expirée détectée par fetchWithAuth');
           }
+          
+          // Attendre un peu avant de nettoyer pour éviter les conflits
+          await new Promise(resolve => setTimeout(resolve, 100));
           
           cleanupAuthData();
           
@@ -482,6 +501,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           navigate(REDIRECT_PATHS.LOGIN, { replace: true });
           throw new Error('SESSION_EXPIRED');
         }
+        
+        // Réinitialiser le flag
+        isGlobalSessionCheck = false;
         
         if (errorData.code) {
           throw new Error(errorData.code);
@@ -501,6 +523,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       return response;
     } catch (error) {
+      // S'assurer que le flag est réinitialisé en cas d'erreur
+      isGlobalSessionCheck = false;
+      
       if (error instanceof Error && error.message === AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS) {
         // Ne pas relancer pour éviter les boucles infinies
         throw error;
@@ -508,6 +533,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw error;
     }
   }, [access_token, cleanupAuthData, navigate]);
+
 
   const fetchUserData = useCallback(async (): Promise<void> => {
     // Vérifier si un refresh est déjà en cours
