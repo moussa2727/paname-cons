@@ -1,4 +1,3 @@
-// UserProfile.tsx - VERSION COMPLÈTE CORRIGÉE
 import { useState, useEffect, FormEvent, FC, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
@@ -15,6 +14,7 @@ import {
   Mail,
   Phone,
   RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import { userProfileService } from '../../api/user/Profile/userProfileApi';
@@ -23,7 +23,7 @@ import { toast } from 'react-toastify';
 const UserProfile = () => {
   const { 
     user, 
-    access_token,  // ✓ Nom correct avec underscore
+    access_token,
     isAuthenticated, 
     logout, 
     updateProfile, 
@@ -34,6 +34,7 @@ const UserProfile = () => {
   const location = useLocation();
   const headerRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
+  const [hasAccess, setHasAccess] = useState<boolean>(true);
 
   // Configuration des pages avec leurs titres spécifiques
   const pageConfigs = {
@@ -110,18 +111,23 @@ const UserProfile = () => {
     );
   }
 
-  // Rediriger immédiatement si non authentifié
+  // === GESTION D'AUTHENTIFICATION SIMPLIFIÉE ===
   useEffect(() => {
-    if (!isAuthenticated && !authLoading) {
+    if (!isAuthenticated) {
+      console.log('🚫 [UserProfile] Non authentifié, redirection vers login');
       navigate('/connexion');
       return;
     }
 
     if (user && !user.isActive) {
+      console.log('🚫 [UserProfile] Compte inactif, déconnexion');
       logout();
+      setHasAccess(false);
       return;
     }
-  }, [isAuthenticated, authLoading, user, navigate, logout]);
+
+    setHasAccess(true);
+  }, [isAuthenticated, user, navigate, logout]);
 
   // États optimisés
   const initialProfileData = {
@@ -228,7 +234,7 @@ const UserProfile = () => {
   const handleProfileSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!access_token || !user) { // ✓ Utiliser access_token avec underscore
+    if (!access_token || !user) {
       toast.error('Session expirée, veuillez vous reconnecter');
       return;
     }
@@ -266,7 +272,7 @@ const UserProfile = () => {
     setIsLoading(true);
 
     try {
-      const updatedUser = await userProfileService.updateProfile(access_token, { // ✓ Passé avec underscore
+      const updatedUser = await userProfileService.updateProfile(access_token, {
         email: profileData.email,
         telephone: profileData.telephone,
       });
@@ -285,7 +291,8 @@ const UserProfile = () => {
     } catch (error) {
       const err = error as Error;
       
-      if (err.message.includes('Session expirée') || err.message.includes('401')) {
+      if (err.message.includes('Session expirée') || err.message.includes('401') || err.message.includes('SESSION_EXPIRED')) {
+        console.log('🔒 [UserProfile] Session expirée lors de la mise à jour');
         toast.error('Session expirée, redirection...');
         setTimeout(() => logout(), 2000);
       } else {
@@ -300,7 +307,7 @@ const UserProfile = () => {
   const handlePasswordSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!access_token) { // ✓ Utiliser access_token avec underscore
+    if (!access_token) {
       toast.error('Session expirée, veuillez vous reconnecter');
       return;
     }
@@ -323,7 +330,7 @@ const UserProfile = () => {
     setIsLoading(true);
 
     try {
-      const result = await userProfileService.updatePassword(access_token, passwordData); // ✓ Passé avec underscore
+      const result = await userProfileService.updatePassword(access_token, passwordData);
 
       if (result.success) {
         setPasswordData(initialPasswordData);
@@ -335,7 +342,8 @@ const UserProfile = () => {
     } catch (error) {
       const err = error as Error;
       
-      if (err.message.includes('Session expirée') || err.message.includes('401')) {
+      if (err.message.includes('Session expirée') || err.message.includes('401') || err.message.includes('SESSION_EXPIRED')) {
+        console.log('🔒 [UserProfile] Session expirée lors du changement de mot de passe');
         toast.error('Session expirée, redirection...');
         setTimeout(() => logout(), 2000);
       } else {
@@ -382,7 +390,7 @@ const UserProfile = () => {
 
   // ==================== FONCTION DE RECHARGEMENT ====================
   const refreshUserData = async () => {
-    if (!access_token) return; // ✓ Utiliser access_token avec underscore
+    if (!access_token) return;
     
     setIsLoading(true);
     try {
@@ -436,18 +444,57 @@ const UserProfile = () => {
     );
   };
 
-  // ==================== RENDERING ====================
-  if (!isAuthenticated || authLoading) {
+  // === ÉCRAN D'ACCÈS REFUSÉ ===
+  if (!hasAccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Redirection vers la connexion...</p>
+      <div className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4'>
+        <div className="text-center max-w-sm">
+          <div className="w-20 h-20 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-10 h-10 text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-3">
+            Accès révoqué
+          </h2>
+          <p className="text-slate-600 mb-6">
+            Votre compte est temporairement désactivé. Contactez l'administrateur.
+          </p>
+          <button
+            onClick={() => navigate('/connexion')}
+            className="inline-flex items-center px-6 py-3 bg-sky-500 text-white rounded-xl hover:bg-sky-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
+          >
+            Se reconnecter
+          </button>
         </div>
       </div>
     );
   }
 
+  // === ÉCRAN DE SESSION EXPIRÉE ===
+  if (!isAuthenticated || !user) {
+    return (
+      <div className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4'>
+        <div className="text-center max-w-sm">
+          <div className="w-20 h-20 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-10 h-10 text-orange-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-3">
+            Session expirée
+          </h2>
+          <p className="text-slate-600 mb-6">
+            Votre session a expiré. Veuillez vous reconnecter.
+          </p>
+          <button
+            onClick={() => navigate('/connexion')}
+            className="inline-flex items-center px-6 py-3 bg-sky-500 text-white rounded-xl hover:bg-sky-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
+          >
+            Se connecter
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== RENDERING ====================
   return (
     <>
       <Helmet>
@@ -482,76 +529,70 @@ const UserProfile = () => {
               </div>
             </div>
             
-            {isAuthenticated && (
-              <button
-                onClick={refreshUserData}
-                disabled={isLoading}
-                className='p-2 bg-sky-50 rounded-xl hover:bg-sky-100 active:scale-95 transition-all duration-200 disabled:opacity-50'
-                title="Actualiser"
-                aria-label="Actualiser"
-              >
-                <RefreshCw className={`w-4 h-4 text-sky-600 ${isLoading ? 'animate-spin' : ''}`} />
-              </button>
-            )}
+            <button
+              onClick={refreshUserData}
+              disabled={isLoading}
+              className='p-2 bg-sky-50 rounded-xl hover:bg-sky-100 active:scale-95 transition-all duration-200 disabled:opacity-50'
+              title="Actualiser"
+              aria-label="Actualiser"
+            >
+              <RefreshCw className={`w-4 h-4 text-sky-600 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
           </div>
 
-          {/* Navigation - SEULEMENT si authentifié */}
-          {isAuthenticated && (
-            <>
-              <div className='overflow-x-auto pb-1 no-scrollbar'>
-                <nav className='flex gap-1.5 min-w-max'>
-                  {navTabs.map(tab => {
-                    const isActive = activeTabId === tab.id;
-                    return (
-                      <Link
-                        key={tab.id}
-                        to={tab.to}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 flex-shrink-0 relative ${
-                          isActive
-                            ? 'bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sm'
-                            : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-sky-300 hover:bg-sky-50 active:scale-95'
-                        }`}
-                        aria-current={isActive ? 'page' : undefined}
-                      >
-                        <tab.icon className={`w-3.5 h-3.5 ${
-                          isActive ? 'text-white' : 'text-gray-500'
-                        }`} />
-                        <span className={`text-xs font-medium whitespace-nowrap ${
-                          isActive ? 'text-white' : 'text-gray-700'
-                        }`}>
-                          {tab.label}
-                        </span>
-                        {isActive && (
-                          <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-4 h-0.5 bg-sky-400 rounded-full"></div>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </nav>
-              </div>
-
-              {/* Indicateur de statut */}
-              <div className='mt-2 pt-2 border-t border-gray-100'>
-                <div className='flex items-center justify-between'>
-                  <div className='flex items-center gap-1.5'>
-                    <div className='w-1.5 h-1.5 bg-emerald-500 rounded-full'></div>
-                    <span className='text-xs text-gray-600'>
-                      {new Date().toLocaleDateString('fr-FR', { 
-                        day: 'numeric',
-                        month: 'short'
-                      })}
+          {/* Navigation */}
+          <div className='overflow-x-auto pb-1 no-scrollbar'>
+            <nav className='flex gap-1.5 min-w-max'>
+              {navTabs.map(tab => {
+                const isActive = activeTabId === tab.id;
+                return (
+                  <Link
+                    key={tab.id}
+                    to={tab.to}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 flex-shrink-0 relative ${
+                      isActive
+                        ? 'bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sm'
+                        : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-sky-300 hover:bg-sky-50 active:scale-95'
+                    }`}
+                    aria-current={isActive ? 'page' : undefined}
+                  >
+                    <tab.icon className={`w-3.5 h-3.5 ${
+                      isActive ? 'text-white' : 'text-gray-500'
+                    }`} />
+                    <span className={`text-xs font-medium whitespace-nowrap ${
+                      isActive ? 'text-white' : 'text-gray-700'
+                    }`}>
+                      {tab.label}
                     </span>
-                  </div>
-                  <span className='text-xs text-gray-500'>
-                    {new Date().toLocaleTimeString('fr-FR', { 
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </span>
-                </div>
+                    {isActive && (
+                      <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-4 h-0.5 bg-sky-400 rounded-full"></div>
+                    )}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* Indicateur de statut */}
+          <div className='mt-2 pt-2 border-t border-gray-100'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-1.5'>
+                <div className='w-1.5 h-1.5 bg-emerald-500 rounded-full'></div>
+                <span className='text-xs text-gray-600'>
+                  {new Date().toLocaleDateString('fr-FR', { 
+                    day: 'numeric',
+                    month: 'short'
+                  })}
+                </span>
               </div>
-            </>
-          )}
+              <span className='text-xs text-gray-500'>
+                {new Date().toLocaleTimeString('fr-FR', { 
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Effet de séparation */}

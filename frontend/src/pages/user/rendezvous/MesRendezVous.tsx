@@ -1,4 +1,4 @@
-// MesRendezvous.tsx - VERSION COMPLÈTE CORRIGÉE
+// MesRendezvous.tsx
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
@@ -8,22 +8,17 @@ import 'aos/dist/aos.css';
 import {
   FiCalendar,
   FiClock,
-  FiUser,
-  FiMail,
-  FiPhone,
   FiMapPin,
   FiBook,
   FiAward,
   FiCheckCircle,
   FiXCircle,
   FiAlertCircle,
-  FiEdit,
   FiTrash2,
   FiChevronLeft,
   FiChevronRight,
   FiRefreshCw,
   FiInfo,
-  FiEye,
   FiStar,
   FiFilter,
 } from 'react-icons/fi';
@@ -96,8 +91,9 @@ const avisColors: Record<string, string> = {
 
 const MesRendezvous = () => {
   const { 
+    user,
     isAuthenticated, 
-    access_token,  // ✓ Nom correct avec underscore
+    access_token,  
     refreshToken, 
     logout, 
     isLoading: authLoading 
@@ -120,6 +116,7 @@ const MesRendezvous = () => {
   });
 
   const [rendezvousService, setRendezvousService] = useState<UserRendezvousService | null>(null);
+  const [hasAccess, setHasAccess] = useState<boolean>(true);
 
   // Afficher un loader pendant que l'auth se charge
   if (authLoading) {
@@ -133,11 +130,29 @@ const MesRendezvous = () => {
     );
   }
 
+  // === GESTION D'AUTHENTIFICATION SIMPLIFIÉE ===
+  useEffect(() => {
+    if (!isAuthenticated) {
+      console.log('🚫 [MesRendezVous] Non authentifié, redirection vers login');
+      navigate('/connexion');
+      return;
+    }
+
+    if (user && !user.isActive) {
+      console.log('🚫 [MesRendezVous] Compte inactif, déconnexion');
+      logout();
+      setHasAccess(false);
+      return;
+    }
+
+    setHasAccess(true);
+  }, [isAuthenticated, user, navigate, logout]);
+
   // Initialiser le service seulement quand l'authentification est prête
   useEffect(() => {
     if (isAuthenticated && access_token) {
       setRendezvousService(
-        new UserRendezvousService(access_token, refreshToken, logout) // ✓ Passé avec underscore
+        new UserRendezvousService(access_token, refreshToken, logout)
       );
     }
   }, [isAuthenticated, access_token, refreshToken, logout]);
@@ -178,8 +193,7 @@ const MesRendezvous = () => {
 
   const fetchRendezvous = useCallback(async () => {
     if (!isAuthenticated || !rendezvousService) {
-      toast.error('Veuillez vous connecter pour voir vos rendez-vous');
-      navigate('/connexion');
+      console.log('⚠️ [MesRendezVous] fetchRendezvous ignoré - non authentifié ou service non initialisé');
       return;
     }
 
@@ -202,16 +216,19 @@ const MesRendezvous = () => {
         toast.info('Aucun rendez-vous trouvé');
       }
     } catch (error: any) {
-      if (error.message.includes('Session expirée')) {
-        navigate('/connexion');
+      // Ne pas gérer SESSION_EXPIRED ici, laisser le service throw
+      if (error.message !== 'SESSION_EXPIRED') {
+        toast.error('Impossible de charger vos rendez-vous');
+        console.error('❌ [MesRendezVous] Erreur fetchRendezvous:', error.message);
       }
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, rendezvousService, pagination.page, pagination.limit, selectedStatus, navigate]);
+  }, [isAuthenticated, rendezvousService, pagination.page, pagination.limit, selectedStatus]);
 
   useEffect(() => {
     if (isAuthenticated && location.pathname === '/mes-rendez-vous' && rendezvousService) {
+      console.log('✅ [MesRendezVous] Chargement des rendez-vous');
       fetchRendezvous();
     }
   }, [isAuthenticated, pagination.page, selectedStatus, location.pathname, rendezvousService, fetchRendezvous]);
@@ -236,8 +253,11 @@ const MesRendezvous = () => {
           rdv._id === rdvId ? { ...rdv, ...updatedRdv } : rdv
         )
       );
-    } catch (error) {
+    } catch (error: any) {
       // L'erreur est déjà gérée dans le service
+      if (error.message === 'SESSION_EXPIRED') {
+        console.log('🔒 [MesRendezVous] Session expirée lors de l\'annulation');
+      }
     } finally {
       setCancelling(null);
     }
@@ -373,6 +393,56 @@ const MesRendezvous = () => {
       )}
     </div>
   );
+
+  // === ÉCRAN D'ACCÈS REFUSÉ ===
+  if (!hasAccess) {
+    return (
+      <div className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4'>
+        <div className="text-center max-w-sm">
+          <div className="w-20 h-20 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <FiAlertCircle className="w-10 h-10 text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-3">
+            Accès révoqué
+          </h2>
+          <p className="text-slate-600 mb-6">
+            Votre compte est temporairement désactivé. Contactez l'administrateur.
+          </p>
+          <button
+            onClick={() => navigate('/connexion')}
+            className="inline-flex items-center px-6 py-3 bg-sky-500 text-white rounded-xl hover:bg-sky-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
+          >
+            Se reconnecter
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // === ÉCRAN DE SESSION EXPIRÉE ===
+  if (!isAuthenticated || !user) {
+    return (
+      <div className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4'>
+        <div className="text-center max-w-sm">
+          <div className="w-20 h-20 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <FiAlertCircle className="w-10 h-10 text-orange-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-3">
+            Session expirée
+          </h2>
+          <p className="text-slate-600 mb-6">
+            Votre session a expiré. Veuillez vous reconnecter.
+          </p>
+          <button
+            onClick={() => navigate('/connexion')}
+            className="inline-flex items-center px-6 py-3 bg-sky-500 text-white rounded-xl hover:bg-sky-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
+          >
+            Se connecter
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Rendu conditionnel basé sur la page actuelle
   const renderPageContent = () => {
@@ -605,6 +675,7 @@ const MesRendezvous = () => {
       <Helmet>
         <title>{currentPage.pageTitle}</title>
         <meta name="description" content={currentPage.description} />
+        
       </Helmet>
 
       {/* Header fixe */}
@@ -715,33 +786,8 @@ const MesRendezvous = () => {
         className="min-h-screen"
         style={{ paddingTop: `${headerHeight}px` }}
       >
-        {/* Afficher la page de connexion si non authentifié */}
-        {!isAuthenticated ? (
-          <div className="min-h-screen bg-gradient-to-b from-sky-50 to-white py-12">
-            <div className="max-w-md mx-auto px-4">
-              <div className="bg-white rounded-lg shadow-lg p-8 text-center" data-aos="zoom-in">
-                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-sky-100">
-                  <FiUser className="h-8 w-8 text-sky-600" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-800 mb-3">
-                  Connexion requise
-                </h2>
-                <p className="text-gray-600 mb-6">
-                  Connectez-vous pour accéder à votre espace personnel.
-                </p>
-                <button
-                  onClick={() => navigate('/connexion', { state: { redirectTo: location.pathname } })}
-                  className="inline-flex items-center justify-center gap-2 rounded bg-sky-600 px-6 py-3 text-sm font-medium text-white transition-all duration-150 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
-                >
-                  Se connecter
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          // Afficher le contenu de la page si authentifié
-          renderPageContent()
-        )}
+        {/* Afficher le contenu de la page si authentifié */}
+        {renderPageContent()}
       </div>
     </>
   );
