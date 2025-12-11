@@ -135,7 +135,7 @@ const AUTH_CONSTANTS = {
   // Rate limiting synchronisé avec backend (15 minutes, 600 requêtes)
   RATE_LIMITING: {
     WINDOW_MS: 15 * 60 * 1000, // 15 minutes (identique au backend)
-    MAX_REQUESTS: 600, // Maximum de requêtes par fenêtre (identique au backend)
+    MAX_REQUESTS: 22000, // Maximum de requêtes par fenêtre (identique au backend)
     REQUEST_COOLDOWN_MS: 2000, // 2 secondes entre les requêtes
     RETRY_AFTER_MS: 60 * 1000, // Attendre 1 minute après un 429
     RESET_INTERVAL_MS: 60 * 1000, // Vérifier le reset toutes les minutes
@@ -205,7 +205,7 @@ const TOAST_MESSAGES = {
 } as const;
 
 const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_URL || 'https://panameconsulting.up.railway.app',
+  BASE_URL: import.meta.env.VITE_API_URL,
   ENDPOINTS: {
     LOGIN: '/api/auth/login',
     REGISTER: '/api/auth/register',
