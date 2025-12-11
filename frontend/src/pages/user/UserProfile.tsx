@@ -114,7 +114,6 @@ const UserProfile = () => {
   useEffect(() => {
     if (user && !user.isActive) {
       console.log('🚫 [UserProfile] Compte inactif détecté');
-      logout();
       toast.error('Votre compte a été désactivé');
     }
   }, [user, logout]);
