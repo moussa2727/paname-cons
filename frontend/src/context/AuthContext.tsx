@@ -422,118 +422,146 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
  // ==================== FONCTION fetchWithAuth MODIFIÉE ====================
-  const fetchWithAuth = useCallback(async (
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<Response> => {
-    // Éviter les boucles infinies
-    if (isGlobalSessionCheck) {
-      if (import.meta.env.DEV) {
-        console.warn('⚠️ fetchWithAuth appelé pendant une vérification de session globale - Ignoré');
-      }
-      throw new Error('SESSION_CHECK_IN_PROGRESS');
+const fetchWithAuth = useCallback(async (
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<Response> => {
+  // Éviter les boucles infinies
+  if (isGlobalSessionCheck) {
+    if (import.meta.env.DEV) {
+      console.warn('⚠️ fetchWithAuth appelé pendant une vérification de session globale - Ignoré');
     }
+    throw new Error('SESSION_CHECK_IN_PROGRESS');
+  }
 
-    // Vérifier le rate limiting local d'abord
-    const rateLimitCheck = checkRateLimit();
-    if (!rateLimitCheck.allowed) {
-      handleRateLimitError(rateLimitCheck.retryAfter);
-      throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
+  // Vérifier le rate limiting local d'abord
+  const rateLimitCheck = checkRateLimit();
+  if (!rateLimitCheck.allowed) {
+    handleRateLimitError(rateLimitCheck.retryAfter);
+    throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
+  }
+
+  if (!shouldMakeRequest()) {
+    throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
+  }
+
+  updateLastRequestTime();
+
+  const token = access_token || window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...options.headers,
+  };
+
+  try {
+    // Construire l'URL correctement
+    let fullUrl;
+    if (endpoint.startsWith('http')) {
+      fullUrl = endpoint;
+    } else {
+      // S'assurer que API_CONFIG.BASE_URL ne se termine pas par un slash
+      const baseUrl = API_CONFIG.BASE_URL.endsWith('/') 
+        ? API_CONFIG.BASE_URL.slice(0, -1) 
+        : API_CONFIG.BASE_URL;
+      
+      // S'assurer que l'endpoint commence par un slash
+      const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      
+      fullUrl = `${baseUrl}${cleanEndpoint}`;
     }
-
-    if (!shouldMakeRequest()) {
-      throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
-    }
-
-    updateLastRequestTime();
-
-    const token = access_token || window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
     
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    };
+    if (import.meta.env.DEV) {
+      console.log('🌐 Requête fetchWithAuth vers:', fullUrl);
+    }
 
-    try {
-      const response = await window.fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
-        ...options,
-        headers,
-        credentials: 'include',
-      });
+    const response = await window.fetch(fullUrl, {
+      ...options,
+      headers,
+      credentials: 'include',
+    });
 
-      // Gérer le rate limiting du backend
-      if (response.status === 429) {
-        // Extraire le délai de retry des headers si disponible
-        const retryAfterHeader = response.headers.get('Retry-After');
-        const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader) * 1000 : AUTH_CONSTANTS.RATE_LIMITING.RETRY_AFTER_MS;
-        
-        handleRateLimitError(retryAfter);
-        setRateLimitState((prev: any) => ({
-          ...prev,
-          isLimited: true,
-          retryAfter,
-        }));
-        
-        throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
-      }
+    // Gérer le rate limiting du backend
+    if (response.status === 429) {
+      // Extraire le délai de retry des headers si disponible
+      const retryAfterHeader = response.headers.get('Retry-After');
+      const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader) * 1000 : AUTH_CONSTANTS.RATE_LIMITING.RETRY_AFTER_MS;
+      
+      handleRateLimitError(retryAfter);
+      setRateLimitState((prev: any) => ({
+        ...prev,
+        isLimited: true,
+        retryAfter,
+      }));
+      
+      throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
+    }
 
-      if (response.status === 401) {
-        // Marquer que nous sommes en train de gérer une session expirée
-        isGlobalSessionCheck = true;
-        
-        const errorData = await response.json().catch(() => ({}));
-        
-        if (errorData.sessionExpired || errorData.loggedOut || errorData.requiresReauth) {
-          if (import.meta.env.DEV) {
-            console.log('🔒 Session expirée détectée par fetchWithAuth');
-          }
-          
-          // Attendre un peu avant de nettoyer pour éviter les conflits
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          cleanupAuthData();
-          
-          if (!window.location.pathname.includes('/connexion')) {
-            toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-          }
-          
-          navigate(REDIRECT_PATHS.LOGIN, { replace: true });
-          throw new Error('SESSION_EXPIRED');
+    if (response.status === 401) {
+      // Marquer que nous sommes en train de gérer une session expirée
+      isGlobalSessionCheck = true;
+      
+      const errorData = await response.json().catch(() => ({}));
+      
+      if (errorData.sessionExpired || errorData.loggedOut || errorData.requiresReauth) {
+        if (import.meta.env.DEV) {
+          console.log('🔒 Session expirée détectée par fetchWithAuth');
         }
         
-        // Réinitialiser le flag
-        isGlobalSessionCheck = false;
+        // Attendre un peu avant de nettoyer pour éviter les conflits
+        await new Promise(resolve => setTimeout(resolve, 100));
         
-        if (errorData.code) {
-          throw new Error(errorData.code);
+        cleanupAuthData();
+        
+        if (!window.location.pathname.includes('/connexion')) {
+          toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
         }
+        
+        navigate(REDIRECT_PATHS.LOGIN, { replace: true });
+        throw new Error('SESSION_EXPIRED');
       }
-
-      // Réinitialiser l'état rate limit si la requête réussit
-      if (response.ok) {
-        const currentCount = parseInt(window.localStorage?.getItem(STORAGE_KEYS.REQUEST_COUNT) || '0');
-        setRateLimitState((prev: any) => ({
-          ...prev,
-          isLimited: false,
-          retryAfter: 0,
-          requestCount: currentCount,
-        }));
-      }
-
-      return response;
-    } catch (error) {
-      // S'assurer que le flag est réinitialisé en cas d'erreur
+      
+      // Réinitialiser le flag
       isGlobalSessionCheck = false;
       
-      if (error instanceof Error && error.message === AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS) {
+      if (errorData.code) {
+        throw new Error(errorData.code);
+      }
+    }
+
+    // Réinitialiser l'état rate limit si la requête réussit
+    if (response.ok) {
+      const currentCount = parseInt(window.localStorage?.getItem(STORAGE_KEYS.REQUEST_COUNT) || '0');
+      setRateLimitState((prev: any) => ({
+        ...prev,
+        isLimited: false,
+        retryAfter: 0,
+        requestCount: currentCount,
+      }));
+    }
+
+    return response;
+  } catch (error) {
+    // S'assurer que le flag est réinitialisé en cas d'erreur
+    isGlobalSessionCheck = false;
+    
+    if (error instanceof Error) {
+      if (error.message === AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS) {
         // Ne pas relancer pour éviter les boucles infinies
         throw error;
       }
-      throw error;
+      
+      if (error.message.includes('Failed to fetch')) {
+        if (import.meta.env.DEV) {
+          console.error('🌐 Erreur réseau:', error.message);
+        }
+        toast.error('Erreur de connexion au serveur');
+      }
     }
-  }, [access_token, cleanupAuthData, navigate]);
-
+    throw error;
+  }
+}, [access_token, cleanupAuthData, navigate]);
 
   const fetchUserData = useCallback(async (): Promise<void> => {
     // Vérifier si un refresh est déjà en cours

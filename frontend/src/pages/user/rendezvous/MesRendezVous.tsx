@@ -1,4 +1,4 @@
-// MesRendezvous.tsx - VERSION SIMPLIFIÉE ET SÉCURISÉE
+// MesRendezvous.tsx - VERSION COMPLÈTE CORRIGÉE
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
@@ -134,7 +134,9 @@ const MesRendezvous = () => {
   // === VÉRIFICATION DE SESSION SIMPLIFIÉE ===
   useEffect(() => {
     if (!authLoading && !isAuthenticated && location.pathname !== '/connexion') {
-      console.log('🔒 Session non valide, redirection vers /connexion');
+      if (import.meta.env.DEV) {
+        console.log('🔒 Session non valide, redirection vers /connexion');
+      }
       navigate('/connexion', { replace: true });
     }
   }, [authLoading, isAuthenticated, navigate, location.pathname]);
@@ -177,40 +179,167 @@ const MesRendezvous = () => {
   }, [location.pathname]);
 
   // Fonction pour charger les rendez-vous
-  const fetchRendezvous = useCallback(async () => {
-    if (!isAuthenticated) {
-      console.warn('⚠️ Tentative de fetchRendezvous sans authentification');
+ // Fonction pour charger les rendez-vous - VERSION COMPLÈTE CORRIGÉE
+const fetchRendezvous = useCallback(async (forceRefresh = false) => {
+  // Vérification basique de l'authentification
+  if (!isAuthenticated || !user) {
+    if (import.meta.env.DEV) {
+      console.warn('⚠️ fetchRendezvous appelé sans authentification valide');
+    }
+    return;
+  }
+
+  // Éviter les requêtes multiples simultanées
+  if (loading && !forceRefresh) {
+    if (import.meta.env.DEV) {
+      console.log('⏳ Requête déjà en cours, ignorée');
+    }
+    return;
+  }
+
+  // Vérifier la dernière requête pour éviter le rate limiting
+  const lastFetchTime = localStorage.getItem('last_rendezvous_fetch');
+  if (lastFetchTime && !forceRefresh) {
+    const timeSinceLastFetch = Date.now() - parseInt(lastFetchTime);
+    const minDelay = 2000; // 2 secondes entre les requêtes
+    
+    if (timeSinceLastFetch < minDelay) {
+      if (import.meta.env.DEV) {
+        console.log(`⏳ Trop tôt pour fetch (${timeSinceLastFetch}ms, attendre ${minDelay}ms)`);
+      }
       return;
     }
+  }
 
-    setLoading(true);
-    try {
-      const data = await rendezvousService.fetchUserRendezvous({
+  setLoading(true);
+  
+  try {
+    // Ajouter un petit délai pour éviter le rate limiting
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    if (import.meta.env.DEV) {
+      console.log('🔄 Chargement des rendez-vous...', {
         page: pagination.page,
         limit: pagination.limit,
-        status: selectedStatus || undefined,
+        status: selectedStatus || 'tous'
+      });
+    }
+
+    const data = await rendezvousService.fetchUserRendezvous({
+      page: pagination.page,
+      limit: pagination.limit,
+      status: selectedStatus || undefined,
+    });
+    
+    // Mettre à jour les données
+    setRendezvous(data.data);
+    setPagination(prev => ({
+      ...prev,
+      total: data.total,
+      totalPages: data.totalPages,
+    }));
+    
+    // Sauvegarder le timestamp de la requête
+    localStorage.setItem('last_rendezvous_fetch', Date.now().toString());
+    
+    // Log de succès
+    if (import.meta.env.DEV) {
+      console.log('✅ Rendez-vous chargés avec succès:', {
+        count: data.data.length,
+        total: data.total,
+        pages: data.totalPages
+      });
+    }
+    
+    // Afficher un message si aucun résultat avec filtre
+    if (data.data.length === 0 && selectedStatus) {
+      toast.info(`Aucun rendez-vous avec le statut "${selectedStatus}"`, {
+        autoClose: 3000,
+      });
+    }
+    
+  } catch (error: any) {
+    // Gestion spécifique des erreurs
+    if (error.message === 'SESSION_EXPIRED') {
+      // Ne rien faire - la redirection est déjà gérée par fetchWithAuth
+      if (import.meta.env.DEV) {
+        console.log('🔒 Session expirée détectée dans fetchRendezvous');
+      }
+    } 
+    else if (error.message === 'SESSION_CHECK_IN_PROGRESS') {
+      // Attendre un peu et réessayer
+      if (import.meta.env.DEV) {
+        console.log('⏳ Vérification de session en cours, réessai...');
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Réessayer une fois
+      try {
+        const data = await rendezvousService.fetchUserRendezvous({
+          page: pagination.page,
+          limit: pagination.limit,
+          status: selectedStatus || undefined,
+        });
+        
+        setRendezvous(data.data);
+        setPagination(prev => ({
+          ...prev,
+          total: data.total,
+          totalPages: data.totalPages,
+        }));
+        
+        localStorage.setItem('last_rendezvous_fetch', Date.now().toString());
+      } catch (retryError: any) {
+        if (retryError.message !== 'SESSION_EXPIRED') {
+          toast.error('Impossible de charger vos rendez-vous après réessai');
+        }
+      }
+    }
+    else if (error.message.includes('TOO MANY REQUESTS')) {
+      // Gestion spécifique du rate limiting
+      toast.error('Trop de requêtes, veuillez patienter quelques secondes', {
+        autoClose: 5000,
       });
       
-      setRendezvous(data.data);
-      setPagination((prev: any) => ({
-        ...prev,
-        total: data.total,
-        totalPages: data.totalPages,
-      }));
-      
-      if (data.data.length === 0 && selectedStatus) {
-        toast.info(`Aucun rendez-vous avec le statut "${selectedStatus}"`);
-      }
-    } catch (error: any) {
-      // La gestion de SESSION_EXPIRED est déjà faite par fetchWithAuth
-      // On ne fait rien de spécial ici
-      if (error.message !== 'SESSION_EXPIRED' && error.message !== 'SESSION_CHECK_IN_PROGRESS') {
-        toast.error('Impossible de charger vos rendez-vous');
-      }
-    } finally {
-      setLoading(false);
+      // Attendre plus longtemps avant la prochaine tentative
+      localStorage.setItem('last_rendezvous_fetch', (Date.now() + 10000).toString());
     }
-  }, [rendezvousService, pagination.page, pagination.limit, selectedStatus, isAuthenticated]);
+    else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      // Erreur réseau
+      toast.error('Erreur de connexion. Vérifiez votre connexion internet.', {
+        autoClose: 4000,
+      });
+      
+      if (import.meta.env.DEV) {
+        console.error('🌐 Erreur réseau:', error.message);
+      }
+    }
+    else if (error.message.includes('Failed to parse URL')) {
+      // Erreur d'URL - problème de configuration
+      toast.error('Problème de configuration de l\'application', {
+        autoClose: 5000,
+      });
+      
+      if (import.meta.env.DEV) {
+        console.error('🔧 Erreur d\'URL:', error.message);
+        console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
+      }
+    }
+    else {
+      // Erreur générique
+      toast.error('Impossible de charger vos rendez-vous', {
+        autoClose: 4000,
+      });
+      
+      if (import.meta.env.DEV) {
+        console.error('❌ Erreur fetchRendezvous:', error.message);
+      }
+    }
+    
+  } finally {
+    setLoading(false);
+  }
+}, [rendezvousService, pagination.page, pagination.limit, selectedStatus, isAuthenticated, user, loading]);
 
   // Charger les rendez-vous quand les dépendances changent
   useEffect(() => {
@@ -238,7 +367,9 @@ const MesRendezvous = () => {
       toast.success('Rendez-vous annulé avec succès');
     } catch (error: any) {
       // La gestion de SESSION_EXPIRED est déjà faite
-      if (error.message !== 'SESSION_EXPIRED' && error.message !== 'SESSION_CHECK_IN_PROGRESS') {
+      if (error.message !== 'SESSION_EXPIRED' && 
+          error.message !== 'SESSION_CHECK_IN_PROGRESS' &&
+          error.message !== 'TOO MANY REQUESTS') {
         toast.error('Erreur lors de l\'annulation');
       }
     } finally {
