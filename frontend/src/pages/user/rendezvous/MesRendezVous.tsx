@@ -181,109 +181,70 @@ const MesRendezvous = () => {
   }, [location.pathname]);
 
   // Fonction pour charger les rendez-vous
-const fetchRendezvous = useCallback(async (forceRefresh = false) => {
-  // Vérifications basiques
-  if (!isAuthenticated || !user) {
-    return;
-  }
-
-  // Éviter les requêtes simultanées
-  if (loading && !forceRefresh) {
-    return;
-  }
-
-  // Vérifier la dernière requête
-  const lastFetchKey = 'last_rendezvous_fetch_time';
-  const lastFetchTime = localStorage.getItem(lastFetchKey);
+const fetchRendezvous = useCallback(async (force = true) => {
+  console.log('🔄 fetchRendezvous appelée, force:', force);
   
-  if (lastFetchTime && !forceRefresh) {
-    const timeSinceLastFetch = Date.now() - parseInt(lastFetchTime);
-    const minDelay = 3000; // 3 secondes minimum
-    
-    if (timeSinceLastFetch < minDelay) {
-      if (import.meta.env.DEV) {
-        console.log(`⏳ Trop tôt pour recharger (${Math.round(timeSinceLastFetch/1000)}s)`);
-      }
-      return;
-    }
+  // Vérifications minimales
+  if (!user || !isAuthenticated) {
+    console.log('❌ fetchRendezvous: utilisateur non authentifié');
+    return;
   }
 
+  // TOUJOURS charger, même si loading est true (sauf si force=false)
+  if (loading && !force) {
+    console.log('⏳ fetchRendezvous: déjà en cours, ignorée');
+    return;
+  }
+
+  console.log('🚀 Début du chargement des rendez-vous...');
   setLoading(true);
-
+  
   try {
-    if (import.meta.env.DEV) {
-      console.log('🔄 Chargement des rendez-vous...');
-    }
-
+    // Pas de délai pour la première requête
     const data = await rendezvousService.fetchUserRendezvous({
-      page: pagination.page,
-      limit: pagination.limit,
+      page: 1,
+      limit: 10,
       status: selectedStatus || undefined,
     });
     
+    console.log('✅ Rendez-vous chargés avec succès:', {
+      count: data.data.length,
+      total: data.total
+    });
+    
     setRendezvous(data.data);
-    setPagination(prev => ({
-      ...prev,
+    setPagination({
+      page: 1,
+      limit: 10,
       total: data.total,
       totalPages: data.totalPages,
+    });
+    
+    // Sauvegarder dans localStorage pour debug
+    localStorage.setItem('last_rendezvous_data', JSON.stringify({
+      timestamp: new Date().toISOString(),
+      count: data.data.length,
+      ids: data.data.map((d: Rendezvous) => d._id)
     }));
     
-    // Sauvegarder le timestamp
-    localStorage.setItem(lastFetchKey, Date.now().toString());
-    
-    if (import.meta.env.DEV) {
-      console.log('✅ Rendez-vous chargés:', data.data.length, 'éléments');
-    }
-    
-    if (data.data.length === 0 && selectedStatus) {
-      toast.info(`Aucun rendez-vous avec le statut "${selectedStatus}"`, {
-        autoClose: 3000,
-      });
-    }
-    
   } catch (error: any) {
-    // Ne rien faire pour les erreurs de session (gérées ailleurs)
-    if (error.message === 'SESSION_EXPIRED' || 
-        error.message === 'SESSION_CHECK_IN_PROGRESS') {
-      return;
-    }
+    console.error('❌ Erreur fetchRendezvous:', error.message);
     
-    // Gestion spécifique du rate limiting
-    if (error.message.includes('TOO MANY REQUESTS') || 
-        error.message.includes('RATE_LIMIT')) {
-      
-      // Attendre plus longtemps pour la prochaine tentative
-      localStorage.setItem(lastFetchKey, (Date.now() + 15000).toString());
-      
-      toast.error('Trop de requêtes, veuillez patienter 15 secondes', {
+    // Afficher l'erreur à l'utilisateur
+    if (error.message.includes('TOO MANY REQUESTS')) {
+      toast.error('Trop de requêtes. Attendez 10 secondes puis cliquez sur Actualiser.', {
+        autoClose: 10000,
+      });
+    } else if (error.message !== 'SESSION_EXPIRED') {
+      toast.error('Erreur de chargement: ' + error.message, {
         autoClose: 5000,
       });
-      
-      if (import.meta.env.DEV) {
-        console.warn('🚫 Rate limiting détecté, attente de 15s');
-      }
-    } else {
-      toast.error('Impossible de charger vos rendez-vous', {
-        autoClose: 4000,
-      });
-      
-      if (import.meta.env.DEV) {
-        console.error('❌ Erreur:', error.message);
-      }
     }
   } finally {
     setLoading(false);
+    console.log('🏁 fetchRendezvous terminée');
   }
-}, [
-  rendezvousService, 
-  pagination.page, 
-  pagination.limit, 
-  selectedStatus, 
-  isAuthenticated, 
-  user,
-  loading
-]);
-
+}, [rendezvousService, selectedStatus, isAuthenticated, user, loading]);
 
  // Dans MesRendezvous.tsx - Intervalle de rafraîchissement
 useEffect(() => {
