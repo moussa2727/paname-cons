@@ -332,9 +332,6 @@ function Header(): React.JSX.Element {
                         <p className='text-xs text-gray-500 truncate'>
                           {user?.email}
                         </p>
-                        <p className='text-xs text-sky-600 mt-1'>
-                          {user?.role === 'admin' || user?.isAdmin === true ? 'Administrateur' : 'Utilisateur'}
-                        </p>
                       </div>
 
                       <div className='py-1'>
@@ -451,9 +448,6 @@ function Header(): React.JSX.Element {
                         </p>
                         <p className='text-xs text-gray-500 truncate'>
                           {user?.email}
-                        </p>
-                        <p className='text-xs text-sky-600 mt-1'>
-                          {user?.role === 'admin' || user?.isAdmin === true ? 'Administrateur' : 'Utilisateur'}
                         </p>
                       </div>
                     </div>
