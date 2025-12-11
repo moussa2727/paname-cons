@@ -1,4 +1,3 @@
-// MesRendezvous.tsx - VERSION CORRIGÉE AVEC INTÉGRATION D'AUTH
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
@@ -152,25 +151,6 @@ const MesRendezvous = () => {
       setHeaderHeight(headerRef.current.offsetHeight);
     }
   }, [location.pathname]);
-
-  // === GESTION D'AUTHENTIFICATION ===
-  useEffect(() => {
-    if (authLoading) return; // Attendre que l'auth se charge
-    
-    if (!isAuthenticated) {
-      console.log('🔒 Redirection vers login - non authentifié');
-      toast.info('Veuillez vous connecter pour accéder à cette page');
-      navigate('/connexion', { replace: true });
-      return;
-    }
-
-    if (user && !user.isActive) {
-      console.log('🚫 Compte inactif, déconnexion');
-      toast.error('Votre compte a été désactivé');
-      logout();
-      return;
-    }
-  }, [authLoading, isAuthenticated, user, navigate, logout]);
 
   // Fonction pour charger les rendez-vous
   const fetchRendezvous = useCallback(async () => {

@@ -111,24 +111,7 @@ const UserProfile = () => {
     );
   }
 
-  // === GESTION D'AUTHENTIFICATION SIMPLIFIÉE ===
-  useEffect(() => {
-    if (!isAuthenticated) {
-      console.log('🚫 [UserProfile] Non authentifié, redirection vers login');
-      navigate('/connexion');
-      return;
-    }
-
-    if (user && !user.isActive) {
-      console.log('🚫 [UserProfile] Compte inactif, déconnexion');
-      logout();
-      setHasAccess(false);
-      return;
-    }
-
-    setHasAccess(true);
-  }, [isAuthenticated, user, navigate, logout]);
-
+  
   // États optimisés
   const initialProfileData = {
     email: user?.email || '',
