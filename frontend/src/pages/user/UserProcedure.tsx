@@ -117,11 +117,9 @@ const UserProcedureComponent = (): React.JSX.Element => {
   const activeTabId = navTabs.find(tab => location.pathname.startsWith(tab.to))?.id || 'procedures';
 
   // === GESTION D'AUTHENTIFICATION SIMPLIFIÉE ===
-  // 1. Gestion du compte inactif
   useEffect(() => {
     if (user && !user.isActive) {
       console.log('🚫 [UserProcedure] Compte inactif détecté');
-      logout();
     }
   }, [user, logout]);
 

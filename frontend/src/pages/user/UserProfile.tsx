@@ -110,11 +110,9 @@ const UserProfile = () => {
   const activeTabId = navTabs.find(tab => location.pathname.startsWith(tab.to))?.id || 'profile';
 
   // === GESTION D'AUTHENTIFICATION SIMPLIFIÉE ===
-  // 1. Gestion du compte inactif
   useEffect(() => {
     if (user && !user.isActive) {
       console.log('🚫 [UserProfile] Compte inactif détecté');
-      logout();
       toast.error('Votre compte a été désactivé');
     }
   }, [user, logout]);
