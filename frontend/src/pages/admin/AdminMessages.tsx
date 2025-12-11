@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import { Key, ReactElement, JSXElementConstructor, ReactNode, ReactPortal } from 'react';
 
 const AdminMessages: React.FC = () => {
   const contactService = useAdminContactService();
@@ -190,7 +191,7 @@ const AdminMessages: React.FC = () => {
     key: string,
     value: string | boolean | undefined
   ) => {
-    setFilters(prev => ({
+    setFilters((prev: any) => ({
       ...prev,
       [key]: value,
       page: 1,
@@ -460,7 +461,7 @@ const AdminMessages: React.FC = () => {
           </div>
 
           <div className='divide-y divide-slate-200'>
-            {contacts.map(contact => (
+            {contacts.map((contact: { _id: Key | null | undefined; isRead: boolean; firstName: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | null | undefined; lastName: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | null | undefined; email: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | null | undefined; adminResponse: any; message: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | null | undefined; createdAt: string | Date; }) => (
               <div
                 key={contact._id}
                 className={`p-3 hover:bg-slate-50 transition-colors ${

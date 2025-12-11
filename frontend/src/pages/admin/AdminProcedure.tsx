@@ -193,8 +193,8 @@ const AdminProcedure: React.FC = () => {
         }
       );
 
-      setProcedures(prev =>
-        prev.map(p => (p._id === selectedProcedure._id ? updatedProcedure : p))
+      setProcedures((prev: any[]) =>
+        prev.map((p: { _id: any; }) => (p._id === selectedProcedure._id ? updatedProcedure : p))
       );
 
       if (selectedProcedure._id === expandedProcedure) {
@@ -229,8 +229,8 @@ const AdminProcedure: React.FC = () => {
         }
       );
 
-      setProcedures(prev =>
-        prev.map(p => (p._id === selectedProcedure._id ? updatedProcedure : p))
+      setProcedures((prev: any[]) =>
+        prev.map((p: { _id: any; }) => (p._id === selectedProcedure._id ? updatedProcedure : p))
       );
 
       if (selectedProcedure._id === expandedProcedure) {
@@ -253,7 +253,7 @@ const AdminProcedure: React.FC = () => {
         actionReason || 'Supprimé par administrateur'
       );
 
-      setProcedures(prev => prev.filter(p => p._id !== selectedProcedure._id));
+      setProcedures((prev: any[]) => prev.filter((p: { _id: any; }) => p._id !== selectedProcedure._id));
 
       return true;
     }, 'Procédure supprimée avec succès');
@@ -278,8 +278,8 @@ const AdminProcedure: React.FC = () => {
         actionReason
       );
 
-      setProcedures(prev =>
-        prev.map(p =>
+      setProcedures((prev: any[]) =>
+        prev.map((p: { _id: any; }) =>
           p._id === selectedProcedure._id
             ? {
                 ...p,
@@ -325,15 +325,15 @@ const AdminProcedure: React.FC = () => {
   // Filtres
   const handleFilterChange = useCallback(
     (key: keyof ProcedureFilters, value: string) => {
-      setFilters(prev => ({ ...prev, [key]: value }));
-      setPagination(prev => ({ ...prev, page: 1 }));
+      setFilters((prev: any) => ({ ...prev, [key]: value }));
+      setPagination((prev: any) => ({ ...prev, page: 1 }));
     },
     []
   );
 
   const handleSearchInput = (value: string) => {
     setFilterInput(value);
-    setFilters(prev => ({ ...prev, search: value }));
+    setFilters((prev: any) => ({ ...prev, search: value }));
   };
 
   const resetFilters = () => {
@@ -345,18 +345,18 @@ const AdminProcedure: React.FC = () => {
       search: '',
     });
     setFilterInput('');
-    setPagination(prev => ({ ...prev, page: 1 }));
+    setPagination((prev: any) => ({ ...prev, page: 1 }));
     setShowFilters(false);
   };
 
   // Pagination
   const handlePageChange = (newPage: number) => {
-    setPagination(prev => ({ ...prev, page: newPage }));
+    setPagination((prev: any) => ({ ...prev, page: newPage }));
   };
 
   // Toggle expand/collapse
   const toggleExpand = (procedureId: string) => {
-    setExpandedProcedure(prev => (prev === procedureId ? null : procedureId));
+    setExpandedProcedure((prev: string) => (prev === procedureId ? null : procedureId));
   };
 
   // Rendu du statut
@@ -419,13 +419,13 @@ const AdminProcedure: React.FC = () => {
     return {
       total: pagination.total,
       inProgress: procedures.filter(
-        p => p.statut === ProcedureStatus.IN_PROGRESS
+        (        p: { statut: ProcedureStatus; }) => p.statut === ProcedureStatus.IN_PROGRESS
       ).length,
-      completed: procedures.filter(p => p.statut === ProcedureStatus.COMPLETED)
+      completed: procedures.filter((p: { statut: ProcedureStatus; }) => p.statut === ProcedureStatus.COMPLETED)
         .length,
-      rejected: procedures.filter(p => p.statut === ProcedureStatus.REJECTED)
+      rejected: procedures.filter((p: { statut: ProcedureStatus; }) => p.statut === ProcedureStatus.REJECTED)
         .length,
-      cancelled: procedures.filter(p => p.statut === ProcedureStatus.CANCELLED)
+      cancelled: procedures.filter((p: { statut: ProcedureStatus; }) => p.statut === ProcedureStatus.CANCELLED)
         .length,
     };
   }, [procedures, pagination.total]);
@@ -500,7 +500,7 @@ const AdminProcedure: React.FC = () => {
             <input
               type='text'
               value={filterInput}
-              onChange={e => handleSearchInput(e.target.value)}
+              onChange={(e: { target: { value: string; }; }) => handleSearchInput(e.target.value)}
               className='w-full pl-12 pr-4 py-3.5 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all'
               placeholder='Rechercher par email, nom, prénom...'
             />
@@ -539,7 +539,7 @@ const AdminProcedure: React.FC = () => {
                   </label>
                   <select
                     value={filters.statut}
-                    onChange={e => handleFilterChange('statut', e.target.value)}
+                    onChange={(e: { target: { value: any; }; }) => handleFilterChange('statut', e.target.value)}
                     className='w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors'
                   >
                     <option value=''>Tous les statuts</option>
@@ -557,7 +557,7 @@ const AdminProcedure: React.FC = () => {
                   <input
                     type='text'
                     value={filters.destination || ''}
-                    onChange={e =>
+                    onChange={(e: { target: { value: any; }; }) =>
                       handleFilterChange('destination', e.target.value)
                     }
                     className='w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors'
@@ -572,7 +572,7 @@ const AdminProcedure: React.FC = () => {
                 <input
                   type='text'
                   value={filters.filiere || ''}
-                  onChange={e => handleFilterChange('filiere', e.target.value)}
+                  onChange={(e: { target: { value: any; }; }) => handleFilterChange('filiere', e.target.value)}
                   className='w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors'
                   placeholder='Filtrer par filière...'
                 />
@@ -657,7 +657,7 @@ const AdminProcedure: React.FC = () => {
             </div>
           )}
 
-          {procedures.map(procedure => (
+          {procedures.map((procedure: Procedure) => (
             <div
               key={procedure._id}
               className='bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300'
@@ -759,7 +759,7 @@ const AdminProcedure: React.FC = () => {
                       </h4>
                     </div>
                     <div className='space-y-3'>
-                      {procedure.steps.map(step => (
+                      {procedure.steps.map((step: { nom: StepName | undefined; raisonRefus: any; dateMaj: string; statut: StepStatus; }) => (
                         <div
                           key={step.nom}
                           className='flex items-center justify-between p-4 bg-gray-50 rounded-xl'
@@ -787,7 +787,7 @@ const AdminProcedure: React.FC = () => {
                             {renderStepStatus(step.statut)}
                             {step.statut === StepStatus.IN_PROGRESS && (
                               <button
-                                onClick={e => {
+                                onClick={(e: { stopPropagation: () => void; }) => {
                                   e.stopPropagation();
                                   openActionModal(
                                     procedure,
@@ -806,7 +806,7 @@ const AdminProcedure: React.FC = () => {
                               StepStatus.IN_PROGRESS,
                             ].includes(step.statut) && (
                               <button
-                                onClick={e => {
+                                onClick={(e: { stopPropagation: () => void; }) => {
                                   e.stopPropagation();
                                   openActionModal(
                                     procedure,
@@ -1095,7 +1095,7 @@ const AdminProcedure: React.FC = () => {
                         </label>
                         <textarea
                           value={actionReason}
-                          onChange={e => setActionReason(e.target.value)}
+                          onChange={(e: { target: { value: any; }; }) => setActionReason(e.target.value)}
                           placeholder={
                             actionType === 'reject'
                               ? 'Expliquez pourquoi cette étape/procédure est rejetée (min 5 caractères)...'
@@ -1210,7 +1210,7 @@ const AdminProcedure: React.FC = () => {
                         Répartition par statut
                       </h4>
                       <div className='space-y-3'>
-                        {stats.byStatus.map(item => (
+                        {stats.byStatus.map((item: { _id: ProcedureStatus; count: any; }) => (
                           <div
                             key={item._id}
                             className='flex items-center justify-between p-4 bg-gray-50 rounded-xl'
@@ -1246,7 +1246,7 @@ const AdminProcedure: React.FC = () => {
                         Répartition par destination
                       </h4>
                       <div className='space-y-3'>
-                        {stats.byDestination.map(item => (
+                        {stats.byDestination.map((item: { _id: any; count: any; }) => (
                           <div
                             key={item._id}
                             className='flex items-center justify-between p-4 bg-gray-50 rounded-xl'

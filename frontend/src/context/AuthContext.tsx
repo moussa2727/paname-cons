@@ -456,7 +456,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader) * 1000 : AUTH_CONSTANTS.RATE_LIMITING.RETRY_AFTER_MS;
         
         handleRateLimitError(retryAfter);
-        setRateLimitState(prev => ({
+        setRateLimitState((prev: any) => ({
           ...prev,
           isLimited: true,
           retryAfter,
@@ -491,7 +491,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Réinitialiser l'état rate limit si la requête réussit
       if (response.ok) {
         const currentCount = parseInt(window.localStorage?.getItem(STORAGE_KEYS.REQUEST_COUNT) || '0');
-        setRateLimitState(prev => ({
+        setRateLimitState((prev: any) => ({
           ...prev,
           isLimited: false,
           retryAfter: 0,
@@ -1448,7 +1448,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               window.localStorage?.removeItem(STORAGE_KEYS.LAST_429_TIME);
               window.localStorage?.removeItem(STORAGE_KEYS.RETRY_AFTER);
               
-              setRateLimitState(prev => ({
+              setRateLimitState((prev: any) => ({
                 ...prev,
                 isLimited: false,
                 retryAfter: 0,
