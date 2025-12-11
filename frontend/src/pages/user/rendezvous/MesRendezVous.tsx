@@ -135,6 +135,7 @@ const MesRendezvous = () => {
   useEffect(() => {
     if (user && !user.isActive) {
       console.log('🚫 Compte inactif détecté');
+      logout();
       toast.error('Votre compte a été désactivé');
     }
   }, [user, logout]);

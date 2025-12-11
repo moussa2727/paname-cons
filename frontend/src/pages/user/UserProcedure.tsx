@@ -120,6 +120,7 @@ const UserProcedureComponent = (): React.JSX.Element => {
   useEffect(() => {
     if (user && !user.isActive) {
       console.log('🚫 [UserProcedure] Compte inactif détecté');
+      logout();
     }
   }, [user, logout]);
 
