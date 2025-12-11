@@ -1,4 +1,4 @@
-// [file name]: UserProcedure.tsx
+// UserProcedure.tsx - VERSION CORRIGÉE POUR PROD
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -35,6 +35,16 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+
+// Composant de chargement réutilisable
+const LoadingScreen = ({ message = "Chargement..." }: { message?: string }) => (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mx-auto mb-4"></div>
+      <p className="text-gray-600">{message}</p>
+    </div>
+  </div>
+);
 
 const UserProcedureComponent = (): React.JSX.Element => {
   const { user, isAuthenticated, logout } = useAuth();
@@ -106,6 +116,40 @@ const UserProcedureComponent = (): React.JSX.Element => {
   const currentPage = getCurrentPageConfig();
   const activeTabId = navTabs.find(tab => location.pathname.startsWith(tab.to))?.id || 'procedures';
 
+  // === GESTION D'AUTHENTIFICATION SIMPLIFIÉE ===
+  // 1. Gestion du compte inactif
+  useEffect(() => {
+    if (user && !user.isActive) {
+      console.log('🚫 [UserProcedure] Compte inactif détecté');
+      logout();
+    }
+  }, [user, logout]);
+
+  // 2. Vérification d'authentification
+  useEffect(() => {
+    console.log('🔍 [UserProcedure] État auth:', {
+      isAuthenticated,
+      path: location.pathname
+    });
+    
+    if (!isAuthenticated) {
+      console.log('🔒 [UserProcedure] Non authentifié - Redirection');
+      navigate('/connexion', { 
+        replace: true,
+        state: { from: location.pathname }
+      });
+    }
+  }, [isAuthenticated, user, navigate, location.pathname]);
+
+  // === ÉTATS DE CHARGEMENT ===
+  if (!isAuthenticated) {
+    return <></> ; // Redirection en cours via useEffect
+  }
+
+  if (!user) {
+    return <LoadingScreen message="Récupération des informations..." />;
+  }
+
   const [currentPageNum, setCurrentPageNum] = useState<number>(1);
   const [selectedProcedure, setSelectedProcedure] =
     useState<UserProcedure | null>(null);
@@ -119,7 +163,6 @@ const UserProcedureComponent = (): React.JSX.Element => {
   );
   const [showFilters, setShowFilters] = useState<boolean>(false);
   const [showMobileDetails, setShowMobileDetails] = useState<boolean>(false);
-  const [hasAccess, setHasAccess] = useState<boolean>(true);
 
   const limit = 8;
 
@@ -157,31 +200,13 @@ const UserProcedureComponent = (): React.JSX.Element => {
     }
   };
 
-  // === EFFETS DE GESTION D'AUTHENTIFICATION SIMPLIFIÉE ===
-  useEffect(() => {
-    if (!isAuthenticated) {
-      console.log('🚫 Non authentifié, redirection vers login');
-      navigate('/connexion');
-      return;
-    }
-
-    if (user && !user.isActive) {
-      console.log('🚫 Compte inactif, déconnexion');
-      logout();
-      setHasAccess(false);
-      return;
-    }
-
-    setHasAccess(true);
-  }, [isAuthenticated, user, navigate, logout]);
-
   // === GESTION DES ERREURS DE SESSION ===
   useEffect(() => {
     if (
       proceduresError === 'SESSION_EXPIRED' ||
       detailsError === 'SESSION_EXPIRED'
     ) {
-      console.log('🔒 Session expirée détectée par le service');
+      console.log('🔒 [UserProcedure] Session expirée détectée');
       logout();
       return;
     }
@@ -247,59 +272,6 @@ const UserProcedureComponent = (): React.JSX.Element => {
       console.error('Erreur lors du rafraîchissement:', error);
     }
   };
-
-  // === RENDU ===
-
-  // Écran d'accès refusé
-  if (!hasAccess) {
-    return (
-      <div className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4'>
-        <div className='text-center max-w-sm'>
-          <div className='w-20 h-20 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6'>
-            <AlertCircle className='w-10 h-10 text-red-500' />
-          </div>
-          <h2 className='text-2xl font-bold text-slate-800 mb-3'>
-            Accès révoqué
-          </h2>
-          <p className='text-slate-600 mb-6'>
-            Votre compte est temporairement désactivé. Contactez
-            l'administrateur.
-          </p>
-          <button
-            onClick={() => logout()}
-            className='inline-flex items-center px-6 py-3 bg-sky-500 text-white rounded-xl hover:bg-sky-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl'
-          >
-            Se reconnecter
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Écran de session expirée
-  if (!isAuthenticated || !user) {
-    return (
-      <div className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4'>
-        <div className='text-center max-w-sm'>
-          <div className='w-20 h-20 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-6'>
-            <AlertCircle className='w-10 h-10 text-orange-500' />
-          </div>
-          <h2 className='text-2xl font-bold text-slate-800 mb-3'>
-            Session expirée
-          </h2>
-          <p className='text-slate-600 mb-6'>
-            Votre session a expiré. Veuillez vous reconnecter.
-          </p>
-          <button
-            onClick={() => navigate('/connexion')}
-            className='inline-flex items-center px-6 py-3 bg-sky-500 text-white rounded-xl hover:bg-sky-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl'
-          >
-            Se connecter
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   const totalPages = paginatedProcedures?.totalPages || 1;
 
@@ -1169,7 +1141,6 @@ const UserProcedureComponent = (): React.JSX.Element => {
           </button>
         </div>
       </div>
-
     </>
   );
 };
