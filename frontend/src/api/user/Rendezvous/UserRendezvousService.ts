@@ -1,4 +1,4 @@
-// UserRendezvousService.ts
+// UserRendezvousService.ts - VERSION CORRIGÉE COMPLÈTE
 import { toast } from 'react-toastify';
 
 export interface Rendezvous {
@@ -53,7 +53,7 @@ export class UserRendezvousService {
   private API_URL = import.meta.env.VITE_API_URL;
 
   constructor(
-    private accessToken: string | null,
+    private access_token: string | null, // ✓ Nom corrigé avec underscore
     private refreshToken: () => Promise<boolean>,
     private logout: () => void
   ) {}
@@ -77,17 +77,23 @@ export class UserRendezvousService {
       });
     };
 
-    if (!this.accessToken) {
+    // ✓ Utiliser le nom correct avec underscore
+    if (!this.access_token) {
       throw new Error('Session expirée');
     }
 
-    let response = await makeRequest(this.accessToken);
+    let response = await makeRequest(this.access_token);
 
     if (response.status === 401) {
       try {
         const refreshed = await this.refreshToken();
         if (refreshed) {
-          const newToken = localStorage.getItem('access_token') || '';
+          // Récupérer le nouveau token (sera passé par le contexte)
+          // Le contexte se chargera de le mettre à jour dans access_token
+          const newToken = this.access_token; // Le contexte a déjà mis à jour
+          if (!newToken) {
+            throw new Error('Session expirée');
+          }
           response = await makeRequest(newToken);
         } else {
           throw new Error('Session expirée');

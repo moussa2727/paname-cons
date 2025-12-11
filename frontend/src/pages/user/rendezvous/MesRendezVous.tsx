@@ -1,4 +1,4 @@
-// MesRendezvous.tsx
+// MesRendezvous.tsx - VERSION COMPLÈTE CORRIGÉE
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
@@ -95,7 +95,14 @@ const avisColors: Record<string, string> = {
 };
 
 const MesRendezvous = () => {
-  const { isAuthenticated, access_token, refreshToken, logout } = useAuth();
+  const { 
+    isAuthenticated, 
+    access_token,  // ✓ Nom correct avec underscore
+    refreshToken, 
+    logout, 
+    isLoading: authLoading 
+  } = useAuth();
+  
   const navigate = useNavigate();
   const location = useLocation();
   const headerRef = useRef<HTMLDivElement>(null);
@@ -114,11 +121,23 @@ const MesRendezvous = () => {
 
   const [rendezvousService, setRendezvousService] = useState<UserRendezvousService | null>(null);
 
-  // Initialiser le service
+  // Afficher un loader pendant que l'auth se charge
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement de l'authentification...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Initialiser le service seulement quand l'authentification est prête
   useEffect(() => {
     if (isAuthenticated && access_token) {
       setRendezvousService(
-        new UserRendezvousService(access_token, refreshToken, logout)
+        new UserRendezvousService(access_token, refreshToken, logout) // ✓ Passé avec underscore
       );
     }
   }, [isAuthenticated, access_token, refreshToken, logout]);
@@ -355,40 +374,6 @@ const MesRendezvous = () => {
     </div>
   );
 
-  // Rendu pour les utilisateurs non authentifiés
-  if (!isAuthenticated) {
-    return (
-      <>
-        <Helmet>
-          <title>{currentPage.pageTitle}</title>
-          <meta name="description" content={currentPage.description} />
-        </Helmet>
-        
-        <div className="min-h-screen bg-gradient-to-b from-sky-50 to-white py-12">
-          <div className="max-w-md mx-auto px-4">
-            <div className="bg-white rounded-lg shadow-lg p-8 text-center" data-aos="zoom-in">
-              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-sky-100">
-                <FiUser className="h-8 w-8 text-sky-600" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-800 mb-3">
-                Connexion requise
-              </h2>
-              <p className="text-gray-600 mb-6">
-                Connectez-vous pour accéder à votre espace personnel.
-              </p>
-              <button
-                onClick={() => navigate('/connexion', { state: { redirectTo: location.pathname } })}
-                className="inline-flex items-center justify-center gap-2 rounded bg-sky-600 px-6 py-3 text-sm font-medium text-white transition-all duration-150 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
-              >
-                Se connecter
-              </button>
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
-
   // Rendu conditionnel basé sur la page actuelle
   const renderPageContent = () => {
     if (location.pathname !== '/mes-rendez-vous') {
@@ -614,6 +599,7 @@ const MesRendezvous = () => {
     );
   };
 
+  // Rendu principal
   return (
     <>
       <Helmet>
@@ -648,70 +634,76 @@ const MesRendezvous = () => {
               </div>
             </div>
             
-            <button
-              onClick={refreshUserData}
-              disabled={loading}
-              className='p-2 bg-sky-50 rounded-xl hover:bg-sky-100 active:scale-95 transition-all duration-200 disabled:opacity-50'
-              title="Actualiser"
-              aria-label="Actualiser"
-            >
-              <RefreshCw className={`w-4 h-4 text-sky-600 ${loading ? 'animate-spin' : ''}`} />
-            </button>
+            {isAuthenticated && (
+              <button
+                onClick={refreshUserData}
+                disabled={loading}
+                className='p-2 bg-sky-50 rounded-xl hover:bg-sky-100 active:scale-95 transition-all duration-200 disabled:opacity-50'
+                title="Actualiser"
+                aria-label="Actualiser"
+              >
+                <RefreshCw className={`w-4 h-4 text-sky-600 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+            )}
           </div>
 
-          {/* Navigation */}
-          <div className='overflow-x-auto pb-1 no-scrollbar'>
-            <nav className='flex gap-1.5 min-w-max'>
-              {navTabs.map(tab => {
-                const isActive = activeTabId === tab.id;
-                return (
-                  <Link
-                    key={tab.id}
-                    to={tab.to}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 flex-shrink-0 relative ${
-                      isActive
-                        ? 'bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sm'
-                        : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-sky-300 hover:bg-sky-50 active:scale-95'
-                    }`}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    <tab.icon className={`w-3.5 h-3.5 ${
-                      isActive ? 'text-white' : 'text-gray-500'
-                    }`} />
-                    <span className={`text-xs font-medium whitespace-nowrap ${
-                      isActive ? 'text-white' : 'text-gray-700'
-                    }`}>
-                      {tab.label}
-                    </span>
-                    {isActive && (
-                      <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-4 h-0.5 bg-sky-400 rounded-full"></div>
-                    )}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-
-          {/* Indicateur de statut */}
-          <div className='mt-2 pt-2 border-t border-gray-100'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-1.5'>
-                <div className='w-1.5 h-1.5 bg-emerald-500 rounded-full'></div>
-                <span className='text-xs text-gray-600'>
-                  {new Date().toLocaleDateString('fr-FR', { 
-                    day: 'numeric',
-                    month: 'short'
+          {/* Navigation - SEULEMENT si authentifié */}
+          {isAuthenticated && (
+            <>
+              <div className='overflow-x-auto pb-1 no-scrollbar'>
+                <nav className='flex gap-1.5 min-w-max'>
+                  {navTabs.map(tab => {
+                    const isActive = activeTabId === tab.id;
+                    return (
+                      <Link
+                        key={tab.id}
+                        to={tab.to}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 flex-shrink-0 relative ${
+                          isActive
+                            ? 'bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sm'
+                            : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-sky-300 hover:bg-sky-50 active:scale-95'
+                        }`}
+                        aria-current={isActive ? 'page' : undefined}
+                      >
+                        <tab.icon className={`w-3.5 h-3.5 ${
+                          isActive ? 'text-white' : 'text-gray-500'
+                        }`} />
+                        <span className={`text-xs font-medium whitespace-nowrap ${
+                          isActive ? 'text-white' : 'text-gray-700'
+                        }`}>
+                          {tab.label}
+                        </span>
+                        {isActive && (
+                          <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-4 h-0.5 bg-sky-400 rounded-full"></div>
+                        )}
+                      </Link>
+                    );
                   })}
-                </span>
+                </nav>
               </div>
-              <span className='text-xs text-gray-500'>
-                {new Date().toLocaleTimeString('fr-FR', { 
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </span>
-            </div>
-          </div>
+
+              {/* Indicateur de statut */}
+              <div className='mt-2 pt-2 border-t border-gray-100'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-1.5'>
+                    <div className='w-1.5 h-1.5 bg-emerald-500 rounded-full'></div>
+                    <span className='text-xs text-gray-600'>
+                      {new Date().toLocaleDateString('fr-FR', { 
+                        day: 'numeric',
+                        month: 'short'
+                      })}
+                    </span>
+                  </div>
+                  <span className='text-xs text-gray-500'>
+                    {new Date().toLocaleTimeString('fr-FR', { 
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Effet de séparation */}
@@ -723,7 +715,33 @@ const MesRendezvous = () => {
         className="min-h-screen"
         style={{ paddingTop: `${headerHeight}px` }}
       >
-        {renderPageContent()}
+        {/* Afficher la page de connexion si non authentifié */}
+        {!isAuthenticated ? (
+          <div className="min-h-screen bg-gradient-to-b from-sky-50 to-white py-12">
+            <div className="max-w-md mx-auto px-4">
+              <div className="bg-white rounded-lg shadow-lg p-8 text-center" data-aos="zoom-in">
+                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-sky-100">
+                  <FiUser className="h-8 w-8 text-sky-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-800 mb-3">
+                  Connexion requise
+                </h2>
+                <p className="text-gray-600 mb-6">
+                  Connectez-vous pour accéder à votre espace personnel.
+                </p>
+                <button
+                  onClick={() => navigate('/connexion', { state: { redirectTo: location.pathname } })}
+                  className="inline-flex items-center justify-center gap-2 rounded bg-sky-600 px-6 py-3 text-sm font-medium text-white transition-all duration-150 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+                >
+                  Se connecter
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          // Afficher le contenu de la page si authentifié
+          renderPageContent()
+        )}
       </div>
     </>
   );
