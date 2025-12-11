@@ -1,4 +1,4 @@
-// UserRendezvousService.ts - VERSION CORRIGÉE COMPLÈTE
+// UserRendezvousService.ts - VERSION CORRIGÉE
 import { toast } from 'react-toastify';
 
 export interface Rendezvous {
@@ -51,9 +51,10 @@ export interface FetchRendezvousParams {
 
 export class UserRendezvousService {
   private API_URL = import.meta.env.VITE_API_URL;
+  private readonly API_TIMEOUT = 15000;
 
   constructor(
-    private access_token: string | null, // ✓ Nom corrigé avec underscore
+    private access_token: string | null,
     private refreshToken: () => Promise<boolean>,
     private logout: () => void
   ) {}
@@ -65,6 +66,13 @@ export class UserRendezvousService {
     url: string, 
     options: RequestInit = {}
   ): Promise<Response> {
+    // Contrôleur pour timeout
+    const controller = new AbortController();
+    const timeoutId = globalThis.setTimeout(
+      () => controller.abort(),
+      this.API_TIMEOUT
+    );
+
     const makeRequest = async (token: string): Promise<Response> => {
       return fetch(url, {
         ...options,
@@ -74,36 +82,51 @@ export class UserRendezvousService {
           'Accept': 'application/json',
           ...options.headers,
         },
+        signal: controller.signal,
       });
     };
 
-    // ✓ Utiliser le nom correct avec underscore
     if (!this.access_token) {
-      throw new Error('Session expirée');
+      globalThis.clearTimeout(timeoutId);
+      throw new Error('SESSION_EXPIRED');
     }
 
-    let response = await makeRequest(this.access_token);
+    try {
+      let response = await makeRequest(this.access_token);
 
-    if (response.status === 401) {
-      try {
-        const refreshed = await this.refreshToken();
-        if (refreshed) {
-          // Récupérer le nouveau token (sera passé par le contexte)
-          // Le contexte se chargera de le mettre à jour dans access_token
-          const newToken = this.access_token; // Le contexte a déjà mis à jour
-          if (!newToken) {
-            throw new Error('Session expirée');
+      if (response.status === 401) {
+        try {
+          const refreshed = await this.refreshToken();
+          if (refreshed) {
+            // Récupérer le nouveau token (sera passé par le contexte)
+            const newToken = this.access_token;
+            if (!newToken) {
+              throw new Error('SESSION_EXPIRED');
+            }
+            response = await makeRequest(newToken);
+          } else {
+            throw new Error('SESSION_EXPIRED');
           }
-          response = await makeRequest(newToken);
-        } else {
-          throw new Error('Session expirée');
+        } catch (error) {
+          throw new Error('SESSION_EXPIRED');
         }
-      } catch (error) {
-        throw new Error('Session expirée');
       }
-    }
 
-    return response;
+      globalThis.clearTimeout(timeoutId);
+      return response;
+    } catch (error: any) {
+      globalThis.clearTimeout(timeoutId);
+      
+      if (error.name === 'AbortError') {
+        throw new Error('Délai de connexion dépassé');
+      }
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        throw new Error('SESSION_EXPIRED');
+      }
+      
+      throw error;
+    }
   }
 
   /**
@@ -125,25 +148,22 @@ export class UserRendezvousService {
       );
 
       if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Session expirée');
-        }
-        
         const errorText = await response.text();
         throw new Error(`Erreur ${response.status}: ${errorText}`);
       }
 
       return await response.json();
     } catch (error: any) {
-      console.error('Erreur lors du chargement des rendez-vous:', error);
-      
-      if (error.message.includes('Session expirée')) {
-        toast.error('Session expirée. Veuillez vous reconnecter.');
-        this.logout();
-        throw error;
+      // Gestion d'erreur silencieuse en développement uniquement
+      if (import.meta.env.DEV) {
+        console.error('Erreur fetchUserRendezvous:', error.message);
       }
-      
-      toast.error('Impossible de charger vos rendez-vous');
+
+      // Afficher un toast uniquement pour les erreurs non liées à la session
+      if (error.message !== 'SESSION_EXPIRED') {
+        toast.error(this.getUserFriendlyMessage(error.message));
+      }
+
       throw error;
     }
   }
@@ -167,7 +187,14 @@ export class UserRendezvousService {
       toast.success('Rendez-vous annulé avec succès');
       return result;
     } catch (error: any) {
-      console.error('Erreur annulation:', error);
+      // Gestion d'erreur silencieuse en développement uniquement
+      if (import.meta.env.DEV) {
+        console.error('Erreur cancelRendezvous:', error.message);
+      }
+
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error; // Laisser le hook gérer la session expirée
+      }
       
       if (error.message.includes('à moins de 2 heures')) {
         toast.error('Impossible d\'annuler à moins de 2 heures du rendez-vous');
@@ -179,6 +206,23 @@ export class UserRendezvousService {
       
       throw error;
     }
+  }
+
+  /**
+   * Messages d'erreur utilisateur-friendly
+   */
+  private getUserFriendlyMessage(errorCode: string): string {
+    const messages: Record<string, string> = {
+      'SESSION_EXPIRED': 'Session expirée',
+      'Délai de connexion dépassé': 'Délai de connexion dépassé',
+      'Erreur 400': 'Requête incorrecte',
+      'Erreur 401': 'Session expirée',
+      'Erreur 403': 'Accès refusé',
+      'Erreur 404': 'Rendez-vous non trouvé',
+      'Erreur 500': 'Erreur serveur',
+    };
+
+    return messages[errorCode] || 'Une erreur est survenue';
   }
 
   /**
