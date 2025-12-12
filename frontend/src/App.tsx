@@ -183,44 +183,6 @@ function App() {
             }
           />
 
-          {/* Routes publiques d'authentification - TOUJOURS accessibles */}
-          <Route
-            path='/connexion'
-            element={
-              <MinimalLayout>
-                <Connexion />
-              </MinimalLayout>
-            }
-          />
-
-          <Route
-            path='/inscription'
-            element={
-              <MinimalLayout>
-                <Inscription />
-              </MinimalLayout>
-            }
-          />
-
-          <Route
-            path='/mot-de-passe-oublie'
-            element={
-              <MinimalLayout>
-                <MotdePasseoublie />
-              </MinimalLayout>
-            }
-          />
-
-          <Route
-            path='/reset-password'
-            element={
-              <MinimalLayout>
-                <ResetPassword />
-              </MinimalLayout>
-            }
-          />
-
-          {/* Routes protégées - utilisateur */}
           <Route
             path='/rendez-vous'
             element={
@@ -234,6 +196,69 @@ function App() {
                   replace
                   state={{ from: location.pathname }}
                 />
+              )
+            }
+          />
+
+          <Route
+            path='/reset-password'
+            element={
+              <MinimalLayout>
+                <ResetPassword />
+              </MinimalLayout>
+            }
+          />
+
+          <Route
+            path='/connexion'
+            element={
+              isAuthenticated ? (
+                <Navigate
+                  to={user?.role === 'admin' || user?.isAdmin === true 
+                    ? '/gestionnaire/statistiques' 
+                    : '/'}
+                  replace
+                />
+              ) : (
+                <MinimalLayout>
+                  <Connexion />
+                </MinimalLayout>
+              )
+            }
+          />
+
+          <Route
+            path='/inscription'
+            element={
+              isAuthenticated ? (
+                <Navigate
+                  to={user?.role === 'admin' || user?.isAdmin === true 
+                    ? '/gestionnaire/statistiques' 
+                    : '/'}
+                  replace
+                />
+              ) : (
+                <MinimalLayout>
+                  <Inscription />
+                </MinimalLayout>
+              )
+            }
+          />
+
+          <Route
+            path='/mot-de-passe-oublie'
+            element={
+              isAuthenticated ? (
+                <Navigate
+                  to={user?.role === 'admin' || user?.isAdmin === true 
+                    ? '/gestionnaire/statistiques' 
+                    : '/'}
+                  replace
+                />
+              ) : (
+                <MinimalLayout>
+                  <MotdePasseoublie />
+                </MinimalLayout>
               )
             }
           />
@@ -289,7 +314,6 @@ function App() {
             }
           />
 
-          {/* Routes admin */}
           <Route
             path='/gestionnaire/*'
             element={
