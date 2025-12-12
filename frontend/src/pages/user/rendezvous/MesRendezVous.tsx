@@ -1,8 +1,8 @@
-// MesRendezvous.tsx - VERSION SIMPLIFIÉE
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+// MesRendezvous.tsx
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   FiCalendar,
   FiClock,
@@ -21,7 +21,7 @@ import {
   FiFilter,
 } from 'react-icons/fi';
 import { useAuth } from '../../../context/AuthContext';
-import { Home, RefreshCw, User, Calendar, FileText } from 'lucide-react';
+import { UserHeader } from '../../../components/user/UserHeader';
 import { 
   UserRendezvousService, 
   Rendezvous, 
@@ -49,27 +49,6 @@ const pageConfigs = {
     description: 'Suivez l\'avancement de votre dossier avec Paname Consulting'
   },
 };
-
-const navTabs = [
-  {
-    id: 'profile',
-    label: 'Profil',
-    to: '/mon-profil',
-    icon: User,
-  },
-  {
-    id: 'rendezvous',
-    label: 'RDV',
-    to: '/mes-rendez-vous',
-    icon: Calendar,
-  },
-  {
-    id: 'procedures',
-    label: 'Dossier',
-    to: '/ma-procedure',
-    icon: FileText,
-  },
-];
 
 const statusOptions = [
   { value: '', label: 'Tous les statuts' },
@@ -102,7 +81,6 @@ const MesRendezvous = () => {
   
   const navigate = useNavigate();
   const location = useLocation();
-  const headerRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
 
   const [rendezvous, setRendezvous] = useState<Rendezvous[]>([]);
@@ -116,7 +94,25 @@ const MesRendezvous = () => {
     totalPages: 1,
   });
 
-  // Vérification d'authentification - le contexte s'en occupe déjà
+  // Fonction pour obtenir la configuration de page
+  const getCurrentPageConfig = () => {
+    const currentPath = location.pathname;
+    if (pageConfigs[currentPath as keyof typeof pageConfigs]) {
+      return pageConfigs[currentPath as keyof typeof pageConfigs];
+    }
+    
+    for (const [path, config] of Object.entries(pageConfigs)) {
+      if (currentPath.startsWith(path)) {
+        return config;
+      }
+    }
+    
+    return pageConfigs['/mes-rendez-vous'];
+  };
+
+  const currentPage = getCurrentPageConfig();
+
+  // Vérification d'authentification
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
@@ -131,12 +127,10 @@ const MesRendezvous = () => {
   }
 
   if (!user || !isAuthenticated) {
-    // Rediriger vers la page de connexion si non authentifié
     navigate('/connexion');
     return null;
   }
 
-  // Créer l'objet authFunctions simplifié
   const authFunctions: AuthFunctions = useMemo(() => ({
     fetchWithAuth,
     getAccessToken: () => null,
@@ -144,21 +138,12 @@ const MesRendezvous = () => {
     logout: () => {}
   }), [fetchWithAuth]);
 
-  // Créer le service
   const rendezvousService = useMemo(() => {
     return new UserRendezvousService(authFunctions);
   }, [authFunctions]);
 
-  // Mesurer la hauteur du header
-  useEffect(() => {
-    if (headerRef.current) {
-      setHeaderHeight(headerRef.current.offsetHeight);
-    }
-  }, [location.pathname]);
-
   // Fonction pour charger les rendez-vous
   const fetchRendezvous = useCallback(async () => {
-    // La validation d'authentification est déjà faite par le contexte
     setLoading(true);
     
     try {
@@ -179,7 +164,6 @@ const MesRendezvous = () => {
     } catch (error: any) {
       console.error('Erreur lors du chargement des rendez-vous:', error);
       
-      // Le service gère déjà les erreurs d'authentification
       if (error.message !== 'SESSION_EXPIRED' && 
           error.message !== 'SESSION_CHECK_IN_PROGRESS') {
         toast.error("Impossible de charger les rendez-vous");
@@ -216,7 +200,6 @@ const MesRendezvous = () => {
     } catch (error: any) {
       console.error('Erreur lors de l\'annulation:', error);
       
-      // Le service gère déjà les erreurs d'authentification
       if (error.message !== 'SESSION_EXPIRED' && 
           error.message !== 'SESSION_CHECK_IN_PROGRESS') {
         toast.error("Impossible d'annuler le rendez-vous");
@@ -240,25 +223,6 @@ const MesRendezvous = () => {
     }
   };
 
-  const getCurrentPageConfig = () => {
-    const currentPath = location.pathname;
-    if (pageConfigs[currentPath as keyof typeof pageConfigs]) {
-      return pageConfigs[currentPath as keyof typeof pageConfigs];
-    }
-    
-    for (const [path, config] of Object.entries(pageConfigs)) {
-      if (currentPath.startsWith(path)) {
-        return config;
-      }
-    }
-    
-    return pageConfigs['/mes-rendez-vous'];
-  };
-
-  const currentPage = getCurrentPageConfig();
-  const activeTabId = navTabs.find(tab => location.pathname.startsWith(tab.to))?.id || 'rendezvous';
-
-  // === RENDU DES ÉLÉMENTS UI ====================
   const renderStatusBadge = (status: string) => (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusColors[status] || 'bg-gray-100 text-gray-800 border-gray-300'}`}>
       {status === 'En attente' && <FiAlertCircle className="mr-1 h-3 w-3" />}
@@ -365,72 +329,54 @@ const MesRendezvous = () => {
     </div>
   );
 
-  // === RENDU CONDITIONNEL PAR PAGE ====================
-  const renderPageContent = () => {
-    if (location.pathname !== '/mes-rendez-vous') {
-      return (
-        <div className="min-h-screen bg-gradient-to-b from-sky-50 to-white">
-          <div className="max-w-4xl mx-auto px-4 py-8">
-            <div className="mb-8">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">
-                {currentPage.title}
-              </h1>
-              <p className="text-gray-600">
-                {currentPage.subtitle}
-              </p>
+  // Mise à jour de la hauteur du header après le rendu
+  useEffect(() => {
+    const header = document.querySelector('header');
+    if (header) {
+      setHeaderHeight(header.offsetHeight);
+    }
+  }, []);
+
+  return (
+    <>
+      <Helmet>
+        <title>{currentPage.pageTitle}</title>
+        <meta name="description" content={currentPage.description} />
+      </Helmet>
+
+      <UserHeader
+        title={currentPage.title}
+        subtitle={currentPage.subtitle}
+        pageTitle={currentPage.pageTitle}
+        description={currentPage.description}
+        isLoading={loading}
+        onRefresh={handleRefresh}
+      >
+        {/* Indicateur de statut */}
+        <div className='mt-2 pt-2 border-t border-gray-100'>
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-1.5'>
+              <div className='w-1.5 h-1.5 bg-emerald-500 rounded-full'></div>
+              <span className='text-xs text-gray-600'>
+                Connecté: {user?.email}
+              </span>
             </div>
-            
-            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-sky-100">
-                {activeTabId === 'profile' ? (
-                  <User className="h-8 w-8 text-sky-600" />
-                ) : activeTabId === 'procedures' ? (
-                  <FileText className="h-8 w-8 text-sky-600" />
-                ) : (
-                  <Calendar className="h-8 w-8 text-sky-600" />
-                )}
-              </div>
-              <h3 className="text-lg font-medium text-gray-800 mb-4">
-                Page {currentPage.title} en cours de développement
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Cette fonctionnalité sera bientôt disponible. Merci de votre patience.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <button
-                  onClick={() => navigate('/mes-rendez-vous')}
-                  className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-all duration-200 transform hover:scale-105"
-                >
-                  <Calendar className="h-4 w-4" />
-                  Voir mes rendez-vous
-                </button>
-                <button
-                  onClick={() => navigate('/')}
-                  className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200 transform hover:scale-105"
-                >
-                  <Home className="h-4 w-4" />
-                  Retour à l'accueil
-                </button>
-              </div>
-            </div>
+            <span className='text-xs text-gray-500'>
+              {new Date().toLocaleTimeString('fr-FR', { 
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </span>
           </div>
         </div>
-      );
-    }
+      </UserHeader>
 
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-sky-50 to-white">
+      {/* Contenu principal */}
+      <div 
+        className="min-h-screen bg-gradient-to-b from-sky-50 to-white"
+        style={{ paddingTop: `${headerHeight}px` }}
+      >
         <div className="max-w-4xl mx-auto px-4 py-8">
-          {/* En-tête de page */}
-          <div className="mb-8">
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">
-              {currentPage.title}
-            </h1>
-            <p className="text-gray-600">
-              {currentPage.subtitle}
-            </p>
-          </div>
-
           {/* Contrôles */}
           <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -454,7 +400,7 @@ const MesRendezvous = () => {
               </div>
 
               <button
-                onClick={handleRefresh}
+                onClick={fetchRendezvous}
                 disabled={loading}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -587,118 +533,6 @@ const MesRendezvous = () => {
             </ul>
           </div>
         </div>
-      </div>
-    );
-  };
-
-  // Rendu principal
-  return (
-    <>
-      <Helmet>
-        <title>{currentPage.pageTitle}</title>
-        <meta name="description" content={currentPage.description} />
-      </Helmet>
-
-      {/* Header fixe */}
-      <header 
-        ref={headerRef} 
-        className='bg-white shadow-lg border-b border-gray-100 fixed top-0 left-0 right-0 z-50'
-      >
-        <div className='px-4 py-3'>
-          {/* Barre supérieure */}
-          <div className='flex items-center justify-between mb-3'>
-            <div className='flex items-center gap-2'>
-              <button
-                onClick={() => navigate('/')}
-                className='p-2 bg-sky-50 rounded-xl hover:bg-sky-100 active:scale-95 transition-all duration-200'
-                title="Retour à l'accueil"
-                aria-label="Retour à l'accueil"
-              >
-                <Home className='w-4 h-4 text-sky-600' />
-              </button>
-              <div className='flex flex-col'>
-                <h1 className='text-base font-bold text-gray-900 leading-tight'>
-                  {currentPage.title}
-                </h1>
-                <p className='text-xs text-gray-500'>
-                  {currentPage.subtitle}
-                </p>
-              </div>
-            </div>
-            
-            <button
-              onClick={handleRefresh}
-              disabled={loading}
-              className='p-2 bg-sky-50 rounded-xl hover:bg-sky-100 active:scale-95 transition-all duration-200 disabled:opacity-50'
-              title="Actualiser"
-              aria-label="Actualiser"
-            >
-              <RefreshCw className={`w-4 h-4 text-sky-600 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-
-          {/* Navigation */}
-          <div className='overflow-x-auto pb-1 no-scrollbar'>
-            <nav className='flex gap-1.5 min-w-max'>
-              {navTabs.map(tab => {
-                const isActive = activeTabId === tab.id;
-                return (
-                  <Link
-                    key={tab.id}
-                    to={tab.to}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 flex-shrink-0 relative ${
-                      isActive
-                        ? 'bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sm'
-                        : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-sky-300 hover:bg-sky-50 active:scale-95'
-                    }`}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    <tab.icon className={`w-3.5 h-3.5 ${
-                      isActive ? 'text-white' : 'text-gray-500'
-                    }`} />
-                    <span className={`text-xs font-medium whitespace-nowrap ${
-                      isActive ? 'text-white' : 'text-gray-700'
-                    }`}>
-                      {tab.label}
-                    </span>
-                    {isActive && (
-                      <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-4 h-0.5 bg-sky-400 rounded-full"></div>
-                    )}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-
-          {/* Indicateur de statut */}
-          <div className='mt-2 pt-2 border-t border-gray-100'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-1.5'>
-                <div className='w-1.5 h-1.5 bg-emerald-500 rounded-full'></div>
-                <span className='text-xs text-gray-600'>
-                  Connecté: {user?.email}
-                </span>
-              </div>
-              <span className='text-xs text-gray-500'>
-                {new Date().toLocaleTimeString('fr-FR', { 
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Effet de séparation */}
-        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-sky-100 to-transparent"></div>
-      </header>
-
-      {/* Contenu principal */}
-      <div 
-        className="min-h-screen"
-        style={{ paddingTop: `${headerHeight}px` }}
-      >
-        {renderPageContent()}
       </div>
     </>
   );
