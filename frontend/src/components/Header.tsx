@@ -21,13 +21,21 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function Header(): React.JSX.Element {
-  const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
+  const { 
+    user, 
+    isAuthenticated, 
+    logout, 
+    isLoading: authLoading,
+    updateProfile // ← AJOUT: Utiliser la méthode du contexte
+  } = useAuth();
+  
   const [showTopBar] = useState(true);
   const [nav, setNav] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [blinkColor, setBlinkColor] = useState('text-gray-600');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [syncAttempted, setSyncAttempted] = useState(false); // ← AJOUT
   const location = useLocation();
   const navigate = useNavigate();
   const mobileMenuRef = useRef<HTMLUListElement>(null);
@@ -38,23 +46,51 @@ function Header(): React.JSX.Element {
     setIsMounted(true);
   }, []);
 
-  // Effet pour vérifier la synchronisation de l'authentification
+  // CORRECTION: Synchronisation automatique avec le contexte
   useEffect(() => {
-    // Logs pour déboguer
-    console.log('Header - Auth state:', { 
+    if (!isMounted || authLoading || syncAttempted) return;
+
+    // Log pour déboguer
+    console.log('Header - État auth:', { 
       isAuthenticated, 
-      user, 
-      hasLocalStorageToken: !!window.localStorage?.getItem('access_token'),
+      userExists: !!user,
+      tokenExists: !!window.localStorage?.getItem('access_token'),
       path: location.pathname 
     });
 
-    // Si non authentifié mais qu'on a un token, forcer une vérification silencieuse
-    if (!isAuthenticated && window.localStorage?.getItem('access_token') && !authLoading) {
-      console.log('Header - Token présent mais non authentifié, vérification...');
-      // Option: rafraîchir silencieusement l'état
-      // Note: Cette vérification est gérée par le AuthContext
+    // CAS 1: Token existe mais utilisateur non chargé → fetchUserData
+    const token = window.localStorage?.getItem('access_token');
+    if (token && !user && !authLoading) {
+      console.log('Header - Synchronisation nécessaire...');
+      
+      // Utiliser updateProfile du contexte (qui appelle fetchUserData)
+      const syncUser = async () => {
+        try {
+          await updateProfile(); // ← Utilise la méthode du contexte
+          console.log('Header - Synchronisation réussie');
+        } catch (error) {
+          console.warn('Header - Échec synchronisation:', error);
+        } finally {
+          setSyncAttempted(true);
+        }
+      };
+      
+      syncUser();
     }
-  }, [isAuthenticated, user, location.pathname, authLoading]);
+    
+    // CAS 2: Pas de token mais utilisateur en mémoire → nettoyer
+    if (!token && user) {
+      console.log('Header - Nettoyage état incohérent');
+      logout(); // ← Utilise la méthode du contexte
+    }
+  }, [isMounted, authLoading, user, isAuthenticated, updateProfile, logout, location.pathname, syncAttempted]);
+
+  // Réinitialiser syncAttempted quand l'utilisateur change
+  useEffect(() => {
+    if (user) {
+      setSyncAttempted(false);
+    }
+  }, [user]);
 
   const handleLogoClick = (): void => {
     if (!isMounted) return;
@@ -122,7 +158,7 @@ function Header(): React.JSX.Element {
   const handleLogout = async (): Promise<void> => {
     setIsLoggingOut(true);
     try {
-      await logout();
+      await logout(); // ← Utilise la méthode du contexte
       window.sessionStorage?.removeItem('redirect_after_login');
     } catch (error) {
       if (import.meta.env.DEV) {
@@ -136,6 +172,7 @@ function Header(): React.JSX.Element {
   };
 
   const handleProtectedNavigation = (path: string, isMobile: boolean = false): void => {
+    // CORRECTION: Utiliser isAuthenticated du contexte
     if (!isAuthenticated) {
       window.sessionStorage?.setItem('redirect_after_login', path);
       navigate('/connexion', {
@@ -212,7 +249,7 @@ function Header(): React.JSX.Element {
       ) : (
         <LogOut className='w-4 h-4' />
       ),
-      visible: isAuthenticated,
+      visible: isAuthenticated, // ← Utiliser isAuthenticated du contexte
       disabled: isLoggingOut,
       requiresAuth: true,
       section: 'logout',
@@ -334,6 +371,7 @@ function Header(): React.JSX.Element {
               </ul>
 
               {/* Boutons d'authentification */}
+              {/* CORRECTION: Utiliser isAuthenticated du contexte */}
               {isAuthenticated && user ? (
                 <div className='relative ml-2 md:ml-4' ref={dropdownRef}>
                   <button
@@ -475,15 +513,15 @@ function Header(): React.JSX.Element {
                 ref={mobileMenuRef}
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* En-tête mobile - SIMPLIFIÉ */}
+                {/* En-tête mobile */}
                 <div className='sticky top-0 bg-white border-b z-10'>
                   <div className='px-4 py-3 flex items-center bg-gray-50'>
                     <div className='flex items-center'>
                       <div className='flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-bold mr-3'>
-                        {isAuthenticated ? getUserInitials() : <UserIcon className='w-5 h-5' />}
+                        {isAuthenticated && user ? getUserInitials() : <UserIcon className='w-5 h-5' />}
                       </div>
                       <div>
-                        {isAuthenticated ? (
+                        {isAuthenticated && user ? (
                           <>
                             <p className='text-sm font-bold text-gray-800 truncate'>
                               {getUserDisplayName()}
@@ -502,10 +540,10 @@ function Header(): React.JSX.Element {
                   </div>
                 </div>
 
-                {/* CONTENU DU MENU MOBILE - Mobile First */}
+                {/* CONTENU DU MENU MOBILE */}
                 <div className='p-4 space-y-6'>
-                  {/* SECTION 1: LIENS AUTHENTIFIÉS (si connecté) - PRIORITÉ HAUTE */}
-                  {isAuthenticated && (
+                  {/* SECTION 1: LIENS AUTHENTIFIÉS */}
+                  {isAuthenticated && user && (
                     <div className='space-y-2'>
                       <div className='flex items-center justify-between px-2 mb-2'>
                         <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider'>
@@ -624,7 +662,7 @@ function Header(): React.JSX.Element {
                     </div>
                   )}
 
-                  {/* SECTION 4: DÉCONNEXION (en bas si connecté) */}
+                  {/* SECTION 4: DÉCONNEXION */}
                   {isAuthenticated && (
                     <div className='pt-4 border-t border-gray-200'>
                       <div className='space-y-2'>

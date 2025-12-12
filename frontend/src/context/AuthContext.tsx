@@ -1172,22 +1172,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [checkAuth, logout]);
 
   // ==================== VALEUR DU CONTEXT ====================
-  const value: AuthContextType = {
-    user,
-    access_token,
-    isAuthenticated: !!user && !!access_token,
-    isLoading,
-    error,
-    login,
-    logout,
-    logoutAll,
-    register,
-    forgotPassword,
-    resetPassword,
-    refreshToken,
-    updateProfile,
-    fetchWithAuth,
-  };
+const value: AuthContextType = {
+  user,
+  access_token,
+  isAuthenticated: !!user && !!access_token, // ← Cette logique est correcte
+  isLoading,
+  error,
+  login,
+  logout,
+  logoutAll,
+  register,
+  forgotPassword,
+  resetPassword,
+  refreshToken,
+  updateProfile: fetchUserData, // ← Exposer fetchUserData sous le nom updateProfile
+  fetchWithAuth,
+};
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
