@@ -122,9 +122,6 @@ interface AuthContextType {
 }
 
 
-// ==================== VARIABLE GLOBALE POUR ÉVITER LES BOUCLES ====================
-let isGlobalSessionCheck = false;
-
 // ==================== CONSTANTS SYNCHRONISÉES AVEC BACKEND ====================
 const AUTH_CONSTANTS = {
   ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000,
