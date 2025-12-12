@@ -456,27 +456,7 @@ const fetchWithAuth = useCallback(async (
   };
 
   try {
-    // Construire l'URL correctement
-    let fullUrl;
-    if (endpoint.startsWith('http')) {
-      fullUrl = endpoint;
-    } else {
-      // S'assurer que API_CONFIG.BASE_URL ne se termine pas par un slash
-      const baseUrl = API_CONFIG.BASE_URL.endsWith('/') 
-        ? API_CONFIG.BASE_URL.slice(0, -1) 
-        : API_CONFIG.BASE_URL;
-      
-      // S'assurer que l'endpoint commence par un slash
-      const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-      
-      fullUrl = `${baseUrl}${cleanEndpoint}`;
-    }
-    
-    if (import.meta.env.DEV) {
-      console.log('🌐 Requête fetchWithAuth vers:', fullUrl);
-    }
-
-    const response = await window.fetch(fullUrl, {
+    const response = await window.fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
       ...options,
       headers,
       credentials: 'include',
@@ -546,22 +526,14 @@ const fetchWithAuth = useCallback(async (
     // S'assurer que le flag est réinitialisé en cas d'erreur
     isGlobalSessionCheck = false;
     
-    if (error instanceof Error) {
-      if (error.message === AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS) {
-        // Ne pas relancer pour éviter les boucles infinies
-        throw error;
-      }
-      
-      if (error.message.includes('Failed to fetch')) {
-        if (import.meta.env.DEV) {
-          console.error('🌐 Erreur réseau:', error.message);
-        }
-        toast.error('Erreur de connexion au serveur');
-      }
+    if (error instanceof Error && error.message === AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS) {
+      // Ne pas relancer pour éviter les boucles infinies
+      throw error;
     }
     throw error;
   }
 }, [access_token, cleanupAuthData, navigate]);
+
 
   const fetchUserData = useCallback(async (): Promise<void> => {
     // Vérifier si un refresh est déjà en cours

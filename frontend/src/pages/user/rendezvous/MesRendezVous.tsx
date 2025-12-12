@@ -141,6 +141,35 @@ const MesRendezvous = () => {
     }
   }, [authLoading, isAuthenticated, navigate, location.pathname]);
 
+  // === CHARGEMENT INITIAL DES RENDEZ-VOUS ===
+useEffect(() => {
+  if (isAuthenticated && location.pathname === '/mes-rendez-vous') {
+    // Attendre un court délai pour s'assurer que tout est initialisé
+    const timer = setTimeout(() => {
+      console.log('🔄 Chargement initial des rendez-vous...');
+      fetchRendezvous(true);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }
+}, [isAuthenticated, location.pathname]);
+
+// === CHARGEMENT QUAND LE FILTRE CHANGE ===
+useEffect(() => {
+  if (isAuthenticated && location.pathname === '/mes-rendez-vous') {
+    // Réinitialiser la pagination et recharger quand le filtre change
+    setPagination(prev => ({ ...prev, page: 1 }));
+    
+    // Utiliser un délai pour éviter des appels trop fréquents
+    const timer = setTimeout(() => {
+      console.log('🔄 Rechargement avec nouveau filtre:', selectedStatus);
+      fetchRendezvous(true);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }
+}, [selectedStatus, location.pathname]);
+
   
 
   if (authLoading) {
@@ -200,51 +229,46 @@ const fetchRendezvous = useCallback(async (force = true) => {
   setLoading(true);
   
   try {
-    // Pas de délai pour la première requête
+    // Utiliser la pagination actuelle
     const data = await rendezvousService.fetchUserRendezvous({
-      page: 1,
-      limit: 10,
+      page: pagination.page,  // ← Utiliser page courante
+      limit: pagination.limit,
       status: selectedStatus || undefined,
     });
     
     console.log('✅ Rendez-vous chargés avec succès:', {
       count: data.data.length,
-      total: data.total
+      total: data.total,
+      page: data.page
     });
     
     setRendezvous(data.data);
     setPagination({
-      page: 1,
-      limit: 10,
+      page: data.page,
+      limit: data.limit,
       total: data.total,
       totalPages: data.totalPages,
     });
     
-    // Sauvegarder dans localStorage pour debug
-    localStorage.setItem('last_rendezvous_data', JSON.stringify({
-      timestamp: new Date().toISOString(),
-      count: data.data.length,
-      ids: data.data.map((d: Rendezvous) => d._id)
-    }));
+    // Sauvegarder le timestamp du dernier chargement
+    localStorage.setItem('last_rendezvous_fetch_time', Date.now().toString());
     
   } catch (error: any) {
     console.error('❌ Erreur fetchRendezvous:', error.message);
     
     // Afficher l'erreur à l'utilisateur
     if (error.message.includes('TOO MANY REQUESTS')) {
-      toast.error('Trop de requêtes. Attendez 10 secondes puis cliquez sur Actualiser.', {
-        autoClose: 10000,
-      });
+      
     } else if (error.message !== 'SESSION_EXPIRED') {
       toast.error('Erreur de chargement: ' + error.message, {
-        autoClose: 5000,
+        autoClose: 3000,
       });
     }
   } finally {
     setLoading(false);
     console.log('🏁 fetchRendezvous terminée');
   }
-}, [rendezvousService, selectedStatus, isAuthenticated, user, loading]);
+}, [rendezvousService, selectedStatus, isAuthenticated, user, loading, pagination.page, pagination.limit]);
 
  // Dans MesRendezvous.tsx - Intervalle de rafraîchissement
 useEffect(() => {
@@ -316,11 +340,44 @@ useEffect(() => {
     }
   };
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= pagination.totalPages) {
-      setPagination((prev: any) => ({ ...prev, page: newPage }));
-    }
-  };
+ const handlePageChange = useCallback((newPage: number) => {
+  if (newPage >= 1 && newPage <= pagination.totalPages) {
+    setPagination((prev: any) => ({ ...prev, page: newPage }));
+    
+    // Recharger les données pour la nouvelle page
+    const timer = setTimeout(() => {
+      fetchRendezvousForPage(newPage);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }
+}, [pagination.totalPages]);
+
+// Fonction spécifique pour charger une page
+const fetchRendezvousForPage = useCallback(async (page: number) => {
+  if (!user || !isAuthenticated) return;
+  
+  setLoading(true);
+  try {
+    const data = await rendezvousService.fetchUserRendezvous({
+      page,
+      limit: pagination.limit,
+      status: selectedStatus || undefined,
+    });
+    
+    setRendezvous(data.data);
+    setPagination(prev => ({
+      ...prev,
+      page: data.page,
+      total: data.total,
+      totalPages: data.totalPages,
+    }));
+  } catch (error) {
+    console.error('Erreur lors du chargement de la page:', error);
+  } finally {
+    setLoading(false);
+  }
+}, [rendezvousService, selectedStatus, isAuthenticated, user, pagination.limit]);
 
   const getCurrentPageConfig = () => {
     const currentPath = location.pathname;
