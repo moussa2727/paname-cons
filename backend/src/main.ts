@@ -32,12 +32,9 @@ const productionOrigins = [
   "https://panameconsulting.com",
   "https://www.panameconsulting.com",
   "https://panameconsulting.vercel.app",
-  "https://admin.panameconsulting.com",
-  "https://panameconsulting.netlify.app",
-  "https://panbameconsulting.vercel.app",
   "https://vercel.live",
   "http://localhost:5713",
-  "http://localhost:5173",
+  
 ];
 
 // Fonction pour vérifier si une origine correspond à un pattern avec wildcard
@@ -160,21 +157,19 @@ async function bootstrap() {
     next();
   });
 
-  // ✅ MIDDLEWARE DE LOGGING DES REQUÊTES (dev seulement)
-  if (process.env.NODE_ENV !== 'production') {
-    app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-      const start = Date.now();
-      const originalEnd = res.end;
-      
-      (res as any).end = function(...args: any[]) {
-        const duration = Date.now() - start;
-        logger.log(`${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms`);
-        return originalEnd.apply(res, args);
-      };
-      
-      next();
-    });
-  }
+  // ✅ MIDDLEWARE DE LOGGING DES REQUÊTES
+  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const start = Date.now();
+    const originalEnd = res.end;
+    
+    (res as any).end = function(...args: any[]) {
+      const duration = Date.now() - start;
+      logger.log(`${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms - Origin: ${req.headers.origin || 'none'}`);
+      return originalEnd.apply(res, args);
+    };
+    
+    next();
+  });
 
   // ✅ CONFIGURATION CORS STRICTE
   logger.log(`Configuration CORS pour environnement: PRODUCTION EXCLUSIVE`);
@@ -183,10 +178,10 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
-      // 🔒 EN PRODUCTION EXCLUSIVE: REFUSER les requêtes sans origine
+      // 🔒 REFUSER les requêtes sans origine
       if (!origin) {
-        logger.warn(`❌ Requête sans origine rejetée en production`);
-        callback(new Error('Origine requise en production'), false);
+        logger.warn(`❌ Requête sans origine rejetée`);
+        callback(new Error('Origine requise'), false);
         return;
       }
 
@@ -194,12 +189,11 @@ async function bootstrap() {
       const isAllowed = isOriginAllowed(origin, productionOrigins);
 
       if (isAllowed) {
-        if (process.env.NODE_ENV !== 'production') {
-          logger.debug(`✅ Origine autorisée: ${origin}`);
-        }
+        logger.debug(`✅ Origine autorisée: ${origin}`);
         callback(null, true);
       } else {
-        logger.warn(`❌ Origine non autorisée par CORS: ${origin}`);
+        logger.warn(`❌ Origine non autorisée: ${origin}`);
+        logger.warn(`   Origines autorisées: ${productionOrigins.join(', ')}`);
         callback(new Error(`Origine non autorisée: ${origin}`), false);
       }
     },
@@ -211,16 +205,16 @@ async function bootstrap() {
       "Origin",
       "X-Requested-With",
       "Cookie",
-      "Set-Cookie"
+      "Set-Cookie",
+      "Access-Control-Allow-Credentials"
     ],
     credentials: true,
     maxAge: 86400,
     exposedHeaders: [
       "Authorization",
-      "X-RateLimit-Limit",
-      "X-RateLimit-Remaining",
-      "X-RateLimit-Reset",
-      "Set-Cookie"
+      "Set-Cookie",
+      "Access-Control-Allow-Origin",
+      "Access-Control-Allow-Credentials"
     ],
     optionsSuccessStatus: 204,
   });
@@ -271,6 +265,7 @@ async function bootstrap() {
           <div class="links">
             <a href="/health">Health Check</a>
             <a href="/api">API Info</a>
+            <a href="/api/test-cors">Test CORS</a>
           </div>
         </div>
       </body>
@@ -290,6 +285,10 @@ async function bootstrap() {
         urlencoded: "enabled",
         cookies: "enabled",
         text: "enabled"
+      },
+      cors: {
+        allowedOrigins: productionOrigins,
+        credentials: "enabled"
       }
     });
   });
@@ -308,9 +307,14 @@ async function bootstrap() {
         json: "enabled",
         urlencoded: "enabled",
         cookies: "enabled"
+      },
+      cors: {
+        allowedOrigins: productionOrigins
       }
     });
   });
+
+ 
 
   // ✅ MIDDLEWARE POUR GÉRER MANUELLEMENT LES HEADERS CORS (OPTIONS)
   app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -322,8 +326,8 @@ async function bootstrap() {
       }
       res.header("Access-Control-Allow-Credentials", "true");
       res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-      res.header("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, Origin, X-Requested-With, Cookie");
-      res.header("Access-Control-Expose-Headers", "Authorization, X-RateLimit-Limit, X-RateLimit-Remaining, Set-Cookie");
+      res.header("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, Origin, X-Requested-With, Cookie, Access-Control-Allow-Credentials");
+      res.header("Access-Control-Expose-Headers", "Authorization, X-RateLimit-Limit, X-RateLimit-Remaining, Set-Cookie, Access-Control-Allow-Origin");
       res.header("Access-Control-Max-Age", "86400");
       return res.status(200).end();
     }
@@ -423,13 +427,11 @@ async function bootstrap() {
     logger.log(`🍪 Cookie parser: ✅ Activé`);
     logger.log(`========================================`);
     
-    // ✅ LISTE DES ORIGINES AUTORISÉES (pour information)
-    if (process.env.NODE_ENV !== 'production') {
-      logger.log(`🌍 Origines CORS autorisées:`);
-      productionOrigins.forEach(origin => {
-        logger.log(`   • ${origin}`);
-      });
-    }
+    // ✅ LISTE DES ORIGINES AUTORISÉES
+    logger.log(`🌍 Origines CORS autorisées:`);
+    productionOrigins.forEach(origin => {
+      logger.log(`   • ${origin}`);
+    });
 
     // ✅ DÉMARRAGE DU SERVEUR
     await app.listen(port, host);
@@ -437,7 +439,6 @@ async function bootstrap() {
     logger.log(`✅ Serveur démarré sur http://${host}:${port}`);
     logger.log(`✅ Health check: http://${host}:${port}/health`);
     logger.log(`✅ Parsing middleware: JSON, URL-encoded, Cookies activés`);
-    logger.log(`✅ Origine localhost:5173 autorisée`);
     
     // ✅ INFORMATION DE MONITORING
     const memoryUsage = process.memoryUsage();
