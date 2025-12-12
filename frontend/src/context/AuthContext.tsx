@@ -121,7 +121,6 @@ interface AuthContextType {
   };
 }
 
-
 // ==================== CONSTANTS SYNCHRONISÉES AVEC BACKEND ====================
 const AUTH_CONSTANTS = {
   ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000,
@@ -206,7 +205,7 @@ const TOAST_MESSAGES = {
 } as const;
 
 const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_URL,
+  BASE_URL: import.meta.env.VITE_API_URL || 'https://panameconsulting.up.railway.app',
   ENDPOINTS: {
     LOGIN: '/api/auth/login',
     REGISTER: '/api/auth/register',
@@ -457,7 +456,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader) * 1000 : AUTH_CONSTANTS.RATE_LIMITING.RETRY_AFTER_MS;
         
         handleRateLimitError(retryAfter);
-        setRateLimitState((prev: any) => ({
+        setRateLimitState(prev => ({
           ...prev,
           isLimited: true,
           retryAfter,
@@ -492,7 +491,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Réinitialiser l'état rate limit si la requête réussit
       if (response.ok) {
         const currentCount = parseInt(window.localStorage?.getItem(STORAGE_KEYS.REQUEST_COUNT) || '0');
-        setRateLimitState((prev: any) => ({
+        setRateLimitState(prev => ({
           ...prev,
           isLimited: false,
           retryAfter: 0,
@@ -1449,7 +1448,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               window.localStorage?.removeItem(STORAGE_KEYS.LAST_429_TIME);
               window.localStorage?.removeItem(STORAGE_KEYS.RETRY_AFTER);
               
-              setRateLimitState((prev: any) => ({
+              setRateLimitState(prev => ({
                 ...prev,
                 isLimited: false,
                 retryAfter: 0,
@@ -1500,14 +1499,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     rateLimitState,
   };
 
-  return(
-    <> 
-    <AuthContext.Provider 
-     value={value}>{children}
-     </AuthContext.Provider>
-    </>
-  )
-   ;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 // ==================== HOOKS ====================
