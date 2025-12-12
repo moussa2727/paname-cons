@@ -1,5 +1,5 @@
-// MesRendezVous.tsx - VERSION SIMPLIFIÉE (même logique que RendezVous)
-import { useState, useEffect, useCallback, useRef } from 'react';
+// MesRendezvous.tsx - VERSION SIMPLIFIÉE
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
@@ -20,43 +20,14 @@ import {
   FiStar,
   FiFilter,
 } from 'react-icons/fi';
-import { Home, RefreshCw, User, Calendar, FileText } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
-
-const API_URL = import.meta.env.VITE_API_URL;
-
-// Types
-interface Rendezvous {
-  _id: string;
-  date: string;
-  time: string;
-  destination: string;
-  destinationAutre?: string;
-  filiere: string;
-  filiereAutre?: string;
-  niveauEtude: string;
-  status: 'En attente' | 'Confirmé' | 'Terminé' | 'Annulé';
-  avisAdmin?: string;
-  cancellationReason?: string;
-  cancelledAt?: string;
-  createdAt: string;
-  consultant?: {
-    firstName: string;
-    lastName: string;
-  };
-}
-
-// Composant de chargement
-const LoadingScreen = ({ message = "Chargement..." }: { message?: string }) => (
-  <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
-    <div className="text-center">
-      <div className="animate-pulse rounded-full h-16 w-16 bg-gradient-to-r from-sky-400 to-blue-500 mx-auto mb-4 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent"></div>
-      </div>
-      <p className="text-gray-600 animate-pulse">{message}</p>
-    </div>
-  </div>
-);
+import { Home, RefreshCw, User, Calendar, FileText } from 'lucide-react';
+import { 
+  UserRendezvousService, 
+  Rendezvous, 
+  PaginationState,
+  AuthFunctions 
+} from '../../../api/user/Rendezvous/UserRendezvousService';
 
 const pageConfigs = {
   '/mon-profil': {
@@ -123,11 +94,10 @@ const avisColors: Record<string, string> = {
 const MesRendezvous = () => {
   const { 
     user,
-    isAuthenticated,
-    access_token,
-    refreshToken,
-    logout,
-    updateProfile
+    fetchWithAuth,
+    isLoading: authLoading,
+    updateProfile,
+    isAuthenticated
   } = useAuth();
   
   const navigate = useNavigate();
@@ -139,119 +109,94 @@ const MesRendezvous = () => {
   const [loading, setLoading] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
-  const [pagination, setPagination] = useState({
+  const [pagination, setPagination] = useState<PaginationState>({
     page: 1,
     limit: 10,
     total: 0,
     totalPages: 1,
   });
 
-  // === VÉRIFICATION D'AUTHENTIFICATION ===
-  useEffect(() => {
-    if (!isAuthenticated) {
-      toast.error('Veuillez vous connecter pour accéder à vos rendez-vous');
-      navigate('/connexion', {
-        state: {
-          redirectTo: '/mes-rendez-vous',
-          message: 'Connectez-vous pour voir vos rendez-vous',
-        },
-      });
-    }
-  }, [isAuthenticated, navigate]);
-
-  if (!isAuthenticated || !user) {
-    return <LoadingScreen message="Vérification de l'authentification..." />;
+  // Vérification d'authentification - le contexte s'en occupe déjà
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
+        <div className="text-center">
+          <div className="animate-pulse rounded-full h-16 w-16 bg-gradient-to-r from-sky-400 to-blue-500 mx-auto mb-4 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent"></div>
+          </div>
+          <p className="text-gray-600 animate-pulse">Chargement de l'authentification...</p>
+        </div>
+      </div>
+    );
   }
 
-  // ==================== FONCTIONS D'AIDE ====================
-  const fetchWithAuth = useCallback(async (url: string, options: RequestInit = {}) => {
-    if (!access_token) {
-      throw new Error('Session expirée');
+  if (!user || !isAuthenticated) {
+    // Rediriger vers la page de connexion si non authentifié
+    navigate('/connexion');
+    return null;
+  }
+
+  // Créer l'objet authFunctions simplifié
+  const authFunctions: AuthFunctions = useMemo(() => ({
+    fetchWithAuth,
+    getAccessToken: () => null,
+    refreshToken: async () => true,
+    logout: () => {}
+  }), [fetchWithAuth]);
+
+  // Créer le service
+  const rendezvousService = useMemo(() => {
+    return new UserRendezvousService(authFunctions);
+  }, [authFunctions]);
+
+  // Mesurer la hauteur du header
+  useEffect(() => {
+    if (headerRef.current) {
+      setHeaderHeight(headerRef.current.offsetHeight);
     }
+  }, [location.pathname]);
 
-    const makeRequest = async (token: string): Promise<Response> => {
-      return fetch(url, {
-        ...options,
-        headers: {
-          ...options.headers,
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
-    };
-
-    let response = await makeRequest(access_token);
-
-    // Gestion du token expiré
-    if (response.status === 401) {
-      try {
-        const refreshed = await refreshToken();
-        if (refreshed) {
-          const currentToken = localStorage.getItem('access_token');
-          if (currentToken) {
-            response = await makeRequest(currentToken);
-          } else {
-            throw new Error('Session expirée');
-          }
-        } else {
-          throw new Error('Session expirée');
-        }
-      } catch (error) {
-        toast.error('Session expirée. Veuillez vous reconnecter.');
-        logout();
-        navigate('/connexion');
-        throw new Error('SESSION_EXPIRED');
-      }
-    }
-
-    return response;
-  }, [access_token, refreshToken, logout, navigate]);
-
-  // ==================== CHARGEMENT DES RENDEZ-VOUS ====================
+  // Fonction pour charger les rendez-vous
   const fetchRendezvous = useCallback(async () => {
-    if (!isAuthenticated || !access_token) return;
-
+    // La validation d'authentification est déjà faite par le contexte
     setLoading(true);
+    
     try {
-      const queryParams = new URLSearchParams({
-        page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
+      const data = await rendezvousService.fetchUserRendezvous({
+        page: pagination.page,
+        limit: pagination.limit,
+        status: selectedStatus || undefined,
       });
-
-      if (selectedStatus) {
-        queryParams.append('status', selectedStatus);
-      }
-
-      const response = await fetchWithAuth(
-        `${API_URL}/api/user/rendezvous?${queryParams}`
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur ${response.status}: ${errorText}`);
-      }
-
-      const data = await response.json();
-      setRendezvous(data.data || []);
-      setPagination({
-        page: data.page || 1,
-        limit: data.limit || 10,
-        total: data.total || 0,
-        totalPages: data.totalPages || 1,
-      });
-    } catch (error: any) {
-      console.error('Erreur chargement rendez-vous:', error);
       
-      if (error.message !== 'SESSION_EXPIRED') {
-        toast.error('Impossible de charger vos rendez-vous');
+      setRendezvous(data.data);
+      setPagination({
+        page: data.page,
+        limit: data.limit,
+        total: data.total,
+        totalPages: data.totalPages,
+      });
+      
+    } catch (error: any) {
+      console.error('Erreur lors du chargement des rendez-vous:', error);
+      
+      // Le service gère déjà les erreurs d'authentification
+      if (error.message !== 'SESSION_EXPIRED' && 
+          error.message !== 'SESSION_CHECK_IN_PROGRESS') {
+        toast.error("Impossible de charger les rendez-vous");
       }
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, access_token, pagination.page, pagination.limit, selectedStatus, fetchWithAuth]);
+  }, [rendezvousService, selectedStatus, pagination.page, pagination.limit]);
 
-  // ==================== ANNULATION D'UN RENDEZ-VOUS ====================
+  // Charger les rendez-vous au montage et quand les filtres changent
+  useEffect(() => {
+    if (location.pathname === '/mes-rendez-vous') {
+      fetchRendezvous();
+    }
+  }, [location.pathname, selectedStatus, pagination.page, fetchRendezvous]);
+
+  // Annuler un rendez-vous
   const handleCancelRendezvous = async (rdvId: string) => {
     if (!window.confirm('Êtes-vous sûr de vouloir annuler ce rendez-vous ?')) {
       return;
@@ -259,19 +204,7 @@ const MesRendezvous = () => {
 
     setCancelling(rdvId);
     try {
-      const response = await fetchWithAuth(
-        `${API_URL}/api/user/rendezvous/${rdvId}/cancel`,
-        {
-          method: 'POST',
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur ${response.status}: ${errorText}`);
-      }
-
-      const updatedRdv = await response.json();
+      const updatedRdv = await rendezvousService.cancelRendezvous(rdvId);
       
       setRendezvous(prev => 
         prev.map(rdv => 
@@ -281,81 +214,31 @@ const MesRendezvous = () => {
       
       toast.success('Rendez-vous annulé avec succès');
     } catch (error: any) {
-      console.error('Erreur annulation rendez-vous:', error);
+      console.error('Erreur lors de l\'annulation:', error);
       
-      if (error.message !== 'SESSION_EXPIRED') {
-        toast.error('Erreur lors de l\'annulation du rendez-vous');
+      // Le service gère déjà les erreurs d'authentification
+      if (error.message !== 'SESSION_EXPIRED' && 
+          error.message !== 'SESSION_CHECK_IN_PROGRESS') {
+        toast.error("Impossible d'annuler le rendez-vous");
       }
     } finally {
       setCancelling(null);
     }
   };
 
-  // ==================== FONCTIONS UTILITAIRES ====================
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
-  const formatTime = (timeString: string): string => {
-    return timeString;
-  };
-
-  const getEffectiveDestination = (rdv: Rendezvous): string => {
-    return rdv.destination === 'Autre' && rdv.destinationAutre 
-      ? rdv.destinationAutre 
-      : rdv.destination;
-  };
-
-  const getEffectiveFiliere = (rdv: Rendezvous): string => {
-    return rdv.filiere === 'Autre' && rdv.filiereAutre 
-      ? rdv.filiereAutre 
-      : rdv.filiere;
-  };
-
-  const canCancelRendezvous = (rdv: Rendezvous): boolean => {
-    if (rdv.status !== 'Confirmé') return false;
-    
-    const now = new Date();
-    const rdvDate = new Date(`${rdv.date}T${rdv.time}`);
-    const twoHoursBefore = new Date(rdvDate.getTime() - 2 * 60 * 60 * 1000);
-    
-    return now < twoHoursBefore;
-  };
-
-  // ==================== EFFETS ====================
-  useEffect(() => {
-    fetchRendezvous();
-  }, [fetchRendezvous]);
-
-  useEffect(() => {
-    if (headerRef.current) {
-      setHeaderHeight(headerRef.current.offsetHeight);
+  const handleRefresh = () => {
+    if (location.pathname === '/mes-rendez-vous') {
+      fetchRendezvous();
+    } else {
+      updateProfile();
     }
-  }, [location.pathname]);
+  };
 
-  // ==================== GESTION DES PAGES ====================
-  const handlePageChange = useCallback((newPage: number) => {
+  const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
-      setPagination(prev => ({ ...prev, page: newPage }));
+      setPagination((prev: any) => ({ ...prev, page: newPage }));
     }
-  }, [pagination.totalPages]);
-
-  useEffect(() => {
-    // Recharger quand la pagination ou le filtre change
-    fetchRendezvous();
-  }, [pagination.page, selectedStatus, fetchRendezvous]);
-
-  // ==================== RECHARGEMENT ====================
-  const handleRefresh = useCallback(() => {
-    fetchRendezvous();
-    toast.info('Liste actualisée');
-  }, [fetchRendezvous]);
+  };
 
   const getCurrentPageConfig = () => {
     const currentPath = location.pathname;
@@ -375,7 +258,7 @@ const MesRendezvous = () => {
   const currentPage = getCurrentPageConfig();
   const activeTabId = navTabs.find(tab => location.pathname.startsWith(tab.to))?.id || 'rendezvous';
 
-  // ==================== RENDU DES ÉLÉMENTS UI ====================
+  // === RENDU DES ÉLÉMENTS UI ====================
   const renderStatusBadge = (status: string) => (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusColors[status] || 'bg-gray-100 text-gray-800 border-gray-300'}`}>
       {status === 'En attente' && <FiAlertCircle className="mr-1 h-3 w-3" />}
@@ -408,19 +291,19 @@ const MesRendezvous = () => {
           <div className="space-y-2">
             <div className="flex items-center text-sm text-gray-700">
               <FiCalendar className="mr-2 h-4 w-4 text-sky-500" />
-              <span className="font-medium">{formatDate(rdv.date)}</span>
+              <span className="font-medium">{UserRendezvousService.formatDate(rdv.date)}</span>
               <FiClock className="ml-4 mr-2 h-4 w-4 text-sky-500" />
-              <span className="font-medium">{formatTime(rdv.time)}</span>
+              <span className="font-medium">{UserRendezvousService.formatTime(rdv.time)}</span>
             </div>
 
             <div className="flex items-center text-sm text-gray-600">
               <FiMapPin className="mr-2 h-4 w-4 text-sky-500" />
-              <span>{getEffectiveDestination(rdv)}</span>
+              <span>{UserRendezvousService.getEffectiveDestination(rdv)}</span>
             </div>
 
             <div className="flex items-center text-sm text-gray-600">
               <FiBook className="mr-2 h-4 w-4 text-sky-500" />
-              <span>{getEffectiveFiliere(rdv)}</span>
+              <span>{UserRendezvousService.getEffectiveFiliere(rdv)}</span>
             </div>
 
             <div className="flex items-center text-sm text-gray-600">
@@ -431,7 +314,7 @@ const MesRendezvous = () => {
         </div>
 
         <div className="flex flex-col sm:items-end gap-2">
-          {canCancelRendezvous(rdv) && (
+          {UserRendezvousService.canCancelRendezvous(rdv) && (
             <button
               onClick={() => handleCancelRendezvous(rdv._id)}
               disabled={cancelling === rdv._id}
@@ -482,7 +365,7 @@ const MesRendezvous = () => {
     </div>
   );
 
-  // ==================== RENDU CONDITIONNEL ====================
+  // === RENDU CONDITIONNEL PAR PAGE ====================
   const renderPageContent = () => {
     if (location.pathname !== '/mes-rendez-vous') {
       return (
