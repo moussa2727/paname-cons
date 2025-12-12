@@ -887,7 +887,7 @@ const UserProcedureComponent = (): React.JSX.Element => {
                     className='px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium'
                   >
                     Voir toutes les procédures
-                  </button>
+                </button>
                 )}
               </div>
             </div>

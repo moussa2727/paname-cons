@@ -1,4 +1,4 @@
-// UserProfile.tsx - VERSION CORRIGÉE
+// UserProfile.tsx - VERSION ALLÉGÉE
 import { useState, useEffect, FormEvent, FC, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
@@ -33,12 +33,9 @@ const LoadingScreen = ({ message = "Chargement..." }: { message?: string }) => (
 const UserProfile = () => {
   const { 
     user, 
-    access_token,
     updateProfile, 
     isLoading: authLoading,
     fetchWithAuth,
-    refreshToken,
-    logout
   } = useAuth();
   
   const navigate = useNavigate();
@@ -268,7 +265,7 @@ const UserProfile = () => {
 
     try {
       const updatedUser = await userProfileService.updateProfile(
-        authFunctions, // ← Passer l'objet authFunctions, pas le token
+        authFunctions,
         {
           email: profileData.email,
           telephone: profileData.telephone,
@@ -329,7 +326,7 @@ const UserProfile = () => {
 
     try {
       const result = await userProfileService.updatePassword(
-        authFunctions, // ← Passer l'objet authFunctions, pas le token
+        authFunctions,
         passwordData
       );
 
