@@ -38,6 +38,24 @@ function Header(): React.JSX.Element {
     setIsMounted(true);
   }, []);
 
+  // Effet pour vérifier la synchronisation de l'authentification
+  useEffect(() => {
+    // Logs pour déboguer
+    console.log('Header - Auth state:', { 
+      isAuthenticated, 
+      user, 
+      hasLocalStorageToken: !!window.localStorage?.getItem('access_token'),
+      path: location.pathname 
+    });
+
+    // Si non authentifié mais qu'on a un token, forcer une vérification silencieuse
+    if (!isAuthenticated && window.localStorage?.getItem('access_token') && !authLoading) {
+      console.log('Header - Token présent mais non authentifié, vérification...');
+      // Option: rafraîchir silencieusement l'état
+      // Note: Cette vérification est gérée par le AuthContext
+    }
+  }, [isAuthenticated, user, location.pathname, authLoading]);
+
   const handleLogoClick = (): void => {
     if (!isMounted) return;
     if (location.pathname === '/') {
@@ -315,7 +333,7 @@ function Header(): React.JSX.Element {
                 ))}
               </ul>
 
-              {/* DÉLÉGATION COMPLÈTE AU AUTHCONTEXT - Desktop */}
+              {/* Boutons d'authentification */}
               {isAuthenticated && user ? (
                 <div className='relative ml-2 md:ml-4' ref={dropdownRef}>
                   <button
@@ -457,9 +475,9 @@ function Header(): React.JSX.Element {
                 ref={mobileMenuRef}
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* En-tête mobile */}
+                {/* En-tête mobile - SIMPLIFIÉ */}
                 <div className='sticky top-0 bg-white border-b z-10'>
-                  <div className='px-4 py-3 flex items-center justify-between bg-gray-50'>
+                  <div className='px-4 py-3 flex items-center bg-gray-50'>
                     <div className='flex items-center'>
                       <div className='flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-bold mr-3'>
                         {isAuthenticated ? getUserInitials() : <UserIcon className='w-5 h-5' />}
@@ -476,12 +494,11 @@ function Header(): React.JSX.Element {
                           </>
                         ) : (
                           <p className='text-sm font-bold text-gray-800'>
-                            Paname Consulting
+                            Mon Compte
                           </p>
                         )}
                       </div>
                     </div>
-                   
                   </div>
                 </div>
 
@@ -571,7 +588,7 @@ function Header(): React.JSX.Element {
                   {!isAuthenticated && (
                     <div className='pt-4 border-t border-gray-200'>
                       <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 px-2'>
-                        Compte
+                        Connexion
                       </h3>
                       <div className='space-y-2'>
                         <Link
