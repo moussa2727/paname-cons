@@ -255,7 +255,7 @@ function Header(): React.JSX.Element {
 
       {/* Navigation principale */}
       <nav
-        className='bg-white shadow-md sm:py-4'
+        className='bg-white shadow-md sm:py-1'
         role='navigation'
         aria-label='Menu principal'
       >
