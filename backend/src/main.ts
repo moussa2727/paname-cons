@@ -16,6 +16,14 @@ import * as cookieParser from "cookie-parser";
 import { join } from "path";
 import { AppModule } from "./app.module";
 
+// 📦 ÉTENDRE L'INTERFACE REQUEST D'EXPRESS
+declare global {
+  namespace Express {
+    interface Request {
+      invalidJson?: boolean;
+    }
+  }
+}
 
 const isProduction = true;
 
@@ -29,14 +37,13 @@ const productionOrigins = [
   "https://panbameconsulting.vercel.app",
   "https://vercel.live",
   "http://localhost:5713",
-  "http://localhost:5173", // ← AJOUTÉ ICI
+  "http://localhost:5173",
 ];
 
 // Fonction pour vérifier si une origine correspond à un pattern avec wildcard
 function isOriginAllowed(origin: string, allowedOrigins: string[]): boolean {
   return allowedOrigins.some(allowedOrigin => {
     if (allowedOrigin.includes('*')) {
-      // Convertir le pattern avec wildcard en regex
       const pattern = allowedOrigin
         .replace(/\./g, '\\.')
         .replace(/\*/g, '.*');
@@ -63,14 +70,14 @@ async function bootstrap() {
   // ✅ PARSING DU JSON (LIMITÉ À 10MB)
   server.use(express.json({
     limit: '10mb',
-    verify: (req: any, res: express.Response, buf) => {
+    verify: (req: express.Request, res: express.Response, buf: Buffer, encoding: BufferEncoding) => {
       try {
-        JSON.parse(buf.toString());
+        if (buf && buf.length) {
+          JSON.parse(buf.toString(encoding || 'utf8'));
+        }
       } catch (e) {
-        res.status(400).json({
-          error: 'Invalid JSON payload',
-          message: 'Le corps de la requête contient du JSON invalide'
-        });
+        // Ajouter un flag à la requête pour indiquer un JSON invalide
+        req.invalidJson = true;
       }
     }
   }));
@@ -82,20 +89,83 @@ async function bootstrap() {
     parameterLimit: 1000
   }));
 
-  // ✅ PARSING DES DONNÉES TEXT/PLAIN (pour webhooks, etc.)
+  // ✅ PARSING DES DONNÉES TEXT/PLAIN
   server.use(express.text({
     limit: '1mb',
     type: 'text/plain'
   }));
 
+  // ✅ CRÉATION DE L'APPLICATION AVEC HELMET DÈS LE DÉBUT
+  const app = await NestFactory.create<NestExpressApplication>(
+    AppModule,
+    new ExpressAdapter(server),
+    {
+      logger: ["error", "warn", "log"],
+      bufferLogs: true,
+    },
+  );
+
+  // 🔐 CONFIGURATION DE SÉCURITÉ HELMET - APPLIQUÉE AVANT TOUTES LES ROUTES
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "https:"],
+          connectSrc: ["'self'", ...productionOrigins],
+          fontSrc: ["'self'", "https:"],
+          objectSrc: ["'none'"],
+          mediaSrc: ["'self'"],
+          frameSrc: ["'self'", "https://vercel.live", "https://www.google.com"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+        },
+      },
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+      crossOriginEmbedderPolicy: false,
+      crossOriginOpenerPolicy: { policy: "same-origin" },
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+      },
+      frameguard: { action: 'deny' },
+      hidePoweredBy: true,
+    }),
+  );
+
+  // ✅ MIDDLEWARE POUR VALIDER LE JSON
+  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.invalidJson) {
+      return res.status(400).json({
+        error: 'Invalid JSON payload',
+        message: 'Le corps de la requête contient du JSON invalide'
+      });
+    }
+    next();
+  });
+
+  // ✅ HEADERS DE SÉCURITÉ ADDITIONNELS
+  app.use((_req: express.Request, res: express.Response, next: express.NextFunction) => {
+    res.removeHeader("X-Powered-By");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-XSS-Protection", "1; mode=block");
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
+    next();
+  });
 
   // ✅ MIDDLEWARE DE LOGGING DES REQUÊTES (dev seulement)
   if (process.env.NODE_ENV !== 'production') {
-    server.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
       const start = Date.now();
       const originalEnd = res.end;
       
-      // Utilisation de 'any' pour éviter les problèmes de typage avec res.end
       (res as any).end = function(...args: any[]) {
         const duration = Date.now() - start;
         logger.log(`${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms`);
@@ -105,6 +175,55 @@ async function bootstrap() {
       next();
     });
   }
+
+  // ✅ CONFIGURATION CORS STRICTE
+  logger.log(`Configuration CORS pour environnement: PRODUCTION EXCLUSIVE`);
+  logger.log(`Parsing middleware: ✅ JSON, URL-encoded, Cookies activés`);
+  logger.log(`Origines autorisées: ${productionOrigins.length} origines`);
+
+  app.enableCors({
+    origin: (origin, callback) => {
+      // 🔒 EN PRODUCTION EXCLUSIVE: REFUSER les requêtes sans origine
+      if (!origin) {
+        logger.warn(`❌ Requête sans origine rejetée en production`);
+        callback(new Error('Origine requise en production'), false);
+        return;
+      }
+
+      // 🔒 Vérification stricte des origines
+      const isAllowed = isOriginAllowed(origin, productionOrigins);
+
+      if (isAllowed) {
+        if (process.env.NODE_ENV !== 'production') {
+          logger.debug(`✅ Origine autorisée: ${origin}`);
+        }
+        callback(null, true);
+      } else {
+        logger.warn(`❌ Origine non autorisée par CORS: ${origin}`);
+        callback(new Error(`Origine non autorisée: ${origin}`), false);
+      }
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Authorization",
+      "Content-Type",
+      "Accept",
+      "Origin",
+      "X-Requested-With",
+      "Cookie",
+      "Set-Cookie"
+    ],
+    credentials: true,
+    maxAge: 86400,
+    exposedHeaders: [
+      "Authorization",
+      "X-RateLimit-Limit",
+      "X-RateLimit-Remaining",
+      "X-RateLimit-Reset",
+      "Set-Cookie"
+    ],
+    optionsSuccessStatus: 204,
+  });
 
   // ✅ ROUTE RACINE SIMPLE
   server.get("/", (_req: express.Request, res: express.Response) => {
@@ -193,139 +312,26 @@ async function bootstrap() {
     });
   });
 
-  try {
-    // ✅ CRÉATION DE L'APPLICATION
-    const app = await NestFactory.create<NestExpressApplication>(
-      AppModule,
-      new ExpressAdapter(server),
-      {
-        logger: ["error", "warn", "log"],
-        bufferLogs: true,
-      },
-    );
-
-    // 🔐 CONFIGURATION DE SÉCURITÉ HELMET AVEC CSP CORRIGÉE
-    app.use(
-      helmet({
-        contentSecurityPolicy: {
-          directives: {
-            defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", "data:", "https:"],
-            connectSrc: ["'self'", ...productionOrigins],
-            fontSrc: ["'self'", "https:"],
-            objectSrc: ["'none'"],
-            mediaSrc: ["'self'"],
-            frameSrc: ["'self'", "https://vercel.live", "https://www.google.com"],
-            baseUri: ["'self'"],
-            formAction: ["'self'"],
-          },
-        },
-        crossOriginResourcePolicy: { policy: "cross-origin" },
-        crossOriginEmbedderPolicy: false,
-        crossOriginOpenerPolicy: { policy: "same-origin" },
-        referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-        hsts: {
-          maxAge: 31536000,
-          includeSubDomains: true,
-          preload: true
-        },
-        frameguard: { action: 'deny' },
-        hidePoweredBy: true,
-      }),
-    );
-
-    // ✅ HEADERS DE SÉCURITÉ ADDITIONNELS
-    app.use((_req: express.Request, res: express.Response, next: express.NextFunction) => {
-      res.removeHeader("X-Powered-By");
-      res.setHeader("X-Content-Type-Options", "nosniff");
-      res.setHeader("X-Frame-Options", "DENY");
-      res.setHeader("X-XSS-Protection", "1; mode=block");
-      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
-      res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-      res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
-      next();
-    });
-
-    // 🌐 CONFIGURATION CORS POUR PRODUCTION EXCLUSIVE
-    logger.log(`Configuration CORS pour environnement: PRODUCTION EXCLUSIVE`);
-    logger.log(`Parsing middleware: ✅ JSON, URL-encoded, Cookies activés`);
-    logger.log(`Origines autorisées: ${productionOrigins.length} origines`);
-
-    // ✅ CONFIGURATION CORS STRICTE
-    app.enableCors({
-      origin: (origin, callback) => {
-        // 🔒 EN PRODUCTION EXCLUSIVE: REFUSER les requêtes sans origine
-        if (!origin) {
-          logger.warn(`❌ Requête sans origine rejetée en production`);
-          callback(new Error('Origine requise en production'), false);
-          return;
-        }
-
-        // 🔒 Vérification stricte des origines
-        const isAllowed = isOriginAllowed(origin, productionOrigins);
-
-        if (isAllowed) {
-          if (process.env.NODE_ENV !== 'production') {
-            logger.debug(`✅ Origine autorisée: ${origin}`);
-          }
-          callback(null, true);
-        } else {
-          logger.warn(`❌ Origine non autorisée par CORS: ${origin}`);
-          callback(new Error(`Origine non autorisée: ${origin}`), false);
-        }
-      },
-      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: [
-        "Authorization",
-        "Content-Type",
-        "Accept",
-        "Origin",
-        "X-Requested-With",
-        "Cookie",
-        "Set-Cookie"
-      ],
-      credentials: true,
-      maxAge: 86400,
-      exposedHeaders: [
-        "Authorization",
-        "X-RateLimit-Limit",
-        "X-RateLimit-Remaining",
-        "X-RateLimit-Reset",
-        "Set-Cookie"
-      ],
-      optionsSuccessStatus: 204,
-    });
-
-    // ✅ MIDDLEWARE POUR GÉRER MANUELLEMENT LES HEADERS CORS
-    app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // ✅ MIDDLEWARE POUR GÉRER MANUELLEMENT LES HEADERS CORS (OPTIONS)
+  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    // Répondre immédiatement aux requêtes OPTIONS (pré-vol CORS)
+    if (req.method === "OPTIONS") {
       const origin = req.headers.origin;
-      
-      // Set le header Access-Control-Allow-Origin seulement pour les origines autorisées
       if (origin && isOriginAllowed(origin, productionOrigins)) {
         res.header("Access-Control-Allow-Origin", origin);
       }
-      
       res.header("Access-Control-Allow-Credentials", "true");
       res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
       res.header("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, Origin, X-Requested-With, Cookie");
       res.header("Access-Control-Expose-Headers", "Authorization, X-RateLimit-Limit, X-RateLimit-Remaining, Set-Cookie");
       res.header("Access-Control-Max-Age", "86400");
-      
-      // Répondre immédiatement aux requêtes OPTIONS (pré-vol CORS)
-      if (req.method === "OPTIONS") {
-        return res.status(200).end();
-      }
-      
-      // Log des cookies pour débogage (dev seulement)
-      if (process.env.NODE_ENV !== 'production' && req.cookies) {
-        logger.debug(`Cookies reçus: ${Object.keys(req.cookies).join(', ')}`);
-      }
-      
-      next();
-    });
+      return res.status(200).end();
+    }
+    
+    next();
+  });
 
+  try {
     // ✅ CRÉATION DES DOSSIERS NÉCESSAIRES
     const uploadsDir = join(__dirname, "..", "uploads");
     const logsDir = join(__dirname, "..", "logs");
@@ -352,7 +358,7 @@ async function bootstrap() {
 
     // ✅ CONFIGURATION GLOBALE
     app.setGlobalPrefix("api", {
-      exclude: ['/', '/health', '/uploads', '/uploads/(.*)']
+      exclude: ['/', '/health', '/api', '/uploads', '/uploads/(.*)']
     });
     
     // ✅ VALIDATION GLOBALE
@@ -458,9 +464,6 @@ process.on("uncaughtException", (error: Error) => {
     timestamp: new Date().toISOString(),
     pid: process.pid,
   });
-  
-  // En production, ne pas quitter immédiatement
-  // Laisser le process manager redémarrer
 });
 
 process.on("unhandledRejection", (reason: any, promise: Promise<any>) => {
