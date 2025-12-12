@@ -1080,7 +1080,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 }, [fetchUserData, refreshToken, cleanupAuthData]);
 
-
+ 
   const resetPassword = useCallback(
     async (token: string, newPassword: string): Promise<void> => {
       setIsLoading(true);
