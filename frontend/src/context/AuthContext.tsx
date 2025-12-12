@@ -128,14 +128,14 @@ const AUTH_CONSTANTS = {
   MAX_SESSION_DURATION_MS: 30 * 60 * 1000,
   PREVENTIVE_REFRESH_MS: 1 * 60 * 1000,
   MAX_REFRESH_ATTEMPTS: 3,
-  SESSION_CHECK_INTERVAL: 30 * 1000,
-  REQUEST_COOLDOWN_MS: 2000, // 2 secondes entre les requêtes
+  SESSION_CHECK_INTERVAL: 20 * 1000,
+  REQUEST_COOLDOWN_MS: 1500, // 2 secondes entre les requêtes
   MIN_REFRESH_INTERVAL_MS: 30000,
   
   // Rate limiting synchronisé avec backend (15 minutes, 600 requêtes)
   RATE_LIMITING: {
     WINDOW_MS: 15 * 60 * 1000, // 15 minutes (identique au backend)
-    MAX_REQUESTS: 22000, // Maximum de requêtes par fenêtre (identique au backend)
+    MAX_REQUESTS: 24000, // Maximum de requêtes par fenêtre (identique au backend)
     REQUEST_COOLDOWN_MS: 2000, // 2 secondes entre les requêtes
     RETRY_AFTER_MS: 60 * 1000, // Attendre 1 minute après un 429
     RESET_INTERVAL_MS: 60 * 1000, // Vérifier le reset toutes les minutes
@@ -205,7 +205,7 @@ const TOAST_MESSAGES = {
 } as const;
 
 const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_URL || 'https://panameconsulting.up.railway.app',
+  BASE_URL: import.meta.env.VITE_API_URL,
   ENDPOINTS: {
     LOGIN: '/api/auth/login',
     REGISTER: '/api/auth/register',
@@ -337,12 +337,6 @@ const handleRateLimitError = (retryAfter?: number): void => {
   });
 };
 
-const isTokenExpiringSoon = (exp: number): boolean => {
-  const tokenExpirationMs = exp * 1000;
-  const currentTimeMs = Date.now();
-  const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
-  return timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS;
-};
 
 // ==================== CONTEXT ====================
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
