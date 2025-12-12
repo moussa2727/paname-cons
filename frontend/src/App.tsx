@@ -116,9 +116,9 @@ function App() {
     setIsAOSInitialized(true);
   }, [isAOSInitialized]);
 
-  // if (isLoading) {
-  //   return <Loader />;
-  // }
+  if (isLoading) {
+    return <Loader />;
+  }
 
   return (
     <ErrorBoundary>

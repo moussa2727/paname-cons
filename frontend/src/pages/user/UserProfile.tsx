@@ -1,5 +1,5 @@
-// UserProfile.tsx - VERSION ALLÉGÉE
-import { useState, useEffect, FormEvent, FC, useCallback, useRef } from 'react';
+// UserProfile.tsx - VERSION SIMPLIFIÉE (même logique que RendezVous)
+import { useState, useEffect, FormEvent, ChangeEvent, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
@@ -17,7 +17,6 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
-import { userProfileService, type AuthFunctions } from '../../api/user/Profile/userProfileApi';
 import { toast } from 'react-toastify';
 
 // Composant de chargement
@@ -30,18 +29,22 @@ const LoadingScreen = ({ message = "Chargement..." }: { message?: string }) => (
   </div>
 );
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 const UserProfile = () => {
   const { 
     user, 
-    updateProfile, 
-    isLoading: authLoading,
-    fetchWithAuth,
+    isAuthenticated, 
+    access_token, 
+    refreshToken, 
+    logout,
+    updateProfile 
   } = useAuth();
   
   const navigate = useNavigate();
   const location = useLocation();
-  const headerRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
+  const headerRef = useRef<HTMLDivElement>(null);
 
   // Configuration des pages
   const pageConfigs = {
@@ -106,157 +109,87 @@ const UserProfile = () => {
   const currentPage = getCurrentPageConfig();
   const activeTabId = navTabs.find(tab => location.pathname.startsWith(tab.to))?.id || 'profile';
 
-  // === CHARGEMENT SIMPLE ===
-  if (authLoading) {
-    return <LoadingScreen message="Chargement de l'authentification..." />;
+  // === VÉRIFICATION D'AUTHENTIFICATION SIMPLE ===
+  useEffect(() => {
+    if (!isAuthenticated) {
+      toast.error('Veuillez vous connecter pour accéder à votre profil');
+      navigate('/connexion', {
+        state: {
+          redirectTo: '/mon-profil',
+          message: 'Connectez-vous pour gérer votre profil',
+        },
+      });
+    }
+  }, [isAuthenticated, navigate]);
+
+  if (!isAuthenticated || !user) {
+    return <LoadingScreen message="Vérification de l'authentification..." />;
   }
 
-  if (!user) {
-    return <LoadingScreen message="Récupération du profil..." />;
-  }
-
-  // Créer l'objet authFunctions pour passer au service
-  const authFunctions: AuthFunctions = {
-    fetchWithAuth
-  };
-
-  // États optimisés
-  const initialProfileData = {
-    email: user?.email || '',
-    telephone: user?.telephone || '',
-  };
-
-  const initialPasswordData = {
+  // États du formulaire
+  const [profileData, setProfileData] = useState({
+    email: user.email || '',
+    telephone: user.telephone || '',
+  });
+  const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmNewPassword: '',
-  };
-
-  const [profileData, setProfileData] = useState(initialProfileData);
-  const [passwordData, setPasswordData] = useState(initialPasswordData);
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  // Gestion des erreurs et états touchés
-  const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
-  const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
-  const [profileTouched, setProfileTouched] = useState<Record<string, boolean>>({});
-  const [passwordTouched, setPasswordTouched] = useState<Record<string, boolean>>({});
-
-  // ==================== MESURE HAUTEUR HEADER ====================
-  useEffect(() => {
-    if (headerRef.current) {
-      setHeaderHeight(headerRef.current.offsetHeight);
-    }
-  }, [location.pathname]);
-
-  // ==================== SYNC DES DONNÉES AVEC LE CONTEXTE ====================
-  useEffect(() => {
-    if (user) {
-      setProfileData({
-        email: user.email || '',
-        telephone: user.telephone || '',
-      });
-    }
-  }, [user]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // ==================== VALIDATIONS ====================
-  const validateProfileField = useCallback((name: string, value: string): string => {
-    switch (name) {
-      case 'email':
-        if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-          return "Format d'email invalide";
-        }
-        break;
-      case 'telephone':
-        if (value && value.trim().length < 5) {
-          return 'Le téléphone doit contenir au moins 5 caractères';
-        }
-        break;
-      default:
-        return '';
-    }
-    return '';
-  }, []);
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+  };
 
-  const validatePasswordField = useCallback((name: string, value: string): string => {
-    switch (name) {
-      case 'currentPassword':
-        if (!value.trim()) return 'Le mot de passe actuel est requis';
-        break;
-      case 'newPassword':
-        if (!value.trim()) return 'Le nouveau mot de passe est requis';
-        if (value.length < 8) return 'Le mot de passe doit contenir au moins 8 caractères';
-        if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(value)) {
-          return 'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre';
-        }
-        break;
-      case 'confirmNewPassword':
-        if (!value.trim()) return 'La confirmation du mot de passe est requise';
-        if (value !== passwordData.newPassword) return 'Les mots de passe ne correspondent pas';
-        break;
-      default:
-        return '';
-    }
-    return '';
-  }, [passwordData.newPassword]);
+  const validatePhone = (phone: string): boolean => {
+    const cleanedPhone = phone.replace(/[\s\-()]/g, '');
+    return /^\+?[1-9]\d{1,14}$/.test(cleanedPhone);
+  };
 
-  // ==================== GESTION DES CHANGEMENTS ====================
-  const handleProfileChange = useCallback((field: string, value: string) => {
-    setProfileData(prev => ({ ...prev, [field]: value }));
-    setProfileTouched(prev => ({ ...prev, [field]: true }));
+  const validatePassword = (password: string): boolean => {
+    return password.length >= 8 && 
+           /[a-z]/.test(password) && 
+           /[A-Z]/.test(password) && 
+           /\d/.test(password);
+  };
 
-    const error = validateProfileField(field, value);
-    setProfileErrors(prev => ({ ...prev, [field]: error }));
-  }, [validateProfileField]);
-
-  const handlePasswordChange = useCallback((field: string, value: string) => {
-    setPasswordData(prev => ({ ...prev, [field]: value }));
-    setPasswordTouched(prev => ({ ...prev, [field]: true }));
-
-    const error = validatePasswordField(field, value);
-    setPasswordErrors(prev => ({ ...prev, [field]: error }));
-  }, [validatePasswordField]);
-
-  // ==================== GESTION DU PROFIL ====================
+  // ==================== MISE À JOUR DU PROFIL ====================
   const handleProfileSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!user) {
-      toast.error('Session expirée, veuillez vous reconnecter');
+    if (!isAuthenticated || !access_token) {
+      toast.error('Session expirée. Veuillez vous reconnecter.');
+      logout();
       navigate('/connexion');
       return;
     }
 
     // Validation
-    const errors: Record<string, string> = {};
-    let hasValidData = false;
-
-    if (profileData.email !== undefined && profileData.email.trim() !== '') {
-      hasValidData = true;
-      const emailError = validateProfileField('email', profileData.email);
-      if (emailError) errors.email = emailError;
+    const newErrors: Record<string, string> = {};
+    
+    if (!validateEmail(profileData.email)) {
+      newErrors.email = "Format d'email invalide";
+    }
+    
+    if (profileData.telephone && !validatePhone(profileData.telephone)) {
+      newErrors.telephone = "Format de téléphone invalide (ex: +22812345678)";
     }
 
-    if (profileData.telephone !== undefined && profileData.telephone.trim() !== '') {
-      hasValidData = true;
-      const telephoneError = validateProfileField('telephone', profileData.telephone);
-      if (telephoneError) errors.telephone = telephoneError;
-    }
-
-    if (!hasValidData) {
-      errors.email = 'Au moins un champ (email ou téléphone) doit être modifié';
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setProfileErrors(errors);
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
-    if (!hasProfileChanges()) {
+    // Vérifier si des modifications ont été faites
+    if (profileData.email === user.email && profileData.telephone === user.telephone) {
       toast.info('Aucune modification détectée');
       return;
     }
@@ -264,130 +197,218 @@ const UserProfile = () => {
     setIsLoading(true);
 
     try {
-      const updatedUser = await userProfileService.updateProfile(
-        authFunctions,
-        {
-          email: profileData.email,
-          telephone: profileData.telephone,
-        }
-      );
+      const makeRequest = async (currentToken: string): Promise<Response> => {
+        return fetch(`${API_URL}/api/user/profile`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${currentToken}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            email: profileData.email.trim().toLowerCase(),
+            telephone: profileData.telephone.trim(),
+          }),
+        });
+      };
 
+      let response = await makeRequest(access_token);
+
+      // Gestion du token expiré
+      if (response.status === 401) {
+        try {
+          const refreshed = await refreshToken();
+          if (refreshed) {
+            const currentToken = localStorage.getItem('access_token');
+            if (currentToken) {
+              response = await makeRequest(currentToken);
+            } else {
+              throw new Error('Session expirée');
+            }
+          } else {
+            throw new Error('Session expirée');
+          }
+        } catch (error) {
+          toast.error('Session expirée. Veuillez vous reconnecter.');
+          logout();
+          navigate('/connexion');
+          return;
+        }
+      }
+
+      if (!response.ok) {
+        let errorMessage = 'Erreur lors de la mise à jour du profil';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+          
+          if (errorMessage.includes('Email déjà utilisé')) {
+            toast.error('Cet email est déjà utilisé par un autre compte');
+            return;
+          }
+          
+          toast.error(errorMessage);
+          return;
+        } catch {
+          toast.error('Erreur serveur. Veuillez réessayer.');
+          return;
+        }
+      }
+
+      const result = await response.json();
+      
+      // Mettre à jour le contexte
       await updateProfile();
       
-      setProfileData({
-        email: updatedUser.email || user.email,
-        telephone: updatedUser.telephone || user.telephone,
-      });
-
-      setProfileTouched({});
-      setProfileErrors({});
-
+      setErrors({});
       toast.success('Profil mis à jour avec succès');
-    } catch (error) {
-      const err = error as Error;
-      
-      if (err.message.includes('Session expirée') || err.message.includes('401') || err.message.includes('SESSION_EXPIRED')) {
-        toast.error('Session expirée');
-        navigate('/connexion');
-      } else {
-        toast.error(err.message || 'Erreur lors de la mise à jour du profil');
-      }
+    } catch (error: any) {
+      console.error('Erreur:', error);
+      toast.error(error.message || 'Erreur lors de la mise à jour');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ==================== GESTION DU MOT DE PASSE ====================
+  // ==================== MISE À JOUR DU MOT DE PASSE ====================
   const handlePasswordSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!user) {
-      toast.error('Session expirée, veuillez vous reconnecter');
+    if (!isAuthenticated || !access_token) {
+      toast.error('Session expirée. Veuillez vous reconnecter.');
+      logout();
       navigate('/connexion');
       return;
     }
 
     // Validation
-    const errors: Record<string, string> = {};
-    Object.keys(passwordData).forEach(key => {
-      const error = validatePasswordField(
-        key,
-        passwordData[key as keyof typeof passwordData]
-      );
-      if (error) errors[key] = error;
-    });
+    const newErrors: Record<string, string> = {};
+    
+    if (!passwordData.currentPassword) {
+      newErrors.currentPassword = 'Le mot de passe actuel est requis';
+    }
+    
+    if (!validatePassword(passwordData.newPassword)) {
+      newErrors.newPassword = 'Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule et un chiffre';
+    }
+    
+    if (passwordData.newPassword !== passwordData.confirmNewPassword) {
+      newErrors.confirmNewPassword = 'Les mots de passe ne correspondent pas';
+    }
 
-    if (Object.keys(errors).length > 0) {
-      setPasswordErrors(errors);
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const result = await userProfileService.updatePassword(
-        authFunctions,
-        passwordData
-      );
+      const makeRequest = async (currentToken: string): Promise<Response> => {
+        return fetch(`${API_URL}/api/user/change-password`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${currentToken}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            currentPassword: passwordData.currentPassword,
+            newPassword: passwordData.newPassword,
+          }),
+        });
+      };
 
-      if (result.success) {
-        setPasswordData(initialPasswordData);
-        setPasswordTouched({});
-        setPasswordErrors({});
-        
-        toast.success(result.message || 'Mot de passe modifié avec succès');
+      let response = await makeRequest(access_token);
+
+      // Gestion du token expiré
+      if (response.status === 401) {
+        try {
+          const refreshed = await refreshToken();
+          if (refreshed) {
+            const currentToken = localStorage.getItem('access_token');
+            if (currentToken) {
+              response = await makeRequest(currentToken);
+            } else {
+              throw new Error('Session expirée');
+            }
+          } else {
+            throw new Error('Session expirée');
+          }
+        } catch (error) {
+          toast.error('Session expirée. Veuillez vous reconnecter.');
+          logout();
+          navigate('/connexion');
+          return;
+        }
       }
-    } catch (error) {
-      const err = error as Error;
+
+      if (!response.ok) {
+        let errorMessage = 'Erreur lors du changement de mot de passe';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+          
+          if (errorMessage.includes('Mot de passe actuel incorrect')) {
+            toast.error('Le mot de passe actuel est incorrect');
+            return;
+          }
+          
+          toast.error(errorMessage);
+          return;
+        } catch {
+          toast.error('Erreur serveur. Veuillez réessayer.');
+          return;
+        }
+      }
+
+      const result = await response.json();
       
-      if (err.message.includes('Session expirée') || err.message.includes('401') || err.message.includes('SESSION_EXPIRED')) {
-        toast.error('Session expirée');
-        navigate('/connexion');
-      } else {
-        toast.error(err.message || 'Erreur lors de la modification du mot de passe');
-      }
+      // Réinitialiser le formulaire
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmNewPassword: '',
+      });
+      
+      setErrors({});
+      toast.success('Mot de passe modifié avec succès');
+    } catch (error: any) {
+      console.error('Erreur:', error);
+      toast.error(error.message || 'Erreur lors du changement de mot de passe');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ==================== FONCTIONS UTILITAIRES ====================
-  const resetProfileForm = useCallback(() => {
-    if (user) {
-      setProfileData({
-        email: user.email || '',
-        telephone: user.telephone || '',
+  // ==================== GESTION DES CHANGEMENTS ====================
+  const handleProfileChange = (field: string, value: string) => {
+    setProfileData(prev => ({ ...prev, [field]: value }));
+    // Effacer l'erreur pour ce champ
+    if (errors[field]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
       });
     }
-    setProfileErrors({});
-    setProfileTouched({});
-  }, [user]);
+  };
 
-  const resetPasswordForm = useCallback(() => {
-    setPasswordData(initialPasswordData);
-    setPasswordErrors({});
-    setPasswordTouched({});
-  }, [initialPasswordData]);
+  const handlePasswordChange = (field: string, value: string) => {
+    setPasswordData(prev => ({ ...prev, [field]: value }));
+    // Effacer l'erreur pour ce champ
+    if (errors[field]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
+  };
 
-  const hasProfileChanges = useCallback(() => {
-    if (!user) return false;
-    return (
-      profileData.email !== user.email ||
-      profileData.telephone !== user.telephone
-    );
-  }, [user, profileData.email, profileData.telephone]);
-
-  const isPasswordFormEmpty = useCallback(() => {
-    return (
-      !passwordData.currentPassword &&
-      !passwordData.newPassword &&
-      !passwordData.confirmNewPassword
-    );
-  }, [passwordData]);
-
-  // ==================== FONCTION DE RECHARGEMENT ====================
+  // ==================== RECHARGEMENT DES DONNÉES ====================
   const refreshUserData = async () => {
-    if (!user) return;
+    if (!isAuthenticated || !access_token) return;
     
     setIsLoading(true);
     try {
@@ -400,48 +421,10 @@ const UserProfile = () => {
     }
   };
 
-  // ==================== COMPOSANT INTERNE ====================
-  interface PasswordStrengthIndicatorProps {
-    password: string;
-  }
-
-  const PasswordStrengthIndicator: FC<PasswordStrengthIndicatorProps> = ({ password }) => {
-    if (!password) return null;
-
-    const checks = {
-      length: password.length >= 8,
-      lowercase: /[a-z]/.test(password),
-      uppercase: /[A-Z]/.test(password),
-      number: /\d/.test(password),
-    };
-
-    const strength = Object.values(checks).filter(Boolean).length;
-
-    return (
-      <div className='mt-2 space-y-1'>
-        <div className='flex items-center gap-2 text-xs'>
-          <div className={`w-2 h-2 rounded-full ${strength >= 1 ? 'bg-green-500' : 'bg-gray-300'}`} />
-          <span className={checks.length ? 'text-green-600' : 'text-gray-500'}>
-            8 caractères minimum
-          </span>
-        </div>
-        <div className='flex items-center gap-2 text-xs'>
-          <div className={`w-2 h-2 rounded-full ${strength >= 2 ? 'bg-green-500' : 'bg-gray-300'}`} />
-          <span className={checks.lowercase && checks.uppercase ? 'text-green-600' : 'text-gray-500'}>
-            Minuscule et majuscule
-          </span>
-        </div>
-        <div className='flex items-center gap-2 text-xs'>
-          <div className={`w-2 h-2 rounded-full ${strength >= 3 ? 'bg-green-500' : 'bg-gray-300'}`} />
-          <span className={checks.number ? 'text-green-600' : 'text-gray-500'}>
-            Au moins un chiffre
-          </span>
-        </div>
-      </div>
-    );
-  };
-
   // ==================== RENDERING ====================
+  // ... (le reste du rendu est identique au composant original UserProfile.tsx)
+  // Gardez le même JSX que dans votre composant UserProfile.tsx original
+
   return (
     <>
       <Helmet>
@@ -526,10 +509,7 @@ const UserProfile = () => {
               <div className='flex items-center gap-1.5'>
                 <div className='w-1.5 h-1.5 bg-emerald-500 rounded-full'></div>
                 <span className='text-xs text-gray-600'>
-                  {new Date().toLocaleDateString('fr-FR', { 
-                    day: 'numeric',
-                    month: 'short'
-                  })}
+                  Connecté: {user?.email}
                 </span>
               </div>
               <span className='text-xs text-gray-500'>
@@ -549,7 +529,7 @@ const UserProfile = () => {
       {/* Contenu principal avec padding pour compenser le header fixe */}
       <div 
         className="min-h-screen bg-gradient-to-b from-sky-50 to-white"
-        style={{ paddingTop: `${headerHeight}px` }}
+        style={{ paddingTop: headerRef.current ? `${headerRef.current.offsetHeight}px` : '80px' }}
       >
         <div className='py-8 px-4 sm:px-6 lg:px-8'>
           <div className='max-w-4xl mx-auto'>
@@ -634,15 +614,15 @@ const UserProfile = () => {
                           onChange={e => handleProfileChange('email', e.target.value)}
                           disabled={isLoading}
                           className={`block w-full pl-10 pr-3 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-sky-600 focus:border-sky-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                            profileErrors.email ? 'border-red-300' : 'border-gray-300'
+                            errors.email ? 'border-red-300' : 'border-gray-300'
                           }`}
                           placeholder='votre@email.com'
                         />
                       </div>
-                      {profileTouched.email && profileErrors.email && (
+                      {errors.email && (
                         <p className='mt-2 text-sm text-red-600 flex items-center gap-1'>
                           <XCircle className='w-4 h-4' />
-                          {profileErrors.email}
+                          {errors.email}
                         </p>
                       )}
                     </div>
@@ -663,15 +643,15 @@ const UserProfile = () => {
                           onChange={e => handleProfileChange('telephone', e.target.value)}
                           disabled={isLoading}
                           className={`block w-full pl-10 pr-3 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-sky-600 focus:border-sky-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                            profileErrors.telephone ? 'border-red-300' : 'border-gray-300'
+                            errors.telephone ? 'border-red-300' : 'border-gray-300'
                           }`}
                           placeholder='+33 1 23 45 67 89'
                         />
                       </div>
-                      {profileTouched.telephone && profileErrors.telephone && (
+                      {errors.telephone && (
                         <p className='mt-2 text-sm text-red-600 flex items-center gap-1'>
                           <XCircle className='w-4 h-4' />
-                          {profileErrors.telephone}
+                          {errors.telephone}
                         </p>
                       )}
                     </div>
@@ -680,8 +660,14 @@ const UserProfile = () => {
                     <div className='flex gap-3 pt-6 border-t border-gray-200'>
                       <button
                         type='button'
-                        onClick={resetProfileForm}
-                        disabled={!hasProfileChanges() || isLoading}
+                        onClick={() => {
+                          setProfileData({
+                            email: user.email || '',
+                            telephone: user.telephone || '',
+                          });
+                          setErrors({});
+                        }}
+                        disabled={isLoading || (profileData.email === user.email && profileData.telephone === user.telephone)}
                         className='px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium'
                       >
                         Annuler
@@ -689,9 +675,10 @@ const UserProfile = () => {
                       <button
                         type='submit'
                         disabled={
-                          !hasProfileChanges() ||
                           isLoading ||
-                          Object.keys(profileErrors).some(key => profileErrors[key])
+                          (profileData.email === user.email && profileData.telephone === user.telephone) ||
+                          !!errors.email ||
+                          !!errors.telephone
                         }
                         className='flex-1 px-6 py-3 bg-sky-600 text-white rounded-xl hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium shadow-sm flex items-center justify-center gap-2'
                       >
@@ -738,7 +725,7 @@ const UserProfile = () => {
                           onChange={e => handlePasswordChange('currentPassword', e.target.value)}
                           disabled={isLoading}
                           className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-sky-600 focus:border-sky-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                            passwordErrors.currentPassword ? 'border-red-300' : 'border-gray-300'
+                            errors.currentPassword ? 'border-red-300' : 'border-gray-300'
                           }`}
                           placeholder='Votre mot de passe actuel'
                         />
@@ -751,10 +738,10 @@ const UserProfile = () => {
                           {showCurrentPassword ? <EyeOff className='h-5 w-5' /> : <Eye className='h-5 w-5' />}
                         </button>
                       </div>
-                      {passwordTouched.currentPassword && passwordErrors.currentPassword && (
+                      {errors.currentPassword && (
                         <p className='mt-2 text-sm text-red-600 flex items-center gap-1'>
                           <XCircle className='w-4 h-4' />
-                          {passwordErrors.currentPassword}
+                          {errors.currentPassword}
                         </p>
                       )}
                     </div>
@@ -775,7 +762,7 @@ const UserProfile = () => {
                           onChange={e => handlePasswordChange('newPassword', e.target.value)}
                           disabled={isLoading}
                           className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-sky-600 focus:border-sky-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                            passwordErrors.newPassword ? 'border-red-300' : 'border-gray-300'
+                            errors.newPassword ? 'border-red-300' : 'border-gray-300'
                           }`}
                           placeholder='Votre nouveau mot de passe'
                         />
@@ -788,13 +775,33 @@ const UserProfile = () => {
                           {showNewPassword ? <EyeOff className='h-5 w-5' /> : <Eye className='h-5 w-5' />}
                         </button>
                       </div>
-                      {passwordTouched.newPassword && passwordErrors.newPassword && (
+                      {errors.newPassword && (
                         <p className='mt-2 text-sm text-red-600 flex items-center gap-1'>
                           <XCircle className='w-4 h-4' />
-                          {passwordErrors.newPassword}
+                          {errors.newPassword}
                         </p>
                       )}
-                      <PasswordStrengthIndicator password={passwordData.newPassword} />
+                      {passwordData.newPassword && (
+                        <div className='mt-2'>
+                          <div className='flex gap-1'>
+                            {[1, 2, 3, 4].map(i => (
+                              <div
+                                key={i}
+                                className={`flex-1 h-1 rounded-full ${
+                                  validatePassword(passwordData.newPassword)
+                                    ? 'bg-green-500'
+                                    : i <= Math.min(passwordData.newPassword.length / 2, 4)
+                                    ? 'bg-yellow-500'
+                                    : 'bg-gray-300'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <p className='mt-1 text-xs text-gray-500'>
+                            Doit contenir 8+ caractères, majuscule, minuscule, chiffre
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Confirmation */}
@@ -813,7 +820,7 @@ const UserProfile = () => {
                           onChange={e => handlePasswordChange('confirmNewPassword', e.target.value)}
                           disabled={isLoading}
                           className={`block w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-none focus:outline-none hover:border-sky-600 focus:border-sky-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                            passwordErrors.confirmNewPassword ? 'border-red-300' : 'border-gray-300'
+                            errors.confirmNewPassword ? 'border-red-300' : 'border-gray-300'
                           }`}
                           placeholder='Confirmez votre nouveau mot de passe'
                         />
@@ -826,16 +833,16 @@ const UserProfile = () => {
                           {showConfirmPassword ? <EyeOff className='h-5 w-5' /> : <Eye className='h-5 w-5' />}
                         </button>
                       </div>
-                      {passwordTouched.confirmNewPassword && passwordErrors.confirmNewPassword && (
+                      {errors.confirmNewPassword && (
                         <p className='mt-2 text-sm text-red-600 flex items-center gap-1'>
                           <XCircle className='w-4 h-4' />
-                          {passwordErrors.confirmNewPassword}
+                          {errors.confirmNewPassword}
                         </p>
                       )}
-                      {passwordTouched.confirmNewPassword &&
-                        passwordData.newPassword &&
+                      {passwordData.newPassword &&
                         passwordData.confirmNewPassword &&
-                        passwordData.newPassword === passwordData.confirmNewPassword && (
+                        passwordData.newPassword === passwordData.confirmNewPassword &&
+                        !errors.confirmNewPassword && (
                           <p className='mt-2 text-sm text-green-600 flex items-center gap-1'>
                             <CheckCircle className='w-4 h-4' />
                             Les mots de passe correspondent
@@ -847,8 +854,15 @@ const UserProfile = () => {
                     <div className='flex gap-3 pt-6 border-t border-gray-200'>
                       <button
                         type='button'
-                        onClick={resetPasswordForm}
-                        disabled={isPasswordFormEmpty() || isLoading}
+                        onClick={() => {
+                          setPasswordData({
+                            currentPassword: '',
+                            newPassword: '',
+                            confirmNewPassword: '',
+                          });
+                          setErrors({});
+                        }}
+                        disabled={isLoading || (!passwordData.currentPassword && !passwordData.newPassword && !passwordData.confirmNewPassword)}
                         className='px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium'
                       >
                         Annuler
@@ -856,9 +870,13 @@ const UserProfile = () => {
                       <button
                         type='submit'
                         disabled={
-                          isPasswordFormEmpty() ||
                           isLoading ||
-                          Object.keys(passwordErrors).some(key => passwordErrors[key])
+                          !passwordData.currentPassword ||
+                          !passwordData.newPassword ||
+                          !passwordData.confirmNewPassword ||
+                          !!errors.currentPassword ||
+                          !!errors.newPassword ||
+                          !!errors.confirmNewPassword
                         }
                         className='flex-1 px-6 py-3 bg-sky-600 text-white rounded-xl hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium shadow-sm flex items-center justify-center gap-2'
                       >
