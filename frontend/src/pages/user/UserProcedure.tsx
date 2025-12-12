@@ -1,5 +1,4 @@
-// UserProcedure.tsx - VERSION ALLÉGÉE
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
   useUserProcedures,
@@ -19,10 +18,6 @@ import {
   formatProcedureDate,
 } from '../../api/user/procedures/ProcedureService';
 import {
-  Home,
-  User,
-  Calendar,
-  FileText,
   ChevronRight,
   Clock,
   CheckCircle,
@@ -31,9 +26,13 @@ import {
   RefreshCw,
   Search,
   Filter,
+  FileText,
+  User,
+  Calendar,
 } from 'lucide-react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import { UserHeader } from '../../components/user/UserHeader';
 
 // Composant de chargement
 const LoadingScreen = ({ message = "Chargement..." }: { message?: string }) => (
@@ -49,10 +48,8 @@ const UserProcedureComponent = (): React.JSX.Element => {
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const headerRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
 
-  // Configuration des pages
   const pageConfigs = {
     '/mon-profil': {
       title: 'Mon Profil',
@@ -74,29 +71,6 @@ const UserProcedureComponent = (): React.JSX.Element => {
     },
   };
 
-  // Onglets de navigation
-  const navTabs = [
-    {
-      id: 'profile',
-      label: 'Profil',
-      to: '/mon-profil',
-      icon: User,
-    },
-    {
-      id: 'rendezvous',
-      label: 'RDV',
-      to: '/mes-rendez-vous',
-      icon: Calendar,
-    },
-    {
-      id: 'procedures',
-      label: 'Dossier',
-      to: '/ma-procedure',
-      icon: FileText,
-    },
-  ];
-
-  // Obtenir la configuration de la page actuelle
   const getCurrentPageConfig = () => {
     const currentPath = location.pathname;
     if (pageConfigs[currentPath as keyof typeof pageConfigs]) {
@@ -113,7 +87,6 @@ const UserProcedureComponent = (): React.JSX.Element => {
   };
 
   const currentPage = getCurrentPageConfig();
-  const activeTabId = navTabs.find(tab => location.pathname.startsWith(tab.to))?.id || 'procedures';
 
   // === CHARGEMENT SIMPLE ===
   if (authLoading) {
@@ -151,13 +124,6 @@ const UserProcedureComponent = (): React.JSX.Element => {
     useProcedureDetails(selectedProcedure?._id || null);
 
   const { cancelProcedure, loading: cancelLoading } = useCancelProcedure();
-
-  // ==================== MESURE HAUTEUR HEADER ====================
-  useEffect(() => {
-    if (headerRef.current) {
-      setHeaderHeight(headerRef.current.offsetHeight);
-    }
-  }, [location.pathname]);
 
   const getStepStatusIcon = (statut: StepStatus): React.JSX.Element => {
     switch (statut) {
@@ -244,6 +210,14 @@ const UserProcedureComponent = (): React.JSX.Element => {
 
   const totalPages = paginatedProcedures?.totalPages || 1;
 
+  // Mise à jour de la hauteur du header
+  useEffect(() => {
+    const header = document.querySelector('header');
+    if (header) {
+      setHeaderHeight(header.offsetHeight);
+    }
+  }, []);
+
   return (
     <>
       <Helmet>
@@ -251,153 +225,65 @@ const UserProcedureComponent = (): React.JSX.Element => {
         <meta name="description" content={currentPage.description} />
       </Helmet>
 
-      {/* Header fixe */}
-      <header 
-        ref={headerRef} 
-        className='bg-white shadow-lg border-b border-gray-100 fixed top-0 left-0 right-0 z-50'
+      <UserHeader
+        title={currentPage.title}
+        subtitle={currentPage.subtitle}
+        pageTitle={currentPage.pageTitle}
+        description={currentPage.description}
+        isLoading={proceduresLoading}
+        onRefresh={refreshUserData}
       >
-        <div className='px-4 py-3'>
-          {/* Barre supérieure */}
-          <div className='flex items-center justify-between mb-3'>
-            <div className='flex items-center gap-2'>
-              <button
-                onClick={() => navigate('/')}
-                className='p-2 bg-sky-50 rounded-xl hover:bg-sky-100 active:scale-95 transition-all duration-200'
-                title="Retour à l'accueil"
-                aria-label="Retour à l'accueil"
-              >
-                <Home className='w-4 h-4 text-sky-600' />
-              </button>
-              <div className='flex flex-col'>
-                <h1 className='text-base font-bold text-gray-900 leading-tight'>
-                  {currentPage.title}
-                </h1>
-                <p className='text-xs text-gray-500'>
-                  {currentPage.subtitle}
-                </p>
-              </div>
-            </div>
-            
+        {/* Barre de recherche et filtres */}
+        <div className='mt-3 space-y-3'>
+          <div className='relative'>
+            <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400' />
+            <input
+              type='text'
+              placeholder='Rechercher une procédure...'
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className='w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm'
+            />
+          </div>
+
+          <div className='flex items-center justify-between'>
             <button
-              onClick={refreshUserData}
-              disabled={proceduresLoading}
-              className='p-2 bg-sky-50 rounded-xl hover:bg-sky-100 active:scale-95 transition-all duration-200 disabled:opacity-50'
-              title="Actualiser"
-              aria-label="Actualiser"
+              onClick={() => setShowFilters(!showFilters)}
+              className='flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-800 transition-colors text-sm'
             >
-              <RefreshCw className={`w-4 h-4 text-sky-600 ${proceduresLoading ? 'animate-spin' : ''}`} />
+              <Filter className='w-4 h-4' />
+              <span className='font-medium'>Filtrer</span>
             </button>
+
+            <span className='text-sm text-gray-500'>
+              {filteredProcedures.length} résultat
+              {filteredProcedures.length > 1 ? 's' : ''}
+            </span>
           </div>
 
-          {/* Navigation */}
-          <div className='overflow-x-auto pb-1 no-scrollbar'>
-            <nav className='flex gap-1.5 min-w-max'>
-              {navTabs.map(tab => {
-                const isActive = activeTabId === tab.id;
-                return (
-                  <Link
-                    key={tab.id}
-                    to={tab.to}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 flex-shrink-0 relative ${
-                      isActive
-                        ? 'bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sm'
-                        : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-sky-300 hover:bg-sky-50 active:scale-95'
-                    }`}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    <tab.icon className={`w-3.5 h-3.5 ${
-                      isActive ? 'text-white' : 'text-gray-500'
-                    }`} />
-                    <span className={`text-xs font-medium whitespace-nowrap ${
-                      isActive ? 'text-white' : 'text-gray-700'
-                    }`}>
-                      {tab.label}
-                    </span>
-                    {isActive && (
-                      <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-4 h-0.5 bg-sky-400 rounded-full"></div>
-                    )}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-
-          {/* Indicateur de statut */}
-          <div className='mt-2 pt-2 border-t border-gray-100'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-1.5'>
-                <div className='w-1.5 h-1.5 bg-emerald-500 rounded-full'></div>
-                <span className='text-xs text-gray-600'>
-                  {new Date().toLocaleDateString('fr-FR', { 
-                    day: 'numeric',
-                    month: 'short'
-                  })}
-                </span>
-              </div>
-              <span className='text-xs text-gray-500'>
-                {new Date().toLocaleTimeString('fr-FR', { 
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </span>
+          {showFilters && (
+            <div className='grid grid-cols-2 gap-2'>
+              {['ALL', ...Object.values(ProcedureStatus)].map(status => (
+                <button
+                  key={status}
+                  onClick={() =>
+                    setStatusFilter(status as ProcedureStatus | 'ALL')
+                  }
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    statusFilter === status
+                      ? 'bg-sky-500 text-white shadow-sm'
+                      : 'bg-white text-gray-600 border border-gray-300 hover:border-sky-300'
+                  }`}
+                >
+                  {status === 'ALL'
+                    ? 'Toutes'
+                    : getProcedureDisplayStatus(status as ProcedureStatus)}
+                </button>
+              ))}
             </div>
-          </div>
-
-          {/* Barre de recherche et filtres */}
-          <div className='mt-3 space-y-3'>
-            <div className='relative'>
-              <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400' />
-              <input
-                type='text'
-                placeholder='Rechercher une procédure...'
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className='w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm'
-              />
-            </div>
-
-            <div className='flex items-center justify-between'>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className='flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-800 transition-colors text-sm'
-              >
-                <Filter className='w-4 h-4' />
-                <span className='font-medium'>Filtrer</span>
-              </button>
-
-              <span className='text-sm text-gray-500'>
-                {filteredProcedures.length} résultat
-                {filteredProcedures.length > 1 ? 's' : ''}
-              </span>
-            </div>
-
-            {showFilters && (
-              <div className='grid grid-cols-2 gap-2'>
-                {['ALL', ...Object.values(ProcedureStatus)].map(status => (
-                  <button
-                    key={status}
-                    onClick={() =>
-                      setStatusFilter(status as ProcedureStatus | 'ALL')
-                    }
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                      statusFilter === status
-                        ? 'bg-sky-500 text-white shadow-sm'
-                        : 'bg-white text-gray-600 border border-gray-300 hover:border-sky-300'
-                    }`}
-                  >
-                    {status === 'ALL'
-                      ? 'Toutes'
-                      : getProcedureDisplayStatus(status as ProcedureStatus)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
         </div>
-
-        {/* Effet de séparation */}
-        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-sky-100 to-transparent"></div>
-      </header>
+      </UserHeader>
 
       {/* Contenu principal avec padding pour compenser le header fixe */}
       <div 

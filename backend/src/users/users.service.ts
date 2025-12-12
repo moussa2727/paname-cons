@@ -27,9 +27,8 @@ export class UsersService {
   if (!input) return undefined;
 
   const trimmed = input.trim();
-  if (trimmed === "") return undefined;
+  if (trimmed === "") return "";
 
-  // ✅ CORRECTION : Garder le + s'il est au début, garder tous les chiffres
   // Supprimer tous les espaces
   const cleaned = trimmed.replace(/\s/g, '');
   

@@ -1,4 +1,3 @@
-// MesRendezvous.tsx
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';

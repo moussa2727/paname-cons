@@ -114,49 +114,51 @@ interface AuthContextType {
   isLoading: boolean;
   error: string | null;
   fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>;
-  rateLimitState: {
-    isLimited: boolean;
-    retryAfter: number;
-    requestCount: number;
-  };
 }
 
-// ==================== CONSTANTS SYNCHRONISÉES AVEC BACKEND ====================
+// ==================== CONSTANTS ALIGNÉES AVEC BACKEND ====================
 const AUTH_CONSTANTS = {
-  ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000,
-  REFRESH_TOKEN_EXPIRATION_MS: 10 * 60 * 1000,
-  MAX_SESSION_DURATION_MS: 30 * 60 * 1000,
-  PREVENTIVE_REFRESH_MS: 1 * 60 * 1000,
-  MAX_REFRESH_ATTEMPTS: 3,
-  SESSION_CHECK_INTERVAL: 20 * 1000,
-  REQUEST_COOLDOWN_MS: 1500, // 2 secondes entre les requêtes
-  MIN_REFRESH_INTERVAL_MS: 30000,
+  // Durées strictes : 15, 20, 30 minutes (alignées avec auth.constants.ts)
+  ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000,       // ✅ 15 minutes (aligné avec backend)
+  ACCESS_TOKEN_EXPIRATION_SECONDS: 15 * 60,         // ✅ 15 minutes en secondes
+  REFRESH_TOKEN_EXPIRATION_MS: 30 * 60 * 1000,      // ✅ 30 minutes (corrigé: 30 au lieu de 20)
+  REFRESH_TOKEN_EXPIRATION_SECONDS: 30 * 60,        // ✅ 30 minutes en secondes
+  MAX_SESSION_DURATION_MS: 30 * 60 * 1000,          // ✅ 30 minutes (aligné avec backend)
+  SESSION_EXPIRATION_SECONDS: 30 * 60,              // ✅ 30 minutes en secondes
+  SESSION_EXPIRATION_MS: 30 * 60 * 1000,            // ✅ 30 minutes en ms
   
-  // Rate limiting synchronisé avec backend (15 minutes, 600 requêtes)
-  RATE_LIMITING: {
-    WINDOW_MS: 15 * 60 * 1000, // 15 minutes (identique au backend)
-    MAX_REQUESTS: 24000, // Maximum de requêtes par fenêtre (identique au backend)
-    REQUEST_COOLDOWN_MS: 2000, // 2 secondes entre les requêtes
-    RETRY_AFTER_MS: 60 * 1000, // Attendre 1 minute après un 429
-    RESET_INTERVAL_MS: 60 * 1000, // Vérifier le reset toutes les minutes
-  } as const,
-
+  // Token de réinitialisation
+  RESET_TOKEN_EXPIRATION_MS: 20 * 60 * 1000,        // ✅ 20 minutes (aligné avec backend)
+  
+  // Configuration rafraîchissement
+  PREVENTIVE_REFRESH_MS: 1 * 60 * 1000,             // ✅ 1 minute (préventif)
+  MAX_REFRESH_ATTEMPTS: 3,
+  MIN_REFRESH_INTERVAL_MS: 30000,                   // 30 secondes
+  
+  // Configuration sessions
+  MAX_ACTIVE_SESSIONS_PER_USER: 5,
+  SESSION_CHECK_INTERVAL: 20 * 1000,                // 20 secondes
+  
+  // Codes d'erreur (alignés avec backend)
   ERROR_CODES: {
     PASSWORD_RESET_REQUIRED: 'PASSWORD RESET REQUIRED',
     INVALID_CREDENTIALS: 'INVALID CREDENTIALS',
     COMPTE_DESACTIVE: 'COMPTE DESACTIVE',
     COMPTE_TEMPORAIREMENT_DECONNECTE: 'COMPTE TEMPORAIREMENT DECONNECTE',
-    MAINTENANCE_MODE: 'MAINTENANCE_MODE',
+    MAINTENANCE_MODE: 'MAINTENANCE MODE',
     SESSION_EXPIRED: 'SESSION EXPIRED',
     NO_PASSWORD_IN_DB: 'NO PASSWORD IN DB',
     AUTH_ERROR: 'AUTH ERROR',
-    TOO_MANY_REQUESTS: 'TOO MANY REQUESTS',
   } as const,
 
+  // Raisons de révocation (alignées avec backend)
   REVOCATION_REASONS: {
     USER_LOGOUT: 'user logout',
     ADMIN_GLOBAL_LOGOUT: 'admin global logout 24h',
     SESSION_EXPIRED: 'session expired',
+    MANUAL_REVOKE: 'MANUAL REVOKE',
+    ADMIN_CLEANUP: 'ADMIN CLEANUP',
+    REVOKE_ALL: 'REVOKE ALL',
   } as const,
 } as const;
 
@@ -166,11 +168,6 @@ const STORAGE_KEYS = {
   SESSION_START: 'session_start',
   REFRESH_ATTEMPTS: 'refresh_attempts',
   LAST_REFRESH_TIME: 'last_refresh_time',
-  LAST_REQUEST_TIME: 'last_request_time',
-  LAST_429_TIME: 'last_429_time',
-  RETRY_AFTER: 'retry_after',
-  REQUEST_COUNT: 'request_count',
-  REQUEST_WINDOW_START: 'request_window_start',
 } as const;
 
 const REDIRECT_PATHS = {
@@ -196,12 +193,6 @@ const TOAST_MESSAGES = {
   TOKEN_REFRESHED: 'Session rafraîchie',
   NETWORK_ERROR: 'Erreur réseau. Vérifiez votre connexion.',
   TOKEN_INVALID: 'Session invalide. Veuillez vous reconnecter.',
-  TOO_MANY_REQUESTS: (retryAfter?: number) => {
-    if (retryAfter) {
-      return `Trop de requêtes. Réessayez dans ${Math.round(retryAfter / 1000)} secondes.`;
-    }
-    return 'Trop de requêtes. Veuillez patienter.';
-  },
 } as const;
 
 const API_CONFIG = {
@@ -217,126 +208,6 @@ const API_CONFIG = {
     ME: '/api/auth/me',
   } as const,
 } as const;
-
-// ==================== UTILITAIRES RATE LIMITING ====================
-const initializeRateLimitState = () => {
-  const now = Date.now();
-  const windowStart = window.localStorage?.getItem(STORAGE_KEYS.REQUEST_WINDOW_START);
-  
-  if (!windowStart) {
-    window.localStorage?.setItem(STORAGE_KEYS.REQUEST_WINDOW_START, now.toString());
-    window.localStorage?.setItem(STORAGE_KEYS.REQUEST_COUNT, '1');
-    return {
-      isLimited: false,
-      requestCount: 1,
-      windowStart: now,
-    };
-  }
-  
-  const windowStartTime = parseInt(windowStart);
-  const timeSinceWindowStart = now - windowStartTime;
-  
-  // Si la fenêtre est expirée, réinitialiser
-  if (timeSinceWindowStart > AUTH_CONSTANTS.RATE_LIMITING.WINDOW_MS) {
-    window.localStorage?.setItem(STORAGE_KEYS.REQUEST_WINDOW_START, now.toString());
-    window.localStorage?.setItem(STORAGE_KEYS.REQUEST_COUNT, '1');
-    return {
-      isLimited: false,
-      requestCount: 1,
-      windowStart: now,
-    };
-  }
-  
-  // Sinon, incrémenter le compteur
-  const currentCount = parseInt(window.localStorage?.getItem(STORAGE_KEYS.REQUEST_COUNT) || '0');
-  const newCount = currentCount + 1;
-  window.localStorage?.setItem(STORAGE_KEYS.REQUEST_COUNT, newCount.toString());
-  
-  return {
-    isLimited: newCount > AUTH_CONSTANTS.RATE_LIMITING.MAX_REQUESTS,
-    requestCount: newCount,
-    windowStart: windowStartTime,
-  };
-};
-
-const checkRateLimit = (): { allowed: boolean; retryAfter?: number } => {
-  // Vérifier si on est en période de rate limit
-  const last429Time = window.localStorage?.getItem(STORAGE_KEYS.LAST_429_TIME);
-  const retryAfter = window.localStorage?.getItem(STORAGE_KEYS.RETRY_AFTER);
-  
-  if (last429Time && retryAfter) {
-    const timeSince429 = Date.now() - parseInt(last429Time);
-    const retryDelay = parseInt(retryAfter);
-    
-    if (timeSince429 < retryDelay) {
-      return {
-        allowed: false,
-        retryAfter: retryDelay - timeSince429,
-      };
-    }
-  }
-  
-  // Vérifier la limite de requêtes dans la fenêtre
-  const state = initializeRateLimitState();
-  
-  if (state.isLimited) {
-    const timeLeftInWindow = AUTH_CONSTANTS.RATE_LIMITING.WINDOW_MS - (Date.now() - state.windowStart);
-    
-    // Enregistrer le rate limit
-    window.localStorage?.setItem(STORAGE_KEYS.LAST_429_TIME, Date.now().toString());
-    window.localStorage?.setItem(STORAGE_KEYS.RETRY_AFTER, timeLeftInWindow.toString());
-    
-    return {
-      allowed: false,
-      retryAfter: timeLeftInWindow,
-    };
-  }
-  
-  return { allowed: true };
-};
-
-const shouldMakeRequest = (): boolean => {
-  const rateLimitCheck = checkRateLimit();
-  
-  if (!rateLimitCheck.allowed) {
-    if (import.meta.env.DEV) {
-      console.log(`⏰ Rate limit actif, réessayez dans ${Math.round((rateLimitCheck.retryAfter || 0) / 1000)}s`);
-    }
-    return false;
-  }
-  
-  const lastRequestTime = window.localStorage?.getItem(STORAGE_KEYS.LAST_REQUEST_TIME);
-  
-  if (!lastRequestTime) return true;
-  
-  const timeSinceLastRequest = Date.now() - parseInt(lastRequestTime);
-  const minDelay = AUTH_CONSTANTS.REQUEST_COOLDOWN_MS; // 2000ms = 2 secondes
-  
-  if (timeSinceLastRequest < minDelay) {
-    if (import.meta.env.DEV) {
-      console.log(`⏰ Attente requise (${Math.round(timeSinceLastRequest / 1000)}s, minimum ${Math.round(minDelay / 1000)}s)`);
-    }
-    return false;
-  }
-  
-  return true;
-};
-
-const updateLastRequestTime = (): void => {
-  window.localStorage?.setItem(STORAGE_KEYS.LAST_REQUEST_TIME, Date.now().toString());
-};
-
-const handleRateLimitError = (retryAfter?: number): void => {
-  const delay = retryAfter || AUTH_CONSTANTS.RATE_LIMITING.RETRY_AFTER_MS;
-  
-  window.localStorage?.setItem(STORAGE_KEYS.LAST_429_TIME, Date.now().toString());
-  window.localStorage?.setItem(STORAGE_KEYS.RETRY_AFTER, delay.toString());
-  
-  toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS(delay), {
-    autoClose: Math.min(delay, 10000),
-  });
-};
-
 
 // ==================== CONTEXT ====================
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -359,19 +230,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // État pour le rate limiting
-  const [rateLimitState, setRateLimitState] = useState({
-    isLimited: false,
-    retryAfter: 0,
-    requestCount: 0,
-  });
 
   const refreshTimeoutRef = useRef<number | null>(null);
   const sessionCheckIntervalRef = useRef<number | null>(null);
   const refreshAttemptsRef = useRef(0);
   const isRefreshingRef = useRef(false);
-  const rateLimitResetIntervalRef = useRef<number | null>(null);
 
   // ==================== FONCTIONS ESSENTIELLES ====================
   const cleanupAuthData = useCallback((): void => {
@@ -388,12 +251,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     refreshAttemptsRef.current = 0;
     isRefreshingRef.current = false;
-    
-    setRateLimitState({
-      isLimited: false,
-      retryAfter: 0,
-      requestCount: 0,
-    });
 
     if (refreshTimeoutRef.current) {
       window.clearTimeout(refreshTimeoutRef.current);
@@ -404,30 +261,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       window.clearInterval(sessionCheckIntervalRef.current);
       sessionCheckIntervalRef.current = null;
     }
-    
-    if (rateLimitResetIntervalRef.current) {
-      window.clearInterval(rateLimitResetIntervalRef.current);
-      rateLimitResetIntervalRef.current = null;
-    }
   }, []);
 
   const fetchWithAuth = useCallback(async (
     endpoint: string,
     options: RequestInit = {}
   ): Promise<Response> => {
-    // Vérifier le rate limiting local d'abord
-    const rateLimitCheck = checkRateLimit();
-    if (!rateLimitCheck.allowed) {
-      handleRateLimitError(rateLimitCheck.retryAfter);
-      throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
-    }
-
-    if (!shouldMakeRequest()) {
-      throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
-    }
-
-    updateLastRequestTime();
-
     const token = access_token || window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
     
     const headers = {
@@ -442,22 +281,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         headers,
         credentials: 'include',
       });
-
-      // Gérer le rate limiting du backend
-      if (response.status === 429) {
-        // Extraire le délai de retry des headers si disponible
-        const retryAfterHeader = response.headers.get('Retry-After');
-        const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader) * 1000 : AUTH_CONSTANTS.RATE_LIMITING.RETRY_AFTER_MS;
-        
-        handleRateLimitError(retryAfter);
-        setRateLimitState(prev => ({
-          ...prev,
-          isLimited: true,
-          retryAfter,
-        }));
-        
-        throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
-      }
 
       if (response.status === 401) {
         const errorData = await response.json().catch(() => ({}));
@@ -482,23 +305,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      // Réinitialiser l'état rate limit si la requête réussit
-      if (response.ok) {
-        const currentCount = parseInt(window.localStorage?.getItem(STORAGE_KEYS.REQUEST_COUNT) || '0');
-        setRateLimitState(prev => ({
-          ...prev,
-          isLimited: false,
-          retryAfter: 0,
-          requestCount: currentCount,
-        }));
-      }
-
       return response;
     } catch (error) {
-      if (error instanceof Error && error.message === AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS) {
-        // Ne pas relancer pour éviter les boucles infinies
-        throw error;
-      }
       throw error;
     }
   }, [access_token, cleanupAuthData, navigate]);
@@ -507,13 +315,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Vérifier si un refresh est déjà en cours
     if (isRefreshingRef.current) {
       console.log('⚠️ Refresh en cours, fetchUserData ignoré');
-      return;
-    }
-
-    // Vérifier le rate limiting
-    const rateLimitCheck = checkRateLimit();
-    if (!rateLimitCheck.allowed) {
-      console.log('⚠️ Rate limit actif, fetchUserData ignoré');
       return;
     }
 
@@ -559,11 +360,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log('✅ Profil utilisateur récupéré:', mappedUser.email);
     } catch (error) {
       console.warn('⚠️ Erreur récupération utilisateur, ignoré:', error);
-      
-      // En cas d'erreur 429, attendre plus longtemps
-      if (error instanceof Error && error.message.includes('TOO MANY REQUESTS')) {
-        window.localStorage?.setItem('last_fetch_user_time', (Date.now() + 30000).toString());
-      }
     }
   }, [fetchWithAuth]);
 
@@ -578,12 +374,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error(`❌ Erreur auth [${context}]:`, errorMessage);
     }
     
-    if (errorMessage.includes(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS)) {
-      const rateLimitCheck = checkRateLimit();
-      toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS(rateLimitCheck.retryAfter), { 
-        autoClose: Math.min(rateLimitCheck.retryAfter || 5000, 10000) 
-      });
-    } else if (errorMessage.includes(AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED)) {
+    if (errorMessage.includes(AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED)) {
       toast.error(TOAST_MESSAGES.PASSWORD_RESET_REQUIRED, { autoClose: 8000 });
       navigate(REDIRECT_PATHS.RESET_PASSWORD_REQUIRED, { 
         state: { email: error.email || '', reason: 'password_reset_required' } 
@@ -614,22 +405,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     async (email: string, password: string): Promise<void> => {
       setIsLoading(true);
       setError(null);
-
-      // Vérifier le rate limiting
-      const rateLimitCheck = checkRateLimit();
-      if (!rateLimitCheck.allowed) {
-        setIsLoading(false);
-        handleRateLimitError(rateLimitCheck.retryAfter);
-        return;
-      }
-
-      if (!shouldMakeRequest()) {
-        setIsLoading(false);
-        toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS());
-        return;
-      }
-
-      updateLastRequestTime();
 
       try {
         const response = await window.fetch(
@@ -703,7 +478,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         const decoded = jwtDecode<JwtPayload>(data.access_token);
         
-        // Planifier le rafraîchissement du token
+        // Planifier le rafraîchissement du token (15 minutes - 1 minute préventive = 14 minutes)
         if (refreshTimeoutRef.current) {
           window.clearTimeout(refreshTimeoutRef.current);
         }
@@ -713,7 +488,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
         
         const refreshTime = Math.max(
-          30000,
+          30000, // Minimum 30 secondes
           timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
         );
 
@@ -782,22 +557,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     async (formData: RegisterFormData): Promise<void> => {
       setIsLoading(true);
       setError(null);
-
-      // Vérifier le rate limiting
-      const rateLimitCheck = checkRateLimit();
-      if (!rateLimitCheck.allowed) {
-        setIsLoading(false);
-        handleRateLimitError(rateLimitCheck.retryAfter);
-        return;
-      }
-
-      if (!shouldMakeRequest()) {
-        setIsLoading(false);
-        toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS());
-        return;
-      }
-
-      updateLastRequestTime();
 
       try {
         const response = await window.fetch(
@@ -872,7 +631,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           try {
             const decoded = jwtDecode<JwtPayload>(data.access_token);
             
-            // Planifier le rafraîchissement du token
+            // Planifier le rafraîchissement du token (15 minutes - 1 minute préventive)
             if (refreshTimeoutRef.current) {
               window.clearTimeout(refreshTimeoutRef.current);
             }
@@ -882,7 +641,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
             
             const refreshTime = Math.max(
-              30000,
+              30000, // Minimum 30 secondes
               timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
             );
 
@@ -948,13 +707,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return false;
     }
 
-    // Vérifier le rate limiting
-    const rateLimitCheck = checkRateLimit();
-    if (!rateLimitCheck.allowed) {
-      console.log('⚠️ Rate limit actif, refresh ignoré');
-      return false;
-    }
-
     // Vérifier le temps depuis le dernier refresh
     const lastRefreshTime = window.localStorage?.getItem('last_refresh_time');
     if (lastRefreshTime) {
@@ -972,16 +724,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
       return false;
     }
-
-    // Vérifier la fréquence des requêtes
-    if (!shouldMakeRequest()) {
-      if (import.meta.env.DEV) {
-        console.log('⚠️ Cooldown activé, refresh ignoré');
-      }
-      return false;
-    }
-
-    updateLastRequestTime();
 
     const currentToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
 
@@ -1025,16 +767,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           credentials: 'include',
         }
       );
-
-      if (response.status === 429) {
-        const retryAfterHeader = response.headers.get('Retry-After');
-        const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader) * 1000 : AUTH_CONSTANTS.RATE_LIMITING.RETRY_AFTER_MS;
-        
-        handleRateLimitError(retryAfter);
-        // Augmenter le délai avant le prochain essai
-        window.localStorage?.setItem('last_refresh_time', (Date.now() + retryAfter).toString());
-        return false;
-      }
 
       if (response.status === 401) {
         const errorData = await response.json().catch(() => ({}));
@@ -1087,7 +819,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Mettre à jour les données utilisateur
       await fetchUserData();
 
-      // Planifier le prochain rafraîchissement avec des délais plus longs
+      // Planifier le prochain rafraîchissement
       try {
         const decoded = jwtDecode<JwtPayload>(data.access_token);
         
@@ -1099,7 +831,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const currentTimeMs = Date.now();
         const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
         
-        // Calculer le moment du prochain rafraîchissement
         // Attendre au moins 1 minute avant de rafraîchir à nouveau
         const minRefreshDelay = Math.max(60000, AUTH_CONSTANTS.MIN_REFRESH_INTERVAL_MS);
         const refreshTime = Math.max(
@@ -1146,7 +877,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (import.meta.env.DEV) {
           console.warn('🌐 Erreur réseau - le token actuel reste valable');
         }
-        // En cas d'erreur réseau, attendre plus longtemps avant de réessayer
         window.localStorage?.setItem('last_refresh_time', (Date.now() + 30000).toString());
         return false;
       }
@@ -1160,8 +890,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = useCallback(async (): Promise<void> => {
     try {
-      if (access_token && shouldMakeRequest()) {
-        updateLastRequestTime();
+      if (access_token) {
         await fetchWithAuth(API_CONFIG.ENDPOINTS.LOGOUT, {
           method: 'POST',
         });
@@ -1181,20 +910,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!access_token || user?.role !== UserRole.ADMIN) {
       throw new Error('Accès non autorisé - Admin seulement');
     }
-
-    // Vérifier le rate limiting
-    const rateLimitCheck = checkRateLimit();
-    if (!rateLimitCheck.allowed) {
-      handleRateLimitError(rateLimitCheck.retryAfter);
-      throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
-    }
-
-    if (!shouldMakeRequest()) {
-      toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS());
-      throw new Error(AUTH_CONSTANTS.ERROR_CODES.TOO_MANY_REQUESTS);
-    }
-
-    updateLastRequestTime();
 
     try {
       const response = await fetchWithAuth(API_CONFIG.ENDPOINTS.LOGOUT_ALL, {
@@ -1219,22 +934,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     async (email: string): Promise<void> => {
       setIsLoading(true);
       setError(null);
-
-      // Vérifier le rate limiting
-      const rateLimitCheck = checkRateLimit();
-      if (!rateLimitCheck.allowed) {
-        setIsLoading(false);
-        handleRateLimitError(rateLimitCheck.retryAfter);
-        return;
-      }
-
-      if (!shouldMakeRequest()) {
-        setIsLoading(false);
-        toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS());
-        return;
-      }
-
-      updateLastRequestTime();
 
       try {
         const response = await window.fetch(
@@ -1271,24 +970,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // Vérifier le rate limiting
-    const rateLimitCheck = checkRateLimit();
-    if (!rateLimitCheck.allowed) {
-      setIsLoading(false);
-      return;
-    }
-
     try {
       const decoded = jwtDecode<JwtPayload>(savedToken);
       const isTokenExpired = decoded.exp * 1000 < Date.now();
 
       if (!isTokenExpired) {
-        if (shouldMakeRequest()) {
-          updateLastRequestTime();
-          await fetchUserData();
-        }
+        await fetchUserData();
         
-        // Planifier le rafraîchissement
+        // Planifier le rafraîchissement (15 minutes - 1 minute préventive)
         if (refreshTimeoutRef.current) {
           window.clearTimeout(refreshTimeoutRef.current);
         }
@@ -1298,7 +987,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
         
         const refreshTime = Math.max(
-          30000,
+          30000, // Minimum 30 secondes
           timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
         );
 
@@ -1322,7 +1011,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.log('⏰ Token expiré, tentative de rafraîchissement...');
         }
         
-        if (!isRefreshingRef.current && shouldMakeRequest()) {
+        if (!isRefreshingRef.current) {
           const refreshed = await refreshToken();
           if (!refreshed) {
             cleanupAuthData();
@@ -1343,22 +1032,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     async (token: string, newPassword: string): Promise<void> => {
       setIsLoading(true);
       setError(null);
-
-      // Vérifier le rate limiting
-      const rateLimitCheck = checkRateLimit();
-      if (!rateLimitCheck.allowed) {
-        setIsLoading(false);
-        handleRateLimitError(rateLimitCheck.retryAfter);
-        return;
-      }
-
-      if (!shouldMakeRequest()) {
-        setIsLoading(false);
-        toast.warn(TOAST_MESSAGES.TOO_MANY_REQUESTS());
-        return;
-      }
-
-      updateLastRequestTime();
 
       try {
         if (newPassword.length < 8) {
@@ -1413,7 +1086,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await checkAuth();
 
       if (isMounted) {
-        // Vérification périodique de la session
+        // Vérification périodique de la session (30 minutes max)
         sessionCheckIntervalRef.current = window.setInterval(() => {
           const sessionStart = window.localStorage?.getItem(
             STORAGE_KEYS.SESSION_START
@@ -1428,33 +1101,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
             }
           }
-        }, 60 * 1000);
-        
-        // Réinitialisation périodique du rate limiting
-        rateLimitResetIntervalRef.current = window.setInterval(() => {
-          const windowStart = window.localStorage?.getItem(STORAGE_KEYS.REQUEST_WINDOW_START);
-          if (windowStart) {
-            const timeSinceWindowStart = Date.now() - parseInt(windowStart);
-            if (timeSinceWindowStart > AUTH_CONSTANTS.RATE_LIMITING.WINDOW_MS) {
-              // Réinitialiser le compteur
-              window.localStorage?.setItem(STORAGE_KEYS.REQUEST_COUNT, '0');
-              window.localStorage?.setItem(STORAGE_KEYS.REQUEST_WINDOW_START, Date.now().toString());
-              window.localStorage?.removeItem(STORAGE_KEYS.LAST_429_TIME);
-              window.localStorage?.removeItem(STORAGE_KEYS.RETRY_AFTER);
-              
-              setRateLimitState(prev => ({
-                ...prev,
-                isLimited: false,
-                retryAfter: 0,
-                requestCount: 0,
-              }));
-              
-              if (import.meta.env.DEV) {
-                console.log('🔄 Rate limiting réinitialisé');
-              }
-            }
-          }
-        }, AUTH_CONSTANTS.RATE_LIMITING.RESET_INTERVAL_MS);
+        }, 60 * 1000); // Vérifier toutes les minutes
       }
     };
 
@@ -1467,9 +1114,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       if (sessionCheckIntervalRef.current) {
         window.clearInterval(sessionCheckIntervalRef.current);
-      }
-      if (rateLimitResetIntervalRef.current) {
-        window.clearInterval(rateLimitResetIntervalRef.current);
       }
     };
   }, [checkAuth, logout]);
@@ -1490,7 +1134,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     refreshToken,
     updateProfile,
     fetchWithAuth,
-    rateLimitState,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
