@@ -237,32 +237,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isRefreshingRef = useRef(false);
 
   // ==================== FONCTIONS ESSENTIELLES ====================
-  const cleanupAuthData = useCallback((): void => {
-    if (import.meta.env.DEV) {
-      console.log('🧹 Nettoyage des données d\'authentification');
-    }
+const cleanupAuthData = useCallback((): void => {
+  // Nettoyer TOUT
+  Object.values(STORAGE_KEYS).forEach(key => {
+    window.localStorage?.removeItem(key);
+  });
 
-    Object.values(STORAGE_KEYS).forEach(key => {
-      window.localStorage?.removeItem(key);
-    });
+  setAccessToken(null);
+  setUser(null);
+  setError(null);
+  refreshAttemptsRef.current = 0;
+  isRefreshingRef.current = false;
 
-    setAccessToken(null);
-    setUser(null);
-    setError(null);
-    refreshAttemptsRef.current = 0;
-    isRefreshingRef.current = false;
+  if (refreshTimeoutRef.current) {
+    window.clearTimeout(refreshTimeoutRef.current);
+    refreshTimeoutRef.current = null;
+  }
 
-    if (refreshTimeoutRef.current) {
-      window.clearTimeout(refreshTimeoutRef.current);
-      refreshTimeoutRef.current = null;
-    }
-
-    if (sessionCheckIntervalRef.current) {
-      window.clearInterval(sessionCheckIntervalRef.current);
-      sessionCheckIntervalRef.current = null;
-    }
-  }, []);
-
+  if (sessionCheckIntervalRef.current) {
+    window.clearInterval(sessionCheckIntervalRef.current);
+    sessionCheckIntervalRef.current = null;
+  }
+}, []);
   const fetchWithAuth = useCallback(async (
     endpoint: string,
     options: RequestInit = {}
@@ -978,6 +974,7 @@ const checkAuth = useCallback(async (): Promise<void> => {
   if (!savedToken) {
     setIsLoading(false);
     setUser(null);
+    window.localStorage?.removeItem(STORAGE_KEYS.USER_DATA); // ← IMPORTANT
     return;
   }
 
@@ -986,65 +983,22 @@ const checkAuth = useCallback(async (): Promise<void> => {
     const isTokenExpired = decoded.exp * 1000 < Date.now();
 
     if (isTokenExpired) {
-      console.log('⏰ Token expiré, tentative de rafraîchissement...');
-      
-      if (!isRefreshingRef.current) {
-        const refreshed = await refreshToken();
-        if (!refreshed) {
-          cleanupAuthData();
-          toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-        }
+      // Essayer de rafraîchir
+      const refreshed = await refreshToken();
+      if (!refreshed) {
+        cleanupAuthData();
       }
-      setIsLoading(false);
-      return;
+    } else {
+      // Récupérer l'utilisateur
+      await fetchUserData();
     }
-
-    // Token valide, récupérer l'utilisateur
-    await fetchUserData();
-    
-    // Planifier le rafraîchissement préventif
-    if (refreshTimeoutRef.current) {
-      window.clearTimeout(refreshTimeoutRef.current);
-    }
-    
-    const tokenExpirationMs = decoded.exp * 1000;
-    const currentTimeMs = Date.now();
-    const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
-    
-    const refreshTime = Math.max(
-      30000, // Minimum 30 secondes
-      timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
-    );
-
-    if (refreshTime > 0) {
-      refreshTimeoutRef.current = window.setTimeout(async () => {
-        console.log('🔄 Rafraîchissement préventif...');
-        if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
-          const refreshed = await refreshToken();
-          if (refreshed) {
-            refreshAttemptsRef.current = 0;
-          } else {
-            refreshAttemptsRef.current++;
-            console.warn(`❌ Échec rafraîchissement (tentative ${refreshAttemptsRef.current}/${AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS})`);
-          }
-        } else {
-          console.error('❌ Trop de tentatives de rafraîchissement');
-          cleanupAuthData();
-          toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-        }
-      }, refreshTime);
-      
-      console.log(`⏰ Prochain rafraîchissement dans ${Math.round(refreshTime / 1000)}s`);
-    }
-    
   } catch (error) {
-    console.warn('❌ Erreur vérification auth:', error);
+    console.warn('Erreur vérification auth:', error);
     cleanupAuthData();
   } finally {
     setIsLoading(false);
   }
 }, [fetchUserData, refreshToken, cleanupAuthData]);
-
  
   const resetPassword = useCallback(
     async (token: string, newPassword: string): Promise<void> => {

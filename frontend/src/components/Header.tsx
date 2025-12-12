@@ -21,25 +21,71 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function Header(): React.JSX.Element {
-  const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
+  const { 
+    user, 
+    isAuthenticated, 
+    logout, 
+    isLoading: authLoading,
+    updateProfile
+  } = useAuth();
+  
   const [showTopBar] = useState(true);
   const [nav, setNav] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [blinkColor, setBlinkColor] = useState('text-gray-600');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
+  const [localAuthState, setLocalAuthState] = useState<{
+    isAuthenticated: boolean;
+    user: any | null;
+  }>({ isAuthenticated: false, user: null });
+
   const location = useLocation();
   const navigate = useNavigate();
   const mobileMenuRef = useRef<HTMLUListElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const hamburgerRef = useRef<HTMLButtonElement>(null);
 
+  // CORRECTION CRITIQUE: Synchroniser avec localStorage et le contexte
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
+    // Vérifier d'abord localStorage (source de vérité immédiate)
+    const token = window.localStorage?.getItem('access_token');
+    const storedUser = window.localStorage?.getItem('user_data');
+    
+    let actualUser = null;
+    if (storedUser) {
+      try {
+        actualUser = JSON.parse(storedUser);
+      } catch (e) {
+        console.warn('Erreur parsing user_data:', e);
+      }
+    }
+    
+    // Mettre à jour l'état local
+    const newAuthState = {
+      isAuthenticated: !!token && !!actualUser,
+      user: actualUser
+    };
+    
+    setLocalAuthState(newAuthState);
+    
+    // Si token existe mais user du contexte est null, forcer une sync
+    if (token && !user && !authLoading) {
+      console.log('Header: Token présent mais user manquant, sync...');
+      updateProfile().catch(() => {
+        // En cas d'échec, nettoyer
+        if (!token) {
+          window.localStorage.removeItem('access_token');
+          window.localStorage.removeItem('user_data');
+        }
+      });
+    }
+  }, [user, authLoading, updateProfile, location.pathname]);
+
+  // Utiliser l'état local comme source de vérité pour l'affichage
+  const displayUser = user || localAuthState.user;
+  const displayIsAuthenticated = isAuthenticated || localAuthState.isAuthenticated;
 
   const handleLogoClick = (): void => {
-    if (!isMounted) return;
     if (location.pathname === '/') {
       window?.scrollTo?.({ top: 0, behavior: 'smooth' });
     } else {
@@ -105,6 +151,8 @@ function Header(): React.JSX.Element {
     setIsLoggingOut(true);
     try {
       await logout();
+      // Mettre à jour l'état local immédiatement
+      setLocalAuthState({ isAuthenticated: false, user: null });
       window.sessionStorage?.removeItem('redirect_after_login');
     } catch (error) {
       if (import.meta.env.DEV) {
@@ -118,7 +166,8 @@ function Header(): React.JSX.Element {
   };
 
   const handleProtectedNavigation = (path: string, isMobile: boolean = false): void => {
-    if (!isAuthenticated) {
+    // Utiliser l'état local pour la vérification
+    if (!displayIsAuthenticated) {
       window.sessionStorage?.setItem('redirect_after_login', path);
       navigate('/connexion', {
         state: {
@@ -158,7 +207,7 @@ function Header(): React.JSX.Element {
       name: 'Tableau de bord',
       path: '/gestionnaire/statistiques',
       icon: <LayoutDashboard className='w-4 h-4' />,
-      visible: user?.role === 'admin' || user?.isAdmin === true,
+      visible: displayUser?.role === 'admin' || displayUser?.isAdmin === true,
       requiresAuth: true,
       section: 'admin',
     },
@@ -166,7 +215,7 @@ function Header(): React.JSX.Element {
       name: 'Ma Procédure',
       path: '/ma-procedure',
       icon: <FileText className='w-4 h-4' />,
-      visible: user?.role === 'user',
+      visible: displayUser?.role === 'user',
       requiresAuth: true,
       section: 'user',
     },
@@ -174,7 +223,7 @@ function Header(): React.JSX.Element {
       name: 'Mes Rendez-Vous',
       path: '/mes-rendez-vous',
       icon: <Calendar className='w-4 h-4' />,
-      visible: user?.role === 'user',
+      visible: displayUser?.role === 'user',
       requiresAuth: true,
       section: 'user',
     },
@@ -194,7 +243,7 @@ function Header(): React.JSX.Element {
       ) : (
         <LogOut className='w-4 h-4' />
       ),
-      visible: isAuthenticated,
+      visible: displayIsAuthenticated,
       disabled: isLoggingOut,
       requiresAuth: true,
       section: 'logout',
@@ -202,18 +251,18 @@ function Header(): React.JSX.Element {
   ];
 
   const getUserInitials = (): string => {
-    if (!user) return '';
-    const firstNameInitial = user.firstName ? user.firstName.charAt(0).toUpperCase() : '';
-    const lastNameInitial = user.lastName ? user.lastName.charAt(0).toUpperCase() : '';
+    if (!displayUser) return '';
+    const firstNameInitial = displayUser.firstName ? displayUser.firstName.charAt(0).toUpperCase() : '';
+    const lastNameInitial = displayUser.lastName ? displayUser.lastName.charAt(0).toUpperCase() : '';
     return `${firstNameInitial}${lastNameInitial}`;
   };
 
   const getUserDisplayName = (): string => {
-    if (!user) return '';
-    if (user.firstName && user.lastName) {
-      return `${user.firstName} ${user.lastName}`;
+    if (!displayUser) return '';
+    if (displayUser.firstName && displayUser.lastName) {
+      return `${displayUser.firstName} ${displayUser.lastName}`;
     }
-    return user.email || '';
+    return displayUser.email || '';
   };
 
   return (
@@ -315,8 +364,8 @@ function Header(): React.JSX.Element {
                 ))}
               </ul>
 
-              {/* DÉLÉGATION COMPLÈTE AU AUTHCONTEXT - Desktop */}
-              {isAuthenticated && user ? (
+              {/* Boutons d'authentification */}
+              {displayIsAuthenticated && displayUser ? (
                 <div className='relative ml-2 md:ml-4' ref={dropdownRef}>
                   <button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -324,7 +373,7 @@ function Header(): React.JSX.Element {
                     aria-label='Menu utilisateur'
                     aria-expanded={dropdownOpen}
                     aria-haspopup='true'
-                    disabled={authLoading}
+                    disabled={authLoading || isLoggingOut}
                   >
                     <span className='text-xs md:text-sm font-semibold'>
                       {getUserInitials()}
@@ -343,9 +392,9 @@ function Header(): React.JSX.Element {
                           {getUserDisplayName()}
                         </p>
                         <p className='text-xs text-gray-500 truncate mt-1'>
-                          {user?.email}
+                          {displayUser?.email}
                         </p>
-                        {user?.role === 'admin' || user?.isAdmin === true ? (
+                        {displayUser?.role === 'admin' || displayUser?.isAdmin === true ? (
                           <div className='mt-2'>
                             <span className='inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-800'>
                               Administrateur
@@ -433,7 +482,7 @@ function Header(): React.JSX.Element {
               aria-label={nav ? 'Fermer le menu' : 'Ouvrir le menu'}
               aria-expanded={nav}
               aria-controls='mobile-menu'
-              disabled={authLoading}
+              disabled={authLoading || isLoggingOut}
             >
               {nav ? (
                 <X className='w-6 h-6 text-gray-700' />
@@ -443,7 +492,7 @@ function Header(): React.JSX.Element {
             </button>
           </div>
 
-          {/* MOBILE MENU - DESIGN MOBILE FIRST */}
+          {/* MOBILE MENU */}
           {nav && (
             <div
               id='mobile-menu'
@@ -459,36 +508,35 @@ function Header(): React.JSX.Element {
               >
                 {/* En-tête mobile */}
                 <div className='sticky top-0 bg-white border-b z-10'>
-                  <div className='px-4 py-3 flex items-center justify-between bg-gray-50'>
+                  <div className='px-4 py-3 flex items-center bg-gray-50'>
                     <div className='flex items-center'>
                       <div className='flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-bold mr-3'>
-                        {isAuthenticated ? getUserInitials() : <UserIcon className='w-5 h-5' />}
+                        {displayIsAuthenticated && displayUser ? getUserInitials() : <UserIcon className='w-5 h-5' />}
                       </div>
                       <div>
-                        {isAuthenticated ? (
+                        {displayIsAuthenticated && displayUser ? (
                           <>
                             <p className='text-sm font-bold text-gray-800 truncate'>
                               {getUserDisplayName()}
                             </p>
                             <p className='text-xs text-gray-500 truncate'>
-                              {user?.email}
+                              {displayUser?.email}
                             </p>
                           </>
                         ) : (
                           <p className='text-sm font-bold text-gray-800'>
-                            Paname Consulting
+                            Mon Compte
                           </p>
                         )}
                       </div>
                     </div>
-                   
                   </div>
                 </div>
 
-                {/* CONTENU DU MENU MOBILE - Mobile First */}
+                {/* CONTENU DU MENU MOBILE */}
                 <div className='p-4 space-y-6'>
-                  {/* SECTION 1: LIENS AUTHENTIFIÉS (si connecté) - PRIORITÉ HAUTE */}
-                  {isAuthenticated && (
+                  {/* SECTION 1: LIENS AUTHENTIFIÉS */}
+                  {displayIsAuthenticated && displayUser && (
                     <div className='space-y-2'>
                       <div className='flex items-center justify-between px-2 mb-2'>
                         <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider'>
@@ -530,7 +578,7 @@ function Header(): React.JSX.Element {
                   )}
 
                   {/* SECTION 2: NAVIGATION PRINCIPALE */}
-                  <div className={`${isAuthenticated ? 'border-t border-gray-200 pt-4' : ''}`}>
+                  <div className={`${displayIsAuthenticated ? 'border-t border-gray-200 pt-4' : ''}`}>
                     <div className='space-y-2'>
                       <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 px-2'>
                         Navigation
@@ -567,11 +615,11 @@ function Header(): React.JSX.Element {
                     </div>
                   </div>
 
-                  {/* SECTION 3: AUTHENTIFICATION (si non connecté) */}
-                  {!isAuthenticated && (
+                  {/* SECTION 3: AUTHENTIFICATION */}
+                  {!displayIsAuthenticated && (
                     <div className='pt-4 border-t border-gray-200'>
                       <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 px-2'>
-                        Compte
+                        Connexion
                       </h3>
                       <div className='space-y-2'>
                         <Link
@@ -607,8 +655,8 @@ function Header(): React.JSX.Element {
                     </div>
                   )}
 
-                  {/* SECTION 4: DÉCONNEXION (en bas si connecté) */}
-                  {isAuthenticated && (
+                  {/* SECTION 4: DÉCONNEXION */}
+                  {displayIsAuthenticated && (
                     <div className='pt-4 border-t border-gray-200'>
                       <div className='space-y-2'>
                         <button
@@ -642,7 +690,7 @@ function Header(): React.JSX.Element {
                   )}
 
                   {/* Footer du menu */}
-                  {!isAuthenticated && (
+                  {!displayIsAuthenticated && (
                     <div className='pt-4 border-t border-gray-200'>
                       <div className='text-center'>
                         <span className='text-xs text-gray-400'>
