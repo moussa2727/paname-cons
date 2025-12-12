@@ -972,11 +972,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [navigate, handleAuthError]
   );
 
- const checkAuth = useCallback(async (): Promise<void> => {
+const checkAuth = useCallback(async (): Promise<void> => {
   const savedToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
 
   if (!savedToken) {
     setIsLoading(false);
+    setUser(null);
     return;
   }
 
@@ -984,94 +985,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const decoded = jwtDecode<JwtPayload>(savedToken);
     const isTokenExpired = decoded.exp * 1000 < Date.now();
 
-    if (!isTokenExpired) {
-      // Essayez de récupérer les données utilisateur avec les cookies
-      try {
-        const response = await window.fetch(
-          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.ME}`,
-          {
-            method: 'GET',
-            credentials: 'include', // Envoie les cookies cross-origin
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${savedToken}`, // Double auth: cookie + token
-            }
-          }
-        );
-
-        if (response.ok) {
-          const userData = await response.json();
-          
-          const mappedUser: User = {
-            id: userData.id || userData._id,
-            email: userData.email,
-            firstName: userData.firstName,
-            lastName: userData.lastName,
-            role: userData.role,
-            isActive: userData.isActive !== false,
-            telephone: userData.telephone,
-            isAdmin: userData.role === UserRole.ADMIN,
-          };
-
-          setUser(mappedUser);
-          window.localStorage?.setItem(
-            STORAGE_KEYS.USER_DATA,
-            JSON.stringify(mappedUser)
-          );
-          
-          // Planifier le rafraîchissement
-          if (refreshTimeoutRef.current) {
-            window.clearTimeout(refreshTimeoutRef.current);
-          }
-          
-          const tokenExpirationMs = decoded.exp * 1000;
-          const currentTimeMs = Date.now();
-          const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
-          
-          const refreshTime = Math.max(
-            30000,
-            timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
-          );
-
-          if (refreshTime > 0) {
-            refreshTimeoutRef.current = window.setTimeout(async () => {
-              if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
-                const refreshed = await refreshToken();
-                if (!refreshed) {
-                  refreshAttemptsRef.current++;
-                } else {
-                  refreshAttemptsRef.current = 0;
-                }
-              } else {
-                cleanupAuthData();
-                toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-              }
-            }, refreshTime);
-          }
-        } else {
-          // Si /me échoue, essayer le refresh token
-          if (!isRefreshingRef.current) {
-            const refreshed = await refreshToken();
-            if (!refreshed) {
-              cleanupAuthData();
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('Erreur vérification auth via /me:', error);
-        // Continuer avec le token existant
-        await fetchUserData();
-      }
-    } else {
+    if (isTokenExpired) {
       console.log('⏰ Token expiré, tentative de rafraîchissement...');
       
       if (!isRefreshingRef.current) {
         const refreshed = await refreshToken();
         if (!refreshed) {
           cleanupAuthData();
+          toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
         }
       }
+      setIsLoading(false);
+      return;
     }
+
+    // Token valide, récupérer l'utilisateur
+    await fetchUserData();
+    
+    // Planifier le rafraîchissement préventif
+    if (refreshTimeoutRef.current) {
+      window.clearTimeout(refreshTimeoutRef.current);
+    }
+    
+    const tokenExpirationMs = decoded.exp * 1000;
+    const currentTimeMs = Date.now();
+    const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
+    
+    const refreshTime = Math.max(
+      30000, // Minimum 30 secondes
+      timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
+    );
+
+    if (refreshTime > 0) {
+      refreshTimeoutRef.current = window.setTimeout(async () => {
+        console.log('🔄 Rafraîchissement préventif...');
+        if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
+          const refreshed = await refreshToken();
+          if (refreshed) {
+            refreshAttemptsRef.current = 0;
+          } else {
+            refreshAttemptsRef.current++;
+            console.warn(`❌ Échec rafraîchissement (tentative ${refreshAttemptsRef.current}/${AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS})`);
+          }
+        } else {
+          console.error('❌ Trop de tentatives de rafraîchissement');
+          cleanupAuthData();
+          toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+        }
+      }, refreshTime);
+      
+      console.log(`⏰ Prochain rafraîchissement dans ${Math.round(refreshTime / 1000)}s`);
+    }
+    
   } catch (error) {
     console.warn('❌ Erreur vérification auth:', error);
     cleanupAuthData();
