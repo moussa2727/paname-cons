@@ -21,21 +21,13 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function Header(): React.JSX.Element {
-  const { 
-    user, 
-    isAuthenticated, 
-    logout, 
-    isLoading: authLoading,
-    updateProfile // ← AJOUT: Utiliser la méthode du contexte
-  } = useAuth();
-  
+  const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
   const [showTopBar] = useState(true);
   const [nav, setNav] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [blinkColor, setBlinkColor] = useState('text-gray-600');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const [syncAttempted, setSyncAttempted] = useState(false); // ← AJOUT
   const location = useLocation();
   const navigate = useNavigate();
   const mobileMenuRef = useRef<HTMLUListElement>(null);
@@ -45,52 +37,6 @@ function Header(): React.JSX.Element {
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  // CORRECTION: Synchronisation automatique avec le contexte
-  useEffect(() => {
-    if (!isMounted || authLoading || syncAttempted) return;
-
-    // Log pour déboguer
-    console.log('Header - État auth:', { 
-      isAuthenticated, 
-      userExists: !!user,
-      tokenExists: !!window.localStorage?.getItem('access_token'),
-      path: location.pathname 
-    });
-
-    // CAS 1: Token existe mais utilisateur non chargé → fetchUserData
-    const token = window.localStorage?.getItem('access_token');
-    if (token && !user && !authLoading) {
-      console.log('Header - Synchronisation nécessaire...');
-      
-      // Utiliser updateProfile du contexte (qui appelle fetchUserData)
-      const syncUser = async () => {
-        try {
-          await updateProfile(); // ← Utilise la méthode du contexte
-          console.log('Header - Synchronisation réussie');
-        } catch (error) {
-          console.warn('Header - Échec synchronisation:', error);
-        } finally {
-          setSyncAttempted(true);
-        }
-      };
-      
-      syncUser();
-    }
-    
-    // CAS 2: Pas de token mais utilisateur en mémoire → nettoyer
-    if (!token && user) {
-      console.log('Header - Nettoyage état incohérent');
-      logout(); // ← Utilise la méthode du contexte
-    }
-  }, [isMounted, authLoading, user, isAuthenticated, updateProfile, logout, location.pathname, syncAttempted]);
-
-  // Réinitialiser syncAttempted quand l'utilisateur change
-  useEffect(() => {
-    if (user) {
-      setSyncAttempted(false);
-    }
-  }, [user]);
 
   const handleLogoClick = (): void => {
     if (!isMounted) return;
@@ -158,7 +104,7 @@ function Header(): React.JSX.Element {
   const handleLogout = async (): Promise<void> => {
     setIsLoggingOut(true);
     try {
-      await logout(); // ← Utilise la méthode du contexte
+      await logout();
       window.sessionStorage?.removeItem('redirect_after_login');
     } catch (error) {
       if (import.meta.env.DEV) {
@@ -172,7 +118,6 @@ function Header(): React.JSX.Element {
   };
 
   const handleProtectedNavigation = (path: string, isMobile: boolean = false): void => {
-    // CORRECTION: Utiliser isAuthenticated du contexte
     if (!isAuthenticated) {
       window.sessionStorage?.setItem('redirect_after_login', path);
       navigate('/connexion', {
@@ -249,7 +194,7 @@ function Header(): React.JSX.Element {
       ) : (
         <LogOut className='w-4 h-4' />
       ),
-      visible: isAuthenticated, // ← Utiliser isAuthenticated du contexte
+      visible: isAuthenticated,
       disabled: isLoggingOut,
       requiresAuth: true,
       section: 'logout',
@@ -370,8 +315,7 @@ function Header(): React.JSX.Element {
                 ))}
               </ul>
 
-              {/* Boutons d'authentification */}
-              {/* CORRECTION: Utiliser isAuthenticated du contexte */}
+              {/* DÉLÉGATION COMPLÈTE AU AUTHCONTEXT - Desktop */}
               {isAuthenticated && user ? (
                 <div className='relative ml-2 md:ml-4' ref={dropdownRef}>
                   <button
@@ -515,13 +459,13 @@ function Header(): React.JSX.Element {
               >
                 {/* En-tête mobile */}
                 <div className='sticky top-0 bg-white border-b z-10'>
-                  <div className='px-4 py-3 flex items-center bg-gray-50'>
+                  <div className='px-4 py-3 flex items-center justify-between bg-gray-50'>
                     <div className='flex items-center'>
                       <div className='flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-bold mr-3'>
-                        {isAuthenticated && user ? getUserInitials() : <UserIcon className='w-5 h-5' />}
+                        {isAuthenticated ? getUserInitials() : <UserIcon className='w-5 h-5' />}
                       </div>
                       <div>
-                        {isAuthenticated && user ? (
+                        {isAuthenticated ? (
                           <>
                             <p className='text-sm font-bold text-gray-800 truncate'>
                               {getUserDisplayName()}
@@ -532,18 +476,19 @@ function Header(): React.JSX.Element {
                           </>
                         ) : (
                           <p className='text-sm font-bold text-gray-800'>
-                            Mon Compte
+                            Paname Consulting
                           </p>
                         )}
                       </div>
                     </div>
+                   
                   </div>
                 </div>
 
-                {/* CONTENU DU MENU MOBILE */}
+                {/* CONTENU DU MENU MOBILE - Mobile First */}
                 <div className='p-4 space-y-6'>
-                  {/* SECTION 1: LIENS AUTHENTIFIÉS */}
-                  {isAuthenticated && user && (
+                  {/* SECTION 1: LIENS AUTHENTIFIÉS (si connecté) - PRIORITÉ HAUTE */}
+                  {isAuthenticated && (
                     <div className='space-y-2'>
                       <div className='flex items-center justify-between px-2 mb-2'>
                         <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider'>
@@ -626,7 +571,7 @@ function Header(): React.JSX.Element {
                   {!isAuthenticated && (
                     <div className='pt-4 border-t border-gray-200'>
                       <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 px-2'>
-                        Connexion
+                        Compte
                       </h3>
                       <div className='space-y-2'>
                         <Link
@@ -662,7 +607,7 @@ function Header(): React.JSX.Element {
                     </div>
                   )}
 
-                  {/* SECTION 4: DÉCONNEXION */}
+                  {/* SECTION 4: DÉCONNEXION (en bas si connecté) */}
                   {isAuthenticated && (
                     <div className='pt-4 border-t border-gray-200'>
                       <div className='space-y-2'>
