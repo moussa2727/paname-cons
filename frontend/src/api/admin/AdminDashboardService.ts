@@ -1,406 +1,407 @@
-// services/AdminDashboardService.ts - VERSION CORRIGÉE
-import { useAuth } from '../../context/AuthContext';
+import { toast } from 'react-toastify';
 
-interface DashboardStats {
-  totalProcedures: number;
-  activeProcedures: number;
-  pendingProcedures: number;
-  completedProcedures: number;
-  cancelledProcedures: number;
-  totalUsers: number;
-  activeUsers: number;
-  pendingRendezvous: number;
-  unreadMessages: number;
-  recentActivities: Array<{
-    id: string;
-    type: 'procedure' | 'user' | 'rendezvous' | 'message';
-    action: string;
-    timestamp: string;
-    userEmail?: string;
-    details?: string;
-  }>;
+interface ProcedureStats {
+  total: number;
+  active: number;
+  pending: number;
+  completed: number;
+  cancelled: number;
+  byMonth?: Array<{ month: string; count: number }>;
+  averageCompletionTime?: number;
 }
 
-export class AdminDashboardService {
-  [x: string]: any;
-  private fetchWithAuth: ReturnType<typeof useAuth>['fetchWithAuth'];
-  private API_URL = import.meta.env.VITE_API_URL || 'https://panameconsulting.up.railway.app';
-  
-  // Système de throttling
-  private requestQueue: Map<string, Promise<any>> = new Map();
-  private lastRequestTime: number = 0;
-  private readonly MIN_REQUEST_INTERVAL = 1000; // 1 seconde entre les batchs
+interface UserStats {
+  totalUsers: number;
+  activeUsers: number;
+  inactiveUsers: number;
+  byRole?: Array<{ role: string; count: number }>;
+  recentRegistrations?: number;
+  averageLoginsPerUser?: number;
+  last24hLogins?: number;
+  last7dRegistrations?: number;
+}
 
-  constructor(fetchWithAuth: ReturnType<typeof useAuth>['fetchWithAuth']) {
-    this.fetchWithAuth = fetchWithAuth;
+interface RendezvousStats {
+  total: number;
+  confirmed: number;
+  pending: number;
+  completed: number;
+  cancelled: number;
+  today?: number;
+  upcoming?: number;
+  completedWithFavorable?: number;
+  completedWithUnfavorable?: number;
+  byDestination?: Array<{ destination: string; count: number }>;
+  byStudyLevel?: Array<{ niveau: string; count: number }>;
+  byStatus?: Array<{ status: string; count: number }>;
+}
+
+interface ContactStats {
+  total: number;
+  unread: number;
+  read: number;
+  replied: number;
+  byDay?: Array<{ date: string; count: number }>;
+  avgResponseTimeHours?: number;
+}
+
+interface DestinationStats {
+  total: number;
+  byCountry?: Array<{ country: string; count: number }>;
+  mostPopular?: Array<{ country: string; count: number }>;
+}
+
+interface SystemStatus {
+  database: boolean;
+  cache?: boolean;
+  maintenanceMode: boolean;
+  uptime?: string;
+  version?: string;
+  service: string;
+}
+
+interface HealthCheck {
+  status: string;
+  timestamp: string;
+  database: string;
+  service: string;
+  version: string;
+}
+
+interface GeneralStatsResponse {
+  procedures: ProcedureStats;
+  users: UserStats;
+  rendezvous: RendezvousStats;
+  contacts: ContactStats;
+  destinations?: DestinationStats;
+  systemStatus: {
+    database: boolean;
+    cache: boolean;
+    maintenanceMode: boolean;
+    uptime: string;
+  };
+  timestamp: string;
+}
+
+class AdminDashboardService {
+  private API_URL = import.meta.env.VITE_API_URL;
+  private fetchWithAuth: ((endpoint: string, options?: RequestInit) => Promise<Response>) | null = null;
+
+  // ✅ Méthode pour injecter fetchWithAuth du contexte
+  public setFetchWithAuth(fetchMethod: (endpoint: string, options?: RequestInit) => Promise<Response>): void {
+    this.fetchWithAuth = fetchMethod;
   }
 
-  // ==================== GESTION DES REQUÊTES ====================
-
-  /**
-   * Méthode sécurisée pour éviter les requêtes simultanées excessives
-   */
-  private async throttledFetch<T>(key: string, fetchFn: () => Promise<T>): Promise<T> {
-    // Vérifier si une requête identique est déjà en cours
-    if (this.requestQueue.has(key)) {
-      return this.requestQueue.get(key) as Promise<T>;
+  private ensureFetchWithAuth(): (endpoint: string, options?: RequestInit) => Promise<Response> {
+    if (!this.fetchWithAuth) {
+      throw new Error('fetchWithAuth must be set via setFetchWithAuth() before using the service');
     }
-
-    // Respecter un intervalle minimal entre les batchs de requêtes
-    const now = Date.now();
-    const timeSinceLastRequest = now - this.lastRequestTime;
-    
-    if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
-      await new Promise(resolve => 
-        setTimeout(resolve, this.MIN_REQUEST_INTERVAL - timeSinceLastRequest)
-      );
-    }
-
-    try {
-      const promise = fetchFn();
-      this.requestQueue.set(key, promise);
-      this.lastRequestTime = Date.now();
-      
-      const result = await promise;
-      return result;
-    } finally {
-      this.requestQueue.delete(key);
-    }
+    return this.fetchWithAuth;
   }
 
+  // ==================== STATISTIQUES GÉNÉRALES ====================
+
   /**
-   * Récupérer UNIQUEMENT les stats essentielles en parallèle
+   * Récupère toutes les statistiques pour le dashboard admin
+   * Utilise les endpoints existants : procedures/admin/stats, users/stats, contact/stats
    */
-  async getDashboardStats(): Promise<DashboardStats> {
+  async getGeneralStats(): Promise<GeneralStatsResponse> {
     try {
-      console.log('🔍 Récupération optimisée des statistiques dashboard...');
+      const fetch = this.ensureFetchWithAuth();
+
+      // Récupérer les statistiques procédures (endpoint existant)
+      const proceduresPromise = fetch('/api/procedures/admin/stats');
       
-      // Récupérer UNIQUEMENT 2 stats en parallèle max
-      const [proceduresStats, usersStats] = await Promise.all([
-        this.throttledFetch('procedures_stats', () => this.getProceduresStats()),
-        this.throttledFetch('users_stats', () => this.getUsersStats())
-      ]);
-
-      // Récupérer les autres stats séquentiellement pour réduire la charge
-      const contactStats = await this.throttledFetch('contact_stats', () => this.getContactStats());
+      // Récupérer les statistiques utilisateurs (endpoint existant)
+      const usersPromise = fetch('/api/users/stats');
       
-      // Pour rendezvous, utiliser l'endpoint spécifique si disponible, sinon calculer localement
-      const rendezvousStats = await this.getOptimizedRendezvousStats();
+      // Récupérer les statistiques contacts (endpoint existant)
+      const contactsPromise = fetch('/api/contact/stats');
+      
+      // Récupérer le statut maintenance (endpoint existant)
+      const maintenancePromise = fetch('/api/users/maintenance-status');
+      
+      // Récupérer la santé du système (endpoint existant)
+      const healthPromise = fetch('/api/users/health');
 
-      console.log('✅ Statistiques récupérées de manière optimisée');
+      // Exécuter toutes les requêtes en parallèle
+      const [proceduresResponse, usersResponse, contactsResponse, maintenanceResponse, healthResponse] = 
+        await Promise.all([
+          proceduresPromise,
+          usersPromise,
+          contactsPromise,
+          maintenancePromise,
+          healthPromise
+        ]);
 
+      // Vérifier les réponses
+      if (!proceduresResponse.ok) throw new Error('Erreur récupération stats procédures');
+      if (!usersResponse.ok) throw new Error('Erreur récupération stats utilisateurs');
+      if (!contactsResponse.ok) throw new Error('Erreur récupération stats contacts');
+      if (!maintenanceResponse.ok) throw new Error('Erreur récupération statut maintenance');
+      if (!healthResponse.ok) throw new Error('Erreur récupération santé système');
+
+      // Parser les réponses
+      const proceduresStats: ProcedureStats = await proceduresResponse.json();
+      const usersStats: UserStats = await usersResponse.json();
+      const contactsStats: ContactStats = await contactsResponse.json();
+      const maintenanceStatus = await maintenanceResponse.json();
+      const healthStatus: HealthCheck = await healthResponse.json();
+
+      // Calculer les stats rendez-vous à partir de la liste complète (1 seul élément pour avoir le total)
+      const rendezvousResponse = await fetch('/api/rendezvous?page=1&limit=1');
+      const rendezvousData = rendezvousResponse.ok ? await rendezvousResponse.json() : { total: 0 };
+
+      // Calculer les stats destinations à partir de la liste complète
+      const destinationsResponse = await fetch('/api/destinations?page=1&limit=1');
+      const destinationsData = destinationsResponse.ok ? await destinationsResponse.json() : { total: 0 };
+
+      // Construire la réponse consolidée
       return {
-        totalProcedures: proceduresStats.total || 0,
-        activeProcedures: proceduresStats.active || 0,
-        pendingProcedures: proceduresStats.pending || 0,
-        completedProcedures: proceduresStats.completed || 0,
-        cancelledProcedures: proceduresStats.cancelled || 0,
-        totalUsers: usersStats.totalUsers || 0,
-        activeUsers: usersStats.activeUsers || 0,
-        pendingRendezvous: rendezvousStats.pending || 0,
-        unreadMessages: contactStats.unread || 0,
-        recentActivities: await this.getOptimizedRecentActivities()
+        procedures: proceduresStats,
+        users: usersStats,
+        rendezvous: this.calculateRendezvousStats(rendezvousData),
+        contacts: contactsStats,
+        destinations: this.calculateDestinationStats(destinationsData),
+        systemStatus: {
+          database: healthStatus.database === 'connected',
+          cache: true, // Valeur par défaut
+          maintenanceMode: maintenanceStatus.isActive || false,
+          uptime: this.calculateUptime(healthStatus.timestamp)
+        },
+        timestamp: new Date().toISOString()
       };
-    } catch (error) {
-      console.error('❌ Erreur récupération statistiques:', error);
-      throw new Error(`Impossible de charger les statistiques: ${(error as Error).message}`);
+
+    } catch (error: any) {
+      console.error('Erreur récupération statistiques générales:', error);
+      toast.error('Erreur lors de la récupération des statistiques');
+      
+      // Retourner des statistiques par défaut en cas d'erreur
+      return this.getDefaultStats();
     }
   }
 
   /**
-   * Version optimisée des stats rendezvous
+   * Récupère uniquement les statistiques des procédures
+   * Endpoint: GET /api/procedures/admin/stats
    */
-  private async getOptimizedRendezvousStats() {
+  async getProcedureStats(): Promise<ProcedureStats> {
     try {
-      // UNE seule requête avec des filtres côté serveur
-      const response = await this.throttledFetch('rendezvous_stats_all', () =>
-        this.fetchWithAuth(`${this.API_URL}/api/rendezvous?limit=1&includeStats=true`)
-      );
+      const fetch = this.ensureFetchWithAuth();
+      const response = await fetch('/api/procedures/admin/stats');
       
       if (!response.ok) {
-        // Fallback: compter seulement les pending
-        const pendingResponse = await this.fetchWithAuth(
-          `${this.API_URL}/api/rendezvous?status=En attente&limit=1`
-        );
-        
-        if (pendingResponse.ok) {
-          const data = await pendingResponse.json();
-          return {
-            total: 0, // Non disponible sans endpoint spécifique
-            pending: data.total || 0,
-            confirmed: 0,
-            completed: 0,
-            cancelled: 0
-          };
-        }
-        throw new Error('Erreur API rendez-vous');
+        throw new Error(`Erreur ${response.status}: Impossible de récupérer les statistiques des procédures`);
+      }
+      
+      const stats: ProcedureStats = await response.json();
+      toast.success('Statistiques procédures mises à jour');
+      return stats;
+    } catch (error: any) {
+      console.error('Erreur récupération stats procédures:', error);
+      toast.error(error.message || 'Erreur récupération stats procédures');
+      throw error;
+    }
+  }
+
+  /**
+   * Récupère uniquement les statistiques des utilisateurs
+   * Endpoint: GET /api/users/stats
+   */
+  async getUserStats(): Promise<UserStats> {
+    try {
+      const fetch = this.ensureFetchWithAuth();
+      const response = await fetch('/api/users/stats');
+      
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}: Impossible de récupérer les statistiques utilisateurs`);
+      }
+      
+      const stats: UserStats = await response.json();
+      toast.success('Statistiques utilisateurs mises à jour');
+      return stats;
+    } catch (error: any) {
+      console.error('Erreur récupération stats utilisateurs:', error);
+      toast.error(error.message || 'Erreur récupération stats utilisateurs');
+      throw error;
+    }
+  }
+
+  /**
+   * Récupère uniquement les statistiques des contacts
+   * Endpoint: GET /api/contact/stats
+   */
+  async getContactStats(): Promise<ContactStats> {
+    try {
+      const fetch = this.ensureFetchWithAuth();
+      const response = await fetch('/api/contact/stats');
+      
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}: Impossible de récupérer les statistiques contacts`);
+      }
+      
+      const stats: ContactStats = await response.json();
+      toast.success('Statistiques contacts mises à jour');
+      return stats;
+    } catch (error: any) {
+      console.error('Erreur récupération stats contacts:', error);
+      toast.error(error.message || 'Erreur récupération stats contacts');
+      throw error;
+    }
+  }
+
+  /**
+   * Récupère le statut du système
+   * Combine: GET /api/users/health et GET /api/users/maintenance-status
+   */
+  async getSystemStatus(): Promise<SystemStatus> {
+    try {
+      const fetch = this.ensureFetchWithAuth();
+      
+      const [healthResponse, maintenanceResponse] = await Promise.all([
+        fetch('/api/users/health'),
+        fetch('/api/users/maintenance-status')
+      ]);
+
+      if (!healthResponse.ok) throw new Error('Erreur récupération santé système');
+      if (!maintenanceResponse.ok) throw new Error('Erreur récupération statut maintenance');
+
+      const health: HealthCheck = await healthResponse.json();
+      const maintenance = await maintenanceResponse.json();
+
+      return {
+        database: health.database === 'connected',
+        maintenanceMode: maintenance.isActive || false,
+        uptime: this.calculateUptime(health.timestamp),
+        version: health.version,
+        service: health.service
+      };
+    } catch (error: any) {
+      console.error('Erreur récupération statut système:', error);
+      toast.error('Erreur récupération statut système');
+      
+      return {
+        database: false,
+        maintenanceMode: false,
+        service: 'unknown',
+        uptime: '0s'
+      };
+    }
+  }
+
+  // ==================== MÉTHODES UTILITAIRES PRIVÉES ====================
+
+  private calculateRendezvousStats(rendezvousData: any): RendezvousStats {
+    // Cette méthode calcule les stats à partir des données brutes
+    // Dans un cas réel, vous auriez un endpoint dédié /api/rendezvous/stats
+    // Pour l'instant, on retourne des valeurs par défaut
+    return {
+      total: rendezvousData.total || 0,
+      confirmed: 0,
+      pending: 0,
+      completed: 0,
+      cancelled: 0,
+      today: 0,
+      upcoming: 0,
+      completedWithFavorable: 0,
+      completedWithUnfavorable: 0
+    };
+  }
+
+  private calculateDestinationStats(destinationsData: any): DestinationStats {
+    return {
+      total: destinationsData.total || 0,
+      byCountry: [],
+      mostPopular: []
+    };
+  }
+
+  private calculateUptime(timestamp: string): string {
+    try {
+      const serverTime = new Date(timestamp).getTime();
+      const now = Date.now();
+      const uptimeMs = now - serverTime;
+      
+      const seconds = Math.floor(uptimeMs / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+      
+      if (days > 0) return `${days}j ${hours % 24}h`;
+      if (hours > 0) return `${hours}h ${minutes % 60}min`;
+      if (minutes > 0) return `${minutes}min ${seconds % 60}s`;
+      return `${seconds}s`;
+    } catch {
+      return 'inconnu';
+    }
+  }
+
+  private getDefaultStats(): GeneralStatsResponse {
+    return {
+      procedures: {
+        total: 0,
+        active: 0,
+        pending: 0,
+        completed: 0,
+        cancelled: 0
+      },
+      users: {
+        totalUsers: 0,
+        activeUsers: 0,
+        inactiveUsers: 0
+      },
+      rendezvous: {
+        total: 0,
+        confirmed: 0,
+        pending: 0,
+        completed: 0,
+        cancelled: 0
+      },
+      contacts: {
+        total: 0,
+        unread: 0,
+        read: 0,
+        replied: 0
+      },
+      systemStatus: {
+        database: false,
+        cache: false,
+        maintenanceMode: false,
+        uptime: '0s'
+      },
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  // ==================== MÉTHODES DE TEST ET DÉMO ====================
+
+  /**
+   * Méthode de test pour vérifier la connexion au service
+   */
+  async testConnection(): Promise<boolean> {
+    try {
+      const fetch = this.ensureFetchWithAuth();
+      const response = await fetch('/api/users/health');
+      
+      if (!response.ok) {
+        return false;
       }
       
       const data = await response.json();
-      
-      // Si le backend renvoie des stats détaillées
-      if (data.stats) {
-        return data.stats;
-      }
-      
-      return {
-        total: data.total || 0,
-        pending: 0,
-        confirmed: 0,
-        completed: 0,
-        cancelled: 0
-      };
-    } catch (error) {
-      console.error('❌ Erreur stats rendez-vous:', error);
-      return {
-        total: 0,
-        pending: 0,
-        confirmed: 0,
-        completed: 0,
-        cancelled: 0
-      };
+      return data.status === 'ok' && data.database === 'connected';
+    } catch {
+      return false;
     }
   }
 
   /**
-   * Version optimisée des activités récentes
+   * Rafraîchir toutes les statistiques en une seule requête
+   * (Plus efficace que d'appeler chaque endpoint séparément)
    */
-  private async getOptimizedRecentActivities() {
-    try {
-      // UNE seule requête combinée si possible, sinon séquentielle
-      const activities: { id: any; type: "procedure" | "message"; action: string; timestamp: any; userEmail: any; details: any; }[] = [];
-      
-      // Option 1: Endpoint combiné si disponible
-      try {
-        const response = await this.throttledFetch('recent_activities', () =>
-          this.fetchWithAuth(`${this.API_URL}/api/admin/recent-activities?limit=10`)
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
-          return data.activities || [];
-        }
-      } catch {
-        // Fallback à l'ancienne méthode mais avec throttling
-      }
-      
-      // Option 2: Méthode actuelle avec améliorations
-      const [proceduresRes, contactRes] = await Promise.all([
-        this.throttledFetch('recent_procedures', () =>
-          this.fetchWithAuth(`${this.API_URL}/api/procedures/admin/all?limit=5&sort=-createdAt`)
-        ),
-        this.throttledFetch('recent_contacts', () =>
-          this.fetchWithAuth(`${this.API_URL}/api/contact?limit=3&isRead=false&sort=-createdAt`)
-        )
-      ]);
-      
-      if (proceduresRes.ok) {
-        const procedures = await proceduresRes.json();
-        if (procedures.data) {
-          procedures.data.slice(0, 5).forEach((proc: any) => {
-            activities.push({
-              id: proc._id,
-              type: 'procedure' as const,
-              action: proc.status === 'pending' ? 'Nouvelle procédure créée' : 'Procédure mise à jour',
-              timestamp: proc.updatedAt || proc.createdAt,
-              userEmail: proc.userEmail || proc.user?.email,
-              details: `Procédure ${proc.type || 'sans type'} - ${proc.status || 'sans statut'}`
-            });
-          });
-        }
-      }
-      
-      if (contactRes.ok) {
-        const contacts = await contactRes.json();
-        if (contacts.data) {
-          contacts.data.slice(0, 3).forEach((contact: any) => {
-            activities.push({
-              id: contact._id,
-              type: 'message' as const,
-              action: 'Nouveau message de contact',
-              timestamp: contact.createdAt,
-              userEmail: contact.email,
-              details: contact.subject || 'Sans sujet'
-            });
-          });
-        }
-      }
-      
-      return activities
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 8); // Réduit de 10 à 8
-    } catch (error) {
-      console.error('❌ Erreur activités récentes:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Autres méthodes restent similaires mais avec throttling
-   */
-  async getProceduresStats() {
-    return this.throttledFetch('detailed_procedures_stats', async () => {
-      try {
-        const response = await this.fetchWithAuth(`${this.API_URL}/api/procedures/admin/stats`);
-        if (!response.ok) throw new Error(`Erreur API: ${response.status}`);
-        return await response.json();
-      } catch (error) {
-        console.error('❌ Erreur stats procédures:', error);
-        return { total: 0, active: 0, pending: 0, completed: 0, cancelled: 0 };
-      }
-    });
-  }
-
-  async getUsersStats() {
-    return this.throttledFetch('detailed_users_stats', async () => {
-      try {
-        const response = await this.fetchWithAuth(`${this.API_URL}/api/users/stats`);
-        if (!response.ok) throw new Error(`Erreur API: ${response.status}`);
-        return await response.json();
-      } catch (error) {
-        console.error('❌ Erreur stats utilisateurs:', error);
-        return { totalUsers: 0, activeUsers: 0, inactiveUsers: 0 };
-      }
-    });
-  }
-
-  async getContactStats() {
-    return this.throttledFetch('detailed_contact_stats', async () => {
-      try {
-        const response = await this.fetchWithAuth(`${this.API_URL}/api/contact/stats`);
-        if (!response.ok) throw new Error(`Erreur API: ${response.status}`);
-        return await response.json();
-      } catch (error) {
-        console.error('❌ Erreur stats contact:', error);
-        return { total: 0, read: 0, unread: 0 };
-      }
-    });
-  }
-
-  // ==================== CACHE AMÉLIORÉ ====================
-
-  /**
-   * Cache avec expiration et prévention des requêtes simultanées
-   */
-  async refreshStats(forceRefresh: boolean = false): Promise<DashboardStats> {
-    const cacheKey = 'admin_dashboard_stats_v2';
-    const cacheTime = 2 * 60 * 1000; // 2 minutes (réduit de 5)
-    
-    try {
-      // Vérifier le cache
-      if (!forceRefresh) {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const { data, timestamp, version = '1' } = JSON.parse(cached);
-          
-          // Version du cache - invalider si ancienne version
-          if (version !== '2') {
-            localStorage.removeItem(cacheKey);
-          } else if (Date.now() - timestamp < cacheTime) {
-            console.log('📦 Utilisation du cache valide');
-            return data;
-          }
-        }
-      }
-      
-      console.log('🔄 Rafraîchissement des statistiques avec throttling...');
-      const stats = await this.getDashboardStats();
-      
-      // Mettre en cache avec version
-      localStorage.setItem(cacheKey, JSON.stringify({
-        data: stats,
-        timestamp: Date.now(),
-        version: '2'
-      }));
-      
-      return stats;
-    } catch (error) {
-      console.error('❌ Erreur rafraîchissement:', error);
-      
-      // Fallback au cache même expiré
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const { data } = JSON.parse(cached);
-        console.log('⚠️ Utilisation du cache expiré en fallback');
-        return data;
-      }
-      
-      // Données minimales en dernier recours
-      return {
-        totalProcedures: 0,
-        activeProcedures: 0,
-        pendingProcedures: 0,
-        completedProcedures: 0,
-        cancelledProcedures: 0,
-        totalUsers: 0,
-        activeUsers: 0,
-        pendingRendezvous: 0,
-        unreadMessages: 0,
-        recentActivities: []
-      };
-    }
-  }
-
-  // ==================== RECOMMANDATIONS BACKEND ====================
-
-  /**
-   * Suggestions pour optimiser le backend
-   */
-  static getBackendOptimizations() {
-    return {
-      recommendations: [
-        "Créer un endpoint /api/admin/dashboard-stats combinant toutes les stats",
-        "Ajouter un endpoint /api/rendezvous/stats pour les statistiques détaillées",
-        "Implémenter un endpoint /api/admin/recent-activities combiné",
-        "Ajouter des en-têtes Cache-Control appropriés",
-        "Considérer l'implémentation de GraphQL pour les requêtes combinées"
-      ],
-      currentIssues: [
-        "Trop de requêtes parallèles au dashboard",
-        "Requêtes redondantes pour les rendez-vous",
-        "Pas de cache côté serveur pour les stats",
-        "Pas de pagination pour les activités récentes"
-      ]
-    };
+  async refreshAllStats(): Promise<GeneralStatsResponse> {
+    return this.getGeneralStats();
   }
 }
 
-// Hook personnalisé avec protection supplémentaire
-export const useAdminDashboard = () => {
-  const { fetchWithAuth, isAuthenticated, user, isLoading: authLoading } = useAuth();
-  
-  // Vérifier l'authentification et le rôle admin
-  const isAdmin = isAuthenticated && user?.role === 'admin';
-  
-  if (!isAdmin && !authLoading) {
-    throw new Error('Accès non autorisé - Administrateur requis');
-  }
-  
-  const service = new AdminDashboardService(fetchWithAuth);
-  
-  // Limiter la fréquence des rafraîchissements
-  let lastRefresh = 0;
-  const MIN_REFRESH_INTERVAL = 30000; // 30 secondes
-  
-  const safeRefreshStats = async (force: boolean = false) => {
-    const now = Date.now();
-    
-    if (!force && (now - lastRefresh < MIN_REFRESH_INTERVAL)) {
-      console.log('⏳ Trop tôt pour rafraîchir, utilisation du cache');
-      return service.refreshStats(false);
-    }
-    
-    lastRefresh = now;
-    return service.refreshStats(force);
-  };
-  
-  return {
-    service,
-    refreshStats: safeRefreshStats,
-    getDashboardStats: service.getDashboardStats.bind(service),
-    user,
-    isAuthenticated: isAdmin,
-    isLoading: authLoading,
-    optimizations: AdminDashboardService.getBackendOptimizations()
-  };
-};
+// Export d'une instance singleton pour l'application
+export const adminStatsService = new AdminDashboardService();

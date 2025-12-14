@@ -1,1791 +1,1234 @@
-import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-import { Helmet } from 'react-helmet-async';
-import RequireAdmin from '../../context/RequireAdmin';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { toast } from 'react-toastify';
 import { 
-  LucideCheckCircle, 
-  LucideXCircle, 
-  LucideRefreshCw, 
-  LucidePlus, 
-  LucideEdit, 
-  LucideTrash2, 
-  LucideEye,
-  LucideCalendar,
-  LucideClock,
-  LucidePhone,
-  LucideMail,
-  LucideUser,
-  LucideMapPin,
-  LucideGraduationCap,
-  LucideBriefcase,
-  LucideChevronLeft,
-  LucideChevronRight,
-  LucideFilter,
-  LucideSearch,
-  LucideMoreVertical,
-  LucideCalendarCheck,
-  LucideFileText,
-  LucideAlertCircle
+  Calendar, 
+  Clock, 
+  MapPin, 
+  Search, 
+  Trash2, 
+  Plus,
+  User,
+  Mail,
+  Phone,
+  GraduationCap,
+  BookOpen,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Filter,
+  X,
+  MoreVertical
 } from 'lucide-react';
-import { AdminRendezVousService } from '../../api/admin/AdminRendezVousService';
+import { useAdminRendezVousService } from '../../api/admin/AdminRendezVousService';
+import { Helmet } from 'react-helmet-async';
+import { 
+  RendezVous, 
+  RendezvousStatus, 
+  AdminOpinion,
+  RENDEZVOUS_STATUS,
+  ADMIN_OPINION,
+  EducationLevel
+} from '../../api/admin/AdminRendezVousService';
 
-export type RendezvousStatus = 'En attente' | 'Confirmé' | 'Terminé' | 'Annulé';
-export type AdminOpinion = 'Favorable' | 'Défavorable';
-
-export interface Rendezvous {
+// Interface pour les destinations de l'API
+interface Destination {
   _id: string;
-  userId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  telephone: string;
-  destination: string;
-  destinationAutre?: string;
-  niveauEtude: string;
-  filiere: string;
-  filiereAutre?: string;
-  date: string;
-  time: string;
-  status: RendezvousStatus;
-  avisAdmin?: AdminOpinion;
-  cancelledAt?: string;
-  cancelledBy?: 'admin' | 'user';
-  cancellationReason?: string;
+  country: string;
+  imagePath: string;
+  text: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface RendezvousListResponse {
-  data: Rendezvous[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
-export interface CreateRendezvousData {
+// Interface pour la création de rendez-vous
+interface CreateRendezVousData {
   userId: string;
   firstName: string;
   lastName: string;
   email: string;
   telephone: string;
-  destination: string;
-  destinationAutre?: string;
-  niveauEtude: string;
-  filiere: string;
-  filiereAutre?: string;
   date: string;
   time: string;
-}
-
-export interface UpdateRendezvousData {
-  firstName?: string;
-  lastName?: string;
-  telephone?: string;
-  destination?: string;
+  destination: string;
   destinationAutre?: string;
-  niveauEtude?: string;
-  filiere?: string;
+  niveauEtude: EducationLevel;
+  filiere: string;
   filiereAutre?: string;
-  date?: string;
-  time?: string;
-  status?: RendezvousStatus;
-  avisAdmin?: AdminOpinion;
 }
 
-export interface FilterParams {
-  page?: number;
-  limit?: number;
-  status?: RendezvousStatus;
-  date?: string;
-  search?: string;
-}
-
-// Modal Component
-function Modal({ open, onClose, title, children, size = 'md' }: { 
-  open: boolean; 
-  onClose: () => void; 
-  title?: string; 
-  children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
-}) {
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+// Fonction utilitaire pour log sécurisé
+const secureLog = {
+  // Log d'information générale (sans données sensibles)
+  info: (message: string, data?: Record<string, any>) => {
+    if (import.meta.env.DEV) {
+      console.log(`ℹ️ ${message}`, data || '');
     }
-    if (open) {
-      document.addEventListener('keydown', onKey);
-      document.body.style.overflow = 'hidden';
+  },
+  
+  // Log de succès
+  success: (message: string, data?: Record<string, any>) => {
+    if (import.meta.env.DEV) {
+      console.log(`✅ ${message}`, data || '');
     }
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = 'unset';
-    };
-  }, [open, onClose]);
-
-  useEffect(() => {
-    if (open && modalRef.current) {
-      modalRef.current.focus();
+  },
+  
+  // Log d'erreur
+  error: (message: string, error?: any, context?: Record<string, any>) => {
+    if (import.meta.env.DEV) {
+      console.error(`❌ ${message}`, { 
+        error: error instanceof Error ? error.message : String(error),
+        context: context || {},
+        timestamp: new Date().toISOString()
+      });
     }
-  }, [open]);
-
-  const sizeClasses = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-lg',
-    xl: 'max-w-xl'
-  };
-
-  if (!open) return null;
-
-  return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 animate-fadeIn"
-      aria-modal="true" 
-      role="dialog"
-      aria-labelledby={title ? "modal-title" : undefined}
-    >
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm animate-fadeIn" 
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      
-      {/* Modal Content */}
-      <div 
-        ref={modalRef}
-        className={`relative ${sizeClasses[size]} w-full bg-white rounded-2xl shadow-2xl animate-slideUp max-h-[90vh] flex flex-col`}
-        role="document"
-        tabIndex={-1}
-      >
-        {/* Header */}
-        {title && (
-          <div className="sticky top-0 z-10 bg-white px-4 py-3 sm:px-6 border-b rounded-t-2xl flex items-center justify-between">
-            <h3 
-              id="modal-title"
-              className="text-lg font-semibold text-sky-700"
-            >
-              {title}
-            </h3>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
-              aria-label="Fermer"
-            >
-              <LucideXCircle className="w-5 h-5 text-gray-500" />
-            </button>
-          </div>
-        )}
-        
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Popover Component
-function Popover({ 
-  open, 
-  onClose, 
-  children,
-  position = 'bottom-right'
-}: { 
-  open: boolean; 
-  onClose: () => void;
-  children: React.ReactNode;
-  position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
-}) {
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
-        onClose();
-      }
+  },
+  
+  // Log de débogage avec ID tronqué
+  debug: (message: string, rendezvousId?: string, data?: Record<string, any>) => {
+    if (import.meta.env.DEV) {
+      const safeId = rendezvousId ? `${rendezvousId.substring(0, 8)}...` : 'ID_NON_DEFINI';
+      console.debug(`🔍 ${message}`, { 
+        rendezvousId: safeId,
+        ...data 
+      });
     }
-
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+  },
+  
+  // Log d'opération CRUD sécurisé
+  operation: (operation: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS', 
+               rendezvousId?: string, 
+               additionalData?: Record<string, any>) => {
+    if (import.meta.env.DEV) {
+      const safeId = rendezvousId ? `${rendezvousId.substring(0, 8)}...` : 'ID_NON_DEFINI';
+      console.log(`🔄 ${operation}`, { 
+        operation,
+        rendezvousId: safeId,
+        timestamp: new Date().toISOString(),
+        ...additionalData 
+      });
     }
+  }
+};
 
-    if (open) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', onKey);
-    }
+const AdminRendezVous = () => {
+  const { user } = useAuth();
+  const adminRendezVousService = useAdminRendezVousService();
 
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open, onClose]);
-
-  if (!open) return null;
-
-  const positionClasses = {
-    'bottom-right': 'top-full right-0 mt-1',
-    'bottom-left': 'top-full left-0 mt-1',
-    'top-right': 'bottom-full right-0 mb-1',
-    'top-left': 'bottom-full left-0 mb-1'
-  };
-
-  return (
-    <div 
-      ref={popoverRef}
-      className={`absolute z-50 ${positionClasses[position]} bg-white border border-gray-200 rounded-xl shadow-lg min-w-[200px] animate-fadeIn`}
-      role="menu"
-      aria-orientation="vertical"
-    >
-      <div className="p-2">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// Status Badge Component
-function StatusBadge({ status }: { status: RendezvousStatus }) {
-  const statusConfig = {
-    'En attente': {
-      bg: 'bg-amber-100',
-      text: 'text-amber-800',
-      icon: <LucideClock className="w-3 h-3" />,
-      label: 'En attente'
-    },
-    'Confirmé': {
-      bg: 'bg-sky-100',
-      text: 'text-sky-800',
-      icon: <LucideCheckCircle className="w-3 h-3" />,
-      label: 'Confirmé'
-    },
-    'Terminé': {
-      bg: 'bg-green-100',
-      text: 'text-green-800',
-      icon: <LucideCalendarCheck className="w-3 h-3" />,
-      label: 'Terminé'
-    },
-    'Annulé': {
-      bg: 'bg-red-100',
-      text: 'text-red-800',
-      icon: <LucideXCircle className="w-3 h-3" />,
-      label: 'Annulé'
-    }
-  };
-
-  const config = statusConfig[status];
-
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
-      {config.icon}
-      {config.label}
-    </span>
-  );
-}
-
-// Loading Skeleton
-function LoadingSkeleton() {
-  return (
-    <div className="space-y-3">
-      {[...Array(5)].map((_, i) => (
-        <div key={i} className="bg-white rounded-2xl shadow-sm p-4 animate-pulse">
-          <div className="flex items-start justify-between">
-            <div className="space-y-2 flex-1">
-              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-              <div className="h-3 bg-gray-100 rounded w-1/2"></div>
-              <div className="h-3 bg-gray-100 rounded w-1/3"></div>
-            </div>
-            <div className="h-8 bg-gray-200 rounded w-8"></div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// No Results Component
-function NoResults({ message = "Aucun rendez-vous trouvé" }: { message?: string }) {
-  return (
-    <div className="text-center py-12">
-      <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-        <LucideCalendar className="w-8 h-8 text-gray-400" />
-      </div>
-      <h3 className="text-lg font-medium text-gray-900 mb-2">{message}</h3>
-      <p className="text-gray-500">Essayez de modifier vos filtres</p>
-    </div>
-  );
-}
-
-export default function AdminRendezVousPage(): JSX.Element {
-  const { fetchWithAuth, logout, user: authUser } = useAuth();
-  const service = useMemo(() => new AdminRendezVousService(fetchWithAuth), [fetchWithAuth]);
-
-  // State
-  const [list, setList] = useState<Rendezvous[]>([]);
-  const [total, setTotal] = useState(0);
+  const [rendezvous, setRendezvous] = useState<RendezVous[]>([]);
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingDestinations, setIsLoadingDestinations] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<RendezvousStatus | undefined>(undefined);
-  const [dateFilter, setDateFilter] = useState<string | undefined>(undefined);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Refs pour gérer le debouncing
-  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const initialFetchRef = useRef(false);
-  const isMountedRef = useRef(true);
+  const [limit] = useState(8);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<{
+    id: string;
+    firstName: string;
+    lastName: string;
+  } | null>(null);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [showAvisModal, setShowAvisModal] = useState<{
+    id: string;
+    status: RendezvousStatus;
+  } | null>(null);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [showMobileActions, setShowMobileActions] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Modals
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [cancelModalOpen, setCancelModalOpen] = useState(false);
-  const [terminateModalOpen, setTerminateModalOpen] = useState(false);
-  
-  // Selected items
-  const [selectedRendezvous, setSelectedRendezvous] = useState<Rendezvous | null>(null);
-  
-  // Popovers
-  const [actionPopoverOpen, setActionPopoverOpen] = useState<string | null>(null);
-  const [confirmPopoverOpen, setConfirmPopoverOpen] = useState<string | null>(null);
-  
-  // Form state
-  const [formData, setFormData] = useState<Partial<CreateRendezvousData>>({
+  // Références pour éviter les boucles infinies
+  const isInitialMount = useRef(true);
+  const prevFilters = useRef({ page: 1, searchTerm: '', selectedStatus: '' });
+
+  // États pour la création d'un rendez-vous
+  const [newRendezVous, setNewRendezVous] = useState<CreateRendezVousData>({
+    userId: '',
     firstName: '',
     lastName: '',
     email: '',
     telephone: '',
-    destination: '',
-    niveauEtude: '',
-    filiere: '',
     date: '',
     time: '',
+    destination: '',
+    destinationAutre: '',
+    niveauEtude: '' as EducationLevel,
+    filiere: '',
+    filiereAutre: ''
   });
 
-  // Available slots
-  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
-  const [availableDates, setAvailableDates] = useState<string[]>([]);
-  const [loadingSlots, setLoadingSlots] = useState(false);
-
-  // Fonction fetch avec retry et gestion du rate limiting
-  const fetchList = useCallback(async (params: Partial<FilterParams> = {}, retryCount = 0) => {
-    // Annuler le timeout précédent s'il existe
-    if (fetchTimeoutRef.current) {
-      clearTimeout(fetchTimeoutRef.current);
+  // Fonction pour valider un ID MongoDB
+  const isValidMongoId = useCallback((id: string | undefined): boolean => {
+    if (!id || id.trim() === '') {
+      secureLog.error('ID invalide: ID vide ou null', undefined, { 
+        id: id || 'UNDEFINED',
+        type: typeof id
+      });
+      return false;
     }
-
-    // Ne pas fetch si le composant n'est plus monté
-    if (!isMountedRef.current) return;
-
-    // Délai progressif pour éviter le rate limiting
-    const delay = retryCount > 0 ? Math.min(2000 * retryCount, 10000) : 100;
     
-    fetchTimeoutRef.current = setTimeout(async () => {
-      if (!isMountedRef.current) return;
-
-      setLoading(true);
-      setError(null);
-      try {
-        const filters: FilterParams = {
-          page: params.page !== undefined ? params.page : page,
-          limit: params.limit !== undefined ? params.limit : limit,
-          status: params.status !== undefined ? params.status : statusFilter,
-          date: params.date !== undefined ? params.date : dateFilter,
-          search: params.search !== undefined ? params.search : search.trim(),
-        };
-        
-        const data = await service.getAllRendezvous(filters);
-        
-        if (isMountedRef.current) {
-          setList(data.data);
-          setTotal(data.total);
-          setTotalPages(data.totalPages);
-        }
-      } catch (err: any) {
-        console.error('Error fetching rendezvous:', err);
-        
-        if (!isMountedRef.current) return;
-
-        // Si c'est une erreur de rate limiting, attendre et réessayer
-        if ((err.message === 'TOO MANY REQUESTS' || err.message.includes('429')) && retryCount < 3) {
-          setError('Trop de requêtes. Réessayez dans quelques secondes...');
-          
-          // Réessayer avec un délai progressif
-          setTimeout(() => {
-            if (isMountedRef.current) {
-              fetchList(params, retryCount + 1);
-            }
-          }, 1000 * (retryCount + 1));
-        } else if (err.message === 'Unauthorized') {
-          setError('Session expirée. Veuillez vous reconnecter.');
-          toast.error('Session expirée. Veuillez vous reconnecter.');
-          setTimeout(() => logout?.(), 2000);
-        } else {
-          setError(err.message || 'Erreur lors du chargement');
-          toast.error('Erreur lors du chargement des rendez-vous');
-        }
-      } finally {
-        if (isMountedRef.current) {
-          setLoading(false);
-        }
-      }
-    }, delay);
-  }, [page, limit, statusFilter, dateFilter, search, service, logout]);
-
-  // Initial fetch - seulement au montage
-  useEffect(() => {
-    isMountedRef.current = true;
+    // Validation basique d'ObjectId MongoDB (24 caractères hexadécimaux)
+    const mongoIdRegex = /^[0-9a-fA-F]{24}$/;
+    const isValid = mongoIdRegex.test(id);
     
-    if (!initialFetchRef.current) {
-      initialFetchRef.current = true;
-      fetchList();
+    if (!isValid) {
+      secureLog.error('ID invalide: format MongoDB incorrect', undefined, { 
+        id: `${id.substring(0, 8)}...`,
+        length: id.length,
+        regexMatch: mongoIdRegex.test(id)
+      });
     }
-
-    return () => {
-      isMountedRef.current = false;
-      if (fetchTimeoutRef.current) {
-        clearTimeout(fetchTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Fetch when filters change avec debouncing
-  useEffect(() => {
-    if (!initialFetchRef.current) return;
-
-    const timer = setTimeout(() => {
-      if (isMountedRef.current) {
-        setPage(1);
-        fetchList({ page: 1 });
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [search, statusFilter, dateFilter, limit]);
-
-  // Cleanup des timeouts
-  useEffect(() => {
-    return () => {
-      if (fetchTimeoutRef.current) {
-        clearTimeout(fetchTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Fetch available dates
-  const fetchAvailableDates = useCallback(async () => {
-    try {
-      const dates = await service.getAvailableDates();
-      setAvailableDates(dates);
-    } catch (err) {
-      console.error('Error fetching available dates:', err);
-    }
-  }, [service]);
-
-  // Fetch available slots for a date
-  const fetchAvailableSlots = useCallback(async (date: string) => {
-    if (!date) return;
-    setLoadingSlots(true);
-    try {
-      const slots = await service.getAvailableSlots(date);
-      setAvailableSlots(slots);
-    } catch (err) {
-      setAvailableSlots([]);
-      console.error('Error fetching slots:', err);
-    } finally {
-      setLoadingSlots(false);
-    }
-  }, [service]);
-
-  // Handle date change in form
-  const handleDateChange = useCallback((date: string) => {
-    setFormData(prev => ({ ...prev, date }));
-    if (date) {
-      fetchAvailableSlots(date);
-    }
-  }, [fetchAvailableSlots]);
-
-  // Open detail modal
-  const openDetail = useCallback((rdv: Rendezvous) => {
-    setSelectedRendezvous(rdv);
-    setDetailOpen(true);
-  }, []);
-
-  // Open edit modal
-  const openEdit = useCallback((rdv: Rendezvous) => {
-    setSelectedRendezvous(rdv);
-    setFormData({
-      userId: rdv.userId,
-      firstName: rdv.firstName,
-      lastName: rdv.lastName,
-      email: rdv.email,
-      telephone: rdv.telephone,
-      destination: rdv.destination,
-      destinationAutre: rdv.destinationAutre,
-      niveauEtude: rdv.niveauEtude,
-      filiere: rdv.filiere,
-      filiereAutre: rdv.filiereAutre,
-      date: rdv.date,
-      time: rdv.time,
-    });
-    setEditOpen(true);
-    fetchAvailableSlots(rdv.date);
-  }, [fetchAvailableSlots]);
-
-  // Open create modal
-  const openCreate = useCallback(() => {
-    setFormData({
-      firstName: '',
-      lastName: '',
-      email: '',
-      telephone: '',
-      destination: '',
-      niveauEtude: '',
-      filiere: '',
-      date: '',
-      time: '',
-    });
-    setCreateOpen(true);
-    setAvailableSlots([]);
-  }, []);
-
-  // Submit create or update
-  const submitCreateOrUpdate = async () => {
-    // Validation
-    const requiredFields = ['firstName', 'lastName', 'email', 'date', 'time', 'destination', 'filiere', 'niveauEtude'];
-    const missingFields = requiredFields.filter(field => !formData[field as keyof typeof formData]);
     
-    if (missingFields.length > 0) {
-      toast.error(`Champs manquants: ${missingFields.join(', ')}`);
-      return;
-    }
+    return isValid;
+  }, []);
 
-    if (!formData.telephone) {
-      toast.error('Le téléphone est obligatoire');
-      return;
-    }
-
+  // Récupérer les destinations depuis l'API
+  const fetchDestinations = async () => {
     try {
-      if (selectedRendezvous) {
-        // Update
-        const payload: UpdateRendezvousData = {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          telephone: formData.telephone,
-          destination: formData.destination,
-          destinationAutre: formData.destinationAutre,
-          niveauEtude: formData.niveauEtude,
-          filiere: formData.filiere,
-          filiereAutre: formData.filiereAutre,
-          date: formData.date,
-          time: formData.time,
-        };
-        
-        await service.updateRendezvous(selectedRendezvous._id, payload);
-        toast.success('Rendez-vous mis à jour avec succès');
-        setEditOpen(false);
-        setSelectedRendezvous(null);
-      } else {
-        // Create - need userId from auth context
-        if (!authUser?.id) {
-          toast.error('Utilisateur non identifié');
-          return;
-        }
-
-        const payload: CreateRendezvousData = {
-          userId: authUser.id,
-          firstName: formData.firstName!,
-          lastName: formData.lastName!,
-          email: formData.email!,
-          telephone: formData.telephone!,
-          destination: formData.destination!,
-          destinationAutre: formData.destinationAutre,
-          niveauEtude: formData.niveauEtude!,
-          filiere: formData.filiere!,
-          filiereAutre: formData.filiereAutre,
-          date: formData.date!,
-          time: formData.time!,
-        };
-        
-        await service.createRendezvous(payload);
-        toast.success('Rendez-vous créé avec succès');
-        setCreateOpen(false);
+      setIsLoadingDestinations(true);
+      const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const response = await fetch(`${API_URL}/api/destinations/all`);
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors de la récupération des destinations');
       }
       
-      // Attendre un peu avant de rafraîchir la liste pour éviter le rate limiting
-      setTimeout(() => {
-        fetchList();
-      }, 300);
-    } catch (err: any) {
-      console.error('Error saving rendezvous:', err);
-      toast.error(err.message || 'Erreur lors de la sauvegarde');
+      const data = await response.json();
+      setDestinations(data);
+      
+      secureLog.success('Destinations chargées', { count: data.length });
+    } catch (error) {
+      secureLog.error('Erreur lors du chargement des destinations', error);
+      toast.error('Erreur lors du chargement des destinations');
+    } finally {
+      setIsLoadingDestinations(false);
     }
   };
 
-  // Handle confirm rendezvous
-  const handleConfirm = useCallback(async (id: string) => {
-    try {
-      await service.confirmRendezvous(id);
-      toast.success('Rendez-vous confirmé');
-      setConfirmPopoverOpen(null);
-      
-      // Attendre un peu avant de rafraîchir
-      setTimeout(() => {
-        fetchList();
-      }, 300);
-    } catch (err: any) {
-      console.error('Error confirming rendezvous:', err);
-      toast.error(err.message || 'Erreur lors de la confirmation');
+  // Récupération des rendez-vous avec vérification des changements
+  const loadRendezvous = useCallback(async () => {
+    // Vérifier si les filtres ont changé
+    const currentFilters = { page, searchTerm, selectedStatus };
+    const filtersChanged = 
+      prevFilters.current.page !== page ||
+      prevFilters.current.searchTerm !== searchTerm ||
+      prevFilters.current.selectedStatus !== selectedStatus;
+
+    if (!filtersChanged && !isInitialMount.current) {
+      secureLog.debug('Filtres identiques, chargement ignoré');
+      return;
     }
-  }, [service, fetchList]);
 
-  // Handle cancel rendezvous
-  const handleCancel = useCallback(async (id: string) => {
+    // Mettre à jour les filtres précédents
+    prevFilters.current = currentFilters;
+
+    setIsLoading(true);
     try {
-      await service.cancelRendezvous(id);
-      toast.success('Rendez-vous annulé');
-      setCancelModalOpen(false);
-      setSelectedRendezvous(null);
-      
-      // Attendre un peu avant de rafraîchir
-      setTimeout(() => {
-        fetchList();
-      }, 300);
-    } catch (err: any) {
-      console.error('Error cancelling rendezvous:', err);
-      toast.error(err.message || 'Erreur lors de l\'annulation');
-    }
-  }, [service, fetchList]);
+      secureLog.debug('Chargement rendez-vous', undefined, {
+        page,
+        limit,
+        status: selectedStatus,
+        searchTermLength: searchTerm.length
+      });
 
-  // Handle terminate rendezvous
-  const handleTerminate = useCallback(async (id: string, avisAdmin: AdminOpinion) => {
+      const result = await adminRendezVousService.findAll({
+        page,
+        limit,
+        status: selectedStatus ? (selectedStatus as RendezvousStatus) : undefined,
+        search: searchTerm || undefined,
+      });
+      
+      const typedData = result.data.map(item => ({
+        ...item,
+        status: item.status as RendezvousStatus,
+        avisAdmin: item.avisAdmin as AdminOpinion | undefined,
+        niveauEtude: item.niveauEtude as EducationLevel,
+        cancelledBy: item.cancelledBy as 'admin' | 'user' | undefined,
+        cancelledAt: item.cancelledAt ? new Date(item.cancelledAt) : undefined,
+        createdAt: new Date(item.createdAt),
+        updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined
+      })) as RendezVous[];
+      
+      setRendezvous(typedData);
+      setTotalPages(result.totalPages);
+      
+      secureLog.success('Rendez-vous chargés', { 
+        count: typedData.length,
+        total: result.total,
+        totalPages: result.totalPages
+      });
+      
+    } catch (error) {
+      secureLog.error('Erreur lors du chargement des rendez-vous', error, {
+        page,
+        selectedStatus,
+        searchTermLength: searchTerm.length
+      });
+    } finally {
+      setIsLoading(false);
+      isInitialMount.current = false;
+    }
+  }, [page, searchTerm, selectedStatus, adminRendezVousService, limit]);
+
+  // Charger les dates disponibles (une seule fois)
+  const loadAvailableDates = useCallback(async () => {
     try {
-      await service.updateStatus(id, 'Terminé', avisAdmin);
-      toast.success('Rendez-vous terminé');
-      setTerminateModalOpen(false);
-      setSelectedRendezvous(null);
-      
-      // Attendre un peu avant de rafraîchir
-      setTimeout(() => {
-        fetchList();
-      }, 300);
-    } catch (err: any) {
-      console.error('Error terminating rendezvous:', err);
-      toast.error(err.message || 'Erreur lors de la terminaison');
+      secureLog.info('Chargement dates disponibles');
+      const dates = await adminRendezVousService.getAvailableDates();
+      setAvailableDates(dates);
+      secureLog.success('Dates disponibles chargées', { count: dates.length });
+    } catch (error) {
+      secureLog.error('Erreur lors du chargement des dates disponibles', error);
     }
-  }, [service, fetchList]);
+  }, [adminRendezVousService]);
 
-  // Reset filters
-  const resetFilters = useCallback(() => {
-    setSearch('');
-    setStatusFilter(undefined);
-    setDateFilter(undefined);
-    setPage(1);
-    
-    // Attendre un peu avant de fetch
-    setTimeout(() => {
-      fetchList({ search: '', status: undefined, date: undefined, page: 1 });
-    }, 300);
-  }, [fetchList]);
+  // Charger les créneaux disponibles
+  const loadAvailableSlots = useCallback(async (date: string) => {
+    try {
+      if (!date) {
+        setAvailableSlots([]);
+        return;
+      }
 
-  // Fonction de rafraîchissement manuel avec délai
-  const handleManualRefresh = useCallback(() => {
-    if (loading) return;
-    
-    // Désactiver le bouton pendant 2 secondes
-    setLoading(true);
-    
-    // Attendre 500ms avant de rafraîchir
-    setTimeout(() => {
-      fetchList();
-    }, 500);
-  }, [fetchList, loading]);
+      secureLog.debug('Chargement créneaux', undefined, { date });
+      const slots = await adminRendezVousService.getAvailableSlots(date);
+      setAvailableSlots(slots);
+      secureLog.success('Créneaux disponibles chargés', { 
+        date, 
+        count: slots.length 
+      });
+    } catch (error) {
+      secureLog.error('Erreur lors du chargement des créneaux', error, { date });
+      toast.error('Erreur lors du chargement des créneaux disponibles');
+    }
+  }, [adminRendezVousService]);
 
-  // Rendu du composant
+  // Mise à jour du statut avec gestion de file d'attente
+  const handleUpdateStatus = async (id: string, status: RendezvousStatus, avisAdmin?: AdminOpinion) => {
+    if (isProcessing) {
+      secureLog.debug('Une opération est déjà en cours, nouvelle opération ignorée', id);
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      // Validation de l'ID
+      if (!isValidMongoId(id)) {
+        toast.error('ID du rendez-vous invalide');
+        setIsProcessing(false);
+        return;
+      }
+
+      secureLog.operation('STATUS', id, {
+        targetStatus: status,
+        hasAvisAdmin: !!avisAdmin,
+        avisAdminType: avisAdmin
+      });
+
+      const updatedRdv = await adminRendezVousService.updateStatus(id, status, avisAdmin);
+      
+      // Mise à jour de l'état local
+      setRendezvous(prev => prev.map(rdv => {
+        if (rdv._id === id) {
+          const updated = { 
+            ...rdv, 
+            status: updatedRdv.status,
+            ...(updatedRdv.avisAdmin !== undefined && { avisAdmin: updatedRdv.avisAdmin })
+          };
+          
+          // CORRECTION : Utiliser la valeur littérale
+          if (updatedRdv.status !== 'Terminé' && updated.avisAdmin) {
+            updated.avisAdmin = undefined;
+          }
+          
+          return updated;
+        }
+        return rdv;
+      }));
+
+      // Fermer les modals
+      setShowAvisModal(null);
+      setShowMobileActions(null);
+
+      secureLog.success('Statut mis à jour avec succès', {
+        rendezvousId: `${id.substring(0, 8)}...`,
+        newStatus: status,
+        avisAdmin: avisAdmin || 'Aucun'
+      });
+
+    } catch (error: any) {
+      secureLog.error('Échec mise à jour statut', error, {
+        rendezvousId: `${id.substring(0, 8)}...`,
+        targetStatus: status,
+        errorMessage: error.message,
+        errorType: error.constructor.name
+      });
+
+      // Gestion des erreurs spécifiques
+      if (error.message.includes('ID du rendez-vous requis')) {
+        toast.error('ID du rendez-vous manquant. Veuillez réessayer.');
+      } else if (error.message.includes('Statut invalide')) {
+        toast.error('Statut invalide pour ce rendez-vous.');
+      } else if (error.message.includes('avis admin est obligatoire')) {
+        toast.error('L\'avis admin est obligatoire pour terminer un rendez-vous.');
+      } else {
+        toast.error('Erreur lors de la mise à jour du statut');
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Gestion du changement de statut via select
+  const handleStatusChange = (id: string, newStatus: string) => {
+    // Validation de l'ID avant de continuer
+    if (!isValidMongoId(id)) {
+      toast.error('ID du rendez-vous invalide');
+      setShowMobileActions(null);
+      return;
+    }
+
+    const status = newStatus as RendezvousStatus;
+    
+    if (status === 'Terminé') {
+      setShowAvisModal({ id, status });
+    } else {
+      handleUpdateStatus(id, status);
+    }
+  };
+
+  // Gestion de la sélection d'avis
+  const handleAvisSelection = (avis: AdminOpinion) => {
+    if (!showAvisModal || !showAvisModal.id) {
+      secureLog.error('Avis modal invalide', undefined, {
+        showAvisModal: showAvisModal,
+        hasId: !!showAvisModal?.id
+      });
+      toast.error('Données du rendez-vous invalides');
+      setShowAvisModal(null);
+      return;
+    }
+
+    // Validation de l'ID
+    if (!isValidMongoId(showAvisModal.id)) {
+      toast.error('ID du rendez-vous invalide');
+      setShowAvisModal(null);
+      return;
+    }
+
+    handleUpdateStatus(showAvisModal.id, showAvisModal.status, avis);
+  };
+
+  // Suppression avec gestion de file d'attente
+  const handleDelete = async () => {
+    if (!showDeleteModal) return;
+
+    if (isProcessing) {
+      secureLog.debug('Une opération est déjà en cours, suppression ignorée', showDeleteModal.id);
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      // Validation de l'ID
+      if (!isValidMongoId(showDeleteModal.id)) {
+        toast.error('ID du rendez-vous invalide');
+        setIsProcessing(false);
+        return;
+      }
+
+      secureLog.operation('DELETE', showDeleteModal.id, {
+        userFirstName: showDeleteModal.firstName,
+        userLastName: showDeleteModal.lastName
+      });
+
+      await adminRendezVousService.delete(showDeleteModal.id);
+      
+      // Mise à jour de l'état local
+      setRendezvous(prev => prev.filter(rdv => rdv._id !== showDeleteModal.id));
+
+      setShowDeleteModal(null);
+      setShowMobileActions(null);
+
+      secureLog.success('Rendez-vous supprimé avec succès', {
+        rendezvousId: `${showDeleteModal.id.substring(0, 8)}...`
+      });
+
+    } catch (error: any) {
+      secureLog.error('Échec suppression rendez-vous', error, {
+        rendezvousId: `${showDeleteModal?.id.substring(0, 8)}...`,
+        errorMessage: error.message,
+        errorType: error.constructor.name
+      });
+
+      // Gestion des erreurs spécifiques
+      if (error.message.includes('ID du rendez-vous requis')) {
+        toast.error('ID du rendez-vous manquant pour la suppression.');
+      } else if (error.message.includes('Impossible d\'annuler')) {
+        toast.error('Impossible d\'annuler ce rendez-vous.');
+      } else {
+        toast.error('Erreur lors de la suppression du rendez-vous');
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Création d'un nouveau rendez-vous
+  const handleCreateRendezVous = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      setIsCreating(true);
+
+      // Validation des champs requis
+      if (!newRendezVous.userId || !newRendezVous.email) {
+        toast.error('ID utilisateur et email sont requis');
+        secureLog.error('Création échouée: champs requis manquants', undefined, {
+          hasUserId: !!newRendezVous.userId,
+          hasEmail: !!newRendezVous.email
+        });
+        setIsCreating(false);
+        return;
+      }
+
+      // Validation ID utilisateur
+      if (!isValidMongoId(newRendezVous.userId)) {
+        toast.error('ID utilisateur invalide');
+        setIsCreating(false);
+        return;
+      }
+
+      // Validation destination "Autre"
+      if (newRendezVous.destination === 'Autre' && !newRendezVous.destinationAutre?.trim()) {
+        toast.error('La destination "Autre" nécessite une précision');
+        setIsCreating(false);
+        return;
+      }
+
+      // Validation filière "Autre"
+      if (newRendezVous.filiere === 'Autre' && !newRendezVous.filiereAutre?.trim()) {
+        toast.error('La filière "Autre" nécessite une précision');
+        setIsCreating(false);
+        return;
+      }
+
+      // Préparer les données pour l'envoi
+      const createData = {
+        userId: newRendezVous.userId.trim(),
+        firstName: newRendezVous.firstName.trim(),
+        lastName: newRendezVous.lastName.trim(),
+        email: newRendezVous.email.toLowerCase().trim(),
+        telephone: newRendezVous.telephone.trim(),
+        destination: newRendezVous.destination,
+        destinationAutre: newRendezVous.destinationAutre?.trim(),
+        niveauEtude: newRendezVous.niveauEtude,
+        filiere: newRendezVous.filiere,
+        filiereAutre: newRendezVous.filiereAutre?.trim(),
+        date: newRendezVous.date,
+        time: newRendezVous.time
+      };
+
+      secureLog.operation('CREATE', undefined, {
+        userId: `${createData.userId.substring(0, 8)}...`,
+        destination: createData.destination,
+        date: createData.date,
+        time: createData.time,
+        destinationType: createData.destination === 'Autre' ? 'Autre' : 'Prédéfini',
+        filiereType: createData.filiere === 'Autre' ? 'Autre' : 'Prédéfini'
+      });
+
+      // Création via fetch direct avec authentification admin
+      const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const token = localStorage.getItem('accessToken');
+      
+      const response = await fetch(`${API_URL}/api/rendezvous`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(createData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erreur lors de la création du rendez-vous');
+      }
+
+      const createdRdv = await response.json();
+      
+      // Mise à jour de l'état local
+      setRendezvous(prev => [{
+        ...createdRdv,
+        status: createdRdv.status as RendezvousStatus,
+        avisAdmin: createdRdv.avisAdmin as AdminOpinion | undefined,
+        niveauEtude: createdRdv.niveauEtude as EducationLevel,
+        cancelledBy: createdRdv.cancelledBy as 'admin' | 'user' | undefined,
+        cancelledAt: createdRdv.cancelledAt ? new Date(createdRdv.cancelledAt) : undefined,
+        createdAt: new Date(createdRdv.createdAt),
+        updatedAt: createdRdv.updatedAt ? new Date(createdRdv.updatedAt) : undefined
+      }, ...prev]);
+      
+      // Réinitialiser le formulaire
+      setNewRendezVous({
+        userId: '',
+        firstName: '',
+        lastName: '',
+        email: '',
+        telephone: '',
+        date: '',
+        time: '',
+        destination: '',
+        destinationAutre: '',
+        niveauEtude: '' as EducationLevel,
+        filiere: '',
+        filiereAutre: ''
+      });
+
+      // Fermer le modal
+      setShowCreateModal(false);
+
+      // Recharger les dates disponibles
+      loadAvailableDates();
+
+      secureLog.success('Rendez-vous créé avec succès', {
+        rendezvousId: `${createdRdv._id?.substring(0, 8)}...`,
+        destination: createdRdv.destination,
+        status: createdRdv.status,
+        date: createdRdv.date,
+        time: createdRdv.time
+      });
+
+      toast.success('Rendez-vous créé avec succès');
+
+    } catch (error: any) {
+      secureLog.error('Échec création rendez-vous', error, {
+        userId: `${newRendezVous.userId.substring(0, 8)}...`,
+        destination: newRendezVous.destination,
+        errorType: error instanceof Error ? error.constructor.name : 'Unknown',
+        errorMessage: error.message
+      });
+      
+      toast.error(error.message || 'Erreur lors de la création du rendez-vous');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  // Gestion du changement de date pour charger les créneaux disponibles
+  const handleDateChange = (date: string) => {
+    setNewRendezVous(prev => ({ 
+      ...prev, 
+      date,
+      time: ''
+    }));
+    if (date) {
+      loadAvailableSlots(date);
+    } else {
+      setAvailableSlots([]);
+    }
+  };
+
+  // CORRECTION CRITIQUE : Initialisation avec useEffect
+  useEffect(() => {
+    // Chargement initial
+    const initializeData = async () => {
+      await Promise.all([
+        loadRendezvous(),
+        loadAvailableDates(),
+        fetchDestinations()
+      ]);
+    };
+
+    initializeData();
+  }, []); // Tableau de dépendances vide = exécuté une seule fois au montage
+
+  // Effet pour recharger les rendez-vous quand les filtres changent
+  useEffect(() => {
+    // Utiliser un debounce pour éviter trop de requêtes
+    const debounceTimer = setTimeout(() => {
+      if (!isInitialMount.current) {
+        loadRendezvous();
+      }
+    }, 300); // 300ms de délai
+
+    return () => clearTimeout(debounceTimer);
+  }, [page, searchTerm, selectedStatus, loadRendezvous]);
+
+  // Fonctions utilitaires
+  const getStatusColor = (status: RendezvousStatus): string => {
+    switch (status) {
+      case 'Confirmé': return 'bg-green-100 text-green-800 border-green-200';
+      case 'En attente': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'Annulé': return 'bg-red-100 text-red-800 border-red-200';
+      case 'Terminé': return 'bg-blue-100 text-blue-800 border-blue-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getAvisColor = (avis: AdminOpinion): string => {
+    switch (avis) {
+      case 'Favorable': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      case 'Défavorable': return 'bg-rose-100 text-rose-800 border-rose-200';
+      default: return 'bg-slate-100 text-slate-800 border-slate-200';
+    }
+  };
+
+  const formatDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    } catch (e) {
+      return dateString;
+    }
+  };
+
+  const formatTime = (timeString: string): string => {
+    return timeString.replace(':', 'h');
+  };
+
+  // Fonction pour obtenir la destination effective
+  const getEffectiveDestination = (rdv: RendezVous): string => {
+    return rdv.destination === 'Autre' && rdv.destinationAutre
+      ? rdv.destinationAutre
+      : rdv.destination;
+  };
+
+  // Fonction pour obtenir la filière effective
+  const getEffectiveFiliere = (rdv: RendezVous): string => {
+    return rdv.filiere === 'Autre' && rdv.filiereAutre
+      ? rdv.filiereAutre
+      : rdv.filiere;
+  };
+
+  // Options de statut alignées avec le backend
+  const statusOptions = ['', ...Object.values(RENDEZVOUS_STATUS)];
+  
+  // Options de destination depuis l'API + "Autre"
+  const destinationOptions = [
+    ...destinations.map(dest => dest.country),
+    'Autre'
+  ];
+
+  // Options de filières (doivent correspondre au backend)
+  const filieres = ['Informatique', 'Médecine', 'Ingénierie', 'Droit', 'Commerce', 'Autre'];
+
   return (
-    <RequireAdmin>
+    <>
       <Helmet>
-        <title>Administration des Rendez-vous | Paname Consulting</title>
-        <meta name="robots" content="noindex, nofollow" />
-      </Helmet>
-
-      <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50">
-        <ToastContainer 
-          position="top-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          theme="light"
+        <title>Gestion des Rendez-vous - Paname Consulting</title>
+        <meta
+          name="description"  
+          content="Interface d'administration pour gérer les rendez-vous des utilisateurs sur Paname Consulting. Accès réservé aux administrateurs."
         />
-
-        {/* Header */}
-        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-sm border-b border-sky-100 px-4 py-3 sm:px-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-sky-700 flex items-center gap-2">
-                <LucideCalendar className="w-6 h-6 sm:w-7 sm:h-7" />
-                Administration des Rendez-vous
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">
-                {loading ? 'Chargement...' : `${total} rendez-vous au total`}
-              </p>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleManualRefresh}
-                disabled={loading}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-sky-200 text-sky-700 rounded-xl hover:bg-sky-50 hover:border-sky-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Rafraîchir"
-              >
-                <LucideRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Rafraîchir</span>
-              </button>
-              
-              <button
-                onClick={openCreate}
-                disabled={loading}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-sky-600 to-blue-600 text-white rounded-xl hover:from-sky-700 hover:to-blue-700 transition-all shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <LucidePlus className="w-4 h-4" />
-                <span className="font-medium">Nouveau</span>
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <main className="px-4 py-4 sm:px-6">
-          {/* Message d'erreur rate limiting */}
-          {error?.includes('Trop de requêtes') && (
-            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
-              <LucideAlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-amber-800 font-medium">Limite de requêtes atteinte</p>
-                <p className="text-amber-600 text-sm">
-                  Le système limite le nombre de requêtes. Réessayez dans quelques secondes.
+        <meta name="robots" content="noindex, nofollow" />
+        <meta name="googlebot" content="noindex, nofollow" />
+        <meta name="bingbot" content="noindex, nofollow" />
+        <meta name="yandexbot" content="noindex, nofollow" />
+        <meta name="duckduckbot" content="noindex, nofollow" />
+        <meta name="baidu" content="noindex, nofollow" />
+        <meta name="naver" content="noindex, nofollow" />
+        <meta name="seznam" content="noindex, nofollow" />
+      </Helmet>
+      
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
+        {/* Modal de confirmation de suppression */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full mx-auto">
+              <div className="p-5 border-b border-slate-200">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="w-6 h-6 text-red-500" />
+                  <h2 className="text-lg font-bold text-slate-800">Confirmer la suppression</h2>
+                </div>
+                <p className="text-sm text-slate-600 mt-2">
+                  Êtes-vous sûr de vouloir supprimer le rendez-vous de{" "}
+                  <span className="font-semibold">
+                    {showDeleteModal.firstName} {showDeleteModal.lastName}
+                  </span> ?
+                  <br />
+                  Cette action est irréversible.
                 </p>
               </div>
-              <button
-                onClick={handleManualRefresh}
-                className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg hover:bg-amber-200 text-sm font-medium"
-              >
-                Réessayer
-              </button>
-            </div>
-          )}
-
-          {/* Filters Section */}
-          <section className="mb-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <LucideFilter className="w-5 h-5 text-sky-600" />
-                  Filtres
-                </h2>
+              
+              <div className="p-5 flex justify-end gap-3">
                 <button
-                  onClick={resetFilters}
-                  disabled={loading}
-                  className="text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Réinitialiser
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                {/* Search */}
-                <div className="md:col-span-2">
-                  <div className="relative">
-                    <LucideSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Rechercher (nom, email, téléphone, destination)"
-                      className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition disabled:bg-gray-50"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      disabled={loading}
-                      aria-label="Rechercher"
-                    />
-                  </div>
-                </div>
-
-                {/* Status Filter */}
-                <div>
-                  <div className="relative">
-                    <select
-                      className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none appearance-none bg-white disabled:bg-gray-50"
-                      value={statusFilter || ''}
-                      onChange={(e) => setStatusFilter(e.target.value as RendezvousStatus || undefined)}
-                      disabled={loading}
-                      aria-label="Filtrer par statut"
-                    >
-                      <option value="">Tous les statuts</option>
-                      <option value="En attente">En attente</option>
-                      <option value="Confirmé">Confirmé</option>
-                      <option value="Terminé">Terminé</option>
-                      <option value="Annulé">Annulé</option>
-                    </select>
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                      <LucideChevronRight className="w-4 h-4 text-gray-400 rotate-90" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Date Filter */}
-                <div>
-                  <div className="relative">
-                    <LucideCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="date"
-                      className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none disabled:bg-gray-50"
-                      value={dateFilter || ''}
-                      onChange={(e) => setDateFilter(e.target.value || undefined)}
-                      disabled={loading}
-                      aria-label="Filtrer par date"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Main Content */}
-          <section>
-            {loading ? (
-              <LoadingSkeleton />
-            ) : error && !error.includes('Trop de requêtes') ? (
-              <div className="text-center py-12">
-                <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                  <LucideAlertCircle className="w-8 h-8 text-red-600" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Erreur de chargement</h3>
-                <p className="text-gray-500 mb-4">{error}</p>
-                <button
-                  onClick={handleManualRefresh}
-                  className="px-4 py-2 bg-sky-600 text-white rounded-xl hover:bg-sky-700"
-                >
-                  Réessayer
-                </button>
-              </div>
-            ) : list.length === 0 ? (
-              <NoResults />
-            ) : (
-              <>
-                {/* Mobile View - Cards */}
-                <div className="sm:hidden space-y-3">
-                  {list.map((rdv) => (
-                    <article 
-                      key={rdv._id} 
-                      className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h3 className="font-semibold text-gray-900 truncate">
-                              {rdv.firstName} {rdv.lastName}
-                            </h3>
-                            <StatusBadge status={rdv.status} />
-                          </div>
-                          
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                              <LucideCalendar className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span>{rdv.date}</span>
-                              <span className="text-gray-400">•</span>
-                              <LucideClock className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span>{rdv.time}</span>
-                            </div>
-                            
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                              <LucideMapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span className="truncate">{rdv.destination}</span>
-                            </div>
-                            
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                              <LucideMail className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span className="truncate">{rdv.email}</span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Actions Menu */}
-                        <div className="relative ml-2">
-                          <button
-                            onClick={() => setActionPopoverOpen(actionPopoverOpen === rdv._id ? null : rdv._id)}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                            aria-label="Actions"
-                          >
-                            <LucideMoreVertical className="w-5 h-5 text-gray-500" />
-                          </button>
-                          
-                          <Popover
-                            open={actionPopoverOpen === rdv._id}
-                            onClose={() => setActionPopoverOpen(null)}
-                            position="bottom-right"
-                          >
-                            <div className="space-y-1">
-                              <button
-                                onClick={() => {
-                                  openDetail(rdv);
-                                  setActionPopoverOpen(null);
-                                }}
-                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm flex items-center gap-2"
-                              >
-                                <LucideEye className="w-4 h-4" />
-                                Voir détails
-                              </button>
-                              
-                              <button
-                                onClick={() => {
-                                  openEdit(rdv);
-                                  setActionPopoverOpen(null);
-                                }}
-                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm flex items-center gap-2"
-                              >
-                                <LucideEdit className="w-4 h-4" />
-                                Modifier
-                              </button>
-                              
-                              {rdv.status === 'En attente' && (
-                                <button
-                                  onClick={() => {
-                                    setConfirmPopoverOpen(confirmPopoverOpen === rdv._id ? null : rdv._id);
-                                    setActionPopoverOpen(null);
-                                  }}
-                                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-sky-50 text-sky-700 text-sm flex items-center gap-2"
-                                >
-                                  <LucideCheckCircle className="w-4 h-4" />
-                                  Confirmer
-                                </button>
-                              )}
-                              
-                              {rdv.status === 'Confirmé' && (
-                                <button
-                                  onClick={() => {
-                                    setTerminateModalOpen(true);
-                                    setSelectedRendezvous(rdv);
-                                    setActionPopoverOpen(null);
-                                  }}
-                                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-green-50 text-green-700 text-sm flex items-center gap-2"
-                                >
-                                  <LucideCalendarCheck className="w-4 h-4" />
-                                  Terminer
-                                </button>
-                              )}
-                              
-                              {(rdv.status === 'En attente' || rdv.status === 'Confirmé') && (
-                                <button
-                                  onClick={() => {
-                                    setCancelModalOpen(true);
-                                    setSelectedRendezvous(rdv);
-                                    setActionPopoverOpen(null);
-                                  }}
-                                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-red-50 text-red-700 text-sm flex items-center gap-2"
-                                >
-                                  <LucideTrash2 className="w-4 h-4" />
-                                  Annuler
-                                </button>
-                              )}
-                            </div>
-                          </Popover>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-
-                {/* Desktop View - Table */}
-                <div className="hidden sm:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                            Client
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                            Contact
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                            Rendez-vous
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                Destination
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                            Statut
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-100">
-                        {list.map((rdv) => (
-                          <tr key={rdv._id} className="hover:bg-gray-50 transition-colors">
-                            {/* Client Info */}
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div>
-                                <div className="font-medium text-gray-900">
-                                  {rdv.firstName} {rdv.lastName}
-                                </div>
-                                <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                                  <LucideGraduationCap className="w-3.5 h-3.5" />
-                                  {rdv.niveauEtude}
-                                </div>
-                                <div className="text-sm text-gray-500 flex items-center gap-1">
-                                  <LucideBriefcase className="w-3.5 h-3.5" />
-                                  {rdv.filiere}
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* Contact Info */}
-                            <td className="px-6 py-4">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <LucideMail className="w-3.5 h-3.5 text-gray-400" />
-                                  <span className="text-sm text-gray-700 truncate max-w-[150px]">
-                                    {rdv.email}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <LucidePhone className="w-3.5 h-3.5 text-gray-400" />
-                                  <span className="text-sm text-gray-700">
-                                    {rdv.telephone}
-                                  </span>
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* Appointment Info */}
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <LucideCalendar className="w-3.5 h-3.5 text-gray-400" />
-                                  <span className="text-sm font-medium text-gray-900">
-                                    {rdv.date}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <LucideClock className="w-3.5 h-3.5 text-gray-400" />
-                                  <span className="text-sm text-gray-700">
-                                    {rdv.time}
-                                  </span>
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* Destination */}
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-2">
-                                <LucideMapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                <span className="text-sm text-gray-700">
-                                  {rdv.destination}
-                                  {rdv.destinationAutre && (
-                                    <span className="text-gray-500 italic">
-                                      {' '}({rdv.destinationAutre})
-                                    </span>
-                                  )}
-                                </span>
-                              </div>
-                            </td>
-
-                            {/* Status */}
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <StatusBadge status={rdv.status} />
-                              {rdv.avisAdmin && (
-                                <div className="mt-1 text-xs text-gray-500">
-                                  Avis: {rdv.avisAdmin}
-                                </div>
-                              )}
-                            </td>
-
-                            {/* Actions */}
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center gap-2">
-                                {/* View Button */}
-                                <button
-                                  onClick={() => openDetail(rdv)}
-                                  className="p-2 text-gray-600 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
-                                  aria-label="Voir détails"
-                                  title="Voir détails"
-                                >
-                                  <LucideEye className="w-4 h-4" />
-                                </button>
-
-                                {/* Edit Button */}
-                                <button
-                                  onClick={() => openEdit(rdv)}
-                                  className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                  aria-label="Modifier"
-                                  title="Modifier"
-                                >
-                                  <LucideEdit className="w-4 h-4" />
-                                </button>
-
-                                {/* Action Menu */}
-                                <div className="relative">
-                                  <button
-                                    onClick={() => setActionPopoverOpen(actionPopoverOpen === rdv._id ? null : rdv._id)}
-                                    className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                                    aria-label="Actions"
-                                    title="Plus d'actions"
-                                  >
-                                    <LucideMoreVertical className="w-4 h-4" />
-                                  </button>
-
-                                  <Popover
-                                    open={actionPopoverOpen === rdv._id}
-                                    onClose={() => setActionPopoverOpen(null)}
-                                    position="bottom-right"
-                                  >
-                                    <div className="space-y-1">
-                                      {rdv.status === 'En attente' && (
-                                        <button
-                                          onClick={() => handleConfirm(rdv._id)}
-                                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-sky-50 text-sky-700 text-sm flex items-center gap-2"
-                                        >
-                                          <LucideCheckCircle className="w-4 h-4" />
-                                          Confirmer le rendez-vous
-                                        </button>
-                                      )}
-                                      
-                                      {rdv.status === 'Confirmé' && (
-                                        <button
-                                          onClick={() => {
-                                            setTerminateModalOpen(true);
-                                            setSelectedRendezvous(rdv);
-                                            setActionPopoverOpen(null);
-                                          }}
-                                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-green-50 text-green-700 text-sm flex items-center gap-2"
-                                        >
-                                          <LucideCalendarCheck className="w-4 h-4" />
-                                          Terminer le rendez-vous
-                                        </button>
-                                      )}
-                                      
-                                      {(rdv.status === 'En attente' || rdv.status === 'Confirmé') && (
-                                        <button
-                                          onClick={() => {
-                                            setCancelModalOpen(true);
-                                            setSelectedRendezvous(rdv);
-                                            setActionPopoverOpen(null);
-                                          }}
-                                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-red-50 text-red-700 text-sm flex items-center gap-2"
-                                        >
-                                          <LucideTrash2 className="w-4 h-4" />
-                                          Annuler le rendez-vous
-                                        </button>
-                                      )}
-                                    </div>
-                                  </Popover>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Pagination */}
-                <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-sm text-gray-600">
-                    Affichage de {(page - 1) * limit + 1} à {Math.min(page * limit, total)} sur {total} rendez-vous
-                  </div>
-                  
-                  <div className="flex items-center gap-4">
-                    {/* Items per page */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600">Afficher :</span>
-                      <select
-                        className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-200 outline-none disabled:bg-gray-50"
-                        value={limit}
-                        onChange={(e) => setLimit(Number(e.target.value))}
-                        disabled={loading}
-                      >
-                        <option value="5">5</option>
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="50">50</option>
-                      </select>
-                    </div>
-                    
-                    {/* Page navigation */}
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setPage(p => Math.max(1, p - 1))}
-                        disabled={page <= 1 || loading}
-                        className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        aria-label="Page précédente"
-                      >
-                        <LucideChevronLeft className="w-4 h-4" />
-                      </button>
-                      
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                          let pageNum;
-                          if (totalPages <= 5) {
-                            pageNum = i + 1;
-                          } else if (page <= 3) {
-                            pageNum = i + 1;
-                          } else if (page >= totalPages - 2) {
-                            pageNum = totalPages - 4 + i;
-                          } else {
-                            pageNum = page - 2 + i;
-                          }
-                          
-                          return (
-                            <button
-                              key={pageNum}
-                              onClick={() => setPage(pageNum)}
-                              disabled={loading}
-                              className={`min-w-[32px] h-8 rounded-lg text-sm font-medium transition-colors ${page === pageNum 
-                                ? 'bg-sky-600 text-white' 
-                                : 'text-gray-700 hover:bg-gray-100'} disabled:opacity-50 disabled:cursor-not-allowed`}
-                            >
-                              {pageNum}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      
-                      <button
-                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                        disabled={page >= totalPages || loading}
-                        className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        aria-label="Page suivante"
-                      >
-                        <LucideChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </section>
-        </main>
-
-        {/* Detail Modal */}
-        <Modal 
-          open={detailOpen} 
-          onClose={() => setDetailOpen(false)}
-          title={selectedRendezvous ? `${selectedRendezvous.firstName} ${selectedRendezvous.lastName}` : 'Détails'}
-          size="lg"
-        >
-          {selectedRendezvous ? (
-            <div className="space-y-6">
-              {/* Status & Info */}
-              <div className="flex items-center justify-between">
-                <StatusBadge status={selectedRendezvous.status} />
-                <div className="text-sm text-gray-500">
-                  Créé le {new Date(selectedRendezvous.createdAt).toLocaleDateString()}
-                </div>
-              </div>
-
-              {/* Grid Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Personal Info */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-gray-700 flex items-center gap-2">
-                    <LucideUser className="w-4 h-4" />
-                    Informations personnelles
-                  </h4>
-                  <div className="space-y-2 pl-6">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-500 w-24">Email :</span>
-                      <span className="text-sm text-gray-800">{selectedRendezvous.email}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-500 w-24">Téléphone :</span>
-                      <span className="text-sm text-gray-800">{selectedRendezvous.telephone}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-500 w-24">Niveau :</span>
-                      <span className="text-sm text-gray-800">{selectedRendezvous.niveauEtude}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-500 w-24">Filière :</span>
-                      <span className="text-sm text-gray-800">
-                        {selectedRendezvous.filiere}
-                        {selectedRendezvous.filiereAutre && ` (${selectedRendezvous.filiereAutre})`}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Appointment Info */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-gray-700 flex items-center gap-2">
-                    <LucideCalendar className="w-4 h-4" />
-                    Rendez-vous
-                  </h4>
-                  <div className="space-y-2 pl-6">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-500 w-24">Date :</span>
-                      <span className="text-sm text-gray-800">{selectedRendezvous.date}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-500 w-24">Heure :</span>
-                      <span className="text-sm text-gray-800">{selectedRendezvous.time}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-500 w-24">Destination :</span>
-                      <span className="text-sm text-gray-800">
-                        {selectedRendezvous.destination}
-                        {selectedRendezvous.destinationAutre && ` (${selectedRendezvous.destinationAutre})`}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Additional Info */}
-              {(selectedRendezvous.avisAdmin || selectedRendezvous.cancellationReason) && (
-                <div className="pt-4 border-t">
-                  <h4 className="font-semibold text-gray-700 mb-3">Informations complémentaires</h4>
-                  {selectedRendezvous.avisAdmin && (
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-sm text-gray-500 w-32">Avis admin :</span>
-                      <span className={`text-sm font-medium ${selectedRendezvous.avisAdmin === 'Favorable' ? 'text-green-600' : 'text-red-600'}`}>
-                        {selectedRendezvous.avisAdmin}
-                      </span>
-                    </div>
-                  )}
-                  {selectedRendezvous.cancellationReason && (
-                    <div className="flex items-start gap-3">
-                      <span className="text-sm text-gray-500 w-32">Raison annulation :</span>
-                      <span className="text-sm text-gray-800">{selectedRendezvous.cancellationReason}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-2 pt-4 border-t">
-                <button
-                  onClick={() => {
-                    setDetailOpen(false);
-                    openEdit(selectedRendezvous);
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2"
-                >
-                  <LucideEdit className="w-4 h-4" />
-                  Modifier
-                </button>
-                
-                {selectedRendezvous.status === 'Confirmé' && (
-                  <button
-                    onClick={() => {
-                      setDetailOpen(false);
-                      setTerminateModalOpen(true);
-                    }}
-                    className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors flex items-center gap-2"
-                  >
-                    <LucideCalendarCheck className="w-4 h-4" />
-                    Terminer
-                  </button>
-                )}
-                
-                {(selectedRendezvous.status === 'En attente' || selectedRendezvous.status === 'Confirmé') && (
-                  <button
-                    onClick={() => {
-                      setDetailOpen(false);
-                      setCancelModalOpen(true);
-                    }}
-                    className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors flex items-center gap-2"
-                  >
-                    <LucideTrash2 className="w-4 h-4" />
-                    Annuler
-                  </button>
-                )}
-                
-                <button
-                  onClick={() => setDetailOpen(false)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
-                >
-                  Fermer
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600 mx-auto"></div>
-            </div>
-          )}
-        </Modal>
-
-        {/* Create/Edit Modal */}
-        <Modal
-          open={createOpen || editOpen}
-          onClose={() => {
-            setCreateOpen(false);
-            setEditOpen(false);
-            setSelectedRendezvous(null);
-          }}
-          title={selectedRendezvous ? 'Modifier le rendez-vous' : 'Nouveau rendez-vous'}
-          size="xl"
-        >
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* First Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Prénom *
-                </label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition"
-                  value={formData.firstName || ''}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                  required
-                />
-              </div>
-
-              {/* Last Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nom *
-                </label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition"
-                  value={formData.lastName || ''}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  required
-                />
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition"
-                  value={formData.email || ''}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                />
-              </div>
-
-              {/* Telephone */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Téléphone *
-                </label>
-                <input
-                  type="tel"
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition"
-                  value={formData.telephone || ''}
-                  onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
-                  required
-                />
-              </div>
-
-              {/* Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Date *
-                </label>
-                <div className="relative">
-                  <LucideCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="date"
-                    className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none"
-                    value={formData.date || ''}
-                    onChange={(e) => handleDateChange(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Time Slot */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Créneau horaire *
-                </label>
-                <div className="relative">
-                  <LucideClock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <select
-                    className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none appearance-none"
-                    value={formData.time || ''}
-                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                    disabled={!formData.date || loadingSlots}
-                    required
-                  >
-                    <option value="">Sélectionnez un créneau</option>
-                    {loadingSlots ? (
-                      <option value="">Chargement des créneaux...</option>
-                    ) : availableSlots.length > 0 ? (
-                      availableSlots.map(slot => (
-                        <option key={slot} value={slot}>{slot}</option>
-                      ))
-                    ) : formData.date ? (
-                      <option value="">Aucun créneau disponible</option>
-                    ) : null}
-                  </select>
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    <LucideChevronRight className="w-4 h-4 text-gray-400 rotate-90" />
-                  </div>
-                </div>
-                {formData.date && availableSlots.length === 0 && !loadingSlots && (
-                  <p className="mt-1 text-sm text-red-600">
-                    Aucun créneau disponible pour cette date
-                  </p>
-                )}
-              </div>
-
-              {/* Destination */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Destination *
-                </label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition"
-                  value={formData.destination || ''}
-                  onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
-                  required
-                />
-              </div>
-
-              {/* Niveau d'étude */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Niveau d'étude *
-                </label>
-                <select
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none appearance-none"
-                  value={formData.niveauEtude || ''}
-                  onChange={(e) => setFormData({ ...formData, niveauEtude: e.target.value })}
-                  required
-                >
-                  <option value="">Sélectionnez un niveau</option>
-                  <option value="Bac">Bac</option>
-                  <option value="Bac+1">Bac+1</option>
-                  <option value="Bac+2">Bac+2</option>
-                  <option value="Licence">Licence</option>
-                  <option value="Master I">Master I</option>
-                  <option value="Master II">Master II</option>
-                  <option value="Doctorat">Doctorat</option>
-                </select>
-              </div>
-
-              {/* Filière */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Filière *
-                </label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition"
-                  value={formData.filiere || ''}
-                  onChange={(e) => setFormData({ ...formData, filiere: e.target.value })}
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Form Actions */}
-            <div className="flex flex-col-reverse sm:flex-row gap-2 justify-end pt-4 border-t">
-              <button
-                onClick={() => {
-                  setCreateOpen(false);
-                  setEditOpen(false);
-                  setSelectedRendezvous(null);
-                }}
-                className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={submitCreateOrUpdate}
-                disabled={!formData.date || !formData.time || loadingSlots}
-                className="px-4 py-2.5 bg-sky-600 text-white rounded-xl hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {selectedRendezvous ? 'Mettre à jour' : 'Créer le rendez-vous'}
-              </button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Cancel Modal */}
-        <Modal
-          open={cancelModalOpen}
-          onClose={() => {
-            setCancelModalOpen(false);
-            setSelectedRendezvous(null);
-          }}
-          title="Annuler le rendez-vous"
-          size="md"
-        >
-          {selectedRendezvous ? (
-            <div className="space-y-4">
-              <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
-                <div className="flex items-start gap-3">
-                  <LucideAlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-red-800">Attention</p>
-                    <p className="text-sm text-red-600 mt-1">
-                      Vous êtes sur le point d'annuler le rendez-vous de{' '}
-                      <span className="font-semibold">{selectedRendezvous.firstName} {selectedRendezvous.lastName}</span>{' '}
-                      prévu le {selectedRendezvous.date} à {selectedRendezvous.time}.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Raison de l'annulation (optionnel)
-                </label>
-                <textarea
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition"
-                  rows={3}
-                  placeholder="Ex: Client a reporté, créneau indisponible, etc."
-                />
-              </div>
-
-              <div className="flex flex-col-reverse sm:flex-row gap-2 pt-4">
-                <button
-                  onClick={() => {
-                    setCancelModalOpen(false);
-                    setSelectedRendezvous(null);
-                  }}
-                  className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
-                >
-                  Retour
-                </button>
-                <button
-                  onClick={() => selectedRendezvous && handleCancel(selectedRendezvous._id)}
-                  className="px-4 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <LucideTrash2 className="w-4 h-4" />
-                  Confirmer l'annulation
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600 mx-auto"></div>
-            </div>
-          )}
-        </Modal>
-
-        {/* Terminate Modal */}
-        <Modal
-          open={terminateModalOpen}
-          onClose={() => {
-            setTerminateModalOpen(false);
-            setSelectedRendezvous(null);
-          }}
-          title="Terminer le rendez-vous"
-          size="md"
-        >
-          {selectedRendezvous ? (
-            <div className="space-y-4">
-              <div className="p-4 bg-green-50 border border-green-100 rounded-xl">
-                <div className="flex items-start gap-3">
-                  <LucideCalendarCheck className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-green-800">Clôturer le rendez-vous</p>
-                    <p className="text-sm text-green-600 mt-1">
-                      Marquez ce rendez-vous comme terminé et donnez votre avis administratif.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Avis administratif *
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="avisAdmin"
-                      value="Favorable"
-                      className="w-4 h-4 text-green-600 focus:ring-green-500"
-                      onChange={() => {}}
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">Favorable</div>
-                      <div className="text-sm text-gray-500">Le rendez-vous s'est bien passé</div>
-                    </div>
-                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                      <LucideCheckCircle className="w-5 h-5 text-green-600" />
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="avisAdmin"
-                      value="Défavorable"
-                      className="w-4 h-4 text-red-600 focus:ring-red-500"
-                      onChange={() => {}}
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">Défavorable</div>
-                      <div className="text-sm text-gray-500">Le rendez-vous n'a pas abouti</div>
-                    </div>
-                    <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                      <LucideXCircle className="w-5 h-5 text-red-600" />
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex flex-col-reverse sm:flex-row gap-2 pt-4">
-                <button
-                  onClick={() => {
-                    setTerminateModalOpen(false);
-                    setSelectedRendezvous(null);
-                  }}
-                  className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+                  type="button"
+                  onClick={() => setShowDeleteModal(null)}
+                  className="px-4 py-2.5 text-slate-700 bg-white rounded-lg border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400"
                 >
                   Annuler
                 </button>
                 <button
-                  onClick={() => {
-                    const avisInput = document.querySelector('input[name="avisAdmin"]:checked') as HTMLInputElement;
-                    if (avisInput && selectedRendezvous) {
-                      handleTerminate(selectedRendezvous._id, avisInput.value as AdminOpinion);
-                    } else {
-                      toast.error('Veuillez sélectionner un avis');
-                    }
-                  }}
-                  className="px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                  onClick={handleDelete}
+                  disabled={isProcessing}
+                  className="px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all duration-200 font-medium flex items-center gap-2 focus:outline-none focus:ring-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <LucideCalendarCheck className="w-4 h-4" />
-                  Terminer le rendez-vous
+                  {isProcessing ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                      Suppression...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Supprimer
+                    </>
+                  )}
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600 mx-auto"></div>
+          </div>
+        )}
+
+        {/* Modal de sélection d'avis pour le statut "Terminé" */}
+        {showAvisModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl max-w-xs w-full mx-auto">
+              <div className="p-5 border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-blue-500" />
+                  <h2 className="text-base font-bold text-slate-800">Avis Administratif</h2>
+                </div>
+                <p className="text-xs text-slate-600 mt-1">
+                  Sélectionnez un avis pour terminer le rendez-vous
+                </p>
+              </div>
+              
+              <div className="p-5 space-y-3">
+                <div className="grid grid-cols-1 gap-3">
+                  {Object.values(ADMIN_OPINION).map((avis, index) => (
+                    <button
+                      key={`avis-${index}-${avis}`}
+                      onClick={() => handleAvisSelection(avis as AdminOpinion)}
+                      disabled={isProcessing}
+                      className={`p-4 rounded-lg border-2 transition-all duration-200 focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        avis === 'Favorable'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                          : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'
+                      }`}
+                    >
+                      <div className="font-semibold text-sm">{avis}</div>
+                      <div className="text-xs mt-1 opacity-75">
+                        {avis === 'Favorable' 
+                          ? 'Procédure créée' 
+                          : 'Critères non remplis'
+                        }
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAvisModal(null)}
+                    disabled={isProcessing}
+                    className="px-4 py-2 text-sm text-slate-700 bg-white rounded-lg border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 disabled:opacity-50"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
             </div>
-          )}
-        </Modal>
+          </div>
+        )}
+
+        {/* Container principal */}
+        <div className="max-w-3xl mx-auto px-3 sm:px-4 w-full">
+          {/* En-tête avec recherche et filtres */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-4 mb-4">
+            <div className="flex flex-col gap-4 mb-5">
+              <div>
+                <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
+                  Gestion des Rendez-vous
+                </h1>
+                <p className="text-slate-600 mt-1 text-sm">Consultez et gérez tous les rendez-vous du système</p>
+              </div>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all duration-200 font-medium shadow-sm hover:shadow-md flex items-center gap-2 focus:outline-none focus:ring-none focus:border-blue-500 w-full justify-center"
+              >
+                <Plus className="w-4 h-4" />
+                Nouveau RDV
+              </button>
+            </div>
+
+            {/* Barre de recherche et filtres */}
+            <div className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-3.5 text-slate-400 w-4 h-4" />
+                <input 
+                  type="text" 
+                  placeholder="Rechercher un rendez-vous..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200 text-sm"
+                />
+              </div>
+
+              {/* Filtres pour mobile et tablette */}
+              <div className="lg:hidden">
+                <button
+                  onClick={() => setShowMobileFilters(!showMobileFilters)}
+                  className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl flex items-center justify-between focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200"
+                >
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-slate-400" />
+                    <span className="text-slate-700 text-sm">Filtres</span>
+                  </div>
+                  {showMobileFilters ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </button>
+                
+                {showMobileFilters && (
+                  <div className="mt-2 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="relative">
+                      <Filter className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                      <select
+                        value={selectedStatus}
+                        onChange={(e) => setSelectedStatus(e.target.value)}
+                        className="w-full pl-10 pr-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200 appearance-none text-sm"
+                      >
+                        {statusOptions.map((statut, index) => (
+                          <option key={`status-${index}-${statut}`} value={statut}>
+                            {statut === '' ? 'Tous les statuts' : statut}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Filtres pour tablette et desktop */}
+              <div className="hidden lg:grid lg:grid-cols-2 gap-4">
+                <div className="relative">
+                  <Filter className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                  <select
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200 appearance-none text-sm"
+                  >
+                    {statusOptions.map((statut, index) => (
+                      <option key={`status-desktop-${index}-${statut}`} value={statut}>
+                        {statut === '' ? 'Tous les statuts' : statut}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
+
+                <div className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200">
+                  <Calendar className="w-4 h-4" />
+                  <span>Total: {rendezvous.length} rendez-vous</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Version mobile - Cards */}
+          <div className="lg:hidden">
+            {isLoading ? (
+              <div key="loading-mobile" className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="text-slate-600 mt-2 text-sm">Chargement...</p>
+              </div>
+            ) : rendezvous.length === 0 ? (
+              <div key="no-data-mobile" className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 text-center">
+                <Calendar className="w-12 h-12 mx-auto mb-4 text-slate-400" />
+                <p className="text-slate-600">Aucun rendez-vous trouvé</p>
+                <p className="text-sm text-slate-500 mt-1">Essayez de modifier vos critères de recherche</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {rendezvous.map((rdv, index) => (
+                  <div 
+                    key={`mobile-rdv-${index}-${rdv._id}`}
+                    className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-4"
+                  >
+                    <div className="space-y-3">
+                      {/* En-tête */}
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <User className="w-4 h-4 text-slate-400" />
+                            <h3 className="font-semibold text-slate-800 text-sm">{rdv.firstName} {rdv.lastName}</h3>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-slate-600">
+                            <Mail className="w-3 h-3 text-slate-400" />
+                            <span className="truncate">{rdv.email}</span>
+                          </div>
+                        </div>
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowMobileActions(showMobileActions === rdv._id ? null : rdv._id)}
+                            className="p-1 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none focus:ring-none focus:border-blue-500"
+                          >
+                            <MoreVertical className="w-4 h-4 text-slate-400" />
+                          </button>
+                          
+                          {showMobileActions === rdv._id && (
+                            <div className="absolute right-0 top-8 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[140px]">
+                              <select
+                                value={rdv.status}
+                                onChange={(e) => handleStatusChange(rdv._id, e.target.value)}
+                                className={`w-full px-3 py-2 text-xs font-medium border-b border-slate-200 focus:outline-none focus:ring-none ${getStatusColor(rdv.status as RendezvousStatus)}`}
+                              >
+                                {Object.values(RENDEZVOUS_STATUS).map((status, statusIndex) => (
+                                  <option key={`mobile-status-${statusIndex}-${status}`} value={status}>{status}</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => {
+                                  setShowDeleteModal({
+                                    id: rdv._id,
+                                    firstName: rdv.firstName,
+                                    lastName: rdv.lastName
+                                  });
+                                  setShowMobileActions(null);
+                                }}
+                                className="w-full px-3 py-2 text-xs flex items-center gap-2 transition-colors focus:outline-none focus:ring-none text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                Supprimer
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Informations */}
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-3 h-3 text-slate-400" />
+                            <span className="text-slate-700">{formatDate(rdv.date)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            <span className="text-slate-700">{formatTime(rdv.time)}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-3 h-3 text-slate-400" />
+                            <span className="text-slate-700 truncate">
+                              {getEffectiveDestination(rdv)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <BookOpen className="w-3 h-3 text-slate-400" />
+                            <span className="text-slate-700 truncate">
+                              {getEffectiveFiliere(rdv)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Statut et Avis */}
+                      <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200">
+                        <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(rdv.status as RendezvousStatus)}`}>
+                          {rdv.status}
+                        </span>
+                        {rdv.status === 'Terminé' && rdv.avisAdmin && (
+                          <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${getAvisColor(rdv.avisAdmin as AdminOpinion)}`}>
+                            Avis: {rdv.avisAdmin}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Version tablette/desktop - Table */}
+          <div className="hidden lg:block bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px]">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th key="header-contact" className="px-4 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      <div className="flex items-center gap-2">
+                        <User className="w-3 h-3" />
+                        Contact
+                      </div>
+                    </th>
+                    <th key="header-date" className="px-4 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-3 h-3" />
+                        Date & Heure
+                      </div>
+                    </th>
+                    <th key="header-destination" className="px-4 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-3 h-3" />
+                        Destination
+                      </div>
+                    </th>
+                    <th key="header-status" className="px-4 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      Statut
+                    </th>
+                    <th key="header-actions" className="px-4 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {isLoading ? (
+                    <tr key="loading-row">
+                      <td colSpan={5} className="px-6 py-8 text-center">
+                        <div className="flex justify-center items-center gap-3">
+                          <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
+                          <span className="text-slate-600">Chargement des rendez-vous...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : rendezvous.length === 0 ? (
+                    <tr key="empty-row">
+                      <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                        <Calendar className="w-16 h-16 mx-auto mb-4 text-slate-400" />
+                        <p className="text-slate-600">Aucun rendez-vous trouvé</p>
+                        <p className="text-sm text-slate-500 mt-1">Essayez de modifier vos critères de recherche</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    rendezvous.map((rdv, index) => (
+                      <tr 
+                        key={`desktop-rdv-${index}-${rdv._id}`}
+                        className="hover:bg-slate-50 transition-colors"
+                      >
+                        <td className="px-4 py-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 text-sm">
+                              <User className="w-3 h-3 text-slate-400" />
+                              <span className="font-medium text-slate-800">{rdv.firstName} {rdv.lastName}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm">
+                              <Mail className="w-3 h-3 text-slate-400" />
+                              <span className="text-slate-700 truncate max-w-[120px]">{rdv.email}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm">
+                              <Phone className="w-3 h-3 text-slate-400" />
+                              <span className="text-slate-700">{rdv.telephone}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Calendar className="w-3 h-3 text-slate-400" />
+                              <span className="text-slate-700">
+                                {formatDate(rdv.date)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              <span className="text-slate-700">{formatTime(rdv.time)}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-3 h-3 text-slate-400" />
+                            <span className="text-sm text-slate-700 max-w-[100px] truncate">
+                              {getEffectiveDestination(rdv)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm mt-1">
+                            <BookOpen className="w-3 h-3 text-slate-400" />
+                            <span className="text-slate-700 max-w-[100px] truncate">
+                              {getEffectiveFiliere(rdv)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="space-y-2">
+                            <select
+                              value={rdv.status}
+                              onChange={(e) => handleStatusChange(rdv._id, e.target.value)}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium border focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200 ${getStatusColor(rdv.status as RendezvousStatus)}`}
+                            >
+                              {Object.values(RENDEZVOUS_STATUS).map((status, statusIndex) => (
+                                <option key={`desktop-status-${statusIndex}-${status}`} value={status}>{status}</option>
+                              ))}
+                            </select>
+                            {rdv.status === 'Terminé' && rdv.avisAdmin && (
+                              <span className={`block px-2 py-1 rounded-lg text-xs font-medium border ${getAvisColor(rdv.avisAdmin as AdminOpinion)}`}>
+                                {rdv.avisAdmin}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setShowDeleteModal({
+                                id: rdv._id,
+                                firstName: rdv.firstName,
+                                lastName: rdv.lastName
+                              })}
+                              className="p-2 rounded-lg transition-colors focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 text-red-600 hover:bg-red-50"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div key="pagination" className="px-4 py-4 border-t border-slate-200 bg-slate-50/50">
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="px-4 py-2.5 text-sm bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 flex items-center gap-2"
+                  >
+                    <ChevronUp className="w-4 h-4 rotate-90" />
+                    Précédent
+                  </button>
+                  
+                  <span className="text-sm text-slate-600">
+                    Page {page} sur {totalPages}
+                  </span>
+                  
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="px-4 py-2.5 text-sm bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 flex items-center gap-2"
+                  >
+                    Suivant
+                    <ChevronUp className="w-4 h-4 -rotate-90" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </RequireAdmin>
+    </>
   );
-}
+};
+
+export default AdminRendezVous;

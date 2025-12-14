@@ -210,7 +210,7 @@ const API_CONFIG = {
 } as const;
 
 // ==================== CONTEXT ====================
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
@@ -263,6 +263,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       sessionCheckIntervalRef.current = null;
     }
   }, []);
+
+  
   const fetchWithAuth = useCallback(async (
     endpoint: string,
     options: RequestInit = {}
@@ -297,7 +299,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
           
           navigate(REDIRECT_PATHS.LOGIN, { replace: true });
-          throw new Error('SESSION_EXPIRED');
+          throw new Error('SESSION EXPIRED');
         }
         
         if (errorData.code) {
@@ -311,55 +313,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [access_token, cleanupAuthData, navigate]);
 
-const fetchUserData = useCallback(async (): Promise<void> => {
-  try {
-    const token = access_token || window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-    
-    const response = await window.fetch(
-      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.ME}`,
-      {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
+  const fetchUserData = useCallback(async (): Promise<void> => {
+    try {
+      const token = access_token || window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      
+      const response = await window.fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.ME}`,
+        {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { Authorization: `Bearer ${token}` }),
+          }
+        }
+      );
+      
+      if (response.ok) {
+        const userData = await response.json();
+        
+        const mappedUser: User = {
+          id: userData.id || userData._id || '',
+          email: userData.email || '',
+          firstName: userData.firstName || '',
+          lastName: userData.lastName || '',
+          role: userData.role || UserRole.USER,
+          isActive: userData.isActive !== false,
+          telephone: userData.telephone || '',
+          isAdmin: userData.role === UserRole.ADMIN,
+        };
+
+        setUser(mappedUser);
+        window.localStorage?.setItem(
+          STORAGE_KEYS.USER_DATA,
+          JSON.stringify(mappedUser)
+        );
+      } else {
+        // Si la requête échoue, nettoyer
+        if (response.status === 401) {
+          cleanupAuthData();
         }
       }
-    );
-    
-    if (response.ok) {
-      const userData = await response.json();
-      
-      const mappedUser: User = {
-        id: userData.id || userData._id || '',
-        email: userData.email || '',
-        firstName: userData.firstName || '',
-        lastName: userData.lastName || '',
-        role: userData.role || UserRole.USER,
-        isActive: userData.isActive !== false,
-        telephone: userData.telephone || '',
-        isAdmin: userData.role === UserRole.ADMIN,
-      };
-
-      setUser(mappedUser);
-      window.localStorage?.setItem(
-        STORAGE_KEYS.USER_DATA,
-        JSON.stringify(mappedUser)
-      );
-    } else {
-      // Si la requête échoue, nettoyer
-      if (response.status === 401) {
-        cleanupAuthData();
-      }
+    } catch (error) {
+      console.warn('Erreur récupération utilisateur:', error);
     }
-  } catch (error) {
-    console.warn('Erreur récupération utilisateur:', error);
-  }
-}, [access_token, cleanupAuthData]);
+  }, [access_token, cleanupAuthData]);
 
-  const updateProfile = useCallback(async (): Promise<void> => {
-    await fetchUserData();
-  }, [fetchUserData]);
 
   const handleAuthError = useCallback((error: any, context: string = ''): void => {
     const errorMessage = error.message || 'Erreur inconnue';
@@ -371,7 +370,7 @@ const fetchUserData = useCallback(async (): Promise<void> => {
     if (errorMessage.includes(AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED)) {
       toast.error(TOAST_MESSAGES.PASSWORD_RESET_REQUIRED, { autoClose: 8000 });
       navigate(REDIRECT_PATHS.RESET_PASSWORD_REQUIRED, { 
-        state: { email: error.email || '', reason: 'password_reset_required' } 
+        state: { email: error.email || '', reason: 'password reset required' } 
       });
     } else if (errorMessage.includes(AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE)) {
       toast.error(TOAST_MESSAGES.ACCOUNT_DISABLED, { autoClose: 8000 });
@@ -383,7 +382,7 @@ const fetchUserData = useCallback(async (): Promise<void> => {
       toast.error(TOAST_MESSAGES.MAINTENANCE_MODE, { autoClose: 8000 });
     } else if (errorMessage.includes(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS)) {
       toast.error(TOAST_MESSAGES.INVALID_CREDENTIALS, { autoClose: 4000 });
-    } else if (errorMessage === 'SESSION_EXPIRED') {
+    } else if (errorMessage === 'SESSION EXPIRED') {
       // Ne pas montrer de toast supplémentaire
     } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
       toast.error(TOAST_MESSAGES.NETWORK_ERROR, { autoClose: 5000 });
