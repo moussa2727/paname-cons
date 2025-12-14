@@ -92,6 +92,10 @@ const MesRendezvous = () => {
     total: 0,
     totalPages: 1,
   });
+  
+  // État pour gérer le popover de confirmation
+  const [showCancelConfirm, setShowCancelConfirm] = useState<string | null>(null);
+  const [cancelPosition, setCancelPosition] = useState({ x: 0, y: 0 });
 
   // Fonction pour obtenir la configuration de page
   const getCurrentPageConfig = () => {
@@ -179,13 +183,21 @@ const MesRendezvous = () => {
     }
   }, [location.pathname, selectedStatus, pagination.page, fetchRendezvous]);
 
+  // Ouvrir le popover de confirmation
+  const openCancelConfirm = (rdvId: string, event: React.MouseEvent) => {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    setCancelPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.bottom + window.scrollY + 8,
+    });
+    setShowCancelConfirm(rdvId);
+  };
+
   // Annuler un rendez-vous
   const handleCancelRendezvous = async (rdvId: string) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir annuler ce rendez-vous ?')) {
-      return;
-    }
-
+    setShowCancelConfirm(null);
     setCancelling(rdvId);
+    
     try {
       const updatedRdv = await rendezvousService.cancelRendezvous(rdvId);
       
@@ -278,23 +290,25 @@ const MesRendezvous = () => {
 
         <div className="flex flex-col sm:items-end gap-2">
           {UserRendezvousService.canCancelRendezvous(rdv) && (
-            <button
-              onClick={() => handleCancelRendezvous(rdv._id)}
-              disabled={cancelling === rdv._id}
-              className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 hover:border-red-300 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {cancelling === rdv._id ? (
-                <>
-                  <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-red-600 border-t-transparent"></div>
-                  Annulation...
-                </>
-              ) : (
-                <>
-                  <FiTrash2 className="mr-2 h-3 w-3" />
-                  Annuler
-                </>
-              )}
-            </button>
+            <div className="relative">
+              <button
+                onClick={(e) => openCancelConfirm(rdv._id, e)}
+                disabled={cancelling === rdv._id}
+                className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 hover:border-red-300 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {cancelling === rdv._id ? (
+                  <>
+                    <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-red-600 border-t-transparent"></div>
+                    Annulation...
+                  </>
+                ) : (
+                  <>
+                    <FiTrash2 className="mr-2 h-3 w-3" />
+                    Annuler
+                  </>
+                )}
+              </button>
+            </div>
           )}
 
           {rdv.status === 'Terminé' && rdv.avisAdmin && (
@@ -336,11 +350,30 @@ const MesRendezvous = () => {
     }
   }, []);
 
+  // Fermer le popover en cliquant à l'extérieur
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showCancelConfirm) {
+        setShowCancelConfirm(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showCancelConfirm]);
+
   return (
     <>
       <Helmet>
         <title>{currentPage.pageTitle}</title>
         <meta name="description" content={currentPage.description} />
+        {/* Balises pour bloquer l'indexation */}
+        <meta name="robots" content="noindex, nofollow" />
+        <meta name="googlebot" content="noindex, nofollow" />
+        {/* Balise pour bloquer le zoom sur mobile */}
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       </Helmet>
 
       <UserHeader
@@ -369,6 +402,40 @@ const MesRendezvous = () => {
           </div>
         </div>
       </UserHeader>
+
+      {/* Popover de confirmation pour l'annulation */}
+      {showCancelConfirm && (
+        <div 
+          className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-4 w-80"
+          style={{
+            left: `${cancelPosition.x}px`,
+            top: `${cancelPosition.y}px`,
+            transform: 'translateX(-50%)',
+          }}
+        >
+          <div className="mb-3">
+            <h3 className="font-medium text-gray-800 mb-1">Confirmer l'annulation</h3>
+            <p className="text-sm text-gray-600">
+              Êtes-vous sûr de vouloir annuler ce rendez-vous ? Cette action est irréversible.
+            </p>
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setShowCancelConfirm(null)}
+              className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-all duration-200"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={() => handleCancelRendezvous(showCancelConfirm)}
+              className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 border border-red-700 rounded-lg hover:bg-red-700 transition-all duration-200"
+            >
+              Oui, annuler
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Contenu principal */}
       <div 
