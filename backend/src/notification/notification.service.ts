@@ -5,14 +5,6 @@ import { Rendezvous } from "../schemas/rendezvous.schema";
 import { Procedure, StepStatus } from "../schemas/procedure.schema";
 import { Contact } from "../schemas/contact.schema";
 
-interface EmailConfig {
-  host: string;
-  port: number;
-  secure: boolean;
-  user: string;
-  pass: string;
-}
-
 @Injectable()
 export class NotificationService implements OnModuleInit {
   private readonly logger = new Logger(NotificationService.name);
@@ -27,56 +19,40 @@ export class NotificationService implements OnModuleInit {
     await this.initializeTransporter();
   }
 
-private async initializeTransporter(): Promise<void> {
-  const emailUser = this.configService.get("EMAIL_USER");
-  
-  if (!this.configService.get("EMAIL_HOST") || !emailUser || !this.configService.get("EMAIL_PASS")) {
-    this.logger.warn('Configuration email incomplète - notifications désactivées');
-    this.emailServiceAvailable = false;
-    return;
-  }
-
-  try {
-    this.fromEmail = `"${this.appName}" <${emailUser}>`;
-    
+  private async initializeTransporter(): Promise<void> {
+    const host = this.configService.get("EMAIL_HOST");
     const port = parseInt(this.configService.get("EMAIL_PORT"));
-    const secure = false; // Toujours false pour port 587
-    const useTls = port === 587; // STARTTLS pour le port 587
-    
-    this.transporter = nodemailer.createTransport({
-      host: this.configService.get("EMAIL_HOST"),
-      port: port,
-      secure: secure, // false pour port 587
-      requireTLS: useTls, // true pour port 587
-      ignoreTLS: !useTls, // false pour port 587
-      auth: {
-        user: emailUser,
-        pass: this.configService.get("EMAIL_PASS"),
-      },
-      tls: {
-        rejectUnauthorized: true,
-        ciphers: 'SSLv3'
-      },
-      connectionTimeout: 30000,
-      greetingTimeout: 15000,
-      socketTimeout: 60000,
-    });
+    const user = this.configService.get("EMAIL_USER");
+    const pass = this.configService.get("EMAIL_PASS");
 
-    await this.testConnection();
-    this.emailServiceAvailable = true;
-    this.logger.log('Service notification email initialisé avec succès');
-    
-  } catch (error) {
-    this.logger.error(`Erreur initialisation service notification: ${error.message}`, error.stack);
-    this.emailServiceAvailable = false;
-  }
-}
-
-  private async testConnection(): Promise<void> {
-    if (!this.transporter) {
-      throw new Error('Transporter non initialisé');
+    if (!host || !user || !pass) {
+      this.logger.warn('Configuration email incomplète - notifications désactivées');
+      this.emailServiceAvailable = false;
+      return;
     }
-    await this.transporter.verify();
+
+    try {
+      this.fromEmail = `"${this.appName}" <${user}>`;
+      
+      this.transporter = nodemailer.createTransport({
+        host: host,
+        port: port,
+        secure: false,
+        auth: {
+          user: user,
+          pass: pass,
+        },
+        connectionTimeout: 10000,
+        greetingTimeout: 5000,
+      });
+
+      this.emailServiceAvailable = true;
+      this.logger.log(`Service notification initialisé (${host}:${port})`);
+      
+    } catch (error) {
+      this.logger.error(`Erreur initialisation notification: ${error.message}`);
+      this.emailServiceAvailable = false;
+    }
   }
 
   private async sendEmail(
@@ -86,10 +62,8 @@ private async initializeTransporter(): Promise<void> {
     context: string,
     replyTo?: string
   ): Promise<boolean> {
-    const maskedEmail = this.maskEmail(to);
-    
-    if (!this.emailServiceAvailable || !this.transporter) {
-      this.logger.warn(`Notification "${context}" pour ${maskedEmail} - service indisponible`);
+    if (!this.emailServiceAvailable) {
+      this.logger.warn(`Notification "${context}" - service indisponible`);
       return false;
     }
 
@@ -106,15 +80,11 @@ private async initializeTransporter(): Promise<void> {
       }
 
       await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Email ${context} envoyé à: ${maskedEmail}`);
+      this.logger.log(`Email envoyé (${context}) à: ${this.maskEmail(to)}`);
       return true;
       
     } catch (error) {
-      this.logger.error(`Erreur envoi ${context}: ${error.message}`);
-      if (error.message.includes('BadCredentials') || error.message.includes('Invalid login')) {
-        this.emailServiceAvailable = false;
-        this.logger.warn('Service notification email désactivé - erreur authentification');
-      }
+      this.logger.error(`Erreur ${context}: ${error.message}`);
       return false;
     }
   }
@@ -548,7 +518,6 @@ private async initializeTransporter(): Promise<void> {
   private maskEmail(email: string): string {
     if (!email || !email.includes('@')) return '***@***';
     const [name, domain] = email.split('@');
-    if (name.length <= 2) return `***@${domain}`;
     return `${name.substring(0, 2)}***@${domain}`;
   }
 }
