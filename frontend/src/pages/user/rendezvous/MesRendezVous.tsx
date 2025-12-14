@@ -185,11 +185,23 @@ const MesRendezvous = () => {
 
   // Ouvrir le popover de confirmation
   const openCancelConfirm = (rdvId: string, event: React.MouseEvent) => {
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    setCancelPosition({
-      x: rect.left + rect.width / 2,
-      y: rect.bottom + window.scrollY + 8,
-    });
+    // Positionnement adaptatif pour mobile
+    const isMobile = window.innerWidth < 640;
+    
+    if (isMobile) {
+      // Sur mobile: centré en haut de l'écran
+      setCancelPosition({
+        x: window.innerWidth / 2,
+        y: Math.min(window.scrollY + 100, window.scrollY + window.innerHeight / 4),
+      });
+    } else {
+      // Sur desktop: positionné près du bouton
+      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      setCancelPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.bottom + window.scrollY + 8,
+      });
+    }
     setShowCancelConfirm(rdvId);
   };
 
@@ -354,7 +366,10 @@ const MesRendezvous = () => {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (showCancelConfirm) {
-        setShowCancelConfirm(null);
+        const popover = document.querySelector('.cancel-confirm-popover');
+        if (popover && !popover.contains(event.target as Node)) {
+          setShowCancelConfirm(null);
+        }
       }
     };
 
@@ -403,38 +418,63 @@ const MesRendezvous = () => {
         </div>
       </UserHeader>
 
-      {/* Popover de confirmation pour l'annulation */}
+      {/* Popover de confirmation pour l'annulation - MOBILE FIRST */}
       {showCancelConfirm && (
-        <div 
-          className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-4 w-80"
-          style={{
-            left: `${cancelPosition.x}px`,
-            top: `${cancelPosition.y}px`,
-            transform: 'translateX(-50%)',
-          }}
-        >
-          <div className="mb-3">
-            <h3 className="font-medium text-gray-800 mb-1">Confirmer l'annulation</h3>
-            <p className="text-sm text-gray-600">
-              Êtes-vous sûr de vouloir annuler ce rendez-vous ? Cette action est irréversible.
-            </p>
-          </div>
+        <>
+          {/* Overlay sombre */}
+          <div 
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={() => setShowCancelConfirm(null)}
+          />
           
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => setShowCancelConfirm(null)}
-              className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-all duration-200"
-            >
-              Annuler
-            </button>
-            <button
-              onClick={() => handleCancelRendezvous(showCancelConfirm)}
-              className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 border border-red-700 rounded-lg hover:bg-red-700 transition-all duration-200"
-            >
-              Oui, annuler
-            </button>
+          {/* Popover centré */}
+          <div 
+            className="cancel-confirm-popover fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-6 w-11/12 max-w-md"
+            style={{
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
+            <div className="mb-4">
+              <div className="flex items-center justify-center mb-3">
+                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100">
+                  <FiAlertCircle className="h-6 w-6 text-red-600" />
+                </div>
+              </div>
+              
+              <h3 className="text-center text-lg font-semibold text-gray-800 mb-2">
+                Confirmer l'annulation
+              </h3>
+              <p className="text-center text-sm text-gray-600">
+                Êtes-vous sûr de vouloir annuler ce rendez-vous ?<br />
+                <span className="font-medium">Cette action est irréversible.</span>
+              </p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row justify-center gap-3">
+              <button
+                onClick={() => setShowCancelConfirm(null)}
+                className="px-4 py-3 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-all duration-200 flex-1"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => handleCancelRendezvous(showCancelConfirm)}
+                className="px-4 py-3 text-sm font-medium text-white bg-red-600 border border-red-700 rounded-lg hover:bg-red-700 transition-all duration-200 flex-1 flex items-center justify-center"
+              >
+                {cancelling === showCancelConfirm ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                    Annulation...
+                  </>
+                ) : (
+                  'Oui, annuler'
+                )}
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Contenu principal */}

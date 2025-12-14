@@ -228,7 +228,7 @@ function Header(): React.JSX.Element {
             <a
               href='tel:+22391830941'
               className='flex items-center font-medium hover:text-sky-100 transition-colors'
-              aria-label='Numéro de téléphone Paname Consulting'
+              aria-label='Numéro de téléphone'
             >
               <PhoneIcon className='w-4 h-4 mr-2' />
               <span>+223 91 83 09 41</span>
@@ -236,7 +236,7 @@ function Header(): React.JSX.Element {
             <a
               href='mailto:panameconsulting906@gmail.com'
               className='flex items-center font-medium hover:text-sky-100 transition-colors'
-              aria-label='Adresse e-mail Paname Consulting'
+              aria-label='Adresse e-mail'
             >
               <MailIcon className='w-4 h-4 mr-2' />
               <span>panameconsulting906@gmail.com</span>
@@ -245,7 +245,7 @@ function Header(): React.JSX.Element {
           <div className='flex items-center'>
             <span
               className='font-semibold bg-white/20 px-3 py-1 rounded-full'
-              aria-label='Slogan de Paname Consulting: Le cap vers l excellence'
+              aria-label='Slogan: Le cap vers l excellence'
             >
               LE CAP VERS L'EXCELLENCE
             </span>
@@ -255,7 +255,7 @@ function Header(): React.JSX.Element {
 
       {/* Navigation principale */}
       <nav
-        className='bg-white shadow-md sm:py-1'
+        className='bg-white shadow-md py-1 sm:py-1' 
         role='navigation'
         aria-label='Menu principal'
       >
@@ -277,7 +277,7 @@ function Header(): React.JSX.Element {
               <div className='w-12 h-12 md:w-16 md:h-16 rounded-full shadow-sm'>
                 <img
                   src='/paname-consulting.jpg'
-                  alt='Logo Paname Consulting'
+                  alt='Logo'
                   className='w-full h-auto rounded'
                   width={64}
                   height={64}
@@ -476,18 +476,11 @@ function Header(): React.JSX.Element {
                           </>
                         ) : (
                           <p className='text-sm font-bold text-gray-800'>
-                            Paname Consulting
+                            Mon Compte
                           </p>
                         )}
                       </div>
                     </div>
-                    <button
-                      onClick={() => setNav(false)}
-                      className='p-2 rounded-full hover:bg-gray-200'
-                      aria-label='Fermer le menu'
-                    >
-                      <X className='w-5 h-5 text-gray-600' />
-                    </button>
                   </div>
                 </div>
 
@@ -640,7 +633,7 @@ function Header(): React.JSX.Element {
                         </button>
                         <div className='text-center pt-2'>
                           <span className='text-xs text-gray-400'>
-                            Paname Consulting © {new Date().getFullYear()}
+                            © {new Date().getFullYear()}
                           </span>
                         </div>
                       </div>
@@ -652,7 +645,7 @@ function Header(): React.JSX.Element {
                     <div className='pt-4 border-t border-gray-200'>
                       <div className='text-center'>
                         <span className='text-xs text-gray-400'>
-                          Paname Consulting © {new Date().getFullYear()}
+                          © {new Date().getFullYear()}
                         </span>
                       </div>
                     </div>
