@@ -28,9 +28,27 @@ import { AuthenticatedRequest } from "../shared/interfaces/authenticated-user.in
 export class UsersController {
   private readonly logger = new Logger(UsersController.name);
 
+  // ✅ AJOUTER LES MÉTHODES DE MASQUAGE
+  private maskEmail(email: string): string {
+    if (!email) return '***@***';
+    const [name, domain] = email.split('@');
+    if (!name || !domain) return '***@***';
+    
+    const maskedName = name.length <= 2 
+      ? name.charAt(0) + '*'
+      : name.charAt(0) + '***' + (name.length > 1 ? name.charAt(name.length - 1) : '');
+    
+    return `${maskedName}@${domain}`;
+  }
+
+  private maskUserId(userId: string): string {
+    if (!userId) return 'user_***';
+    if (userId.length <= 8) return userId;
+    return `${userId.substring(0, 4)}***${userId.substring(userId.length - 4)}`;
+  }
+
   constructor(private readonly usersService: UsersService) {}
   
-  // === ENDPOINTS ADMIN ===
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
@@ -43,20 +61,21 @@ export class UsersController {
   async create(@Body() createUserDto: RegisterDto) {
     this.logger.log('Création d\'utilisateur par admin');
 
+    // ✅ CORRIGÉ : Email masqué
+    const maskedEmail = this.maskEmail(createUserDto.email);
+
     // Empêcher la création d'autres admins via l'API
     if (createUserDto.role === UserRole.ADMIN) {
-      const existingAdmin = await this.usersService.findByRole(UserRole.ADMIN);
-      if (existingAdmin) {
-        this.logger.warn('Tentative de création d\'un deuxième admin');
-        throw new BadRequestException(
-          "Il ne peut y avoir qu'un seul administrateur",
-        );
-      }
+      this.logger.warn('Tentative de création d\'un admin via API');
+      throw new BadRequestException(
+        "Impossible de créer un autre administrateur. Un seul admin est autorisé.",
+      );
     }
 
     // Empêcher la création d'un utilisateur avec l'email admin spécifique
     const adminEmail = process.env.EMAIL_USER;
     if (createUserDto.email === adminEmail) {
+      // ✅ CORRIGÉ : Log sécurisé
       this.logger.warn('Tentative d\'utilisation de l\'email admin réservé');
       throw new BadRequestException(
         "Cet email est réservé à l'administrateur principal",
@@ -64,8 +83,17 @@ export class UsersController {
     }
 
     try {
-      const user = await this.usersService.create(createUserDto);
-      this.logger.log('Utilisateur créé avec succès');
+      // ✅ FORCER LE RÔLE USER
+      const userData = {
+        ...createUserDto,
+        role: UserRole.USER
+      };
+      
+      const user = await this.usersService.create(userData);
+      
+      // ✅ CORRIGÉ : Email masqué dans le log
+      this.logger.log(`Utilisateur créé avec succès: ${maskedEmail}`);
+      
       return {
         id: user._id?.toString(),
         email: user.email,
@@ -78,7 +106,8 @@ export class UsersController {
         updatedAt: user.updatedAt,
       };
     } catch (error) {
-      this.logger.error('Erreur création utilisateur', error.stack);
+      // ✅ CORRIGÉ : Email masqué dans l'erreur
+      this.logger.error(`Erreur création utilisateur ${maskedEmail}`, error.stack);
       throw error;
     }
   }
@@ -96,6 +125,8 @@ export class UsersController {
     
     try {
       const users = await this.usersService.findAll();
+      
+      // ✅ CORRIGÉ : Log sécurisé sans détails sensibles
       this.logger.log(`${users.length} utilisateurs récupérés`);
       
       return users.map(user => ({
@@ -133,7 +164,10 @@ export class UsersController {
     
     try {
       const stats = await this.usersService.getStats();
+      
+      // ✅ CORRIGÉ : Log sécurisé
       this.logger.log(`Statistiques générées - Total: ${stats.totalUsers}`);
+      
       return stats;
     } catch (error) {
       this.logger.error('Erreur génération stats', error.stack);
@@ -153,13 +187,15 @@ export class UsersController {
   @ApiResponse({ status: 404, description: "Utilisateur non trouvé" })
   @ApiBearerAuth()
   async remove(@Param("id") id: string) {
-    this.logger.log(`Suppression utilisateur demandée: ${id}`);
+    // ✅ CORRIGÉ : ID masqué
+    const maskedId = this.maskUserId(id);
+    this.logger.log(`Suppression utilisateur demandée: ${maskedId}`);
     
     try {
       await this.usersService.delete(id);
-      this.logger.log(`Utilisateur ${id} supprimé`);
+      this.logger.log(`Utilisateur ${maskedId} supprimé`);
     } catch (error) {
-      this.logger.error(`Erreur suppression utilisateur ${id}`, error.stack);
+      this.logger.error(`Erreur suppression utilisateur ${maskedId}`, error.stack);
       throw error;
     }
   }
@@ -174,11 +210,16 @@ export class UsersController {
   @ApiResponse({ status: 404, description: "Utilisateur non trouvé" })
   @ApiBearerAuth()
   async toggleStatus(@Param("id") id: string) {
-    this.logger.log(`Changement statut utilisateur: ${id}`);
+    // ✅ CORRIGÉ : ID masqué
+    const maskedId = this.maskUserId(id);
+    this.logger.log(`Changement statut utilisateur: ${maskedId}`);
     
     try {
       const user = await this.usersService.toggleStatus(id);
-      this.logger.log(`Statut utilisateur modifié - Actif: ${user.isActive}`);
+      
+      // ✅ CORRIGÉ : Email masqué
+      const maskedEmail = this.maskEmail(user.email);
+      this.logger.log(`Statut utilisateur modifié - Actif: ${user.isActive} (${maskedEmail})`);
       
       return {
         id: user._id?.toString(),
@@ -191,7 +232,7 @@ export class UsersController {
         updatedAt: user.updatedAt,
       };
     } catch (error) {
-      this.logger.error(`Erreur changement statut ${id}`, error.stack);
+      this.logger.error(`Erreur changement statut ${maskedId}`, error.stack);
       throw error;
     }
   }
@@ -225,6 +266,7 @@ export class UsersController {
   @ApiResponse({ status: 403, description: "Interdit" })
   @ApiBearerAuth()
   async setMaintenanceMode(@Body() body: { enabled: boolean }) {
+    // ✅ CORRIGÉ : Log sécurisé
     this.logger.log(`Changement mode maintenance - Activé: ${body.enabled}`);
     
     await this.usersService.setMaintenanceMode(body.enabled);
@@ -247,9 +289,13 @@ export class UsersController {
   @ApiResponse({ status: 404, description: "Utilisateur non trouvé" })
   @ApiBearerAuth()
   async checkUserAccess(@Param("userId") userId: string) {
-    this.logger.log(`Vérification accès utilisateur: ${userId}`);
+    // ✅ CORRIGÉ : ID masqué
+    const maskedId = this.maskUserId(userId);
+    this.logger.log(`Vérification accès utilisateur: ${maskedId}`);
     
     const accessCheck = await this.usersService.checkUserAccess(userId);
+    
+    // ✅ CORRIGÉ : Log sécurisé
     this.logger.log(`Accès utilisateur: ${accessCheck.canAccess}`);
     
     return {
@@ -261,7 +307,6 @@ export class UsersController {
     };
   }
 
-  // === ENDPOINTS PUBLIC (Pour l'utilisateur connecté) ===
   @Patch("profile/me")
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: "Mettre à jour son propre profil" })
@@ -275,7 +320,9 @@ export class UsersController {
   ) {
     const userId = req.user.id;
     
-    this.logger.log(`Mise à jour profil utilisateur: ${userId}`);
+    // ✅ CORRIGÉ : ID masqué
+    const maskedId = this.maskUserId(userId);
+    this.logger.log(`Mise à jour profil utilisateur: ${maskedId}`);
 
     // Validation améliorée - MISE À JOUR INDÉPENDANTE email/téléphone
     if (
@@ -302,7 +349,6 @@ export class UsersController {
     }
 
     // 🔥 VALIDATION TÉLÉPHONE - MISE À JOUR INDÉPENDANTE
-    // IMPORTANT: Accepter chaîne vide pour suppression, mais si rempli → minimum 5 caractères
     if (updateUserDto.telephone !== undefined) {
       const trimmedPhone = updateUserDto.telephone.trim();
       
@@ -323,13 +369,22 @@ export class UsersController {
       updateUserDto.email.trim() !== ""
     ) {
       allowedUpdate.email = updateUserDto.email.trim().toLowerCase();
-      this.logger.log(`Email à mettre à jour: ${allowedUpdate.email}`);
+      
+      // ✅ CORRIGÉ : Email masqué dans le log
+      const maskedEmail = this.maskEmail(allowedUpdate.email);
+      this.logger.log(`Email à mettre à jour: ${maskedEmail}`);
     }
 
     // Téléphone - accepter chaîne vide pour suppression
     if (updateUserDto.telephone !== undefined) {
       allowedUpdate.telephone = updateUserDto.telephone.trim();
-      this.logger.log(`Téléphone à mettre à jour: ${allowedUpdate.telephone || '(vide pour suppression)'}`);
+      
+      // ✅ CORRIGÉ : Téléphone masqué
+      const maskedPhone = allowedUpdate.telephone 
+        ? `${allowedUpdate.telephone.substring(0, 4)}***${allowedUpdate.telephone.substring(allowedUpdate.telephone.length - 2)}`
+        : '(vide pour suppression)';
+      
+      this.logger.log(`Téléphone à mettre à jour: ${maskedPhone}`);
     }
 
     if (Object.keys(allowedUpdate).length === 0) {
@@ -337,6 +392,7 @@ export class UsersController {
       throw new BadRequestException("Aucune donnée valide à mettre à jour");
     }
 
+    // ✅ CORRIGÉ : Log sécurisé sans données sensibles
     this.logger.log(`Données validées pour mise à jour - Champs: ${Object.keys(allowedUpdate).join(', ')}`);
 
     try {
@@ -365,6 +421,7 @@ export class UsersController {
         updatedAt: updatedUser.updatedAt,
       };
     } catch (error) {
+      // ✅ CORRIGÉ : Log sécurisé
       this.logger.error('Erreur mise à jour profil', error.stack);
       throw error;
     }
@@ -384,7 +441,9 @@ export class UsersController {
     @Param("id") userId: string,
     @Body() body: { newPassword: string; confirmNewPassword: string },
   ) {
-    this.logger.log(`Réinitialisation mot de passe admin pour: ${userId}`);
+    // ✅ CORRIGÉ : ID masqué
+    const maskedId = this.maskUserId(userId);
+    this.logger.log(`Réinitialisation mot de passe admin pour: ${maskedId}`);
     
     // Validation
     if (body.newPassword !== body.confirmNewPassword) {
@@ -408,7 +467,9 @@ export class UsersController {
     
     await this.usersService.resetPassword(userId, body.newPassword);
     
-    this.logger.log('Mot de passe réinitialisé par admin');
+    // ✅ CORRIGÉ : Log sécurisé
+    this.logger.log(`Mot de passe réinitialisé par admin pour utilisateur: ${maskedId}`);
+    
     return { 
       message: "Mot de passe réinitialisé avec succès",
       userId: userId,
@@ -430,11 +491,23 @@ export class UsersController {
     @Param("id") userId: string,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    this.logger.log(`Mise à jour utilisateur par admin: ${userId}`);
+    // ✅ CORRIGÉ : ID masqué
+    const maskedId = this.maskUserId(userId);
+    this.logger.log(`Mise à jour utilisateur par admin: ${maskedId}`);
 
     try {
+      // ✅ EMPÊCHER LA PROMOTION EN ADMIN
+      if (updateUserDto.role === UserRole.ADMIN) {
+        throw new BadRequestException(
+          "Impossible de créer ou modifier un autre administrateur. Un seul admin est autorisé.",
+        );
+      }
+
       const updatedUser = await this.usersService.update(userId, updateUserDto);
-      this.logger.log('Utilisateur mis à jour par admin');
+      
+      // ✅ CORRIGÉ : Email masqué
+      const maskedEmail = this.maskEmail(updatedUser.email);
+      this.logger.log(`Utilisateur mis à jour par admin: ${maskedEmail}`);
 
       return {
         id: updatedUser._id?.toString(),
@@ -453,7 +526,7 @@ export class UsersController {
         updatedAt: updatedUser.updatedAt,
       };
     } catch (error) {
-      this.logger.error('Erreur mise à jour utilisateur par admin', error.stack);
+      this.logger.error(`Erreur mise à jour utilisateur par admin ${maskedId}`, error.stack);
       throw error;
     }
   }
@@ -472,7 +545,9 @@ export class UsersController {
       throw new BadRequestException("ID utilisateur manquant");
     }
 
-    this.logger.log(`Récupération profil utilisateur: ${userId}`);
+    // ✅ CORRIGÉ : ID masqué
+    const maskedId = this.maskUserId(userId);
+    this.logger.log(`Récupération profil utilisateur: ${maskedId}`);
 
     try {
       const user = await this.usersService.findById(userId);

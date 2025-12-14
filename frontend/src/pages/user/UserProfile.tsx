@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import { UserHeader, usePageConfig } from '../../components/user/UserHeader';
 import { useAuth } from '../../context/AuthContext';
 import { userProfileService, UserUpdateData, AuthContextFunctions } from '../../api/user/Profile/userProfileApi';
-import { Loader2, Mail, Phone, Calendar, Shield, User, UserCheck } from 'lucide-react';
+import { Loader2, Mail, Phone, Calendar, Shield, User, UserCheck, Lock, Eye, EyeOff } from 'lucide-react';
 
 const UserProfile = () => {
   const { user, updateProfile, fetchWithAuth, refreshToken, access_token } = useAuth();
@@ -29,6 +29,24 @@ const UserProfile = () => {
   const [emailError, setEmailError] = useState('');
   const [telephoneError, setTelephoneError] = useState('');
 
+  // États pour le changement de mot de passe
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmNewPassword: '',
+  });
+
+  const [passwordErrors, setPasswordErrors] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmNewPassword: '',
+  });
+
+  const [isPasswordLoading, setIsPasswordLoading] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   // Référence pour éviter les chargements multiples
   const isInitialLoad = useRef(false);
 
@@ -43,7 +61,6 @@ const UserProfile = () => {
 
   // Validation de l'email (seulement si modifié)
   const validateEmail = (email: string): boolean => {
-    // Si email vide mais différent de l'actuel, c'est une erreur
     if (!email || email.trim() === '') {
       setEmailError('L\'email ne peut pas être vide');
       return false;
@@ -57,13 +74,11 @@ const UserProfile = () => {
 
   // Validation du téléphone (accepter vide)
   const validateTelephone = (telephone: string): boolean => {
-    // Accepter vide - l'utilisateur peut vouloir supprimer son téléphone
     if (!telephone || telephone.trim() === '') {
       setTelephoneError('');
       return true;
     }
     
-    // Regex flexible pour numéros internationaux
     const phoneRegex = /^[+]?[0-9\s\-\(\)\.]{8,20}$/;
     const cleanedPhone = telephone.replace(/[\s\-\(\)\.]/g, '');
     const hasMinDigits = cleanedPhone.length >= 8;
@@ -73,9 +88,50 @@ const UserProfile = () => {
     return isValid;
   };
 
+  // Validation des mots de passe
+  const validatePasswords = () => {
+    let isValid = true;
+    const newErrors = {
+      currentPassword: '',
+      newPassword: '',
+      confirmNewPassword: '',
+    };
+
+    // Vérification mot de passe actuel
+    if (!passwordData.currentPassword.trim()) {
+      newErrors.currentPassword = 'Le mot de passe actuel est requis';
+      isValid = false;
+    }
+
+    // Vérification correspondance nouveaux mots de passe
+    if (passwordData.newPassword !== passwordData.confirmNewPassword) {
+      newErrors.confirmNewPassword = 'Les mots de passe ne correspondent pas';
+      isValid = false;
+    }
+
+    // Vérification longueur minimum
+    if (passwordData.newPassword.length < 8) {
+      newErrors.newPassword = 'Le mot de passe doit contenir au moins 8 caractères';
+      isValid = false;
+    }
+
+    // Validation de complexité
+    const hasLowerCase = /[a-z]/.test(passwordData.newPassword);
+    const hasUpperCase = /[A-Z]/.test(passwordData.newPassword);
+    const hasNumber = /[0-9]/.test(passwordData.newPassword);
+
+    if (passwordData.newPassword && (!hasLowerCase || !hasUpperCase || !hasNumber)) {
+      newErrors.newPassword = 'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre';
+      isValid = false;
+    }
+
+    setPasswordErrors(newErrors);
+    return isValid;
+  };
+
   // Charger les données du profil
   const loadUserProfile = useCallback(async () => {
-    if (isLoading) return; // Éviter les appels en double
+    if (isLoading) return;
     
     setIsLoading(true);
     try {
@@ -88,7 +144,6 @@ const UserProfile = () => {
           telephone: userData.telephone || '',
         });
         
-        // Informations de sécurité
         if (userData.createdAt) {
           setSecurityInfo({
             accountCreated: new Date(userData.createdAt).toLocaleDateString('fr-FR'),
@@ -99,7 +154,6 @@ const UserProfile = () => {
     } catch (error: any) {
       console.error('Erreur lors du chargement du profil:', error);
       
-      // Si le service échoue, utiliser les données du contexte
       if (user) {
         setProfileData({
           email: user.email || '',
@@ -133,14 +187,7 @@ const UserProfile = () => {
     e.preventDefault();
     
     console.log("🔄 ===== DÉBUT SOUMISSION PROFIL =====");
-    console.log("📧 Email actuel (user):", user?.email);
-    console.log("📧 Email nouveau (form):", profileData.email);
-    console.log("📱 Téléphone actuel (user):", user?.telephone);
-    console.log("📱 Téléphone nouveau (form):", profileData.telephone);
-    console.log("🔑 Token actuel:", access_token);
-    console.log("👤 User ID:", user?.id);
     
-    // Valider UNIQUEMENT les champs qui sont modifiés
     const isEmailValid = profileData.email !== user?.email 
       ? validateEmail(profileData.email) 
       : true;
@@ -149,33 +196,20 @@ const UserProfile = () => {
       ? validateTelephone(profileData.telephone) 
       : true;
     
-    console.log("✅ Validation email:", isEmailValid);
-    console.log("✅ Validation téléphone:", isPhoneValid);
-    console.log("❌ Message erreur email:", emailError);
-    console.log("❌ Message erreur téléphone:", telephoneError);
-    
     if (!isEmailValid || !isPhoneValid) {
-      console.log("❌ Validation échouée - affichage toast");
       toast.error('Veuillez corriger les erreurs avant de soumettre');
       return;
     }
 
-    // Vérifier si des modifications ont été apportées
     const hasEmailChanged = profileData.email !== user?.email;
     const hasTelephoneChanged = profileData.telephone !== user?.telephone;
     
-    console.log("📊 Changements détectés:");
-    console.log("  - Email changé:", hasEmailChanged);
-    console.log("  - Téléphone changé:", hasTelephoneChanged);
-    
     if (!hasEmailChanged && !hasTelephoneChanged) {
-      console.log("⚠️ Aucun changement détecté");
       toast.info('Aucune modification à enregistrer');
       return;
     }
 
     setIsLoading(true);
-    console.log("⏳ Début chargement...");
     
     try {
       const authFunctions = getAuthFunctions();
@@ -183,54 +217,74 @@ const UserProfile = () => {
       
       if (hasEmailChanged && profileData.email.trim() !== '') {
         updateData.email = profileData.email.trim();
-        console.log("📧 Email à mettre à jour:", updateData.email);
       }
       
       if (hasTelephoneChanged) {
-        // Accepter vide pour supprimer le téléphone
         updateData.telephone = profileData.telephone.trim();
-        console.log("📱 Téléphone à mettre à jour:", updateData.telephone);
       }
 
-      // Vérifier qu'on a au moins un champ à mettre à jour
       if (Object.keys(updateData).length === 0) {
-        console.log("⚠️ Aucune donnée à mettre à jour après nettoyage");
         toast.info('Aucune modification à enregistrer');
         return;
       }
 
-      console.log("📤 Données à envoyer à l'API:", updateData);
-      
       const updatedUser = await userProfileService.updateProfile(authFunctions, updateData);
       
-      console.log("✅ Réponse API reçue:", updatedUser);
-      
-      // Mettre à jour les données locales avec la réponse du service
       setProfileData({
         email: updatedUser.email || '',
         telephone: updatedUser.telephone || '',
       });
       
-      console.log("📊 Données locales mises à jour:");
-      console.log("  - Email:", updatedUser.email);
-      console.log("  - Téléphone:", updatedUser.telephone);
-      
       toast.success('Profil mis à jour avec succès');
-      console.log("🎉 Mise à jour réussie!");
       
     } catch (error: any) {
       console.error("❌ ERREUR lors de la mise à jour:", error);
-      console.error("❌ Message d'erreur:", error.message);
-      console.error("❌ Stack:", error.stack);
       
-      // Ne pas afficher de toast pour les erreurs de session
-      if (error.message !== 'SESSION_EXPIRED') {
+      if (error.message !== 'SESSION_EXPIRED' &&
+          !error.message.includes('L\'email ne peut pas être vide') &&
+          !error.message.includes('Format d\'email invalide') &&
+          !error.message.includes('Le téléphone doit contenir') &&
+          !error.message.includes('Aucune donnée valide')) {
         toast.error(error.message || 'Erreur lors de la mise à jour du profil');
       }
     } finally {
       setIsLoading(false);
-      console.log("🏁 Fin chargement (loading: false)");
-      console.log("===== FIN SOUMISSION PROFIL =====");
+    }
+  };
+
+  // Gérer la soumission du mot de passe
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    console.log("🔄 ===== DÉBUT CHANGEMENT MOT DE PASSE =====");
+    
+    if (!validatePasswords()) {
+      toast.error('Veuillez corriger les erreurs avant de soumettre');
+      return;
+    }
+
+    setIsPasswordLoading(true);
+    
+    try {
+      const authFunctions = getAuthFunctions();
+      const result = await userProfileService.updatePassword(authFunctions, {
+        currentPassword: passwordData.currentPassword.trim(),
+        newPassword: passwordData.newPassword,
+        confirmNewPassword: passwordData.confirmNewPassword,
+      });
+      
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmNewPassword: '',
+      });
+      
+      toast.success('Mot de passe changé avec succès');
+      
+    } catch (error: any) {
+      console.error("❌ Erreur changement mot de passe:", error);
+    } finally {
+      setIsPasswordLoading(false);
     }
   };
 
@@ -239,10 +293,8 @@ const UserProfile = () => {
     if (!isInitialLoad.current && user) {
       isInitialLoad.current = true;
       
-      // Charger les données depuis le service
       loadUserProfile();
       
-      // Si le service échoue, utiliser les données du contexte
       const timer = setTimeout(() => {
         if (!profileData.email && user) {
           setProfileData({
@@ -266,17 +318,8 @@ const UserProfile = () => {
     }
   }, [user, profileData.email]);
 
-  // Effet de débogage
-  useEffect(() => {
-    console.log("👤 User actuel:", user);
-    console.log("📊 Données du formulaire:", profileData);
-    console.log("🔄 isLoading:", isLoading);
-    console.log("🔑 Token actuel:", access_token);
-    console.log("👤 User ID:", user?.id);
-  }, [user, profileData, isLoading, access_token]);
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white pt-16 pb-8">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white pt-4 pb-8 md:pt-16">
       <UserHeader
         title={pageConfig.title}
         subtitle={pageConfig.subtitle}
@@ -286,27 +329,27 @@ const UserProfile = () => {
         onRefresh={handleRefresh}
       />
 
-      <div className="px-4 max-w-4xl mx-auto mt-16">
+      <div className="px-4 max-w-4xl mx-auto mt-4 md:mt-16 space-y-6 md:space-y-8">
         {/* Section principale du profil */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden mb-6">
-          <div className="p-5">
-            <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="p-5 md:p-6">
+            <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
               <User className="w-5 h-5 text-sky-600" />
               Informations personnelles
             </h2>
 
             {isLoading && !profileData.email ? (
-              <div className="flex justify-center py-12">
+              <div className="flex justify-center py-8 md:py-12">
                 <Loader2 className="w-8 h-8 text-sky-600 animate-spin" />
               </div>
             ) : (
-              <form onSubmit={handleProfileSubmit} className="space-y-6">
+              <form onSubmit={handleProfileSubmit} className="space-y-5 md:space-y-6">
                 {/* Nom complet (lecture seule) */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">
                     Nom complet
                   </label>
-                  <div className="px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 text-gray-900">
+                  <div className="px-3 md:px-4 py-2.5 md:py-3 bg-gray-50 rounded-xl border border-gray-200 text-gray-900 text-sm md:text-base">
                     {user?.firstName} {user?.lastName}
                   </div>
                   <p className="text-xs text-gray-500">
@@ -326,7 +369,6 @@ const UserProfile = () => {
                       value={profileData.email}
                       onChange={(e) => {
                         setProfileData({ ...profileData, email: e.target.value });
-                        // Valider immédiatement seulement si différent de l'actuel
                         if (e.target.value !== user?.email) {
                           validateEmail(e.target.value);
                         }
@@ -336,9 +378,9 @@ const UserProfile = () => {
                           validateEmail(profileData.email);
                         }
                       }}
-                      className={`w-full px-4 py-3 rounded-xl border ${
+                      className={`w-full px-3 md:px-4 py-2.5 md:py-3 rounded-xl border text-sm md:text-base ${
                         emailError ? 'border-red-300' : 'border-gray-300'
-                      } focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all`}
+                      } focus:border-sky-500 focus:ring-0 focus:outline-none transition-all`}
                       placeholder="votre@email.com"
                       required
                     />
@@ -362,7 +404,6 @@ const UserProfile = () => {
                       value={profileData.telephone}
                       onChange={(e) => {
                         setProfileData({ ...profileData, telephone: e.target.value });
-                        // Valider seulement si différent de l'actuel
                         if (e.target.value !== user?.telephone) {
                           validateTelephone(e.target.value);
                         }
@@ -372,9 +413,9 @@ const UserProfile = () => {
                           validateTelephone(profileData.telephone);
                         }
                       }}
-                      className={`w-full px-4 py-3 rounded-xl border ${
+                      className={`w-full px-3 md:px-4 py-2.5 md:py-3 rounded-xl border text-sm md:text-base ${
                         telephoneError ? 'border-red-300' : 'border-gray-300'
-                      } focus:border-sky-500 focus:ring-2 focus:ring-sky-200 outline-none transition-all`}
+                      } focus:border-sky-500 focus:ring-0 focus:outline-none transition-all`}
                       placeholder="06 12 34 56 78 ou +33612345678"
                     />
                   </div>
@@ -384,7 +425,7 @@ const UserProfile = () => {
                     </p>
                   )}
                   <p className="text-xs text-gray-500">
-                    Laisser vide pour supprimer votre numéro de téléphone. Format: 0612345678 ou +33612345678
+                    Laisser vide pour supprimer votre numéro de téléphone
                   </p>
                 </div>
 
@@ -392,7 +433,7 @@ const UserProfile = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-sky-500 to-sky-600 text-white font-medium rounded-xl hover:from-sky-600 hover:to-sky-700 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                  className="w-full py-2.5 md:py-3 px-4 bg-gradient-to-r from-sky-500 to-sky-600 text-white font-medium rounded-xl hover:from-sky-600 hover:to-sky-700 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md text-sm md:text-base"
                 >
                   {isLoading ? (
                     <span className="flex items-center justify-center gap-2">
@@ -408,10 +449,150 @@ const UserProfile = () => {
           </div>
         </div>
 
+        {/* Section changement de mot de passe */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="p-5 md:p-6">
+            <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
+              <Lock className="w-5 h-5 text-sky-600" />
+              Changer mon mot de passe
+            </h2>
+
+            <form onSubmit={handlePasswordSubmit} className="space-y-5 md:space-y-6">
+              {/* Mot de passe actuel */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Mot de passe actuel
+                </label>
+                <div className="relative">
+                  <input
+                    type={showCurrentPassword ? "text" : "password"}
+                    value={passwordData.currentPassword}
+                    onChange={(e) => {
+                      setPasswordData({ ...passwordData, currentPassword: e.target.value });
+                      if (passwordErrors.currentPassword) {
+                        setPasswordErrors({ ...passwordErrors, currentPassword: '' });
+                      }
+                    }}
+                    className={`w-full px-3 md:px-4 py-2.5 md:py-3 rounded-xl border text-sm md:text-base ${
+                      passwordErrors.currentPassword ? 'border-red-300' : 'border-gray-300'
+                    } focus:border-sky-500 focus:ring-0 focus:outline-none transition-all pr-10`}
+                    placeholder="Votre mot de passe actuel"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {passwordErrors.currentPassword && (
+                  <p className="text-sm text-red-600">{passwordErrors.currentPassword}</p>
+                )}
+              </div>
+
+              {/* Nouveau mot de passe */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Nouveau mot de passe
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    value={passwordData.newPassword}
+                    onChange={(e) => {
+                      setPasswordData({ ...passwordData, newPassword: e.target.value });
+                      if (passwordErrors.newPassword) {
+                        setPasswordErrors({ ...passwordErrors, newPassword: '' });
+                      }
+                      if (passwordData.confirmNewPassword) {
+                        if (e.target.value !== passwordData.confirmNewPassword) {
+                          setPasswordErrors({ ...passwordErrors, confirmNewPassword: 'Les mots de passe ne correspondent pas' });
+                        } else {
+                          setPasswordErrors({ ...passwordErrors, confirmNewPassword: '' });
+                        }
+                      }
+                    }}
+                    className={`w-full px-3 md:px-4 py-2.5 md:py-3 rounded-xl border text-sm md:text-base ${
+                      passwordErrors.newPassword ? 'border-red-300' : 'border-gray-300'
+                    } focus:border-sky-500 focus:ring-0 focus:outline-none transition-all pr-10`}
+                    placeholder="Au moins 8 caractères"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {passwordErrors.newPassword && (
+                  <p className="text-sm text-red-600">{passwordErrors.newPassword}</p>
+                )}
+                <p className="text-xs text-gray-500">
+                  Min. 8 caractères, majuscule, minuscule et chiffre
+                </p>
+              </div>
+
+              {/* Confirmation nouveau mot de passe */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Confirmer le nouveau mot de passe
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={passwordData.confirmNewPassword}
+                    onChange={(e) => {
+                      setPasswordData({ ...passwordData, confirmNewPassword: e.target.value });
+                      if (passwordErrors.confirmNewPassword) {
+                        setPasswordErrors({ ...passwordErrors, confirmNewPassword: '' });
+                      }
+                      if (passwordData.newPassword !== e.target.value) {
+                        setPasswordErrors({ ...passwordErrors, confirmNewPassword: 'Les mots de passe ne correspondent pas' });
+                      }
+                    }}
+                    className={`w-full px-3 md:px-4 py-2.5 md:py-3 rounded-xl border text-sm md:text-base ${
+                      passwordErrors.confirmNewPassword ? 'border-red-300' : 'border-gray-300'
+                    } focus:border-sky-500 focus:ring-0 focus:outline-none transition-all pr-10`}
+                    placeholder="Retapez votre nouveau mot de passe"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {passwordErrors.confirmNewPassword && (
+                  <p className="text-sm text-red-600">{passwordErrors.confirmNewPassword}</p>
+                )}
+              </div>
+
+              {/* Bouton de soumission */}
+              <button
+                type="submit"
+                disabled={isPasswordLoading}
+                className="w-full py-2.5 md:py-3 px-4 bg-gradient-to-r from-sky-500 to-sky-600 text-white font-medium rounded-xl hover:from-sky-600 hover:to-sky-700 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md text-sm md:text-base"
+              >
+                {isPasswordLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Mise à jour...
+                  </span>
+                ) : (
+                  'Changer mon mot de passe'
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+
         {/* Section informations de sécurité */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden mb-6">
-          <div className="p-5">
-            <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="p-5 md:p-6">
+            <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-4 md:mb-6 flex items-center gap-2">
               <Shield className="w-5 h-5 text-sky-600" />
               Sécurité du compte
             </h2>
@@ -424,7 +605,7 @@ const UserProfile = () => {
                     user?.isActive ? 'bg-green-500' : 'bg-red-500'
                   }`} />
                   <div>
-                    <p className="font-medium text-gray-900">Statut du compte</p>
+                    <p className="font-medium text-gray-900 text-sm md:text-base">Statut du compte</p>
                     <p className="text-sm text-gray-600">
                       {user?.isActive ? 'Actif' : 'Inactif'}
                     </p>
@@ -436,11 +617,24 @@ const UserProfile = () => {
               {/* Dernière connexion */}
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
                 <div className="flex items-center gap-3">
-                  <Shield className="w-4 h-4 text-gray-600" />
+                  <Calendar className="w-4 h-4 text-gray-600" />
                   <div>
-                    <p className="font-medium text-gray-900">Dernière connexion</p>
+                    <p className="font-medium text-gray-900 text-sm md:text-base">Dernière connexion</p>
                     <p className="text-sm text-gray-600">
                       {securityInfo.lastLogin || 'Aujourd\'hui'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Date de création */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+                <div className="flex items-center gap-3">
+                  <Calendar className="w-4 h-4 text-gray-600" />
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm md:text-base">Compte créé le</p>
+                    <p className="text-sm text-gray-600">
+                      {securityInfo.accountCreated || 'Non disponible'}
                     </p>
                   </div>
                 </div>
@@ -449,7 +643,7 @@ const UserProfile = () => {
 
             {/* Conseils de sécurité */}
             <div className="mt-6 pt-6 border-t border-gray-200">
-              <h3 className="font-medium text-gray-900 mb-3">Conseils de sécurité</h3>
+              <h3 className="font-medium text-gray-900 mb-3 text-sm md:text-base">Conseils de sécurité</h3>
               <ul className="space-y-2">
                 <li className="flex items-start gap-2">
                   <div className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-2 flex-shrink-0" />
@@ -473,6 +667,13 @@ const UserProfile = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Footer léger */}
+      <div className="px-4 max-w-4xl mx-auto mt-6 md:mt-8">
+        <p className="text-center text-xs text-gray-500">
+          © {new Date().getFullYear()} Votre Application. Tous droits réservés.
+        </p>
       </div>
     </div>
   );
