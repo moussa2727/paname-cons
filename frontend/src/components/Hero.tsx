@@ -158,7 +158,7 @@ const Hero = () => {
                 <h2 className='text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 leading-tight text-balance hero-text-shadow'>
                   LE CAP VERS
                   <br className='hidden xs:block' />
-                  <span className='text-sky-300'>L'EXCELLENCE</span>
+                  <span className='text-sky-300'> L'EXCELLENCE</span>
                 </h2>
 
                 {/* Sous-titre */}

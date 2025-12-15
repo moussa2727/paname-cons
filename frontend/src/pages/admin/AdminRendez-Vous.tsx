@@ -108,6 +108,13 @@ const secureLog = {
         ...additionalData 
       });
     }
+  },
+  
+  // Log d'avertissement
+  warn: (message: string, data?: Record<string, any>) => {
+    if (import.meta.env.DEV) {
+      console.warn(`⚠️ ${message}`, data || '');
+    }
   }
 };
 
@@ -161,30 +168,96 @@ const AdminRendezVous = () => {
     filiereAutre: ''
   });
 
-  // Fonction pour valider un ID MongoDB
+  // Fonction utilitaire pour valider un ID MongoDB
   const isValidMongoId = useCallback((id: string | undefined): boolean => {
-    if (!id || id.trim() === '') {
-      secureLog.error('ID invalide: ID vide ou null', undefined, { 
-        id: id || 'UNDEFINED',
-        type: typeof id
-      });
+    if (!id || typeof id !== 'string' || id.trim() === '') {
       return false;
     }
     
     // Validation basique d'ObjectId MongoDB (24 caractères hexadécimaux)
     const mongoIdRegex = /^[0-9a-fA-F]{24}$/;
-    const isValid = mongoIdRegex.test(id);
-    
-    if (!isValid) {
-      secureLog.error('ID invalide: format MongoDB incorrect', undefined, { 
-        id: `${id.substring(0, 8)}...`,
-        length: id.length,
-        regexMatch: mongoIdRegex.test(id)
-      });
-    }
-    
-    return isValid;
+    return mongoIdRegex.test(id.trim());
   }, []);
+
+  // Fonction pour valider un rendez-vous complet
+  const validateRendezvous = useCallback((rdv: any): RendezVous | null => {
+    try {
+      // Vérifier les champs requis
+      if (!rdv._id || !rdv.userId || !rdv.firstName || !rdv.lastName || !rdv.email || 
+          !rdv.telephone || !rdv.destination || !rdv.niveauEtude || !rdv.filiere || 
+          !rdv.date || !rdv.time || !rdv.status) {
+        secureLog.warn('Rendez-vous incomplet ignoré', { 
+          hasId: !!rdv._id,
+          hasUserId: !!rdv.userId,
+          hasStatus: !!rdv.status 
+        });
+        return null;
+      }
+
+      // Valider l'ID MongoDB
+      if (!isValidMongoId(rdv._id)) {
+        secureLog.warn('ID MongoDB invalide', { 
+          id: rdv._id,
+          type: typeof rdv._id 
+        });
+        return null;
+      }
+
+      // Valider le statut
+      const validStatuses = Object.values(RENDEZVOUS_STATUS);
+      if (!validStatuses.includes(rdv.status)) {
+        secureLog.warn('Statut invalide', { 
+          status: rdv.status,
+          validStatuses 
+        });
+        return null;
+      }
+
+      // Valider le niveau d'étude
+      const validEducationLevels = [
+        'Bac',
+        'Bac+1',
+        'Bac+2',
+        'Licence',
+        'Master I',
+        'Master II',
+        'Doctorat'
+      ];
+      if (!validEducationLevels.includes(rdv.niveauEtude)) {
+        secureLog.warn('Niveau d\'étude invalide', { 
+          niveauEtude: rdv.niveauEtude,
+          validLevels: validEducationLevels 
+        });
+        return null;
+      }
+
+      return {
+        _id: rdv._id,
+        userId: rdv.userId,
+        firstName: rdv.firstName,
+        lastName: rdv.lastName,
+        email: rdv.email,
+        telephone: rdv.telephone,
+        destination: rdv.destination,
+        destinationAutre: rdv.destinationAutre,
+        niveauEtude: rdv.niveauEtude as EducationLevel,
+        filiere: rdv.filiere,
+        filiereAutre: rdv.filiereAutre,
+        date: rdv.date,
+        time: rdv.time,
+        status: rdv.status as RendezvousStatus,
+        avisAdmin: rdv.avisAdmin as AdminOpinion | undefined,
+        cancelledAt: rdv.cancelledAt ? new Date(rdv.cancelledAt) : undefined,
+        cancelledBy: rdv.cancelledBy as 'admin' | 'user' | undefined,
+        cancellationReason: rdv.cancellationReason,
+        createdAt: new Date(rdv.createdAt),
+        updatedAt: rdv.updatedAt ? new Date(rdv.updatedAt) : undefined
+      };
+    } catch (error) {
+      secureLog.error('Erreur de validation du rendez-vous', error, { rdv });
+      return null;
+    }
+  }, [isValidMongoId]);
 
   // Récupérer les destinations depuis l'API
   const fetchDestinations = async () => {
@@ -242,24 +315,19 @@ const AdminRendezVous = () => {
         search: searchTerm || undefined,
       });
       
-      const typedData = result.data.map(item => ({
-        ...item,
-        status: item.status as RendezvousStatus,
-        avisAdmin: item.avisAdmin as AdminOpinion | undefined,
-        niveauEtude: item.niveauEtude as EducationLevel,
-        cancelledBy: item.cancelledBy as 'admin' | 'user' | undefined,
-        cancelledAt: item.cancelledAt ? new Date(item.cancelledAt) : undefined,
-        createdAt: new Date(item.createdAt),
-        updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined
-      })) as RendezVous[];
+      // Filtrer et valider les données
+      const validatedData = result.data
+        .map(validateRendezvous)
+        .filter((item): item is RendezVous => item !== null);
       
-      setRendezvous(typedData);
+      setRendezvous(validatedData);
       setTotalPages(result.totalPages);
       
       secureLog.success('Rendez-vous chargés', { 
-        count: typedData.length,
+        count: validatedData.length,
         total: result.total,
-        totalPages: result.totalPages
+        totalPages: result.totalPages,
+        filteredOut: result.data.length - validatedData.length
       });
       
     } catch (error) {
@@ -272,7 +340,7 @@ const AdminRendezVous = () => {
       setIsLoading(false);
       isInitialMount.current = false;
     }
-  }, [page, searchTerm, selectedStatus, adminRendezVousService, limit]);
+  }, [page, searchTerm, selectedStatus, adminRendezVousService, limit, validateRendezvous]);
 
   // Charger les dates disponibles (une seule fois)
   const loadAvailableDates = useCallback(async () => {
@@ -341,7 +409,7 @@ const AdminRendezVous = () => {
             ...(updatedRdv.avisAdmin !== undefined && { avisAdmin: updatedRdv.avisAdmin })
           };
           
-          // CORRECTION : Utiliser la valeur littérale
+          // Nettoyer l'avis admin si le statut n'est pas "Terminé"
           if (updatedRdv.status !== 'Terminé' && updated.avisAdmin) {
             updated.avisAdmin = undefined;
           }
@@ -387,7 +455,12 @@ const AdminRendezVous = () => {
   // Gestion du changement de statut via select
   const handleStatusChange = (id: string, newStatus: string) => {
     // Validation de l'ID avant de continuer
-    if (!isValidMongoId(id)) {
+    if (!id || !isValidMongoId(id)) {
+      secureLog.error('ID du rendez-vous invalide ou manquant', undefined, {
+        id,
+        type: typeof id,
+        isValid: isValidMongoId(id)
+      });
       toast.error('ID du rendez-vous invalide');
       setShowMobileActions(null);
       return;
@@ -564,17 +637,14 @@ const AdminRendezVous = () => {
 
       const createdRdv = await response.json();
       
+      // Validation et transformation des données
+      const validatedRdv = validateRendezvous(createdRdv);
+      if (!validatedRdv) {
+        throw new Error('Données du rendez-vous créé invalides');
+      }
+      
       // Mise à jour de l'état local
-      setRendezvous(prev => [{
-        ...createdRdv,
-        status: createdRdv.status as RendezvousStatus,
-        avisAdmin: createdRdv.avisAdmin as AdminOpinion | undefined,
-        niveauEtude: createdRdv.niveauEtude as EducationLevel,
-        cancelledBy: createdRdv.cancelledBy as 'admin' | 'user' | undefined,
-        cancelledAt: createdRdv.cancelledAt ? new Date(createdRdv.cancelledAt) : undefined,
-        createdAt: new Date(createdRdv.createdAt),
-        updatedAt: createdRdv.updatedAt ? new Date(createdRdv.updatedAt) : undefined
-      }, ...prev]);
+      setRendezvous(prev => [validatedRdv, ...prev]);
       
       // Réinitialiser le formulaire
       setNewRendezVous({
@@ -954,104 +1024,123 @@ const AdminRendezVous = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                {rendezvous.map((rdv, index) => (
-                  <div 
-                    key={`mobile-rdv-${index}-${rdv._id}`}
-                    className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-4"
-                  >
-                    <div className="space-y-3">
-                      {/* En-tête */}
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <User className="w-4 h-4 text-slate-400" />
-                            <h3 className="font-semibold text-slate-800 text-sm">{rdv.firstName} {rdv.lastName}</h3>
+                {rendezvous.map((rdv, index) => {
+                  // Validation supplémentaire pour éviter les erreurs
+                  if (!rdv._id || !isValidMongoId(rdv._id)) {
+                    return null; // Ignorer les rendez-vous sans ID valide
+                  }
+
+                  return (
+                    <div 
+                      key={`mobile-rdv-${index}-${rdv._id}`}
+                      className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-4"
+                    >
+                      <div className="space-y-3">
+                        {/* En-tête */}
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <User className="w-4 h-4 text-slate-400" />
+                              <h3 className="font-semibold text-slate-800 text-sm">{rdv.firstName} {rdv.lastName}</h3>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-slate-600">
+                              <Mail className="w-3 h-3 text-slate-400" />
+                              <span className="truncate">{rdv.email}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 text-xs text-slate-600">
-                            <Mail className="w-3 h-3 text-slate-400" />
-                            <span className="truncate">{rdv.email}</span>
+                          <div className="relative">
+                            <button
+                              onClick={() => setShowMobileActions(showMobileActions === rdv._id ? null : rdv._id)}
+                              className="p-1 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none focus:ring-none focus:border-blue-500"
+                            >
+                              <MoreVertical className="w-4 h-4 text-slate-400" />
+                            </button>
+                            
+                            {showMobileActions === rdv._id && (
+                              <div className="absolute right-0 top-8 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[140px]">
+                                <select
+                                  value={rdv.status}
+                                  onChange={(e) => {
+                                    if (!rdv._id) {
+                                      toast.error('Erreur: ID du rendez-vous manquant');
+                                      setShowMobileActions(null);
+                                      return;
+                                    }
+                                    handleStatusChange(rdv._id, e.target.value);
+                                  }}
+                                  className={`w-full px-3 py-2 text-xs font-medium border-b border-slate-200 focus:outline-none focus:ring-none ${getStatusColor(rdv.status as RendezvousStatus)}`}
+                                >
+                                  {Object.values(RENDEZVOUS_STATUS).map((status, statusIndex) => (
+                                    <option key={`mobile-status-${statusIndex}-${status}`} value={status}>{status}</option>
+                                  ))}
+                                </select>
+                                <button
+                                  onClick={() => {
+                                    if (!rdv._id) {
+                                      toast.error('Erreur: ID du rendez-vous manquant');
+                                      setShowMobileActions(null);
+                                      return;
+                                    }
+                                    setShowDeleteModal({
+                                      id: rdv._id,
+                                      firstName: rdv.firstName,
+                                      lastName: rdv.lastName
+                                    });
+                                    setShowMobileActions(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-xs flex items-center gap-2 transition-colors focus:outline-none focus:ring-none text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  Supprimer
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <div className="relative">
-                          <button
-                            onClick={() => setShowMobileActions(showMobileActions === rdv._id ? null : rdv._id)}
-                            className="p-1 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none focus:ring-none focus:border-blue-500"
-                          >
-                            <MoreVertical className="w-4 h-4 text-slate-400" />
-                          </button>
-                          
-                          {showMobileActions === rdv._id && (
-                            <div className="absolute right-0 top-8 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[140px]">
-                              <select
-                                value={rdv.status}
-                                onChange={(e) => handleStatusChange(rdv._id, e.target.value)}
-                                className={`w-full px-3 py-2 text-xs font-medium border-b border-slate-200 focus:outline-none focus:ring-none ${getStatusColor(rdv.status as RendezvousStatus)}`}
-                              >
-                                {Object.values(RENDEZVOUS_STATUS).map((status, statusIndex) => (
-                                  <option key={`mobile-status-${statusIndex}-${status}`} value={status}>{status}</option>
-                                ))}
-                              </select>
-                              <button
-                                onClick={() => {
-                                  setShowDeleteModal({
-                                    id: rdv._id,
-                                    firstName: rdv.firstName,
-                                    lastName: rdv.lastName
-                                  });
-                                  setShowMobileActions(null);
-                                }}
-                                className="w-full px-3 py-2 text-xs flex items-center gap-2 transition-colors focus:outline-none focus:ring-none text-red-600 hover:bg-red-50"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                Supprimer
-                              </button>
+
+                        {/* Informations */}
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-3 h-3 text-slate-400" />
+                              <span className="text-slate-700">{formatDate(rdv.date)}</span>
                             </div>
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              <span className="text-slate-700">{formatTime(rdv.time)}</span>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-3 h-3 text-slate-400" />
+                              <span className="text-slate-700 truncate">
+                                {getEffectiveDestination(rdv)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <BookOpen className="w-3 h-3 text-slate-400" />
+                              <span className="text-slate-700 truncate">
+                                {getEffectiveFiliere(rdv)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Statut et Avis */}
+                        <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200">
+                          <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(rdv.status as RendezvousStatus)}`}>
+                            {rdv.status}
+                          </span>
+                          {rdv.status === 'Terminé' && rdv.avisAdmin && (
+                            <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${getAvisColor(rdv.avisAdmin as AdminOpinion)}`}>
+                              Avis: {rdv.avisAdmin}
+                            </span>
                           )}
                         </div>
                       </div>
-
-                      {/* Informations */}
-                      <div className="grid grid-cols-2 gap-3 text-xs">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-3 h-3 text-slate-400" />
-                            <span className="text-slate-700">{formatDate(rdv.date)}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3 h-3 text-slate-400" />
-                            <span className="text-slate-700">{formatTime(rdv.time)}</span>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-3 h-3 text-slate-400" />
-                            <span className="text-slate-700 truncate">
-                              {getEffectiveDestination(rdv)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <BookOpen className="w-3 h-3 text-slate-400" />
-                            <span className="text-slate-700 truncate">
-                              {getEffectiveFiliere(rdv)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Statut et Avis */}
-                      <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200">
-                        <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(rdv.status as RendezvousStatus)}`}>
-                          {rdv.status}
-                        </span>
-                        {rdv.status === 'Terminé' && rdv.avisAdmin && (
-                          <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${getAvisColor(rdv.avisAdmin as AdminOpinion)}`}>
-                            Avis: {rdv.avisAdmin}
-                          </span>
-                        )}
-                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1107,90 +1196,109 @@ const AdminRendezVous = () => {
                       </td>
                     </tr>
                   ) : (
-                    rendezvous.map((rdv, index) => (
-                      <tr 
-                        key={`desktop-rdv-${index}-${rdv._id}`}
-                        className="hover:bg-slate-50 transition-colors"
-                      >
-                        <td className="px-4 py-4">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-sm">
-                              <User className="w-3 h-3 text-slate-400" />
-                              <span className="font-medium text-slate-800">{rdv.firstName} {rdv.lastName}</span>
+                    rendezvous.map((rdv, index) => {
+                      // Validation supplémentaire pour éviter les erreurs
+                      if (!rdv._id || !isValidMongoId(rdv._id)) {
+                        return null; // Ignorer les rendez-vous sans ID valide
+                      }
+
+                      return (
+                        <tr 
+                          key={`desktop-rdv-${index}-${rdv._id}`}
+                          className="hover:bg-slate-50 transition-colors"
+                        >
+                          <td className="px-4 py-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 text-sm">
+                                <User className="w-3 h-3 text-slate-400" />
+                                <span className="font-medium text-slate-800">{rdv.firstName} {rdv.lastName}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <Mail className="w-3 h-3 text-slate-400" />
+                                <span className="text-slate-700 truncate max-w-[120px]">{rdv.email}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <Phone className="w-3 h-3 text-slate-400" />
+                                <span className="text-slate-700">{rdv.telephone}</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Mail className="w-3 h-3 text-slate-400" />
-                              <span className="text-slate-700 truncate max-w-[120px]">{rdv.email}</span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 text-sm">
+                                <Calendar className="w-3 h-3 text-slate-400" />
+                                <span className="text-slate-700">
+                                  {formatDate(rdv.date)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <Clock className="w-3 h-3 text-slate-400" />
+                                <span className="text-slate-700">{formatTime(rdv.time)}</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Phone className="w-3 h-3 text-slate-400" />
-                              <span className="text-slate-700">{rdv.telephone}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-sm">
-                              <Calendar className="w-3 h-3 text-slate-400" />
-                              <span className="text-slate-700">
-                                {formatDate(rdv.date)}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-3 h-3 text-slate-400" />
+                              <span className="text-sm text-slate-700 max-w-[100px] truncate">
+                                {getEffectiveDestination(rdv)}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Clock className="w-3 h-3 text-slate-400" />
-                              <span className="text-slate-700">{formatTime(rdv.time)}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-3 h-3 text-slate-400" />
-                            <span className="text-sm text-slate-700 max-w-[100px] truncate">
-                              {getEffectiveDestination(rdv)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm mt-1">
-                            <BookOpen className="w-3 h-3 text-slate-400" />
-                            <span className="text-slate-700 max-w-[100px] truncate">
-                              {getEffectiveFiliere(rdv)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="space-y-2">
-                            <select
-                              value={rdv.status}
-                              onChange={(e) => handleStatusChange(rdv._id, e.target.value)}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-medium border focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200 ${getStatusColor(rdv.status as RendezvousStatus)}`}
-                            >
-                              {Object.values(RENDEZVOUS_STATUS).map((status, statusIndex) => (
-                                <option key={`desktop-status-${statusIndex}-${status}`} value={status}>{status}</option>
-                              ))}
-                            </select>
-                            {rdv.status === 'Terminé' && rdv.avisAdmin && (
-                              <span className={`block px-2 py-1 rounded-lg text-xs font-medium border ${getAvisColor(rdv.avisAdmin as AdminOpinion)}`}>
-                                {rdv.avisAdmin}
+                            <div className="flex items-center gap-2 text-sm mt-1">
+                              <BookOpen className="w-3 h-3 text-slate-400" />
+                              <span className="text-slate-700 max-w-[100px] truncate">
+                                {getEffectiveFiliere(rdv)}
                               </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => setShowDeleteModal({
-                                id: rdv._id,
-                                firstName: rdv.firstName,
-                                lastName: rdv.lastName
-                              })}
-                              className="p-2 rounded-lg transition-colors focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 text-red-600 hover:bg-red-50"
-                              title="Supprimer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="space-y-2">
+                              <select
+                                value={rdv.status}
+                                onChange={(e) => {
+                                  if (!rdv._id) {
+                                    toast.error('Erreur: ID du rendez-vous manquant');
+                                    return;
+                                  }
+                                  handleStatusChange(rdv._id, e.target.value);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium border focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200 ${getStatusColor(rdv.status as RendezvousStatus)}`}
+                              >
+                                {Object.values(RENDEZVOUS_STATUS).map((status, statusIndex) => (
+                                  <option key={`desktop-status-${statusIndex}-${status}`} value={status}>{status}</option>
+                                ))}
+                              </select>
+                              {rdv.status === 'Terminé' && rdv.avisAdmin && (
+                                <span className={`block px-2 py-1 rounded-lg text-xs font-medium border ${getAvisColor(rdv.avisAdmin as AdminOpinion)}`}>
+                                  {rdv.avisAdmin}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  if (!rdv._id) {
+                                    toast.error('Erreur: ID du rendez-vous manquant');
+                                    return;
+                                  }
+                                  setShowDeleteModal({
+                                    id: rdv._id,
+                                    firstName: rdv.firstName,
+                                    lastName: rdv.lastName
+                                  });
+                                }}
+                                className="p-2 rounded-lg transition-colors focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 text-red-600 hover:bg-red-50"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

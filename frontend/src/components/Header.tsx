@@ -1,5 +1,3 @@
-/* eslint-disable no-undef */
-
 import {
   Calendar,
   FileText,
@@ -260,7 +258,7 @@ function Header(): React.JSX.Element {
         aria-label='Menu principal'
       >
         <div className='px-4'>
-          <div className='flex items-center justify-between py-3'>
+          <div className='flex items-center justify-between py-2'>
             {/* Logo */}
             <div
               className='flex items-center cursor-pointer'
@@ -315,7 +313,7 @@ function Header(): React.JSX.Element {
                 ))}
               </ul>
 
-              {/* DÉLÉGATION COMPLÈTE AU AUTHCONTEXT - Desktop */}
+              {/* Avatar desktop - visible seulement si connecté */}
               {isAuthenticated && user ? (
                 <div className='relative ml-2 md:ml-4' ref={dropdownRef}>
                   <button
@@ -461,25 +459,26 @@ function Header(): React.JSX.Element {
                 <div className='sticky top-0 bg-white border-b z-10'>
                   <div className='px-4 py-3 flex items-center justify-between bg-gray-50'>
                     <div className='flex items-center'>
-                      <div className='flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-bold mr-3'>
-                        {isAuthenticated ? getUserInitials() : <UserIcon className='w-5 h-5' />}
-                      </div>
-                      <div>
-                        {isAuthenticated ? (
-                          <>
+                      {isAuthenticated ? (
+                        <>
+                          <div className='flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-bold mr-3'>
+                            {getUserInitials()}
+                          </div>
+                          <div>
                             <p className='text-sm font-bold text-gray-800 truncate'>
                               {getUserDisplayName()}
                             </p>
                             <p className='text-xs text-gray-500 truncate'>
                               {user?.email}
                             </p>
-                          </>
-                        ) : (
-                          <p className='text-sm font-bold text-gray-800'>
-                            Mon Compte
-                          </p>
-                        )}
-                      </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className='text-gray-600 text-sm'>
+                          <p className='font-medium'>Bienvenue</p>
+                          <p className='text-xs'>Connectez-vous pour accéder à votre espace</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -631,22 +630,7 @@ function Header(): React.JSX.Element {
                             →
                           </span>
                         </button>
-                        <div className='text-center pt-2'>
-                          <span className='text-xs text-gray-400'>
-                            © {new Date().getFullYear()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Footer du menu */}
-                  {!isAuthenticated && (
-                    <div className='pt-4 border-t border-gray-200'>
-                      <div className='text-center'>
-                        <span className='text-xs text-gray-400'>
-                          © {new Date().getFullYear()}
-                        </span>
+                        
                       </div>
                     </div>
                   )}
