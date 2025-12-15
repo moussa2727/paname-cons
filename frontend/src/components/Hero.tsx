@@ -178,13 +178,13 @@ const Hero = () => {
                   <div className='flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center lg:justify-start'>
                     <button
                       onClick={() => navigate('/rendez-vous')}
-                      className='bg-white text-sky-600 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 hover:bg-sky-50 border-2 border-white min-w-[140px] sm:min-w-[160px]'
+                      className='bg-white text-sky-600 px-5 sm:px-6 py-2.5 sm:py-3 rounded-2xl hover:rounded-full font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 hover:bg-sky-50 border-2 border-white min-w-[140px] sm:min-w-[160px]'
                     >
                       Rendez-Vous
                     </button>
                     <button
                       onClick={() => navigate('/services')}
-                      className='border-2 border-white text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm hover:bg-white hover:text-sky-600 transition-all duration-300 min-w-[140px] sm:min-w-[160px] backdrop-blur-sm'
+                      className='border-2 border-white text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-2xl font-semibold text-sm hover:bg-white hover:text-sky-600 transition-all duration-300 min-w-[140px] sm:min-w-[160px] backdrop-blur-sm'
                     >
                       Nos Services
                     </button>
