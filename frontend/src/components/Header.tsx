@@ -100,7 +100,7 @@ function Header(): React.JSX.Element {
   const handleLogout = async (): Promise<void> => {
     setIsLoggingOut(true);
     try {
-      await logout();
+      logout();
       window.sessionStorage?.removeItem('redirect_after_login');
     } catch (error) {
       if (import.meta.env.DEV) {

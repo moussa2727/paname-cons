@@ -1,4 +1,4 @@
-import React, {
+import {
   createContext,
   useContext,
   useState,
@@ -89,21 +89,11 @@ interface LogoutAllResponse {
   };
 }
 
-interface RefreshResponse {
-  access_token: string;
-  refresh_token?: string;
-  message?: string;
-  expiresIn?: number;
-  loggedOut?: boolean;
-  sessionExpired?: boolean;
-  requiresReauth?: boolean;
-}
-
 interface AuthContextType {
   user: User | null;
   access_token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   logoutAll: () => Promise<LogoutAllResponse>;
   register: (data: RegisterFormData) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
@@ -168,12 +158,12 @@ const STORAGE_KEYS = {
   SESSION_START: 'session_start',
   REFRESH_ATTEMPTS: 'refresh_attempts',
   LAST_REFRESH_TIME: 'last_refresh_time',
-  LAST_AUTH_CHECK: 'last_auth_check', // Nouveau: éviter les vérifications trop fréquentes
+  LAST_AUTH_CHECK: 'last_auth_check',
 } as const;
 
 const REDIRECT_PATHS = {
   LOGIN: '/connexion',
-  HOME: '/',
+  HOME: '/', // Page d'accueil principale
   ADMIN_DASHBOARD: '/gestionnaire/statistiques',
   RESET_PASSWORD_REQUIRED: '/reset-password-required',
 } as const;
@@ -244,17 +234,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       window.localStorage?.removeItem(key);
     });
 
-    // Réinitialiser tous les états
     setAccessToken(null);
     setUser(null);
     setError(null);
     
-    // Réinitialiser les refs
     refreshAttemptsRef.current = 0;
     isRefreshingRef.current = false;
     isInitialCheckDoneRef.current = false;
 
-    // Nettoyer les timeouts
     if (refreshTimeoutRef.current) {
       window.clearTimeout(refreshTimeoutRef.current);
       refreshTimeoutRef.current = null;
@@ -266,7 +253,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  
   const fetchWithAuth = useCallback(async (
     endpoint: string,
     options: RequestInit = {}
@@ -300,7 +286,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
           }
           
-          navigate(REDIRECT_PATHS.LOGIN, { replace: true });
+          navigate(REDIRECT_PATHS.HOME, { replace: true }); // Rediriger vers l'accueil
           throw new Error('SESSION EXPIRED');
         }
         
@@ -358,7 +344,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           JSON.stringify(mappedUser)
         );
       } else {
-        // Si la requête échoue, nettoyer seulement en cas d'erreur 401
         if (response.status === 401) {
           cleanupAuthData();
         } else {
@@ -370,8 +355,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
    }, [access_token, cleanupAuthData]);
 
-
-    const handleAuthError = useCallback((error: any, context: string = ''): void => {
+  const handleAuthError = useCallback((error: any, context: string = ''): void => {
       const errorMessage = error.message || 'Erreur inconnue';
       
       if (import.meta.env.DEV) {
@@ -406,395 +390,376 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // ==================== MÉTHODES D'AUTHENTIFICATION ====================
 
-    const refreshToken = useCallback(async (): Promise<boolean> => {
-      if (isRefreshingRef.current) {
-        console.log('⚠️ Refresh déjà en cours');
+  const refreshToken = useCallback(async (): Promise<boolean> => {
+    if (isRefreshingRef.current) {
+      console.log('⚠️ Refresh déjà en cours');
+      return false;
+    }
+
+    const lastRefreshTime = window.localStorage?.getItem(STORAGE_KEYS.LAST_REFRESH_TIME);
+    if (lastRefreshTime) {
+      const timeSinceLastRefresh = Date.now() - parseInt(lastRefreshTime);
+      if (timeSinceLastRefresh < AUTH_CONSTANTS.MIN_REFRESH_INTERVAL_MS) {
+        console.log(`⏰ Trop tôt pour rafraîchir (${Math.round(timeSinceLastRefresh/1000)}s)`);
         return false;
       }
+    }
 
-      // Vérifier le temps depuis le dernier refresh
-      const lastRefreshTime = window.localStorage?.getItem(STORAGE_KEYS.LAST_REFRESH_TIME);
-      if (lastRefreshTime) {
-        const timeSinceLastRefresh = Date.now() - parseInt(lastRefreshTime);
-        if (timeSinceLastRefresh < AUTH_CONSTANTS.MIN_REFRESH_INTERVAL_MS) {
-          console.log(`⏰ Trop tôt pour rafraîchir (${Math.round(timeSinceLastRefresh/1000)}s)`);
-          return false;
-        }
-      }
-
-      isRefreshingRef.current = true;
-
-      try {
-        const response = await window.fetch(
-          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REFRESH}`,
-          {
-            method: 'POST',
-            credentials: 'include',
-          }
-        );
-
-        if (response.status === 401) {
-          console.log('❌ Refresh token invalide ou expiré');
-          cleanupAuthData();
-          return false;
-        }
-
-        if (!response.ok) {
-          console.warn(`❌ Refresh échoué: ${response.status}`);
-          return false;
-        }
-
-        const data = await response.json();
-
-        if (!data.access_token) {
-          console.error('❌ Pas de nouveau token reçu');
-          return false;
-        }
-
-        // Sauvegarder le nouveau token
-        window.localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.access_token);
-        setAccessToken(data.access_token);
-        
-        // Sauvegarder l'heure du refresh
-        window.localStorage.setItem(STORAGE_KEYS.LAST_REFRESH_TIME, Date.now().toString());
-        
-        console.log('✅ Token rafraîchi avec succès');
-        return true;
-
-      } catch (error) {
-        console.error('❌ Erreur lors du refresh:', error);
-        
-        // En cas d'erreur réseau, ne pas déconnecter immédiatement
-        if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-          console.warn('🌐 Erreur réseau - le token actuel reste valable');
-          return false;
-        }
-        
-        return false;
-      } finally {
-        isRefreshingRef.current = false;
-      }
-    }, [cleanupAuthData]);
-
-
-
-    const logout = useCallback(async (): Promise<void> => {
-      try {
-        if (access_token) {
-          await fetchWithAuth(API_CONFIG.ENDPOINTS.LOGOUT, {
-            method: 'POST',
-          });
-        }
-      } catch (error) {
-        if (import.meta.env.DEV) {
-          console.error('⚠️ Erreur logout backend (peut être normal):', error);
-        }
-      } finally {
-        cleanupAuthData();
-        navigate(REDIRECT_PATHS.LOGIN, { replace: true });
-        toast.info(TOAST_MESSAGES.LOGOUT_SUCCESS);
-      }
-    }, [access_token, cleanupAuthData, navigate, fetchWithAuth]);
-
-
-  const login = useCallback(
-      async (email: string, password: string): Promise<void> => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-          const response = await window.fetch(
-            `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
-            {
-              method: 'POST',
-              headers: { 
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ email, password }),
-              credentials: 'include',
-            }
-          );
-
-          const data: LoginResponse = await response.json();
-
-          if (!response.ok) {
-            if (data.code === AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS) {
-              throw new Error(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS);
-            }
-            
-            if (data.code === AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED) {
-              throw new Error(AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED);
-            }
-            
-            if (data.code === AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE) {
-              throw new Error(AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE);
-            }
-            
-            if (data.code === AUTH_CONSTANTS.ERROR_CODES.COMPTE_TEMPORAIREMENT_DECONNECTE) {
-              throw new Error(`${AUTH_CONSTANTS.ERROR_CODES.COMPTE_TEMPORAIREMENT_DECONNECTE}:${data || 24}`);
-            }
-            
-            if (data.code === AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE) {
-              throw new Error(AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE);
-            }
-            
-            throw new Error(data.message || 'Erreur de connexion');
-          }
-
-          if (!data.access_token || !data.user) {
-            throw new Error('Réponse invalide du serveur');
-          }
-
-          window.localStorage?.setItem(
-            STORAGE_KEYS.ACCESS_TOKEN,
-            data.access_token
-          );
-          setAccessToken(data.access_token);
-
-          const userData: User = {
-            id: data.user.id,
-            email: data.user.email,
-            firstName: data.user.firstName,
-            lastName: data.user.lastName,
-            role: data.user.role,
-            telephone: data.user.telephone,
-            isActive: true,
-            isAdmin: data.user.role === UserRole.ADMIN,
-          };
-
-          setUser(userData);
-          window.localStorage?.setItem(
-            STORAGE_KEYS.USER_DATA,
-            JSON.stringify(userData)
-          );
-          window.localStorage?.setItem(
-            STORAGE_KEYS.SESSION_START,
-            Date.now().toString()
-          );
-
-          const decoded = jwtDecode<JwtPayload>(data.access_token);
-          
-          // Planifier le rafraîchissement du token (15 minutes - 1 minute préventive = 14 minutes)
-          if (refreshTimeoutRef.current) {
-            window.clearTimeout(refreshTimeoutRef.current);
-          }
-          
-          const tokenExpirationMs = decoded.exp * 1000;
-          const currentTimeMs = Date.now();
-          const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
-          
-          const refreshTime = Math.max(
-            30000, // Minimum 30 secondes
-            timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
-          );
-
-          if (refreshTime > 0) {
-            refreshTimeoutRef.current = window.setTimeout(async () => {
-              if (import.meta.env.DEV) {
-                console.log('🔄 Rafraîchissement préventif du token...');
-              }
-              
-              if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
-                const refreshed = await refreshToken();
-                if (refreshed) {
-                  refreshAttemptsRef.current = 0;
-                  if (import.meta.env.DEV) {
-                    console.log('✅ Token rafraîchi avec succès');
-                  }
-                } else {
-                  refreshAttemptsRef.current++;
-                  if (import.meta.env.DEV) {
-                    console.warn(`❌ Échec rafraîchissement (tentative ${refreshAttemptsRef.current}/${AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS})`);
-                  }
-                }
-              } else {
-                if (import.meta.env.DEV) {
-                  console.error('❌ Trop de tentatives de rafraîchissement, déconnexion');
-                }
-                logout();
-                toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-              }
-            }, refreshTime);
-            
-            if (import.meta.env.DEV) {
-              console.log(`⏰ Prochain rafraîchissement dans ${Math.round(refreshTime / 1000)}s`);
-            }
-          }
-
-          const redirectPath =
-            data.user.role === UserRole.ADMIN
-              ? REDIRECT_PATHS.ADMIN_DASHBOARD
-              : REDIRECT_PATHS.HOME;
-
-          navigate(redirectPath, { replace: true });
-          toast.success(TOAST_MESSAGES.LOGIN_SUCCESS);
-          
-          if (import.meta.env.DEV) {
-            console.log('✅ Connexion réussie pour:', data.user.email);
-          }
-        } catch (err: any) {
-          if (import.meta.env.DEV) {
-            console.error('❌ Erreur de connexion:', {
-              message: err.message,
-              stack: err.stack,
-            });
-          }
-          
-          handleAuthError(err, 'login');
-          throw err;
-        } finally {
-          setIsLoading(false);
-        }
-      },
-      [navigate, handleAuthError, refreshToken, logout]
-  );
-
-
-  const register = useCallback(
-  async (formData: RegisterFormData): Promise<void> => {
-    setIsLoading(true);
-    setError(null);
+    isRefreshingRef.current = true;
 
     try {
       const response = await window.fetch(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REGISTER}`,
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REFRESH}`,
         {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            firstName: formData.firstName.trim(),
-            lastName: formData.lastName.trim(),
-            email: formData.email.toLowerCase().trim(),
-            telephone: formData.telephone.trim(),
-            password: formData.password,
-          }),
           credentials: 'include',
         }
       );
 
-      const data: RegisterResponse = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 400) {
-          const errorMessage = data.message || "Données invalides";
-          
-          if (data.errors) {
-            const validationErrors = Object.values(data.errors).join(', ');
-            throw new Error(`Validation échouée : ${validationErrors}`);
-          }
-          
-          throw new Error(errorMessage);
-        }
-        
-        throw new Error(data.message || "Erreur lors de l'inscription");
+      if (response.status === 401) {
+        console.log('❌ Refresh token invalide ou expiré');
+        cleanupAuthData();
+        return false;
       }
 
-      // Stocker le token reçu
-      if (data.access_token) {
+      if (!response.ok) {
+        console.warn(`❌ Refresh échoué: ${response.status}`);
+        return false;
+      }
+
+      const data = await response.json();
+
+      if (!data.access_token) {
+        console.error('❌ Pas de nouveau token reçu');
+        return false;
+      }
+
+      window.localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.access_token);
+      setAccessToken(data.access_token);
+      window.localStorage.setItem(STORAGE_KEYS.LAST_REFRESH_TIME, Date.now().toString());
+      
+      console.log('✅ Token rafraîchi avec succès');
+      return true;
+
+    } catch (error) {
+      console.error('❌ Erreur lors du refresh:', error);
+      
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.warn('🌐 Erreur réseau - le token actuel reste valable');
+        return false;
+      }
+      
+      return false;
+    } finally {
+      isRefreshingRef.current = false;
+    }
+  }, [cleanupAuthData]);
+
+  const logout = useCallback(async (): Promise<void> => {
+    try {
+      if (access_token) {
+        await fetchWithAuth(API_CONFIG.ENDPOINTS.LOGOUT, {
+          method: 'POST',
+        });
+      }
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('⚠️ Erreur logout backend (peut être normal):', error);
+      }
+    } finally {
+      cleanupAuthData();
+      navigate(REDIRECT_PATHS.HOME, { replace: true }); // TOUJOURS REDIRIGER VERS L'ACCUEIL
+      toast.info(TOAST_MESSAGES.LOGOUT_SUCCESS);
+    }
+  }, [access_token, cleanupAuthData, navigate, fetchWithAuth]);
+
+  const login = useCallback(
+    async (email: string, password: string): Promise<void> => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await window.fetch(
+          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
+          {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password }),
+            credentials: 'include',
+          }
+        );
+
+        const data: LoginResponse = await response.json();
+
+        if (!response.ok) {
+          if (data.code === AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS) {
+            throw new Error(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS);
+          }
+          
+          if (data.code === AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED) {
+            throw new Error(AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED);
+          }
+          
+          if (data.code === AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE) {
+            throw new Error(AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE);
+          }
+          
+          if (data.code === AUTH_CONSTANTS.ERROR_CODES.COMPTE_TEMPORAIREMENT_DECONNECTE) {
+            throw new Error(`${AUTH_CONSTANTS.ERROR_CODES.COMPTE_TEMPORAIREMENT_DECONNECTE}:${data || 24}`);
+          }
+          
+          if (data.code === AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE) {
+            throw new Error(AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE);
+          }
+          
+          throw new Error(data.message || 'Erreur de connexion');
+        }
+
+        if (!data.access_token || !data.user) {
+          throw new Error('Réponse invalide du serveur');
+        }
+
         window.localStorage?.setItem(
           STORAGE_KEYS.ACCESS_TOKEN,
           data.access_token
         );
         setAccessToken(data.access_token);
-      }
 
-      // Créer l'objet utilisateur
-      const userData: User = {
-        id: data.user.id,
-        email: data.user.email,
-        firstName: data.user.firstName,
-        lastName: data.user.lastName,
-        role: data.user.role,
-        telephone: data.user.telephone,
-        isActive: data.user.isActive !== false,
-        isAdmin: data.user.role === UserRole.ADMIN,
-      };
+        const userData: User = {
+          id: data.user.id,
+          email: data.user.email,
+          firstName: data.user.firstName,
+          lastName: data.user.lastName,
+          role: data.user.role,
+          telephone: data.user.telephone,
+          isActive: true,
+          isAdmin: data.user.role === UserRole.ADMIN,
+        };
 
-      // Mettre à jour l'état utilisateur
-      setUser(userData);
-      window.localStorage?.setItem(
-        STORAGE_KEYS.USER_DATA,
-        JSON.stringify(userData)
-      );
-      window.localStorage?.setItem(
-        STORAGE_KEYS.SESSION_START,
-        Date.now().toString()
-      );
+        setUser(userData);
+        window.localStorage?.setItem(
+          STORAGE_KEYS.USER_DATA,
+          JSON.stringify(userData)
+        );
+        window.localStorage?.setItem(
+          STORAGE_KEYS.SESSION_START,
+          Date.now().toString()
+        );
 
-      // Décoder le token pour planifier le rafraîchissement
-      if (data.access_token) {
-        try {
-          const decoded = jwtDecode<JwtPayload>(data.access_token);
-          
-          // Planifier le rafraîchissement du token (15 minutes - 1 minute préventive)
-          if (refreshTimeoutRef.current) {
-            window.clearTimeout(refreshTimeoutRef.current);
-          }
-          
-          const tokenExpirationMs = decoded.exp * 1000;
-          const currentTimeMs = Date.now();
-          const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
-          
-          const refreshTime = Math.max(
-            30000, // Minimum 30 secondes
-            timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
-          );
+        const decoded = jwtDecode<JwtPayload>(data.access_token);
+        
+        if (refreshTimeoutRef.current) {
+          window.clearTimeout(refreshTimeoutRef.current);
+        }
+        
+        const tokenExpirationMs = decoded.exp * 1000;
+        const currentTimeMs = Date.now();
+        const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
+        
+        const refreshTime = Math.max(
+          30000,
+          timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
+        );
 
-          if (refreshTime > 0) {
-            refreshTimeoutRef.current = window.setTimeout(async () => {
-              if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
-                const refreshed = await refreshToken();
-                if (refreshed) {
-                  refreshAttemptsRef.current = 0;
-                } else {
-                  refreshAttemptsRef.current++;
+        if (refreshTime > 0) {
+          refreshTimeoutRef.current = window.setTimeout(async () => {
+            if (import.meta.env.DEV) {
+              console.log('🔄 Rafraîchissement préventif du token...');
+            }
+            
+            if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
+              const refreshed = await refreshToken();
+              if (refreshed) {
+                refreshAttemptsRef.current = 0;
+                if (import.meta.env.DEV) {
+                  console.log('✅ Token rafraîchi avec succès');
                 }
               } else {
-                logout();
-                toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+                refreshAttemptsRef.current++;
+                if (import.meta.env.DEV) {
+                  console.warn(`❌ Échec rafraîchissement (tentative ${refreshAttemptsRef.current}/${AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS})`);
+                }
               }
-            }, refreshTime);
+            } else {
+              if (import.meta.env.DEV) {
+                console.error('❌ Trop de tentatives de rafraîchissement, déconnexion');
+              }
+              await logout();
+              toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+            }
+          }, refreshTime);
+          
+          if (import.meta.env.DEV) {
+            console.log(`⏰ Prochain rafraîchissement dans ${Math.round(refreshTime / 1000)}s`);
           }
-        } catch (error) {
-          console.warn('⚠️ Erreur décodage token après inscription:', error);
         }
-      }
 
-      // Rediriger automatiquement
-      const redirectPath = userData.role === UserRole.ADMIN
-        ? REDIRECT_PATHS.ADMIN_DASHBOARD
-        : REDIRECT_PATHS.HOME;
+        const redirectPath =
+          data.user.role === UserRole.ADMIN
+            ? REDIRECT_PATHS.ADMIN_DASHBOARD
+            : REDIRECT_PATHS.HOME;
 
-      navigate(redirectPath, { replace: true });
-      
-      // Afficher le toast de succès
-      toast.success(TOAST_MESSAGES.REGISTER_SUCCESS);
-      
-      if (import.meta.env.DEV) {
-        console.log('✅ Inscription et connexion réussies pour:', data.user.email);
-      }
-    } catch (err: any) {
-      console.error('❌ Erreur inscription:', {
-        message: err.message,
-        stack: err.stack,
-        formData: {
-          ...formData,
-          password: '[HIDDEN]',
-          confirmPassword: '[HIDDEN]'
+        navigate(redirectPath, { replace: true });
+        toast.success(TOAST_MESSAGES.LOGIN_SUCCESS);
+        
+        if (import.meta.env.DEV) {
+          console.log('✅ Connexion réussie pour:', data.user.email);
         }
-      });
-      
-      handleAuthError(err, 'register');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  },
-  [navigate, handleAuthError, refreshToken, logout]
+      } catch (err: any) {
+        if (import.meta.env.DEV) {
+          console.error('❌ Erreur de connexion:', {
+            message: err.message,
+            stack: err.stack,
+          });
+        }
+        
+        handleAuthError(err, 'login');
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [navigate, handleAuthError, refreshToken, logout]
   );
 
+  const register = useCallback(
+    async (formData: RegisterFormData): Promise<void> => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await window.fetch(
+          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REGISTER}`,
+          {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              firstName: formData.firstName.trim(),
+              lastName: formData.lastName.trim(),
+              email: formData.email.toLowerCase().trim(),
+              telephone: formData.telephone.trim(),
+              password: formData.password,
+            }),
+            credentials: 'include',
+          }
+        );
+
+        const data: RegisterResponse = await response.json();
+
+        if (!response.ok) {
+          if (response.status === 400) {
+            const errorMessage = data.message || "Données invalides";
+            
+            if (data.errors) {
+              const validationErrors = Object.values(data.errors).join(', ');
+              throw new Error(`Validation échouée : ${validationErrors}`);
+            }
+            
+            throw new Error(errorMessage);
+          }
+          
+          throw new Error(data.message || "Erreur lors de l'inscription");
+        }
+
+        if (data.access_token) {
+          window.localStorage?.setItem(
+            STORAGE_KEYS.ACCESS_TOKEN,
+            data.access_token
+          );
+          setAccessToken(data.access_token);
+        }
+
+        const userData: User = {
+          id: data.user.id,
+          email: data.user.email,
+          firstName: data.user.firstName,
+          lastName: data.user.lastName,
+          role: data.user.role,
+          telephone: data.user.telephone,
+          isActive: data.user.isActive !== false,
+          isAdmin: data.user.role === UserRole.ADMIN,
+        };
+
+        setUser(userData);
+        window.localStorage?.setItem(
+          STORAGE_KEYS.USER_DATA,
+          JSON.stringify(userData)
+        );
+        window.localStorage?.setItem(
+          STORAGE_KEYS.SESSION_START,
+          Date.now().toString()
+        );
+
+        if (data.access_token) {
+          try {
+            const decoded = jwtDecode<JwtPayload>(data.access_token);
+            
+            if (refreshTimeoutRef.current) {
+              window.clearTimeout(refreshTimeoutRef.current);
+            }
+            
+            const tokenExpirationMs = decoded.exp * 1000;
+            const currentTimeMs = Date.now();
+            const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
+            
+            const refreshTime = Math.max(
+              30000,
+              timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
+            );
+
+            if (refreshTime > 0) {
+              refreshTimeoutRef.current = window.setTimeout(async () => {
+                if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
+                  const refreshed = await refreshToken();
+                  if (refreshed) {
+                    refreshAttemptsRef.current = 0;
+                  } else {
+                    refreshAttemptsRef.current++;
+                  }
+                } else {
+                  await logout();
+                  toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+                }
+              }, refreshTime);
+            }
+          } catch (error) {
+            console.warn('⚠️ Erreur décodage token après inscription:', error);
+          }
+        }
+
+        const redirectPath = userData.role === UserRole.ADMIN
+          ? REDIRECT_PATHS.ADMIN_DASHBOARD
+          : REDIRECT_PATHS.HOME;
+
+        navigate(redirectPath, { replace: true });
+        toast.success(TOAST_MESSAGES.REGISTER_SUCCESS);
+        
+        if (import.meta.env.DEV) {
+          console.log('✅ Inscription et connexion réussies pour:', data.user.email);
+        }
+      } catch (err: any) {
+        console.error('❌ Erreur inscription:', {
+          message: err.message,
+          stack: err.stack,
+          formData: {
+            ...formData,
+            password: '[HIDDEN]',
+            confirmPassword: '[HIDDEN]'
+          }
+        });
+        
+        handleAuthError(err, 'register');
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [navigate, handleAuthError, refreshToken, logout]
+  );
 
   const logoutAll = useCallback(async (): Promise<LogoutAllResponse> => {
     if (!access_token || user?.role !== UserRole.ADMIN) {
@@ -812,13 +777,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(data.message || 'Erreur lors de la déconnexion globale');
       }
 
+      // Déconnecter aussi l'admin localement
+      await logout();
       toast.success(data.message || TOAST_MESSAGES.LOGOUT_ALL_SUCCESS);
       return data;
     } catch (err: any) {
       handleAuthError(err, 'logoutAll');
       throw err;
     }
-  }, [access_token, user, fetchWithAuth, handleAuthError]);
+  }, [access_token, user, fetchWithAuth, handleAuthError, logout]);
 
   const forgotPassword = useCallback(
     async (email: string): Promise<void> => {
@@ -841,7 +808,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         toast.success(TOAST_MESSAGES.FORGOT_PASSWORD_SUCCESS);
-        navigate(REDIRECT_PATHS.LOGIN);
+        navigate(REDIRECT_PATHS.HOME); // Rediriger vers l'accueil
       } catch (err: any) {
         handleAuthError(err, 'forgotPassword');
         throw err;
@@ -853,11 +820,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const checkAuth = useCallback(async (): Promise<void> => {
-    // Éviter les vérifications trop fréquentes
     const lastCheckTime = window.localStorage?.getItem(STORAGE_KEYS.LAST_AUTH_CHECK);
     if (lastCheckTime) {
       const timeSinceLastCheck = Date.now() - parseInt(lastCheckTime);
-      if (timeSinceLastCheck < 10000) { // 10 secondes minimum entre vérifications
+      if (timeSinceLastCheck < 10000) {
         return;
       }
     }
@@ -875,36 +841,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const tokenExpirationTime = decoded.exp * 1000;
       const timeUntilExpiration = tokenExpirationTime - currentTime;
 
-      // Logique de rafraîchissement optimisée
-      if (timeUntilExpiration < -60000) { // Token expiré depuis plus d'1 minute
+      if (timeUntilExpiration < -60000) {
         console.log('⏰ Token expiré depuis plus d\'1 minute');
         
         if (!isRefreshingRef.current) {
           const refreshed = await refreshToken();
           if (!refreshed) {
             console.warn('⚠️ Refresh échoué pour token expiré');
-            // Ne pas nettoyer immédiatement, attendre la prochaine vérification
           }
         }
       } else if (timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS) {
-        // Token va bientôt expirer (moins de 1 minute)
         console.log(`🔄 Token expire dans ${Math.round(timeUntilExpiration/1000)}s, refresh préventif...`);
         
         if (!isRefreshingRef.current) {
           await refreshToken();
         }
       } else if (!user && timeUntilExpiration > 60000) {
-        // Token valable et pas d'utilisateur en mémoire
         console.log('🔄 Récupération des données utilisateur...');
         await fetchUserData();
       }
       
-      // Mettre à jour l'heure de la dernière vérification
       window.localStorage.setItem(STORAGE_KEYS.LAST_AUTH_CHECK, Date.now().toString());
       
     } catch (error) {
       console.warn('⚠️ Erreur vérification auth:', error);
-      // En cas d'erreur de décodage, nettoyer les données
       if (error instanceof Error && error.message.includes('Invalid token')) {
         cleanupAuthData();
       }
@@ -916,7 +876,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [fetchUserData, refreshToken, user, cleanupAuthData]);
 
- 
   const resetPassword = useCallback(
     async (token: string, newPassword: string): Promise<void> => {
       setIsLoading(true);
@@ -954,7 +913,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         toast.success(TOAST_MESSAGES.PASSWORD_RESET_SUCCESS);
-        navigate(REDIRECT_PATHS.LOGIN, { replace: true });
+        navigate(REDIRECT_PATHS.HOME, { replace: true }); // Rediriger vers l'accueil
       } catch (err: any) {
         handleAuthError(err, 'resetPassword');
         throw err;
@@ -972,13 +931,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const initializeAuth = async (): Promise<void> => {
       if (!isMounted) return;
 
-      // Initialisation unique au démarrage
       if (!isInitialCheckDoneRef.current) {
         await checkAuth();
       }
 
       if (isMounted) {
-        // Vérification périodique de la session (toutes les 30 secondes)
         sessionCheckIntervalRef.current = window.setInterval(() => {
           const sessionStart = window.localStorage?.getItem(
             STORAGE_KEYS.SESSION_START
@@ -992,11 +949,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               logout();
               toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
             } else {
-              // Vérification d'authentification périodique (toutes les 30 secondes)
               checkAuth();
             }
           }
-        }, 30000); // Vérifier toutes les 30 secondes
+        }, 30000);
       }
     };
 
