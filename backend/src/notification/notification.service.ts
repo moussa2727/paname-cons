@@ -247,9 +247,6 @@ export class NotificationService implements OnModuleInit {
         </ul>
       </div>
       
-      <p>Si vous souhaitez modifier ou annuler votre rendez-vous, vous pouvez le faire depuis notre site 
-      jusqu'à 2 heures avant l'horaire prévu.</p>
-      
       <p>À très bientôt,</p>
     `;
 
