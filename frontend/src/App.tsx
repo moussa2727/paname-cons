@@ -13,44 +13,52 @@ import { Helmet } from 'react-helmet-async';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useAuth } from './context/AuthContext';
 
-// Components communs
+// ==================== COMPOSANTS COMMUNS ====================
+// Composants réutilisables dans toute l'application
 import Header from './components/Header';
 import Footer from './components/Footer';
 import Loader from './components/Loader';
 
-// Pages publiques
-import Accueil from './pages/Accueil';
-import Contact from './pages/Contact';
-import Propos from './pages/Propos';
-import Services from './pages/Services';
-import NotFound from './pages/Notfound';
-import RendezVous from './pages/user/rendezvous/RendezVous';
+// ==================== PAGES PUBLIQUES ====================
+// Accessibles sans connexion, avec header et footer
+import Accueil from './pages/Accueil';              // Page d'accueil
+import Contact from './pages/Contact';              // Page contact
+import Propos from './pages/Propos';                // Page à propos
+import Services from './pages/Services';            // Page services
+import NotFound from './pages/Notfound';            // Page 404
+import RendezVous from './pages/user/rendezvous/RendezVous'; // Page rendez-vous (PUBLIQUE)
 
-// Pages de connexion, inscription, mot de passe oublié
-import Connexion from './pages/Connexion';
-import Inscription from './pages/Inscription';
-import MotdePasseoublie from './pages/MotdePasseoublie';
+// ==================== PAGES D'AUTHENTIFICATION ====================
+// Pages de connexion, inscription, récupération mot de passe
+import Connexion from './pages/Connexion';               // Connexion utilisateur
+import Inscription from './pages/Inscription';           // Inscription nouveau compte
+// import MotdePasseoublie from './pages/MotdePasseoublie'; // Mot de passe oublié
 
-// Pages admin (lazy loaded)
-const UsersManagement = lazy(() => import('./pages/admin/UsersManagement'));
-const AdminLayout = lazy(() => import('./AdminLayout'));
-const AdminMessages = lazy(() =>
-  import('./pages/admin/AdminMessages'));
-const AdminProfile = lazy(() => import('./pages/admin/AdminProfile'));
-const AdminProcedure = lazy(() => import('./pages/admin/AdminProcedure'));
-const AdminDestinations = lazy(() => import('./pages/admin/AdminDestinations'));
-const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
-const AdminRendezVous = lazy(() => import('./pages/admin/AdminRendez-Vous'));
+// ==================== PAGES ADMIN (CHARGEMENT LAZY) ====================
+// Chargées uniquement lorsqu'elles sont nécessaires (optimisation performances)
+const UsersManagement = lazy(() => import('./pages/admin/UsersManagement')); // Gestion utilisateurs
+const AdminLayout = lazy(() => import('./AdminLayout'));                     // Layout admin
+const AdminMessages = lazy(() => import('./pages/admin/AdminMessages'));     // Messages contact
+const AdminProfile = lazy(() => import('./pages/admin/AdminProfile'));       // Profil admin
+const AdminProcedure = lazy(() => import('./pages/admin/AdminProcedure'));   // Gestion procédures
+const AdminDestinations = lazy(() => import('./pages/admin/AdminDestinations')); // Gestion destinations
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));   // Tableau de bord admin
+const AdminRendezVous = lazy(() => import('./pages/admin/AdminRendez-Vous')); // Gestion rendez-vous admin
 
-// Restrictions admin
+// ==================== COMPOSANT DE SÉCURITÉ ====================
+// Restreint l'accès aux pages admin
 import RequireAdmin from './context/RequireAdmin';
 
-import MesRendezVous from './pages/user/rendezvous/MesRendezVous';
-import UserProfile from './pages/user/UserProfile';
-import UserProcedure from './pages/user/UserProcedure';
-import ResetPassword from './components/auth/ResetPassword';
+// ==================== PAGES UTILISATEUR ====================
+// Pages privées nécessitant une connexion utilisateur
+// import MesRendezVous from './pages/user/rendezvous/MesRendezVous'; // Liste des rendez-vous de l'utilisateur
+// import UserProfile from './pages/user/UserProfile';               // Profil utilisateur
+// import UserProcedure from './pages/user/UserProcedure';           // Suivi de procédure utilisateur
+// import ResetPassword from './components/auth/ResetPassword';      // Réinitialisation mot de passe
 
-// Layout pour les pages publiques
+// ==================== LAYOUTS ====================
+
+// Layout pour les pages publiques (avec header et footer)
 const PublicLayout = ({ children }: { children: ReactNode }) => {
   return (
     <div className='flex flex-col min-h-screen w-full overflow-x-hidden touch-pan-y'>
@@ -61,7 +69,7 @@ const PublicLayout = ({ children }: { children: ReactNode }) => {
   );
 };
 
-// Layout minimal sans Header ni Footer
+// Layout minimal (sans header ni footer - pour formulaires, espace utilisateur/admin)
 const MinimalLayout = ({ children }: { children: ReactNode }) => {
   return (
     <div className='flex flex-col min-h-screen w-full overflow-x-hidden touch-pan-y'>
@@ -76,6 +84,7 @@ function App() {
   const { isLoading, isAuthenticated, user } = useAuth();
   const [isAOSInitialized, setIsAOSInitialized] = useState(false);
 
+  // Fonction pour scroll vers le haut de la page
   const safeScrollToTop = useCallback((behavior: ScrollBehavior = 'smooth') => {
     if (typeof globalThis.window === 'undefined') return;
 
@@ -89,6 +98,7 @@ function App() {
     }
   }, []);
 
+  // Scroll vers le haut à chaque changement de route
   useEffect(() => {
     safeScrollToTop();
 
@@ -103,6 +113,7 @@ function App() {
     };
   }, [location.pathname, safeScrollToTop]);
 
+  // Initialisation des animations AOS (scroll animations)
   useEffect(() => {
     if (typeof globalThis.window === 'undefined' || isAOSInitialized) return;
 
@@ -116,6 +127,7 @@ function App() {
     setIsAOSInitialized(true);
   }, [isAOSInitialized]);
 
+  // Afficher un loader pendant le chargement de l'authentification
   if (isLoading) {
     return <Loader />;
   }
@@ -131,8 +143,7 @@ function App() {
           name='description'
           content="Paname Consulting : expert en accompagnement étudiant à l'étranger, organisation de voyages d'affaires et demandes de visa. Conseil personnalisé pour votre réussite internationale."
         />
-          <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta 
           name="viewport" 
           content="width=device-width, initial-scale=1, maximum-scale=5" 
@@ -142,11 +153,13 @@ function App() {
         <link rel="apple-touch-icon" href="/paname-consulting.png" />
         <link rel="manifest" href="/manifest.json" />
         <meta property="og:url" content="https://panameconsulting.vercel.app" />
-
       </Helmet>
 
       <div key={navigationKey}>
         <Routes>
+          {/* ==================== PAGES PUBLIQUES (Accessibles sans connexion) ==================== */}
+          
+          {/* Page d'accueil - Présentation de l'entreprise */}
           <Route
             path='/'
             element={
@@ -156,6 +169,7 @@ function App() {
             }
           />
 
+          {/* Page services - Détail des services proposés */}
           <Route
             path='/services'
             element={
@@ -165,6 +179,7 @@ function App() {
             }
           />
 
+          {/* Page contact - Formulaire de contact */}
           <Route
             path='/contact'
             element={
@@ -174,6 +189,7 @@ function App() {
             }
           />
 
+          {/* Page à propos - Histoire et valeurs de l'entreprise */}
           <Route
             path='/a-propos'
             element={
@@ -183,35 +199,13 @@ function App() {
             }
           />
 
-          <Route
-            path='/rendez-vous'
-            element={
-              isAuthenticated ? (
-                <MinimalLayout>
-                  <RendezVous />
-                </MinimalLayout>
-              ) : (
-                <Navigate
-                  to='/connexion'
-                  replace
-                  state={{ from: location.pathname }}
-                />
-              )
-            }
-          />
-
-          <Route
-            path='/reset-password'
-            element={
-              <MinimalLayout>
-                <ResetPassword />
-              </MinimalLayout>
-            }
-          />
-
+          {/* ==================== FORMULAIRES D'AUTHENTIFICATION ==================== */}
+          
+          {/* Page connexion - Connexion à un compte existant */}
           <Route
             path='/connexion'
             element={
+              // Si déjà connecté, redirection selon le rôle
               isAuthenticated ? (
                 <Navigate
                   to={user?.role === 'admin' || user?.isAdmin === true 
@@ -227,6 +221,7 @@ function App() {
             }
           />
 
+          {/* Page inscription - Création d'un nouveau compte */}
           <Route
             path='/inscription'
             element={
@@ -245,7 +240,8 @@ function App() {
             }
           />
 
-          <Route
+          {/* Page mot de passe oublié - Récupération de compte */}
+          {/* <Route
             path='/mot-de-passe-oublie'
             element={
               isAuthenticated ? (
@@ -261,26 +257,41 @@ function App() {
                 </MinimalLayout>
               )
             }
-          />
+          /> */}
 
-          <Route
+          {/* Réinitialisation mot de passe - Formulaire après clic sur lien email */}
+          {/* <Route
+            path='/reset-password'
+            element={
+              <MinimalLayout>
+                <ResetPassword />
+              </MinimalLayout>
+            }
+          /> */}
+
+          {/* ==================== PAGES UTILISATEUR (Privées - nécessitent connexion) ==================== */}
+          
+          {/* Mes rendez-vous - Consultation des rendez-vous passés et à venir */}
+          {/* <Route
             path='/mes-rendez-vous'
             element={
               isAuthenticated ? (
                 <MinimalLayout>
                   <MesRendezVous />
                 </MinimalLayout>
-              ) : (
-                <Navigate
-                  to='/connexion'
-                  replace
-                  state={{ from: location.pathname }}
-                />
-              )
-            }
-          />
+            ) : (
+              // Redirection vers la page de connexion si non authentifié
+              <Navigate
+                to='/connexion'
+                replace
+                state={{ from: location.pathname }}
+              />
+            )
+          }
+          /> */}
 
-          <Route
+          {/* Mon profil - Gestion des informations personnelles */}
+          {/* <Route
             path='/mon-profil'
             element={
               isAuthenticated ? (
@@ -295,9 +306,10 @@ function App() {
                 />
               )
             }
-          />
+          /> */}
 
-          <Route
+          {/* Ma procédure - Suivi des procédures d'admission */}
+          {/* <Route
             path='/ma-procedure'
             element={
               isAuthenticated ? (
@@ -312,8 +324,23 @@ function App() {
                 />
               )
             }
+          /> */}
+
+          {/* ==================== PAGE RENDEZ-VOUS (PUBLIQUE) ==================== */}
+          
+          {/* Page rendez-vous - Création d'un rendez-vous (Publique - accessible sans connexion) */}
+          <Route
+            path='/rendez-vous'
+            element={
+              <MinimalLayout>
+                <RendezVous />
+              </MinimalLayout>
+            }
           />
 
+          {/* ==================== PAGES ADMIN (Privées - Requiert rôle admin) ==================== */}
+          
+          {/* Route parent pour l'espace admin avec layout spécifique */}
           <Route
             path='/gestionnaire/*'
             element={
@@ -324,22 +351,21 @@ function App() {
               </RequireAdmin>
             }
           >
+            {/* Redirection par défaut vers le tableau de bord admin */}
             <Route index element={<Navigate to='statistiques' replace />} />
-            <Route path='utilisateurs' element={<UsersManagement />} />
-            <Route path='statistiques' element={<AdminDashboard />} />
-            <Route path='messages' element={<AdminMessages />} />
-            <Route path='procedures' element={<AdminProcedure />} />
-            <Route path='profil' element={<AdminProfile />} />
-            <Route path='destinations' element={<AdminDestinations />} />
-            <Route path='rendez-vous' element={<AdminRendezVous />} />
+            
+            {/* Sous-routes de l'espace admin */}
+            <Route path='utilisateurs' element={<UsersManagement />} />      {/* Gestion des comptes utilisateurs */}
+            <Route path='statistiques' element={<AdminDashboard />} />       {/* Statistiques et indicateurs */}
+            <Route path='messages' element={<AdminMessages />} />            {/* Messages reçus via le formulaire contact */}
+            <Route path='procedures' element={<AdminProcedure />} />         {/* Gestion des procédures d'admission */}
+            <Route path='profil' element={<AdminProfile />} />               {/* Profil administrateur */}
+            <Route path='destinations' element={<AdminDestinations />} />    {/* Gestion des destinations proposées */}
+            <Route path='rendez-vous' element={<AdminRendezVous />} />       {/* Gestion des rendez-vous (vue admin) */}
           </Route>
 
-         
-          <Route
-            path='/gestionnaire'
-            element={<Navigate to='/gestionnaire/statistiques' replace />}
-          />
-
+          {/* ==================== PAGE 404 ==================== */}
+          
           <Route path='*' element={<NotFound />} />
         </Routes>
       </div>

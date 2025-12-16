@@ -7,6 +7,8 @@ import Hero from '../components/Hero';
 import Valeur from '../components/Valeur';
 import '../index.css';
 
+
+const FRONTEND_URL=import.meta.env.VITE_FRONTEND_URL;
 function Accueil() {
   return (
     <>
@@ -55,7 +57,10 @@ function Accueil() {
           <link rel='icon' href='/paname-consulting.ico' type='image/x-icon' />
           <link rel='apple-touch-icon' href='/paname-consulting.ico' />
           <link rel='manifest' href='/manifest.json' />
-          <link rel='canonical' href='https://panameconsulting.vercel.app/' />
+          <link
+          rel='canonical'
+          href={`${FRONTEND_URL}`} 
+        />
 
           {/* Balises Open Graph pour le partage social */}
           <meta

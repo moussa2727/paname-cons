@@ -7,7 +7,7 @@ import { userProfileService, UserUpdateData, AuthContextFunctions } from '../../
 import { Loader2, Mail, Phone, Calendar, Shield, User, UserCheck, Lock, Eye, EyeOff } from 'lucide-react';
 
 const UserProfile = () => {
-  const { user, updateProfile, fetchWithAuth, refreshToken, access_token } = useAuth();
+  const { user, fetchWithAuth, refreshToken, access_token } = useAuth();
   const pageConfig = usePageConfig();
   
   const [isLoading, setIsLoading] = useState(false);

@@ -378,6 +378,7 @@ const MesRendezvous = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showCancelConfirm]);
+  const FRONTEND_URL=import.meta.env.VITE_FRONTEND_URL;
 
   return (
     <>
@@ -388,7 +389,11 @@ const MesRendezvous = () => {
         <meta name="robots" content="noindex, nofollow" />
         <meta name="googlebot" content="noindex, nofollow" />
         {/* Balise pour bloquer le zoom sur mobile */}
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />^
+        <link
+          rel='canonical'
+          href={`${FRONTEND_URL}/mes-rendez-vous`} 
+        />
       </Helmet>
 
       <UserHeader

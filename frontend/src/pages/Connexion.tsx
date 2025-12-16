@@ -6,7 +6,7 @@ const Connexion = () => {
   const pageTitle = 'Connexion à votre compte - PANAME CONSULTING';
   const pageDescription =
     "Accédez à votre espace personnel pour gérer votre dossier d'études à l'étranger avec Paname Consulting";
-  const canonicalUrl = 'https://panameconsulting.com/connexion';
+  const canonicalUrl = import.meta.env.VITE_FRONTEND_URL;
 
   return (
     <>
@@ -27,7 +27,7 @@ const Connexion = () => {
         <meta property='og:type' content='website' />
         <meta
           property='og:image'
-          content='https://panameconsulting.vercel.app/paname-consulting.jpg'
+          content={`${canonicalUrl}/paname-consulting.jpg`}
         />
         <meta property='og:image:alt' content='Logo Paname Consulting' />
 
@@ -37,7 +37,7 @@ const Connexion = () => {
         <meta name='twitter:description' content={pageDescription} />
         <meta
           name='twitter:image'
-          content='https://panameconsulting.vercel.app/paname-consulting.jpg'
+          content={`${canonicalUrl}/paname-consulting.jpg`}
         />
 
         {/* Favicon et icônes */}

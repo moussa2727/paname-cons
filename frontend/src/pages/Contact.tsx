@@ -5,6 +5,8 @@ import CTASection from '../components/CtaSection';
 import Faq from '../components/Faq';
 import Form from '../components/Form';
 
+const FRONTEND_URL=import.meta.env.VITE_FRONTEND_URL;
+
 export default function Contact() {
   return (
     <>
@@ -42,6 +44,11 @@ export default function Contact() {
                       overflow-x: hidden;
                   }
                 `}</style>
+
+                <link
+          rel='canonical'
+          href={`${FRONTEND_URL}/contact`} 
+        />
         </Helmet>
 
 <main className='flex-1 mt-6 sm:mt-8 md:mt-12 lg:mt-16 xl:mt-20 2xl:mt-24 bg-gradient-to-b from-white via-sky-50 to-white'>          <Form />
