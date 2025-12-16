@@ -4,6 +4,7 @@ import {
   Home as HomeIcon,
   Info as InfoIcon,
   LayoutDashboard,
+  LogOut,
   Mail as MailIcon,
   Menu,
   Phone as PhoneIcon,
@@ -13,15 +14,20 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 function Header(): React.JSX.Element {
+  const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
   const [showTopBar] = useState(true);
   const [nav, setNav] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [blinkColor, setBlinkColor] = useState('text-gray-600');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const mobileMenuRef = useRef<HTMLUListElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const hamburgerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -48,11 +54,20 @@ function Header(): React.JSX.Element {
       ) {
         setNav(false);
       }
+
+      if (
+        dropdownOpen &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setDropdownOpen(false);
+      }
     };
 
     const handleEscapeKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         if (nav) setNav(false);
+        if (dropdownOpen) setDropdownOpen(false);
       }
     };
 
@@ -63,7 +78,7 @@ function Header(): React.JSX.Element {
       document?.removeEventListener('mousedown', handleClickOutside);
       document?.removeEventListener('keydown', handleEscapeKey);
     };
-  }, [nav]);
+  }, [nav, dropdownOpen]);
 
   useEffect(() => {
     let blinkTimeout: ReturnType<typeof setTimeout>;
@@ -81,6 +96,22 @@ function Header(): React.JSX.Element {
       clearTimeout(blinkTimeout);
     };
   }, []);
+
+  const handleLogout = async (): Promise<void> => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      window.sessionStorage?.removeItem('redirect_after_login');
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('Erreur lors de la déconnexion:', error);
+      }
+    } finally {
+      setIsLoggingOut(false);
+      setDropdownOpen(false);
+      if (nav) setNav(false);
+    }
+  };
 
   const navItems = [
     { name: 'Accueil', path: '/', icon: <HomeIcon className='w-5 h-5' /> },
@@ -101,6 +132,67 @@ function Header(): React.JSX.Element {
       icon: <MailIcon className='w-5 h-5' />,
     },
   ];
+
+  const adminMenuItems = [
+    {
+      name: 'Tableau de bord',
+      path: '/gestionnaire/statistiques',
+      icon: <LayoutDashboard className='w-4 h-4' />,
+      visible: true,
+      section: 'admin',
+    },
+    {
+      name: 'Gestion des Procédures',
+      path: '/gestionnaire/procedures',
+      icon: <FileText className='w-4 h-4' />,
+      visible: true,
+      section: 'admin',
+    },
+    {
+      name: 'Gestion des Rendez-Vous',
+      path: '/gestionnaire/rendez-vous',
+      icon: <Calendar className='w-4 h-4' />,
+      visible: true,
+      section: 'admin',
+    },
+    {
+      name: 'Profil Admin',
+      path: '/gestionnaire/profil',
+      icon: <UserIcon className='w-4 h-4' />,
+      visible: true,
+      section: 'profile',
+    },
+    {
+      name: 'Déconnexion',
+      action: handleLogout,
+      icon: isLoggingOut ? (
+        <div className='w-4 h-4 border-2 border-gray-700 border-t-transparent rounded-full animate-spin'></div>
+      ) : (
+        <LogOut className='w-4 h-4' />
+      ),
+      visible: true,
+      disabled: isLoggingOut,
+      section: 'logout',
+    },
+  ];
+
+  const getUserInitials = (): string => {
+    if (!user) return 'A';
+    const firstNameInitial = user.firstName ? user.firstName.charAt(0).toUpperCase() : '';
+    const lastNameInitial = user.lastName ? user.lastName.charAt(0).toUpperCase() : '';
+    return `${firstNameInitial}${lastNameInitial}` || 'A';
+  };
+
+  const getUserDisplayName = (): string => {
+    if (!user) return 'Administrateur';
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    return user.email || 'Administrateur';
+  };
+
+  // Seul un admin authentifié voit les fonctionnalités d'administration
+  const isAdmin = isAuthenticated && (user?.role === 'admin' || user?.isAdmin === true);
 
   return (
     <header role='banner' className='fixed top-0 z-50 w-full font-sans'>
@@ -200,6 +292,94 @@ function Header(): React.JSX.Element {
                   </li>
                 ))}
               </ul>
+
+              {/* Avatar admin - visible seulement si admin connecté */}
+              {isAdmin ? (
+                <div className='relative ml-2 md:ml-4' ref={dropdownRef}>
+                  <button
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    className='flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full bg-sky-500 text-white font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-400 transition-all duration-200 hover:scale-105 hover:bg-sky-600'
+                    aria-label='Menu administrateur'
+                    aria-expanded={dropdownOpen}
+                    aria-haspopup='true'
+                    disabled={authLoading}
+                  >
+                    <span className='text-xs md:text-sm font-semibold'>
+                      {getUserInitials()}
+                    </span>
+                  </button>
+
+                  {dropdownOpen && (
+                    <div
+                      className='absolute right-0 mt-2 w-48 md:w-56 bg-white rounded-lg shadow-xl py-1 z-50 border border-gray-200'
+                      role='menu'
+                      aria-orientation='vertical'
+                    >
+                      {/* Header du dropdown */}
+                      <div className='px-3 md:px-4 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg'>
+                        <p className='text-sm font-semibold text-gray-800 truncate'>
+                          {getUserDisplayName()}
+                        </p>
+                        <p className='text-xs text-gray-500 truncate mt-1'>
+                          {user?.email || 'Administrateur'}
+                        </p>
+                        <div className='mt-2'>
+                          <span className='inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-800'>
+                            Administrateur
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Liens admin */}
+                      <div className='py-2'>
+                        {adminMenuItems
+                          .filter(item => item.visible)
+                          .map((item, index) =>
+                            item.path ? (
+                              <button
+                                key={index}
+                                onClick={() => {
+                                  navigate(item.path);
+                                  setDropdownOpen(false);
+                                }}
+                                className='flex w-full items-center px-3 md:px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-sky-600 transition-all duration-150 font-medium'
+                                role='menuitem'
+                                disabled={item.disabled}
+                                aria-disabled={item.disabled}
+                              >
+                                <span className='flex-shrink-0 text-gray-400'>
+                                  {item.icon}
+                                </span>
+                                <span className='ml-3 truncate'>{item.name}</span>
+                                {item.section === 'admin' && (
+                                  <span className='ml-auto text-xs text-sky-500 font-semibold'>
+                                    ADMIN
+                                  </span>
+                                )}
+                              </button>
+                            ) : (
+                              <button
+                                key={index}
+                                onClick={() => {
+                                  if (item.action) item.action();
+                                }}
+                                className='flex w-full items-center px-3 md:px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-all duration-150 font-medium mt-2 border-t border-gray-100'
+                                role='menuitem'
+                                disabled={item.disabled}
+                                aria-disabled={item.disabled}
+                              >
+                                <span className='flex-shrink-0'>
+                                  {item.icon}
+                                </span>
+                                <span className='ml-3 truncate'>{item.name}</span>
+                              </button>
+                            )
+                          )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
 
             {/* Bouton hamburger mobile */}
@@ -210,6 +390,7 @@ function Header(): React.JSX.Element {
               aria-label={nav ? 'Fermer le menu' : 'Ouvrir le menu'}
               aria-expanded={nav}
               aria-controls='mobile-menu'
+              disabled={authLoading}
             >
               {nav ? (
                 <X className='w-6 h-6 text-gray-700' />
@@ -236,50 +417,149 @@ function Header(): React.JSX.Element {
                 {/* En-tête mobile */}
                 <div className='sticky top-0 bg-white border-b z-10'>
                   <div className='px-4 py-3 flex items-center justify-between bg-gray-50'>
-                    <div className='text-gray-600 text-sm'>
-                      <p className='font-medium'>Bienvenue</p>
-                      <p className='text-xs'>Paname Consulting</p>
+                    <div className='flex items-center'>
+                      {isAdmin ? (
+                        <>
+                          <div className='flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-bold mr-3'>
+                            {getUserInitials()}
+                          </div>
+                          <div>
+                            <p className='text-sm font-bold text-gray-800 truncate'>
+                              {getUserDisplayName()}
+                            </p>
+                            <p className='text-xs text-gray-500 truncate'>
+                              {user?.email || 'Administrateur'}
+                            </p>
+                            <div className='mt-1'>
+                              <span className='text-xs font-semibold text-white bg-sky-500 px-2 py-0.5 rounded'>
+                                ADMIN
+                              </span>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className='text-gray-600 text-sm'>
+                          <p className='font-medium'>Bienvenue</p>
+                          <p className='text-xs'>Paname Consulting</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* CONTENU DU MENU MOBILE - Mobile First */}
                 <div className='p-4 space-y-6'>
-                  {/* SECTION: NAVIGATION PRINCIPALE */}
-                  <div className='space-y-2'>
-                    <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 px-2'>
-                      Navigation
-                    </h3>
-                    {navItems.map(item => (
-                      <div key={item.path}>
-                        <Link
-                          to={item.path}
-                          onClick={() => setNav(false)}
-                          role='menuitem'
-                          aria-current={
-                            location.pathname === item.path ? 'page' : undefined
-                          }
-                          className={`flex items-center px-3 py-3 rounded-lg transition-all duration-150 font-medium ${
-                            location.pathname === item.path
-                              ? 'bg-sky-50 text-sky-600 border-l-4 border-sky-500'
-                              : 'text-gray-600 hover:bg-gray-50 hover:text-sky-500'
-                          }`}
-                        >
-                          <span className={`flex-shrink-0 ${
-                            location.pathname === item.path ? 'text-sky-500' : 'text-gray-400'
-                          }`}>
-                            {item.icon}
-                          </span>
-                          <span className='ml-3 flex-1 font-medium'>{item.name}</span>
-                          {location.pathname === item.path && (
-                            <span className='text-xs font-semibold text-sky-500 bg-sky-100 px-2 py-0.5 rounded'>
-                              Actif
-                            </span>
-                          )}
-                        </Link>
+                  {/* SECTION ADMIN (si admin connecté) */}
+                  {isAdmin && (
+                    <div className='space-y-2'>
+                      <div className='flex items-center justify-between px-2 mb-2'>
+                        <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider'>
+                          Administration
+                        </h3>
+                        <span className='text-xs font-semibold text-sky-600 bg-sky-100 px-2 py-0.5 rounded'>
+                          Connecté
+                        </span>
                       </div>
-                    ))}
+                      {adminMenuItems
+                        .filter(item => item.section !== 'logout')
+                        .map((item, index) => (
+                          <div key={index}>
+                            {item.path ? (
+                              <button
+                                onClick={() => {
+                                  navigate(item.path);
+                                  setNav(false);
+                                }}
+                                className='flex w-full items-center px-3 py-3 text-gray-800 hover:bg-gray-50 hover:text-sky-600 rounded-lg transition-all duration-150 font-medium'
+                                role='menuitem'
+                                disabled={item.disabled}
+                                aria-disabled={item.disabled}
+                              >
+                                <span className='flex-shrink-0 text-sky-500'>
+                                  {item.icon}
+                                </span>
+                                <span className='ml-3 flex-1 text-left font-semibold'>{item.name}</span>
+                                {item.section === 'admin' && (
+                                  <span className='ml-2 text-xs font-bold text-white bg-sky-500 px-2 py-0.5 rounded'>
+                                    ADMIN
+                                  </span>
+                                )}
+                                <span className='ml-2 text-gray-400'>
+                                  →
+                                </span>
+                              </button>
+                            ) : null}
+                          </div>
+                        ))}
+                    </div>
+                  )}
+
+                  {/* SECTION: NAVIGATION PRINCIPALE */}
+                  <div className={`${isAdmin ? 'border-t border-gray-200 pt-4' : ''}`}>
+                    <div className='space-y-2'>
+                      <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 px-2'>
+                        Navigation
+                      </h3>
+                      {navItems.map(item => (
+                        <div key={item.path}>
+                          <Link
+                            to={item.path}
+                            onClick={() => setNav(false)}
+                            role='menuitem'
+                            aria-current={
+                              location.pathname === item.path ? 'page' : undefined
+                            }
+                            className={`flex items-center px-3 py-3 rounded-lg transition-all duration-150 font-medium ${
+                              location.pathname === item.path
+                                ? 'bg-sky-50 text-sky-600 border-l-4 border-sky-500'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-sky-500'
+                            }`}
+                          >
+                            <span className={`flex-shrink-0 ${
+                              location.pathname === item.path ? 'text-sky-500' : 'text-gray-400'
+                            }`}>
+                              {item.icon}
+                            </span>
+                            <span className='ml-3 flex-1 font-medium'>{item.name}</span>
+                            {location.pathname === item.path && (
+                              <span className='text-xs font-semibold text-sky-500 bg-sky-100 px-2 py-0.5 rounded'>
+                                Actif
+                              </span>
+                            )}
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+
+                  {/* SECTION DÉCONNEXION (en bas si admin connecté) */}
+                  {isAdmin && (
+                    <div className='pt-4 border-t border-gray-200'>
+                      <div className='space-y-2'>
+                        <button
+                          onClick={handleLogout}
+                          className='flex w-full items-center justify-between px-3 py-3 text-white bg-red-500 hover:bg-red-600 rounded-lg transition-all duration-200 font-medium'
+                          role='menuitem'
+                          disabled={isLoggingOut}
+                          aria-disabled={isLoggingOut}
+                        >
+                          <div className='flex items-center'>
+                            {isLoggingOut ? (
+                              <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2'></div>
+                            ) : (
+                              <LogOut className='w-5 h-5 mr-2' />
+                            )}
+                            <span className='font-semibold'>
+                              {isLoggingOut ? 'Déconnexion...' : 'Déconnexion'}
+                            </span>
+                          </div>
+                          <span className='text-xs text-white/80'>
+                            →
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </ul>
             </div>
