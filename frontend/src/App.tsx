@@ -31,7 +31,7 @@ import RendezVous from './pages/user/rendezvous/RendezVous'; // Page rendez-vous
 // ==================== PAGES D'AUTHENTIFICATION ====================
 // Pages de connexion, inscription, récupération mot de passe
 import Connexion from './pages/Connexion';               // Connexion utilisateur
-import Inscription from './pages/Inscription';           // Inscription nouveau compte
+// import Inscription from './pages/Inscription';           // Inscription nouveau compte
 // import MotdePasseoublie from './pages/MotdePasseoublie'; // Mot de passe oublié
 
 // ==================== PAGES ADMIN (CHARGEMENT LAZY) ====================
@@ -203,7 +203,7 @@ function App() {
           
           {/* Page connexion - Connexion à un compte existant */}
           <Route
-            path='/connexion'
+            path='/connexion-admin'
             element={
               // Si déjà connecté, redirection selon le rôle
               isAuthenticated ? (
@@ -222,7 +222,7 @@ function App() {
           />
 
           {/* Page inscription - Création d'un nouveau compte */}
-          <Route
+          {/* <Route
             path='/inscription'
             element={
               isAuthenticated ? (
@@ -238,7 +238,7 @@ function App() {
                 </MinimalLayout>
               )
             }
-          />
+          /> */}
 
           {/* Page mot de passe oublié - Récupération de compte */}
           {/* <Route
