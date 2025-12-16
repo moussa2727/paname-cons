@@ -213,7 +213,7 @@ devDependencies:
     specifier: ^5.62.0
     version: 5.62.0(eslint@9.39.2)(typescript@5.3.3)
   eslint:
-    specifier: ^9.39.2
+    specifier: ^9.4.0
     version: 9.39.2
   eslint-config-prettier:
     specifier: ^9.1.2
@@ -10715,6 +10715,7 @@ packages:
 
   /wordwrap@1.0.0:
     resolution: {integrity: sha512-gvVzJFlPycKc5dZN4yPkP8w7Dc37BtP1yczEneOb4uq34pXZcvrtRTmWV8W+Ume+XCxKgbjM+nevkyFPMybd4Q==}
+    requiresBuild: true
 
   /wrap-ansi@6.2.0:
     resolution: {integrity: sha512-r6lPcBGxZXlIcymEu7InxDMhdW0KDxpLgoFLcguasxCaJ/SOIZwINatK9KY/tf+ZrlywOKU0UDj3ATXUBfxJXA==}
