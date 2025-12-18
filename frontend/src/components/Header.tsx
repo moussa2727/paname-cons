@@ -30,7 +30,7 @@ function Header(): React.JSX.Element {
   const [isMounted, setIsMounted] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const mobileMenuRef = useRef<HTMLUListElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const hamburgerRef = useRef<HTMLButtonElement>(null);
 
@@ -425,7 +425,7 @@ function Header(): React.JSX.Element {
               )}
             </div>
 
-            {/* Bouton hamburger mobile */}
+            {/* Bouton hamburger mobile - SEUL BOUTON DE FERMETURE */}
             <button
               ref={hamburgerRef}
               className='lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-all duration-200'
@@ -449,15 +449,15 @@ function Header(): React.JSX.Element {
               id='mobile-menu'
               className='lg:hidden fixed inset-0 bg-black/50 z-40 mt-16'
               onClick={() => setNav(false)}
+              ref={mobileMenuRef}
             >
-              <ul
+              <div
                 className='absolute right-0 top-0 w-4/5 max-w-sm h-full bg-white shadow-lg overflow-y-auto'
                 role='menu'
                 aria-label='Navigation mobile'
-                ref={mobileMenuRef}
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* En-tête mobile */}
+                {/* En-tête mobile - SIMPLIFIÉ (sans double bouton) */}
                 <div className='sticky top-0 bg-white border-b z-10'>
                   <div className='px-4 py-3 flex items-center justify-between bg-gray-50'>
                     <div className='flex items-center'>
@@ -476,18 +476,12 @@ function Header(): React.JSX.Element {
                           </>
                         ) : (
                           <p className='text-sm font-bold text-gray-800'>
-                            Paname Consulting
+                            {/* TEXTE RETIRÉ - Plus de "Paname Consulting" */}
                           </p>
                         )}
                       </div>
                     </div>
-                    <button
-                      onClick={() => setNav(false)}
-                      className='p-2 rounded-full hover:bg-gray-200'
-                      aria-label='Fermer le menu'
-                    >
-                      <X className='w-5 h-5 text-gray-600' />
-                    </button>
+                    {/* SUPPRIMÉ: Le bouton de fermeture en double */}
                   </div>
                 </div>
 
@@ -642,7 +636,7 @@ function Header(): React.JSX.Element {
                     </div>
                   )}
                 </div>
-              </ul>
+              </div>
             </div>
           )}
         </div>
