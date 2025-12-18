@@ -89,7 +89,7 @@ const AdminProfile: React.FC = () => {
 
     try {
       const VITE_API_URL =
-        import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        import.meta.env.VITE_API_URL;
 
       // Vérifie que le token est disponible
       if (!access_token) {
@@ -245,7 +245,7 @@ const AdminProfile: React.FC = () => {
         <meta name='seznam' content='noindex, nofollow' />
       </Helmet>
 
-      <div className='min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8'>
+      <div className='min-h-screen py-8 px-4 sm:px-6 lg:px-8'>
         <div className='max-w-md mx-auto'>
           {/* En-tête */}
           <div className='text-center mb-8'>
@@ -318,7 +318,7 @@ const AdminProfile: React.FC = () => {
                         currentPassword: e.target.value,
                       }))
                     }
-                    className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none hover:border-blue-400 transition-colors duration-200 bg-white text-gray-900 placeholder-gray-400 text-base'
+                    className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 outline-none hover:border-blue-400 transition-colors duration-200 bg-white text-gray-900 placeholder-gray-400 text-base'
                     placeholder='Mot de passe actuel'
                     required
                     autoComplete='current-password'
@@ -362,7 +362,7 @@ const AdminProfile: React.FC = () => {
                         newPassword: e.target.value,
                       }))
                     }
-                    className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none hover:border-blue-400 transition-colors duration-200 bg-white text-gray-900 placeholder-gray-400 text-base'
+                    className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 outline-none hover:border-blue-400 transition-colors duration-200 bg-white text-gray-900 placeholder-gray-400 text-base'
                     placeholder='Nouveau mot de passe'
                     required
                     autoComplete='new-password'
@@ -406,7 +406,7 @@ const AdminProfile: React.FC = () => {
                         confirmPassword: e.target.value,
                       }))
                     }
-                    className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none hover:border-blue-400 transition-colors duration-200 bg-white text-gray-900 placeholder-gray-400 text-base'
+                    className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 outline-none hover:border-blue-400 transition-colors duration-200 bg-white text-gray-900 placeholder-gray-400 text-base'
                     placeholder='Confirmer le mot de passe'
                     required
                     autoComplete='new-password'

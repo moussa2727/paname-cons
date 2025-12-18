@@ -25,6 +25,7 @@ import {
   FiCheckCircle,
 } from 'react-icons/fi';
 import { FaGraduationCap } from 'react-icons/fa';
+import { useAuth } from '../../../context/AuthContext';
 
 interface Destination {
   _id: string;
@@ -48,18 +49,19 @@ interface FormData {
 }
 
 const API_URL = import.meta.env.VITE_API_URL;
-const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL;
 
-/* global fetch, setTimeout, console */
+/* global fetch, setTimeout, localStorage, console */
 const RendezVous = () => {
+  const { isAuthenticated, access_token, refreshToken, logout, user } =
+    useAuth();
   const navigate = useNavigate();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>({
-    firstName: '',
-    lastName: '',
-    email: '',
-    telephone: '',
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    email: user?.email || '',
+    telephone: user?.telephone || '',
     destination: '',
     niveauEtude: '',
     filiere: '',
@@ -168,10 +170,9 @@ const RendezVous = () => {
   const formatDateDisplay = (dateStr: string): string => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('fr-FR', {
-      weekday: 'long',
+      weekday: 'short',
       day: 'numeric',
-      month: 'long',
-      year: 'numeric',
+      month: 'short',
     });
   };
 
@@ -232,14 +233,14 @@ const RendezVous = () => {
     } else {
       if (currentStep === 1) {
         if (!formData.firstName?.trim() || !formData.lastName?.trim()) {
-          toast.error('Le prénom et le nom sont obligatoires');
+          toast.error('Prénom et nom sont obligatoires');
         } else if (!formData.email?.trim()) {
-          toast.error('L\'email est obligatoire');
+          toast.error('Email est obligatoire');
         } else if (
           !formData.telephone?.trim() ||
           !validatePhone(formData.telephone)
         ) {
-          toast.error('Numéro de téléphone invalide. Format accepté : +228XXXXXXXXX (8 à 15 chiffres)');
+          toast.error('Numéro de téléphone invalide (format: +22812345678, 8-15 chiffres, ne doit pas commencer par 0)');
         }
       } else if (currentStep === 2) {
         if (!formData.destination) {
@@ -288,7 +289,7 @@ const RendezVous = () => {
       setAvailableDates(filteredDates);
     } catch (error) {
       console.error('Erreur dates:', error);
-      toast.error('Impossible de charger les dates disponibles');
+      toast.error('Impossible de charger les dates');
     } finally {
       setLoadingDates(false);
     }
@@ -317,7 +318,7 @@ const RendezVous = () => {
         setAvailableSlots(slots);
       } catch (error) {
         console.error('Erreur créneaux:', error);
-        toast.error('Impossible de charger les créneaux disponibles');
+        toast.error('Impossible de charger les créneaux');
       } finally {
         setLoadingSlots(false);
       }
@@ -334,165 +335,249 @@ const RendezVous = () => {
     if (formData.date) fetchAvailableSlots(formData.date);
   }, [formData.date, fetchAvailableSlots]);
 
-  const handleSubmit = async (e: FormEvent): Promise<void> => {
-    e.preventDefault();
+ const handleSubmit = async (e: FormEvent): Promise<void> => {
+  e.preventDefault();
 
-    // Validation STRICTE des données (identique au backend)
-    if (!validatePhone(formData.telephone)) {
-      toast.error('Numéro de téléphone invalide. Format accepté : +228XXXXXXXXX (8 à 15 chiffres)');
+  if (!isAuthenticated) {
+    toast.error('Veuillez vous connecter pour prendre un rendez-vous');
+    navigate('/connexion', {
+      state: {
+        redirectTo: '/rendez-vous',
+        message: 'Connectez-vous pour prendre un rendez-vous',
+      },
+    });
+    return;
+  }
+
+  if (!access_token) {
+    toast.error('Session invalide. Veuillez vous reconnecter.');
+    logout();
+    return;
+  }
+
+  // Validation STRICTE des données (identique au backend)
+  if (!validatePhone(formData.telephone)) {
+    toast.error('Numéro de téléphone invalide (format: +228XXXXXXXXX, 8-15 chiffres, ne doit pas commencer par 0)');
+    return;
+  }
+
+  if (formData.destination === 'Autre' && !formData.destinationAutre?.trim()) {
+    toast.error('La destination "Autre" nécessite une précision');
+    return;
+  }
+
+  if (formData.filiere === 'Autre' && !formData.filiereAutre?.trim()) {
+    toast.error('La filière "Autre" nécessite une précision');
+    return;
+  }
+
+  // Validation email (regex identique au backend)
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(formData.email.trim())) {
+    toast.error('Format d\'email invalide');
+    return;
+  }
+
+  // Vérifier que la date n'est pas passée
+  if (isDatePassed(formData.date)) {
+    toast.error('Vous ne pouvez pas réserver une date passée');
+    return;
+  }
+
+  // Vérifier que le créneau n'est pas passé (si date d'aujourd'hui)
+  if (formData.date === new Date().toISOString().split('T')[0] && formData.time) {
+    if (isTimePassed(formData.time, formData.date)) {
+      toast.error('Vous ne pouvez pas réserver un créneau passé');
       return;
     }
+  }
 
-    if (
-      formData.destination === 'Autre' &&
-      !formData.destinationAutre?.trim()
-    ) {
-      toast.error('La destination "Autre" nécessite une précision');
-      return;
-    }
+  // ✅ CORRECTION: Préparation des données COHÉRENTES avec backend
+  // SUPPRIMER userId - Le backend ne l'attend pas dans le DTO
+  const submitData: Record<string, any> = {
+    firstName: formData.firstName.trim(),
+    lastName: formData.lastName.trim(),
+    email: formData.email.trim().toLowerCase(),
+    telephone: formData.telephone.trim(),
+    niveauEtude: formData.niveauEtude,
+    date: formData.date,
+    time: formData.time,
+    // ⚠️ NE PAS ENVOYER userId - Le backend le récupère depuis le token JWT
+    // SUPPRIMER: userId: user?.id
+  };
 
-    if (formData.filiere === 'Autre' && !formData.filiereAutre?.trim()) {
-      toast.error('La filière "Autre" nécessite une précision');
-      return;
-    }
+  // Gestion STRICTE des champs "Autre" (identique au backend)
+  if (formData.destination === 'Autre') {
+    submitData.destination = 'Autre';
+    submitData.destinationAutre = formData.destinationAutre!.trim();
+  } else {
+    submitData.destination = formData.destination;
+    // Ne pas envoyer destinationAutre si pas "Autre"
+    delete submitData.destinationAutre;
+  }
 
-    // Validation email (regex identique au backend)
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email.trim())) {
-      toast.error('Format d\'email invalide');
-      return;
-    }
+  if (formData.filiere === 'Autre') {
+    submitData.filiere = 'Autre';
+    submitData.filiereAutre = formData.filiereAutre!.trim();
+  } else {
+    submitData.filiere = formData.filiere;
+    // Ne pas envoyer filiereAutre si pas "Autre"
+    delete submitData.filiereAutre;
+  }
 
-    // Vérifier que la date n'est pas passée
-    if (isDatePassed(formData.date)) {
-      toast.error('Vous ne pouvez pas réserver une date passée');
-      return;
-    }
+  console.log('📤 Données envoyées au backend:', submitData); // Debug log
 
-    // Vérifier que le créneau n'est pas passé (si date d'aujourd'hui)
-    if (formData.date === new Date().toISOString().split('T')[0] && formData.time) {
-      if (isTimePassed(formData.time, formData.date)) {
-        toast.error('Vous ne pouvez pas réserver un créneau passé');
-        return;
-      }
-    }
+  setLoading(true);
 
-    // ✅ Préparation des données COHÉRENTES avec backend
-    const submitData: Record<string, any> = {
-      firstName: formData.firstName.trim(),
-      lastName: formData.lastName.trim(),
-      email: formData.email.trim().toLowerCase(),
-      telephone: formData.telephone.trim(),
-      niveauEtude: formData.niveauEtude,
-      date: formData.date,
-      time: formData.time,
-    };
-
-    // Gestion STRICTE des champs "Autre" (identique au backend)
-    if (formData.destination === 'Autre') {
-      submitData.destination = 'Autre';
-      submitData.destinationAutre = formData.destinationAutre!.trim();
-    } else {
-      submitData.destination = formData.destination;
-    }
-
-    if (formData.filiere === 'Autre') {
-      submitData.filiere = 'Autre';
-      submitData.filiereAutre = formData.filiereAutre!.trim();
-    } else {
-      submitData.filiere = formData.filiere;
-    }
-
-    setLoading(true);
-
-    try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      };
-
-      const response = await fetch(`${API_URL}/api/rendezvous`, {
+  try {
+    const makeRequest = async (currentToken: string): Promise<Response> => {
+      return fetch(`${API_URL}/api/rendezvous`, {
         method: 'POST',
-        headers,
+        headers: {
+          Authorization: `Bearer ${currentToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
         body: JSON.stringify(submitData),
       });
+    };
 
-      // ✅ Vérification stricte de la réponse
-      if (!response.ok) {
-        let errorMessage = 'Erreur lors de la création du rendez-vous';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorData.error || errorMessage;
+    let response = await makeRequest(access_token);
 
-          // Gestion des erreurs spécifiques du backend
-          if (response.status === 400) {
-            if (errorMessage.includes('créneau') || errorMessage.includes('disponible') || errorMessage.includes('complets')) {
-              toast.error('Ce créneau n\'est plus disponible. Veuillez choisir un autre horaire.');
-              if (formData.date) fetchAvailableSlots(formData.date);
-              setFormData(prev => ({ ...prev, time: '' }));
-              return;
-            }
-
-            if (errorMessage.includes('weekend') || errorMessage.includes('week-end')) {
-              toast.error('Les réservations sont fermées le week-end');
-              fetchAvailableDates();
-              setFormData(prev => ({ ...prev, date: '', time: '' }));
-              return;
-            }
-
-            if (errorMessage.includes('férié')) {
-              toast.error('Les réservations sont fermées les jours fériés');
-              fetchAvailableDates();
-              setFormData(prev => ({ ...prev, date: '', time: '' }));
-              return;
-            }
-          }
-
-          toast.error(errorMessage);
-          return;
-        } catch {
-          const textError = await response.text();
-          console.error('Erreur serveur (non-JSON):', textError);
-          toast.error('Erreur serveur. Veuillez réessayer.');
-          return;
-        }
-      }
-
-      // ✅ Vérification de la réponse JSON
-      let result;
+    // ✅ Gestion STRICTE des erreurs 401 (identique au backend)
+    if (response.status === 401) {
       try {
-        const responseText = await response.text();
-        if (!responseText) {
-          throw new Error('Réponse serveur vide');
+        const refreshed = await refreshToken();
+        if (refreshed) {
+          const currentToken = localStorage.getItem('access_token');
+          if (currentToken) {
+            response = await makeRequest(currentToken);
+          } else {
+            throw new Error('Session expirée');
+          }
+        } else {
+          throw new Error('Session expirée');
         }
-        result = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Erreur parsing JSON:', parseError);
-        toast.error('Erreur de format de réponse du serveur');
+      } catch (error) {
+        toast.error('Session expirée. Veuillez vous reconnecter.');
+        logout();
+        navigate('/connexion');
         return;
       }
-
-      if (!result || typeof result !== 'object') {
-        throw new Error('Réponse serveur invalide');
-      }
-
-      // ✅ SUCCÈS - Rendez-vous IMMÉDIATEMENT "Confirmé" (comme backend)
-      setSuccess(true);
-      toast.success('Rendez-vous créé et confirmé avec succès !');
-
-      setTimeout(() => {
-        navigate('/');
-      }, 2000);
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Erreur inconnue';
-
-      console.error('Erreur lors de la soumission:', errorMessage);
-      toast.error('Erreur lors de la création du rendez-vous');
-    } finally {
-      setLoading(false);
     }
-  };
+
+    // ✅ Vérification stricte de la réponse
+    if (!response.ok) {
+      let errorMessage = 'Erreur lors de la création du rendez-vous';
+      try {
+        const errorData = await response.json();
+        console.error('❌ Erreur backend:', errorData); // Debug log
+        errorMessage = errorData.message || errorData.error || errorMessage;
+
+        // Gestion des erreurs spécifiques du backend
+        if (errorMessage.includes('Vous avez déjà un rendez-vous confirmé')) {
+          toast.error('Vous avez déjà un rendez-vous confirmé. Annulez-le avant d\'en créer un nouveau.', {
+            autoClose: 5000,
+          });
+          setTimeout(() => {
+            navigate('/mes-rendez-vous');
+          }, 2000);
+          return;
+        }
+
+        if (errorMessage.includes('Email ne correspond pas')) {
+          toast.error('L\'email doit correspondre à votre compte. Veuillez utiliser votre email de connexion.');
+          return;
+        }
+
+        if (
+          errorMessage.includes('créneau') ||
+          errorMessage.includes('disponible') ||
+          errorMessage.includes('complets')
+        ) {
+          toast.error(
+            'Ce créneau n\'est plus disponible. Veuillez choisir un autre horaire.'
+          );
+          if (formData.date) fetchAvailableSlots(formData.date);
+          setFormData(prev => ({ ...prev, time: '' }));
+          return;
+        }
+
+        if (errorMessage.includes('weekend') || errorMessage.includes('week-end')) {
+          toast.error('Les réservations sont fermées le week-end');
+          fetchAvailableDates();
+          setFormData(prev => ({ ...prev, date: '', time: '' }));
+          return;
+        }
+
+        if (errorMessage.includes('férié')) {
+          toast.error('Les réservations sont fermées les jours fériés');
+          fetchAvailableDates();
+          setFormData(prev => ({ ...prev, date: '', time: '' }));
+          return;
+        }
+
+        // Afficher le message d'erreur exact du backend
+        toast.error(`Erreur: ${errorMessage}`);
+        return;
+      } catch {
+        const textError = await response.text();
+        console.error('❌ Erreur serveur (non-JSON):', textError);
+        toast.error('Erreur serveur. Veuillez réessayer.');
+        return;
+      }
+    }
+
+    // ✅ Vérification de la réponse JSON
+    let result;
+    try {
+      const responseText = await response.text();
+      if (!responseText) {
+        throw new Error('Réponse serveur vide');
+      }
+      result = JSON.parse(responseText);
+      console.log('✅ Réponse backend:', result); // Debug log
+    } catch (parseError) {
+      console.error('❌ Erreur parsing JSON:', parseError);
+      toast.error('Erreur de format de réponse du serveur');
+      return;
+    }
+
+    if (!result || typeof result !== 'object') {
+      throw new Error('Réponse serveur invalide');
+    }
+
+    // ✅ SUCCÈS - Rendez-vous IMMÉDIATEMENT "Confirmé" (comme backend)
+    setSuccess(true);
+    toast.success('✅ Rendez-vous créé et confirmé avec succès !');
+
+    setTimeout(() => {
+      navigate('/mes-rendez-vous');
+    }, 2000);
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Erreur inconnue';
+
+    console.error('❌ Erreur lors de la soumission:', errorMessage);
+
+    if (
+      errorMessage.includes('Session expirée') ||
+      errorMessage.includes('Token')
+    ) {
+      toast.error('Session expirée. Redirection vers la connexion...');
+      setTimeout(() => {
+        logout();
+        navigate('/connexion');
+      }, 1500);
+    } else if (errorMessage.includes('Réponse serveur invalide')) {
+      toast.error('Erreur technique. Veuillez réessayer plus tard.');
+    } else {
+      toast.error(`Erreur: ${errorMessage}`);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ==================== RENDER FUNCTIONS ====================
 
@@ -519,7 +604,7 @@ const RendezVous = () => {
             name='firstName'
             value={formData.firstName}
             onChange={handleInputChange}
-            className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100 hover:border-sky-400'
+            className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-none hover:border-sky-400'
             placeholder='Votre prénom'
             required
             minLength={2}
@@ -540,7 +625,7 @@ const RendezVous = () => {
             name='lastName'
             value={formData.lastName}
             onChange={handleInputChange}
-            className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100 hover:border-sky-400'
+            className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-none hover:border-sky-400'
             placeholder='Votre nom'
             required
             minLength={2}
@@ -555,7 +640,10 @@ const RendezVous = () => {
             htmlFor='email'
             className='mb-1 block text-xs font-medium text-gray-700'
           >
-            Email *
+            <span className='flex items-center gap-1'>
+              <FiMail className='text-sky-500 h-3 w-3' />
+              Email *
+            </span>
           </label>
           <input
             type='email'
@@ -563,9 +651,10 @@ const RendezVous = () => {
             name='email'
             value={formData.email}
             onChange={handleInputChange}
-            className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100 hover:border-sky-400'
+            className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-none hover:border-sky-400'
             placeholder='exemple@email.com'
             required
+            readOnly={!!user?.email}
             maxLength={100}
           />
         </div>
@@ -575,7 +664,10 @@ const RendezVous = () => {
             htmlFor='telephone'
             className='mb-1 block text-xs font-medium text-gray-700'
           >
-            Téléphone *
+            <span className='flex items-center gap-1'>
+              <FiPhone className='text-sky-500 h-3 w-3' />
+              Téléphone *
+            </span>
           </label>
           <input
             type='tel'
@@ -583,9 +675,9 @@ const RendezVous = () => {
             name='telephone'
             value={formData.telephone}
             onChange={handleInputChange}
-            className={`w-full rounded border px-3 py-2 text-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-sky-100 hover:border-sky-400 ${
+            className={`w-full rounded border px-3 py-2 text-sm transition-all duration-150 focus:outline-none focus:ring-none hover:border-sky-400 ${
               formData.telephone && !validatePhone(formData.telephone)
-                ? 'border-red-300 focus:border-red-500 focus:ring-red-100'
+                ? 'border-red-300 focus:border-red-500'
                 : 'border-gray-300 focus:border-sky-500'
             }`}
             placeholder='+22812345678'
@@ -594,7 +686,7 @@ const RendezVous = () => {
           />
           {formData.telephone && !validatePhone(formData.telephone) && (
             <p className='mt-1 text-xs text-red-600'>
-              Format accepté : +228XXXXXXXXX (8 à 15 chiffres)
+              Format: +22812345678 (8-15 chiffres, ne doit pas commencer par 0)
             </p>
           )}
         </div>
@@ -616,12 +708,15 @@ const RendezVous = () => {
           htmlFor='destination'
           className='mb-1 block text-xs font-medium text-gray-700'
         >
-          Destination souhaitée *
+          <span className='flex items-center gap-1'>
+            <FiGlobe className='text-sky-500 h-3 w-3' />
+            Destination *
+          </span>
         </label>
         {loadingDestinations ? (
           <div className='flex items-center justify-center rounded border border-gray-300 px-3 py-2'>
             <div className='h-4 w-4 animate-spin rounded-full border-2 border-sky-500 border-t-transparent'></div>
-            <span className='ml-2 text-xs text-gray-600'>Chargement des destinations...</span>
+            <span className='ml-2 text-xs text-gray-600'>Chargement...</span>
           </div>
         ) : (
           <>
@@ -630,7 +725,7 @@ const RendezVous = () => {
               name='destination'
               value={formData.destination}
               onChange={handleInputChange}
-              className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100 hover:border-sky-400'
+              className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-none hover:border-sky-400'
               required
             >
               <option value=''>Sélectionnez une destination</option>
@@ -647,7 +742,10 @@ const RendezVous = () => {
                   htmlFor='destinationAutre'
                   className='mb-1 block text-xs font-medium text-gray-700'
                 >
-                  Précisez votre destination *
+                  <span className='flex items-center gap-1'>
+                    <FiTarget className='text-sky-500 h-3 w-3' />
+                    Précisez votre destination *
+                  </span>
                 </label>
                 <input
                   type='text'
@@ -655,7 +753,7 @@ const RendezVous = () => {
                   name='destinationAutre'
                   value={formData.destinationAutre || ''}
                   onChange={handleInputChange}
-                  className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100 hover:border-sky-400'
+                  className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-none hover:border-sky-400'
                   placeholder='Ex: Suisse, Allemagne, Japon...'
                   maxLength={100}
                   required
@@ -672,14 +770,17 @@ const RendezVous = () => {
             htmlFor='niveauEtude'
             className='mb-1 block text-xs font-medium text-gray-700'
           >
-            Niveau d'étude actuel *
+            <span className='flex items-center gap-1'>
+              <FiAward className='text-sky-500 h-3 w-3' />
+              Niveau d'étude *
+            </span>
           </label>
           <select
             id='niveauEtude'
             name='niveauEtude'
             value={formData.niveauEtude}
             onChange={handleInputChange}
-            className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100 hover:border-sky-400'
+            className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-none hover:border-sky-400'
             required
           >
             <option value=''>Sélectionnez votre niveau</option>
@@ -696,14 +797,17 @@ const RendezVous = () => {
             htmlFor='filiere'
             className='mb-1 block text-xs font-medium text-gray-700'
           >
-            Filière souhaitée *
+            <span className='flex items-center gap-1'>
+              <FiBook className='text-sky-500 h-3 w-3' />
+              Filière *
+            </span>
           </label>
           <select
             id='filiere'
             name='filiere'
             value={formData.filiere}
             onChange={handleInputChange}
-            className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100 hover:border-sky-400'
+            className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-none hover:border-sky-400'
             required
           >
             <option value=''>Sélectionnez votre filière</option>
@@ -728,8 +832,8 @@ const RendezVous = () => {
                 name='filiereAutre'
                 value={formData.filiereAutre || ''}
                 onChange={handleInputChange}
-                className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100 hover:border-sky-400'
-                placeholder='Ex: Architecture, Psychologie, Sciences Politiques...'
+                className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-none hover:border-sky-400'
+                placeholder='Ex: Architecture, Psychologie...'
                 maxLength={100}
                 required
               />
@@ -754,12 +858,15 @@ const RendezVous = () => {
           htmlFor='date'
           className='mb-1 block text-xs font-medium text-gray-700'
         >
-          Date du rendez-vous *
+          <span className='flex items-center gap-1'>
+            <FiCalendar className='text-sky-500 h-3 w-3' />
+            Date *
+          </span>
         </label>
         {loadingDates ? (
           <div className='flex items-center justify-center rounded border border-gray-300 px-3 py-2'>
             <div className='h-4 w-4 animate-spin rounded-full border-2 border-sky-500 border-t-transparent'></div>
-            <span className='ml-2 text-xs text-gray-600'>Chargement des dates disponibles...</span>
+            <span className='ml-2 text-xs text-gray-600'>Chargement...</span>
           </div>
         ) : availableDates.length > 0 ? (
           <select
@@ -767,7 +874,7 @@ const RendezVous = () => {
             name='date'
             value={formData.date}
             onChange={handleInputChange}
-            className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100 hover:border-sky-400'
+            className='w-full rounded border border-gray-300 px-3 py-2 text-sm transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-none hover:border-sky-400'
             required
           >
             <option value=''>Sélectionnez une date</option>
@@ -778,10 +885,8 @@ const RendezVous = () => {
             ))}
           </select>
         ) : (
-          <div className='rounded border border-amber-300 bg-amber-50 px-3 py-2'>
-            <p className='text-xs text-amber-700'>
-              Aucune date disponible actuellement. Veuillez réessayer ultérieurement.
-            </p>
+          <div className='rounded border border-red-300 bg-red-50 px-3 py-2'>
+            <p className='text-xs text-red-600'>Aucune date disponible</p>
           </div>
         )}
       </div>
@@ -789,12 +894,15 @@ const RendezVous = () => {
       {formData.date && (
         <div>
           <label className='mb-1 block text-xs font-medium text-gray-700'>
-            Horaire du rendez-vous *
+            <span className='flex items-center gap-1'>
+              <FiWatch className='text-sky-500 h-3 w-3' />
+              Horaire *
+            </span>
           </label>
           {loadingSlots ? (
             <div className='flex items-center justify-center rounded border border-gray-300 px-3 py-2'>
               <div className='h-4 w-4 animate-spin rounded-full border-2 border-sky-500 border-t-transparent'></div>
-              <span className='ml-2 text-xs text-gray-600'>Chargement des créneaux...</span>
+              <span className='ml-2 text-xs text-gray-600'>Chargement...</span>
             </div>
           ) : availableSlots.length > 0 ? (
             <div className='grid grid-cols-3 gap-1 sm:grid-cols-4'>
@@ -811,7 +919,7 @@ const RendezVous = () => {
                       setFormData(prev => ({ ...prev, time: slot }))
                     }
                     disabled={isPassed}
-                    className={`rounded px-2 py-1.5 text-xs transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-sky-100 ${
+                    className={`rounded px-2 py-1.5 text-xs transition-all duration-150 focus:outline-none focus:ring-none ${
                       isSelected
                         ? 'bg-sky-600 text-white'
                         : isPassed
@@ -827,7 +935,7 @@ const RendezVous = () => {
           ) : (
             <div className='rounded border border-amber-300 bg-amber-50 px-3 py-2'>
               <p className='text-xs text-amber-700'>
-                Aucun créneau disponible pour cette date. Veuillez choisir une autre date.
+                Aucun créneau disponible pour cette date
               </p>
             </div>
           )}
@@ -835,11 +943,8 @@ const RendezVous = () => {
           {formData.time && (
             <div className='mt-3 rounded bg-sky-50 p-3'>
               <p className='text-xs text-sky-700'>
-                <span className='font-medium'>Créneau sélectionné :</span><br />
+                <span className='font-medium'>Créneau sélectionné :</span>{' '}
                 {formatDateDisplay(formData.date)} à {formData.time}
-              </p>
-              <p className='mt-1 text-xs text-sky-600'>
-                Rendez-vous immédiatement confirmé après validation
               </p>
             </div>
           )}
@@ -867,7 +972,7 @@ const RendezVous = () => {
                 currentStep >= step ? 'text-sky-600' : 'text-gray-400'
               }`}
             >
-              {step === 1 ? 'Informations' : step === 2 ? 'Projet' : 'Créneau'}
+              {step === 1 ? 'Personnel' : step === 2 ? 'Projet' : 'Créneau'}
             </span>
           </div>
         ))}
@@ -889,19 +994,21 @@ const RendezVous = () => {
         <FiCheckCircle className='h-8 w-8 text-emerald-600' />
       </div>
       <h2 className='mb-3 text-lg font-bold text-gray-800'>
-        Rendez-vous confirmé avec succès !
+        Rendez-vous confirmé !
       </h2>
       <p className='mb-6 text-sm text-gray-600'>
-        Votre rendez-vous a été créé et confirmé.
+        Votre rendez-vous a été créé et confirmé avec succès. 
         <br />
-        Vous recevrez une confirmation par email dans les prochaines minutes.
+        Vous allez être redirigé vers vos rendez-vous.
       </p>
-      <button
-        onClick={() => navigate('/')}
-        className='rounded bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-all duration-150 hover:bg-sky-700 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100'
-      >
-        Retour à l'accueil
-      </button>
+      <div className='animate-pulse'>
+        <div className='inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2'>
+          <div className='h-2 w-2 rounded-full bg-emerald-500'></div>
+          <span className='text-xs text-emerald-700'>
+            Redirection en cours...
+          </span>
+        </div>
+      </div>
     </div>
   );
 
@@ -909,15 +1016,23 @@ const RendezVous = () => {
     <>
       <Helmet>
         <title>
-          Prendre rendez-vous avec nos conseillers - Paname Consulting
+          Prenez Rendez-Vous avec nos consultant - Paname Consulting
         </title>
         <meta
           name='description'
-          content="Prenez rendez-vous avec un conseiller Paname Consulting pour votre projet d'études à l'étranger. Consultation gratuite et personnalisée."
+          content='Prenez rendez-vous avec un conseiller Paname Consulting'
         />
+        <meta name='robots' content='noindex, nofollow' />
+        <meta name='googlebot' content='noindex, nofollow' />
+        <meta name='bingbot' content='noindex, nofollow' />
+        <meta name='yandexbot' content='noindex, nofollow' />
+        <meta name='duckduckbot' content='noindex, nofollow' />
+        <meta name='baidu' content='noindex, nofollow' />
+        <meta name='naver' content='noindex, nofollow' />
+        <meta name='seznam' content='noindex, nofollow' />
         <link
           rel='canonical'
-          href={`${FRONTEND_URL}/rendez-vous`}
+          href='https://panameconsulting.vercel.app/rendez-vous'
         />
         <meta 
           name="viewport" 
@@ -927,7 +1042,34 @@ const RendezVous = () => {
 
       <div className='min-h-screen bg-gradient-to-b from-sky-50 to-white py-6'>
         <div className='mx-auto max-w-2xl px-3 sm:px-4'>
-          {success ? (
+          {!isAuthenticated ? (
+            <div data-aos='zoom-in' className='rounded-lg bg-white p-6 shadow'>
+              <div className='text-center'>
+                <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-sky-100'>
+                  <FiUser className='h-8 w-8 text-sky-600' />
+                </div>
+                <h2 className='mb-3 text-lg font-bold text-gray-800'>
+                  Connexion requise
+                </h2>
+                <p className='mb-6 text-sm text-gray-600'>
+                  Vous devez être connecté pour prendre un rendez-vous.
+                </p>
+                <button
+                  onClick={() =>
+                    navigate('/connexion', {
+                      state: {
+                        redirectTo: '/rendez-vous',
+                        message: 'Connectez-vous pour prendre un rendez-vous',
+                      },
+                    })
+                  }
+                  className='inline-flex items-center justify-center gap-2 rounded bg-sky-600 px-6 py-2 text-sm font-medium text-white transition-all duration-150 hover:bg-sky-700 focus:border-sky-500 focus:outline-none focus:ring-none'
+                >
+                  Se connecter
+                </button>
+              </div>
+            </div>
+          ) : success ? (
             <div
               data-aos='zoom-in'
               className='overflow-hidden rounded-lg bg-white p-8 shadow-lg'
@@ -942,10 +1084,10 @@ const RendezVous = () => {
             >
               <div className='border-b border-gray-100 bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-4'>
                 <h1 className='text-xl font-bold text-white'>
-                  Prendre un rendez-vous
+                  📅 Prendre un rendez-vous
                 </h1>
                 <p className='mt-1 text-sm text-sky-100'>
-                  Complétez les informations pour planifier votre consultation personnalisée
+                  Complétez les informations pour planifier votre consultation
                 </p>
               </div>
 
@@ -963,7 +1105,7 @@ const RendezVous = () => {
                     <button
                       type='button'
                       onClick={prevStep}
-                      className='inline-flex items-center justify-center gap-2 rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-150 hover:bg-gray-50 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100'
+                      className='inline-flex items-center justify-center gap-2 rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-150 hover:bg-gray-50 focus:border-sky-500 focus:outline-none focus:ring-none'
                     >
                       <FiChevronLeft className='h-4 w-4' />
                       Retour
@@ -975,7 +1117,7 @@ const RendezVous = () => {
                       type='button'
                       onClick={nextStep}
                       disabled={!isStepValid(currentStep)}
-                      className={`inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100 ${
+                      className={`inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-none ${
                         isStepValid(currentStep)
                           ? 'bg-sky-600 text-white hover:bg-sky-700'
                           : 'cursor-not-allowed bg-gray-300 text-gray-500'
@@ -988,7 +1130,7 @@ const RendezVous = () => {
                     <button
                       type='submit'
                       disabled={loading || !isStepValid(3)}
-                      className={`inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100 ${
+                      className={`inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-medium transition-all duration-150 focus:border-sky-500 focus:outline-none focus:ring-none ${
                         !loading && isStepValid(3)
                           ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                           : 'cursor-not-allowed bg-gray-300 text-gray-500'
@@ -997,7 +1139,7 @@ const RendezVous = () => {
                       {loading ? (
                         <>
                           <div className='h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent'></div>
-                          Traitement en cours...
+                          Traitement...
                         </>
                       ) : (
                         <>
@@ -1014,9 +1156,9 @@ const RendezVous = () => {
                 <p className='text-center text-xs text-gray-500'>
                   Tous les champs marqués d'un * sont obligatoires.
                   <br />
-                  Les rendez-vous sont confirmés immédiatement après création.
+                  Les rendez-vous sont immédiatement confirmés après création.
                   <br />
-                  Vous recevrez une confirmation par email dans les minutes qui suivent.
+                  Vous recevrez une confirmation par email.
                 </p>
               </div>
             </form>

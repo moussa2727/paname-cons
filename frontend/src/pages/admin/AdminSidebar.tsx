@@ -15,7 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOutIcon,
-  Settings,
+  Shield,
   AlertTriangle,
 } from 'lucide-react';
 
@@ -212,9 +212,9 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
           <div className='p-4 border-b border-slate-200 bg-gradient-to-r from-sky-500 to-sky-600'>
             <div className='flex items-center justify-between'>
               <div className='flex items-center space-x-3'>
-                <Link className='w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm' to={'/'}>
-                  <Settings className='w-6 h-6 text-white' />
-                </Link>
+                <div className='w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm'>
+                  <Shield className='w-6 h-6 text-white' />
+                </div>
                 <div>
                   <h1 className='text-lg font-bold text-white tracking-tight'>
                     Administration
@@ -273,7 +273,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                   {getDisplayName()}
                 </p>
                 <p className='text-xs text-slate-500 flex items-center gap-1'>
-                  <Settings className='w-3 h-3' />
+                  <Shield className='w-3 h-3' />
                   Administrateur
                 </p>
               </div>
@@ -330,7 +330,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
             <div className='flex justify-between items-center h-16'>
               <div className='flex items-center space-x-3'>
                 <div className='w-10 h-10 bg-gradient-to-r from-sky-500 to-sky-600 rounded-xl flex items-center justify-center shadow-md'>
-                  <Settings className='w-6 h-6 text-white' />
+                  <Shield className='w-6 h-6 text-white' />
                 </div>
                 <div>
                   <h1 className='text-lg font-bold text-slate-800'>Admin</h1>
@@ -504,7 +504,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                 <>
                   <div className='text-center mb-6'>
                     <div className='w-20 h-20 mx-auto bg-gradient-to-br from-sky-100 to-blue-100 rounded-full flex items-center justify-center mb-4'>
-                      <Settings className='w-10 h-10 text-sky-600' />
+                      <Shield className='w-10 h-10 text-sky-600' />
                     </div>
                     <h3 className='text-lg font-semibold text-slate-800 mb-2'>
                       Confirmer la déconnexion globale

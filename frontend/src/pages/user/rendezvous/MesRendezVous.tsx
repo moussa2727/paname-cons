@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -18,6 +18,8 @@ import {
   FiInfo,
   FiStar,
   FiFilter,
+  FiX,
+  FiAlertTriangle,
 } from 'react-icons/fi';
 import { useAuth } from '../../../context/AuthContext';
 import { UserHeader } from '../../../components/user/UserHeader';
@@ -92,10 +94,24 @@ const MesRendezvous = () => {
     total: 0,
     totalPages: 1,
   });
-  
-  // État pour gérer le popover de confirmation
-  const [showCancelConfirm, setShowCancelConfirm] = useState<string | null>(null);
-  const [cancelPosition, setCancelPosition] = useState({ x: 0, y: 0 });
+
+  // État pour le popover d'annulation
+  const [showCancelPopover, setShowCancelPopover] = useState<string | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Fermer le popover en cliquant en dehors
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+        setShowCancelPopover(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Fonction pour obtenir la configuration de page
   const getCurrentPageConfig = () => {
@@ -183,31 +199,9 @@ const MesRendezvous = () => {
     }
   }, [location.pathname, selectedStatus, pagination.page, fetchRendezvous]);
 
-  // Ouvrir le popover de confirmation
-  const openCancelConfirm = (rdvId: string, event: React.MouseEvent) => {
-    // Positionnement adaptatif pour mobile
-    const isMobile = window.innerWidth < 640;
-    
-    if (isMobile) {
-      // Sur mobile: centré en haut de l'écran
-      setCancelPosition({
-        x: window.innerWidth / 2,
-        y: Math.min(window.scrollY + 100, window.scrollY + window.innerHeight / 4),
-      });
-    } else {
-      // Sur desktop: positionné près du bouton
-      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-      setCancelPosition({
-        x: rect.left + rect.width / 2,
-        y: rect.bottom + window.scrollY + 8,
-      });
-    }
-    setShowCancelConfirm(rdvId);
-  };
-
   // Annuler un rendez-vous
   const handleCancelRendezvous = async (rdvId: string) => {
-    setShowCancelConfirm(null);
+    setShowCancelPopover(null);
     setCancelling(rdvId);
     
     try {
@@ -231,6 +225,94 @@ const MesRendezvous = () => {
       setCancelling(null);
     }
   };
+
+  // Ouvrir le popover d'annulation
+  const openCancelPopover = (rdvId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setShowCancelPopover(rdvId);
+  };
+
+  // Composant Popover d'annulation
+  const CancelConfirmationPopover = ({ rdvId, rdv }: { rdvId: string, rdv: Rendezvous }) => (
+    <div 
+      ref={popoverRef}
+      className="absolute z-50 w-72 bg-white rounded-lg shadow-xl border border-red-200 animate-fadeIn"
+      style={{ 
+        top: '100%', 
+        right: 0,
+        marginTop: '8px'
+      }}
+    >
+      <div className="p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-red-50 rounded-lg">
+              <FiAlertTriangle className="h-4 w-4 text-red-600" />
+            </div>
+            <h3 className="text-sm font-semibold text-gray-900">Annuler le rendez-vous</h3>
+          </div>
+          <button
+            onClick={() => setShowCancelPopover(null)}
+            className="text-gray-400 hover:text-gray-500 transition-colors"
+          >
+            <FiX className="h-4 w-4" />
+          </button>
+        </div>
+        
+        <div className="space-y-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <div className="flex items-start gap-2">
+              <FiAlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-amber-800 font-medium">Cette action est irréversible</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  • Le rendez-vous sera marqué comme "Annulé"
+                  <br />
+                  • Vous ne pourrez pas le réactiver
+                  <br />
+                  • La raison sera enregistrée
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-xs text-gray-700">
+              <span className="font-medium">Rendez-vous du :</span> {UserRendezvousService.formatDate(rdv.date)} à {UserRendezvousService.formatTime(rdv.time)}
+              <br />
+              <span className="font-medium">Destination :</span> {UserRendezvousService.getEffectiveDestination(rdv)}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={() => setShowCancelPopover(null)}
+            className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-all duration-150"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={() => handleCancelRendezvous(rdvId)}
+            disabled={cancelling === rdvId}
+            className="flex-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {cancelling === rdvId ? (
+              <>
+                <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                Annulation...
+              </>
+            ) : (
+              <>
+                <FiTrash2 className="h-3 w-3" />
+                Confirmer
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   const handleRefresh = () => {
     if (location.pathname === '/mes-rendez-vous') {
@@ -266,7 +348,7 @@ const MesRendezvous = () => {
   const renderRendezvousItem = (rdv: Rendezvous) => (
     <div 
       key={rdv._id} 
-      className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-all duration-300 transform hover:-translate-y-1"
+      className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-all duration-300 relative"
     >
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="flex-1">
@@ -304,9 +386,9 @@ const MesRendezvous = () => {
           {UserRendezvousService.canCancelRendezvous(rdv) && (
             <div className="relative">
               <button
-                onClick={(e) => openCancelConfirm(rdv._id, e)}
+                onClick={(e) => openCancelPopover(rdv._id, e)}
                 disabled={cancelling === rdv._id}
-                className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 hover:border-red-300 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 hover:border-red-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed relative"
               >
                 {cancelling === rdv._id ? (
                   <>
@@ -320,6 +402,10 @@ const MesRendezvous = () => {
                   </>
                 )}
               </button>
+              
+              {showCancelPopover === rdv._id && (
+                <CancelConfirmationPopover rdvId={rdv._id} rdv={rdv} />
+              )}
             </div>
           )}
 
@@ -362,38 +448,11 @@ const MesRendezvous = () => {
     }
   }, []);
 
-  // Fermer le popover en cliquant à l'extérieur
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (showCancelConfirm) {
-        const popover = document.querySelector('.cancel-confirm-popover');
-        if (popover && !popover.contains(event.target as Node)) {
-          setShowCancelConfirm(null);
-        }
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showCancelConfirm]);
-  const FRONTEND_URL=import.meta.env.VITE_FRONTEND_URL;
-
   return (
     <>
       <Helmet>
         <title>{currentPage.pageTitle}</title>
         <meta name="description" content={currentPage.description} />
-        {/* Balises pour bloquer l'indexation */}
-        <meta name="robots" content="noindex, nofollow" />
-        <meta name="googlebot" content="noindex, nofollow" />
-        {/* Balise pour bloquer le zoom sur mobile */}
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />^
-        <link
-          rel='canonical'
-          href={`${FRONTEND_URL}/mes-rendez-vous`} 
-        />
       </Helmet>
 
       <UserHeader
@@ -422,65 +481,6 @@ const MesRendezvous = () => {
           </div>
         </div>
       </UserHeader>
-
-      {/* Popover de confirmation pour l'annulation - MOBILE FIRST */}
-      {showCancelConfirm && (
-        <>
-          {/* Overlay sombre */}
-          <div 
-            className="fixed inset-0 bg-black/50 z-40"
-            onClick={() => setShowCancelConfirm(null)}
-          />
-          
-          {/* Popover centré */}
-          <div 
-            className="cancel-confirm-popover fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-6 w-11/12 max-w-md"
-            style={{
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
-            }}
-          >
-            <div className="mb-4">
-              <div className="flex items-center justify-center mb-3">
-                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100">
-                  <FiAlertCircle className="h-6 w-6 text-red-600" />
-                </div>
-              </div>
-              
-              <h3 className="text-center text-lg font-semibold text-gray-800 mb-2">
-                Confirmer l'annulation
-              </h3>
-              <p className="text-center text-sm text-gray-600">
-                Êtes-vous sûr de vouloir annuler ce rendez-vous ?<br />
-                <span className="font-medium">Cette action est irréversible.</span>
-              </p>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row justify-center gap-3">
-              <button
-                onClick={() => setShowCancelConfirm(null)}
-                className="px-4 py-3 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-all duration-200 flex-1"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={() => handleCancelRendezvous(showCancelConfirm)}
-                className="px-4 py-3 text-sm font-medium text-white bg-red-600 border border-red-700 rounded-lg hover:bg-red-700 transition-all duration-200 flex-1 flex items-center justify-center"
-              >
-                {cancelling === showCancelConfirm ? (
-                  <>
-                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                    Annulation...
-                  </>
-                ) : (
-                  'Oui, annuler'
-                )}
-              </button>
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Contenu principal */}
       <div 
@@ -513,7 +513,7 @@ const MesRendezvous = () => {
               <button
                 onClick={fetchRendezvous}
                 disabled={loading}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 Actualiser
@@ -522,7 +522,7 @@ const MesRendezvous = () => {
 
             <button
               onClick={() => navigate('/rendez-vous')}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
             >
               <FiCalendar className="h-4 w-4" />
               Nouveau rendez-vous
@@ -562,7 +562,7 @@ const MesRendezvous = () => {
               </p>
               <button
                 onClick={() => navigate('/rendez-vous')}
-                className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+                className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
               >
                 <FiCalendar className="h-4 w-4" />
                 Prendre un rendez-vous
@@ -582,7 +582,7 @@ const MesRendezvous = () => {
                 <button
                   onClick={() => handlePageChange(pagination.page - 1)}
                   disabled={pagination.page === 1}
-                  className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FiChevronLeft className="h-4 w-4" />
                   Précédent
@@ -605,7 +605,7 @@ const MesRendezvous = () => {
                       <button
                         key={pageNum}
                         onClick={() => handlePageChange(pageNum)}
-                        className={`min-w-[2.5rem] px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 transform hover:scale-105 ${
+                        className={`min-w-[2.5rem] px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                           pagination.page === pageNum
                             ? 'bg-sky-600 text-white'
                             : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
@@ -620,7 +620,7 @@ const MesRendezvous = () => {
                 <button
                   onClick={() => handlePageChange(pagination.page + 1)}
                   disabled={pagination.page === pagination.totalPages}
-                  className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Suivant
                   <FiChevronRight className="h-4 w-4" />
@@ -645,6 +645,24 @@ const MesRendezvous = () => {
           </div>
         </div>
       </div>
+
+      {/* Styles CSS pour l'animation du popover */}
+      <style>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .animate-fadeIn {
+          animation: fadeIn 0.15s ease-out;
+        }
+      `}</style>
     </>
   );
 };

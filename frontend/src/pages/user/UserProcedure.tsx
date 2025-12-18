@@ -218,17 +218,11 @@ const UserProcedureComponent = (): React.JSX.Element => {
     }
   }, []);
 
-  const FRONTEND_URL=import.meta.env.VITE_FRONTEND_URL;
-
   return (
     <>
       <Helmet>
         <title>{currentPage.pageTitle}</title>
         <meta name="description" content={currentPage.description} />
-        <link
-          rel='canonical'
-          href={`${FRONTEND_URL}/ma-procedure`} 
-        />
       </Helmet>
 
       <UserHeader

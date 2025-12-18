@@ -307,7 +307,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
       </Helmet>
 
       <RequireAdmin>
-        <div className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 max-w-[1024px] mx-auto overflow-x-hidden'>
+        <div className='min-h-screen max-w-[1024px] mx-auto overflow-x-hidden'>
           {/* Header */}
           <div className='mb-4 px-4'>
             <div className='flex items-center gap-2 mb-1'>

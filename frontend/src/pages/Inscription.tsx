@@ -6,9 +6,7 @@ const Inscription = () => {
   const pageTitle = 'Créer un compte - PANAME CONSULTING';
   const pageDescription =
     'Inscrivez-vous pour démarrer votre projet d’études à l’étranger avec Paname Consulting.';
- const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL;
-const canonicalUrl = `${FRONTEND_URL}/inscription`;
-
+  const canonicalUrl = 'https://panameconsulting.com/inscription';
 
   return (
     <>

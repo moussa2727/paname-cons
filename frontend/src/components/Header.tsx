@@ -1,15 +1,19 @@
+/* eslint-disable no-undef */
+
 import {
   Calendar,
   FileText,
   Home as HomeIcon,
   Info as InfoIcon,
   LayoutDashboard,
+  LogIn,
   LogOut,
   Mail as MailIcon,
   Menu,
   Phone as PhoneIcon,
   Settings as ToolsIcon,
   User as UserIcon,
+  UserPlus,
   X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -100,7 +104,7 @@ function Header(): React.JSX.Element {
   const handleLogout = async (): Promise<void> => {
     setIsLoggingOut(true);
     try {
-      logout();
+      await logout();
       window.sessionStorage?.removeItem('redirect_after_login');
     } catch (error) {
       if (import.meta.env.DEV) {
@@ -110,6 +114,22 @@ function Header(): React.JSX.Element {
       setIsLoggingOut(false);
       setDropdownOpen(false);
       if (nav) setNav(false);
+    }
+  };
+
+  const handleProtectedNavigation = (path: string, isMobile: boolean = false): void => {
+    if (!isAuthenticated) {
+      window.sessionStorage?.setItem('redirect_after_login', path);
+      navigate('/connexion', {
+        state: {
+          message: 'Veuillez vous connecter pour accéder à cette page',
+          from: path,
+        }
+      });
+    } else {
+      navigate(path);
+      if (isMobile && nav) setNav(false);
+      if (!isMobile) setDropdownOpen(false);
     }
   };
 
@@ -133,33 +153,37 @@ function Header(): React.JSX.Element {
     },
   ];
 
-  const adminMenuItems = [
+  const userMenuItems = [
     {
       name: 'Tableau de bord',
       path: '/gestionnaire/statistiques',
       icon: <LayoutDashboard className='w-4 h-4' />,
-      visible: true,
+      visible: user?.role === 'admin' || user?.isAdmin === true,
+      requiresAuth: true,
       section: 'admin',
     },
     {
-      name: 'Gestion des Procédures',
-      path: '/gestionnaire/procedures',
+      name: 'Ma Procédure',
+      path: '/ma-procedure',
       icon: <FileText className='w-4 h-4' />,
-      visible: true,
-      section: 'admin',
+      visible: user?.role === 'user',
+      requiresAuth: true,
+      section: 'user',
     },
     {
-      name: 'Gestion des Rendez-Vous',
-      path: '/gestionnaire/rendez-vous',
+      name: 'Mes Rendez-Vous',
+      path: '/mes-rendez-vous',
       icon: <Calendar className='w-4 h-4' />,
-      visible: true,
-      section: 'admin',
+      visible: user?.role === 'user',
+      requiresAuth: true,
+      section: 'user',
     },
     {
-      name: 'Profil Admin',
-      path: '/gestionnaire/profil',
+      name: 'Mon Profil',
+      path: '/mon-profil',
       icon: <UserIcon className='w-4 h-4' />,
       visible: true,
+      requiresAuth: true,
       section: 'profile',
     },
     {
@@ -170,32 +194,30 @@ function Header(): React.JSX.Element {
       ) : (
         <LogOut className='w-4 h-4' />
       ),
-      visible: true,
+      visible: isAuthenticated,
       disabled: isLoggingOut,
+      requiresAuth: true,
       section: 'logout',
     },
   ];
 
   const getUserInitials = (): string => {
-    if (!user) return 'A';
+    if (!user) return '';
     const firstNameInitial = user.firstName ? user.firstName.charAt(0).toUpperCase() : '';
     const lastNameInitial = user.lastName ? user.lastName.charAt(0).toUpperCase() : '';
-    return `${firstNameInitial}${lastNameInitial}` || 'A';
+    return `${firstNameInitial}${lastNameInitial}`;
   };
 
   const getUserDisplayName = (): string => {
-    if (!user) return 'Administrateur';
+    if (!user) return '';
     if (user.firstName && user.lastName) {
       return `${user.firstName} ${user.lastName}`;
     }
-    return user.email || 'Administrateur';
+    return user.email || '';
   };
 
-  // Seul un admin authentifié voit les fonctionnalités d'administration
-  const isAdmin = isAuthenticated && (user?.role === 'admin' || user?.isAdmin === true);
-
   return (
-    <header role='banner' className='fixed top-0 z-50 w-full font-sans'>
+    <header role='banner' className='fixed top-0 z-50 w-full font-sans '>
       {/* Top Bar - Desktop seulement */}
       <div
         className={`bg-sky-500 text-white text-sm transition-all duration-300 ${showTopBar ? 'h-10' : 'h-0 overflow-hidden'} hidden md:block`}
@@ -206,7 +228,7 @@ function Header(): React.JSX.Element {
             <a
               href='tel:+22391830941'
               className='flex items-center font-medium hover:text-sky-100 transition-colors'
-              aria-label='Numéro de téléphone'
+              aria-label='Numéro de téléphone Paname Consulting'
             >
               <PhoneIcon className='w-4 h-4 mr-2' />
               <span>+223 91 83 09 41</span>
@@ -214,7 +236,7 @@ function Header(): React.JSX.Element {
             <a
               href='mailto:panameconsulting906@gmail.com'
               className='flex items-center font-medium hover:text-sky-100 transition-colors'
-              aria-label='Adresse e-mail'
+              aria-label='Adresse e-mail Paname Consulting'
             >
               <MailIcon className='w-4 h-4 mr-2' />
               <span>panameconsulting906@gmail.com</span>
@@ -223,7 +245,7 @@ function Header(): React.JSX.Element {
           <div className='flex items-center'>
             <span
               className='font-semibold bg-white/20 px-3 py-1 rounded-full'
-              aria-label='Slogan: Le cap vers l excellence'
+              aria-label='Slogan de Paname Consulting: Le cap vers l excellence'
             >
               LE CAP VERS L'EXCELLENCE
             </span>
@@ -233,12 +255,12 @@ function Header(): React.JSX.Element {
 
       {/* Navigation principale */}
       <nav
-        className='bg-white shadow-md py-2 sm:py-0' 
+        className='bg-white shadow-md sm:py-1'
         role='navigation'
         aria-label='Menu principal'
       >
         <div className='px-4'>
-          <div className='flex items-center justify-between py-2'>
+          <div className='flex items-center justify-between py-4 lg:py-1 md:py-0'>
             {/* Logo */}
             <div
               className='flex items-center cursor-pointer'
@@ -255,7 +277,7 @@ function Header(): React.JSX.Element {
               <div className='w-12 h-12 md:w-16 md:h-16 rounded-full shadow-sm'>
                 <img
                   src='/paname-consulting.jpg'
-                  alt='Logo'
+                  alt='Logo Paname Consulting'
                   className='w-full h-auto rounded'
                   width={64}
                   height={64}
@@ -293,13 +315,13 @@ function Header(): React.JSX.Element {
                 ))}
               </ul>
 
-              {/* Avatar admin - visible seulement si admin connecté */}
-              {isAdmin ? (
+              {/* DÉLÉGATION COMPLÈTE AU AUTHCONTEXT - Desktop */}
+              {isAuthenticated && user ? (
                 <div className='relative ml-2 md:ml-4' ref={dropdownRef}>
                   <button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
                     className='flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full bg-sky-500 text-white font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-400 transition-all duration-200 hover:scale-105 hover:bg-sky-600'
-                    aria-label='Menu administrateur'
+                    aria-label='Menu utilisateur'
                     aria-expanded={dropdownOpen}
                     aria-haspopup='true'
                     disabled={authLoading}
@@ -321,27 +343,26 @@ function Header(): React.JSX.Element {
                           {getUserDisplayName()}
                         </p>
                         <p className='text-xs text-gray-500 truncate mt-1'>
-                          {user?.email || 'Administrateur'}
+                          {user?.email}
                         </p>
-                        <div className='mt-2'>
-                          <span className='inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-800'>
-                            Administrateur
-                          </span>
-                        </div>
+                        {user?.role === 'admin' || user?.isAdmin === true ? (
+                          <div className='mt-2'>
+                            <span className='inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-800'>
+                              Administrateur
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
 
-                      {/* Liens admin */}
+                      {/* Liens utilisateur */}
                       <div className='py-2'>
-                        {adminMenuItems
+                        {userMenuItems
                           .filter(item => item.visible)
                           .map((item, index) =>
                             item.path ? (
                               <button
                                 key={index}
-                                onClick={() => {
-                                  navigate(item.path);
-                                  setDropdownOpen(false);
-                                }}
+                                onClick={() => handleProtectedNavigation(item.path)}
                                 className='flex w-full items-center px-3 md:px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-sky-600 transition-all duration-150 font-medium'
                                 role='menuitem'
                                 disabled={item.disabled}
@@ -379,7 +400,29 @@ function Header(): React.JSX.Element {
                     </div>
                   )}
                 </div>
-              ) : null}
+              ) : (
+                <div className='flex items-center space-x-1 md:space-x-2 ml-2 md:ml-4'>
+                  <Link
+                    to='/connexion'
+                    className='flex items-center px-3 py-1.5 md:px-4 md:py-2 text-sky-600 hover:bg-sky-50 border border-sky-200 transition-all duration-200 rounded-full font-medium text-sm md:text-base hover:border-sky-300'
+                    aria-label='Se connecter'
+                    state={{ from: location.pathname }}
+                  >
+                    <LogIn className='w-4 h-4 md:w-5 md:h-5 mr-1 md:mr-2' />
+                    <span className='hidden sm:inline'>Connexion</span>
+                    <span className='sm:hidden'>Login</span>
+                  </Link>
+                  <Link
+                    to='/inscription'
+                    className='flex items-center px-3 py-1.5 md:px-4 md:py-2 text-white bg-sky-500 hover:bg-sky-600 transition-all duration-200 rounded-full font-medium text-sm md:text-base'
+                    aria-label='Créer un compte'
+                  >
+                    <UserPlus className='w-4 h-4 md:w-5 md:h-5 mr-1 md:mr-2' />
+                    <span className='hidden sm:inline'>Inscription</span>
+                    <span className='sm:hidden'>Sign up</span>
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Bouton hamburger mobile */}
@@ -418,58 +461,56 @@ function Header(): React.JSX.Element {
                 <div className='sticky top-0 bg-white border-b z-10'>
                   <div className='px-4 py-3 flex items-center justify-between bg-gray-50'>
                     <div className='flex items-center'>
-                      {isAdmin ? (
-                        <>
-                          <div className='flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-bold mr-3'>
-                            {getUserInitials()}
-                          </div>
-                          <div>
+                      <div className='flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-bold mr-3'>
+                        {isAuthenticated ? getUserInitials() : <UserIcon className='w-5 h-5' />}
+                      </div>
+                      <div>
+                        {isAuthenticated ? (
+                          <>
                             <p className='text-sm font-bold text-gray-800 truncate'>
                               {getUserDisplayName()}
                             </p>
                             <p className='text-xs text-gray-500 truncate'>
-                              {user?.email || 'Administrateur'}
+                              {user?.email}
                             </p>
-                            <div className='mt-1'>
-                              <span className='text-xs font-semibold text-white bg-sky-500 px-2 py-0.5 rounded'>
-                                ADMIN
-                              </span>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <div className='text-gray-600 text-sm'>
-                          <p className='font-medium'>Bienvenue</p>
-                          <p className='text-xs'>Paname Consulting</p>
-                        </div>
-                      )}
+                          </>
+                        ) : (
+                          <p className='text-sm font-bold text-gray-800'>
+                            Paname Consulting
+                          </p>
+                        )}
+                      </div>
                     </div>
+                    <button
+                      onClick={() => setNav(false)}
+                      className='p-2 rounded-full hover:bg-gray-200'
+                      aria-label='Fermer le menu'
+                    >
+                      <X className='w-5 h-5 text-gray-600' />
+                    </button>
                   </div>
                 </div>
 
                 {/* CONTENU DU MENU MOBILE - Mobile First */}
                 <div className='p-4 space-y-6'>
-                  {/* SECTION ADMIN (si admin connecté) */}
-                  {isAdmin && (
+                  {/* SECTION 1: LIENS AUTHENTIFIÉS (si connecté) - PRIORITÉ HAUTE */}
+                  {isAuthenticated && (
                     <div className='space-y-2'>
                       <div className='flex items-center justify-between px-2 mb-2'>
                         <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider'>
-                          Administration
+                          Mon Espace
                         </h3>
                         <span className='text-xs font-semibold text-sky-600 bg-sky-100 px-2 py-0.5 rounded'>
                           Connecté
                         </span>
                       </div>
-                      {adminMenuItems
-                        .filter(item => item.section !== 'logout')
+                      {userMenuItems
+                        .filter(item => item.visible && item.section !== 'logout')
                         .map((item, index) => (
                           <div key={index}>
                             {item.path ? (
                               <button
-                                onClick={() => {
-                                  navigate(item.path);
-                                  setNav(false);
-                                }}
+                                onClick={() => handleProtectedNavigation(item.path, true)}
                                 className='flex w-full items-center px-3 py-3 text-gray-800 hover:bg-gray-50 hover:text-sky-600 rounded-lg transition-all duration-150 font-medium'
                                 role='menuitem'
                                 disabled={item.disabled}
@@ -494,8 +535,8 @@ function Header(): React.JSX.Element {
                     </div>
                   )}
 
-                  {/* SECTION: NAVIGATION PRINCIPALE */}
-                  <div className={`${isAdmin ? 'border-t border-gray-200 pt-4' : ''}`}>
+                  {/* SECTION 2: NAVIGATION PRINCIPALE */}
+                  <div className={`${isAuthenticated ? 'border-t border-gray-200 pt-4' : ''}`}>
                     <div className='space-y-2'>
                       <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 px-2'>
                         Navigation
@@ -532,8 +573,48 @@ function Header(): React.JSX.Element {
                     </div>
                   </div>
 
-                  {/* SECTION DÉCONNEXION (en bas si admin connecté) */}
-                  {isAdmin && (
+                  {/* SECTION 3: AUTHENTIFICATION (si non connecté) */}
+                  {!isAuthenticated && (
+                    <div className='pt-4 border-t border-gray-200'>
+                      <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 px-2'>
+                        Compte
+                      </h3>
+                      <div className='space-y-2'>
+                        <Link
+                          to='/connexion'
+                          onClick={() => setNav(false)}
+                          className='flex items-center justify-between w-full px-3 py-3 text-sky-600 hover:bg-sky-50 border border-sky-200 rounded-lg transition-all duration-200 font-medium hover:border-sky-300'
+                          role='menuitem'
+                          state={{ from: location.pathname }}
+                        >
+                          <div className='flex items-center'>
+                            <LogIn className='w-5 h-5 mr-2 text-sky-500' />
+                            <span className='font-semibold'>Connexion</span>
+                          </div>
+                          <span className='text-xs text-gray-500'>
+                            →
+                          </span>
+                        </Link>
+                        <Link
+                          to='/inscription'
+                          onClick={() => setNav(false)}
+                          className='flex items-center justify-between w-full px-3 py-3 text-white bg-sky-500 hover:bg-sky-600 rounded-lg transition-all duration-200 font-medium'
+                          role='menuitem'
+                        >
+                          <div className='flex items-center'>
+                            <UserPlus className='w-5 h-5 mr-2' />
+                            <span className='font-semibold'>Inscription</span>
+                          </div>
+                          <span className='text-xs text-white/90'>
+                            →
+                          </span>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SECTION 4: DÉCONNEXION (en bas si connecté) */}
+                  {isAuthenticated && (
                     <div className='pt-4 border-t border-gray-200'>
                       <div className='space-y-2'>
                         <button

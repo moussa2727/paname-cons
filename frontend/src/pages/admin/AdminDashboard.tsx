@@ -1,457 +1,800 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Users, 
-  FileText, 
-  Calendar, 
-  MessageSquare, 
-  Activity,
-  RefreshCw,
-  TrendingUp,
-  TrendingDown,
-  AlertCircle,
+import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  Users,
+  Calendar,
+  FileText,
   CheckCircle,
   Clock,
-  BarChart3,
+  Mail,
   Globe,
-  Server
+  RefreshCw,
+  AlertTriangle,
+  Shield,
+  BarChart3,
+  TrendingUp,
+  UserCheck,
+  MessageSquare,
 } from 'lucide-react';
-import RequireAdmin from '../../context/RequireAdmin';
-import { adminStatsService } from '../../api/admin/AdminDashboardService';
+import { useDashboardData } from '../../api/admin/AdminDashboardService';
+import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../../context/AuthContext';
+import { toast } from 'react-toastify';
 
-interface StatsCardProps {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-  trend?: number;
-  subtitle?: string;
-  color?: string;
-  onRefresh?: () => Promise<void>;
-  loading?: boolean;
+// Types
+interface DashboardStats {
+  totalUsers: number;
+  activeUsers: number;
+  inactiveUsers: number;
+  adminUsers: number;
+  regularUsers: number;
+  totalProcedures: number;
+  proceduresByStatus: { _id: string; count: number }[];
+  proceduresByDestination: { _id: string; count: number }[];
+  totalRendezvous: number;
+  rendezvousStats: {
+    pending: number;
+    confirmed: number;
+    completed: number;
+    cancelled: number;
+  };
+  totalContacts?: number;
+  unreadContacts?: number;
 }
 
-const StatsCard: React.FC<StatsCardProps> = ({ 
-  title, 
-  value, 
-  icon, 
-  trend, 
-  subtitle, 
-  onRefresh,
-  loading = false 
-}) => (
-  <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-sky-500 relative">
-    {loading && (
-      <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg">
-        <RefreshCw className="animate-spin text-sky-600" size={24} />
-      </div>
-    )}
-    <div className="flex items-center justify-between mb-2">
-      <div className="p-2 rounded-lg bg-sky-100">
-        {icon}
-      </div>
-      <div className="flex items-center space-x-2">
-        {trend !== undefined && (
-          <div className={`flex items-center text-sm ${trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {trend >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-            <span className="ml-1">{Math.abs(trend)}%</span>
-          </div>
-        )}
-        {onRefresh && (
-          <button
-            onClick={onRefresh}
-            disabled={loading}
-            className="p-1 hover:bg-sky-100 rounded transition-colors disabled:opacity-50"
-            title="Actualiser"
-          >
-            <RefreshCw size={16} className={`text-sky-600 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-        )}
-      </div>
-    </div>
-    <h3 className="text-xl font-bold text-gray-800 truncate">{value.toLocaleString()}</h3>
-    <p className="text-sm text-gray-600 mt-1">{title}</p>
-    {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
-  </div>
-);
-
-interface DetailCardProps {
-  title: string;
-  icon: React.ReactNode;
-  data: Array<{ label: string; value: number; color: string }>;
-  onRefresh?: () => Promise<void>;
-  loading?: boolean;
+interface RecentActivity {
+  _id: string;
+  type: 'procedure' | 'rendezvous' | 'user' | 'contact';
+  action: string;
+  description: string;
+  timestamp: Date;
+  userEmail?: string;
 }
 
-const DetailCard: React.FC<DetailCardProps> = ({ title, icon, data, onRefresh, loading = false }) => (
-  <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 relative">
-    {loading && (
-      <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg z-10">
-        <RefreshCw className="animate-spin text-sky-600" size={32} />
-      </div>
-    )}
-    <div className="flex items-center justify-between mb-3 sm:mb-4">
-      <div className="flex items-center">
-        {icon}
-        <h2 className="text-base sm:text-lg font-semibold text-gray-800 ml-2">{title}</h2>
-      </div>
-      {onRefresh && (
-        <button
-          onClick={onRefresh}
-          disabled={loading}
-          className="p-1.5 sm:p-2 hover:bg-sky-100 rounded-lg transition-colors disabled:opacity-50"
-          title="Actualiser"
-        >
-          <RefreshCw size={18} className={`text-sky-600 ${loading ? 'animate-spin' : ''}`} />
-        </button>
-      )}
-    </div>
-    <div className="space-y-2 sm:space-y-3">
-      {data.map((item, index) => (
-        <div key={index} className="flex justify-between items-center py-1.5 sm:py-2 border-b last:border-b-0">
-          <span className="text-xs sm:text-sm text-gray-600 truncate">{item.label}</span>
-          <span className={`font-semibold text-sm ${item.color}`}>{item.value.toLocaleString()}</span>
-        </div>
-      ))}
-    </div>
-  </div>
-);
+// Composant d'icône pour les activités
+const ActivityIcon = ({ type }: { type: string }) => {
+  switch (type) {
+    case 'procedure':
+      return <FileText className='w-5 h-5 text-blue-500' />;
+    case 'rendezvous':
+      return <Calendar className='w-5 h-5 text-emerald-500' />;
+    case 'user':
+      return <Users className='w-5 h-5 text-violet-500' />;
+    case 'contact':
+      return <Mail className='w-5 h-5 text-amber-500' />;
+    default:
+      return <Clock className='w-5 h-5 text-slate-400' />;
+  }
+};
 
-interface StatusBadgeProps {
-  status: boolean;
-  label: string;
-}
+const AdminDashboard = () => {
+  const { user, isAuthenticated } = useAuth();
+  const { stats, activities, error, refresh } = useDashboardData();
 
-const StatusBadge: React.FC<StatusBadgeProps> = ({ status, label }) => (
-  <div className="flex items-center space-x-2 bg-white rounded-lg p-3 shadow-sm w-full">
-    {status ? (
-      <CheckCircle className="text-green-500 flex-shrink-0" size={20} />
-    ) : (
-      <AlertCircle className="text-red-500 flex-shrink-0" size={20} />
-    )}
-    <span className="text-sm font-medium text-gray-700 truncate">{label}</span>
-    <span className={`text-xs px-2 py-1 rounded whitespace-nowrap ${status ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-      {status ? 'OK' : 'Erreur'}
-    </span>
-  </div>
-);
+  // États locaux
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<string>('');
 
-const AdminDashboard: React.FC = () => {
-  const { fetchWithAuth } = useAuth();
-  
-  // États séparés pour chaque section
-  const [proceduresStats, setProceduresStats] = useState<any>(null);
-  const [usersStats, setUsersStats] = useState<any>(null);
-  const [rendezvousStats, setRendezvousStats] = useState<any>(null);
-  const [contactsStats, setContactsStats] = useState<any>(null);
-  const [destinationsStats, setDestinationsStats] = useState<any>(null);
-  const [systemStatus, setSystemStatus] = useState<any>(null);
-  
-  // États de chargement séparés
-  const [loadingProcedures, setLoadingProcedures] = useState(false);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [loadingContacts, setLoadingContacts] = useState(false);
-  const [loadingSystem, setLoadingSystem] = useState(false);
-  const [loadingAll, setLoadingAll] = useState(true);
-  const [refreshingAll, setRefreshingAll] = useState(false);
-  
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  // Références
+  const isMountedRef = useRef(true);
 
+  // Initialisation
   useEffect(() => {
-    // ✅ Injection stricte de fetchWithAuth dans le service
-    adminStatsService.setFetchWithAuth(fetchWithAuth);
-    loadAllStats();
-  }, [fetchWithAuth]);
+    isMountedRef.current = true;
 
-  // ✅ Chargement initial - utilise getGeneralStats()
-  const loadAllStats = async () => {
+    const initializeDashboard = async () => {
+      if (!isMountedRef.current) return;
+
+      // Vérification des permissions
+      if (!isAuthenticated) {
+        toast.error('Veuillez vous connecter pour accéder au tableau de bord');
+        return;
+      }
+
+      if (user?.role !== 'admin') {
+        toast.error('Accès refusé. Réservé aux administrateurs.');
+        return;
+      }
+
+      // Chargement initial des données
+      try {
+        await refresh();
+        setLastRefreshTime(
+          new Date().toLocaleTimeString('fr-FR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        );
+      } catch (err) {
+        // Gestion d'erreur silencieuse pour l'initialisation
+        if (import.meta.env.DEV) {
+          console.error('Erreur lors du chargement initial:', err);
+        }
+      }
+    };
+
+    const initTimer = window.setTimeout(() => {
+      initializeDashboard();
+    }, 500);
+
+    return () => {
+      isMountedRef.current = false;
+      window.clearTimeout(initTimer);
+    };
+  }, [isAuthenticated, user?.role, refresh]);
+
+  // Gestion du rafraîchissement
+  const handleRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+
+    setIsRefreshing(true);
+
     try {
-      setLoadingAll(true);
-      const data = await adminStatsService.getGeneralStats();
-      
-      // Extraction des données de la réponse consolidée
-      setProceduresStats(data.procedures);
-      setUsersStats(data.users);
-      setRendezvousStats(data.rendezvous);
-      setContactsStats(data.contacts);
-      setDestinationsStats(data.destinations);
-      setSystemStatus(data.systemStatus);
-      
-      setLastUpdate(new Date());
-    } catch (error) {
-      // ✅ Gestion d'erreur déléguée au service (toast déjà affiché)
-      console.error('Erreur chargement initial:', error);
+      await refresh();
+
+      setLastRefreshTime(
+        new Date().toLocaleTimeString('fr-FR', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      );
+
+      toast.success('Données actualisées avec succès', {
+        position: 'top-right',
+        autoClose: 2000,
+      });
+    } catch (err: any) {
+      // Gestion d'erreur silencieuse pour le rafraîchissement
+      if (import.meta.env.DEV) {
+        console.error('Erreur lors du rafraîchissement:', err);
+      }
+      // Les erreurs sont gérées par le service
     } finally {
-      setLoadingAll(false);
+      setIsRefreshing(false);
     }
+  }, [isRefreshing, refresh]);
+
+  // Fonction utilitaire pour les données
+  const safeFind = (array: any[] | undefined, value: string): number => {
+    if (!array || !Array.isArray(array)) return 0;
+    const item = array.find(item => item._id === value);
+    return item ? item.count : 0;
   };
 
-  // ✅ Refresh global - utilise refreshAllStats()
-  const handleRefreshAll = async () => {
-    try {
-      setRefreshingAll(true);
-      const data = await adminStatsService.refreshAllStats();
-      
-      setProceduresStats(data.procedures);
-      setUsersStats(data.users);
-      setRendezvousStats(data.rendezvous);
-      setContactsStats(data.contacts);
-      setDestinationsStats(data.destinations);
-      setSystemStatus(data.systemStatus);
-      
-      setLastUpdate(new Date());
-    } catch (error) {
-      // ✅ Gestion d'erreur déléguée au service
-      console.error('Erreur refresh global:', error);
-    } finally {
-      setRefreshingAll(false);
-    }
-  };
+  // Vérification des permissions
+  if (!isAuthenticated) {
+    return null;
+  }
 
-  // ✅ Refresh procédures - utilise getProcedureStats()
-  const refreshProcedures = async () => {
-    try {
-      setLoadingProcedures(true);
-      const data = await adminStatsService.getProcedureStats();
-      setProceduresStats(data);
-    } catch (error) {
-      console.error('Erreur refresh procédures:', error);
-    } finally {
-      setLoadingProcedures(false);
-    }
-  };
-
-  // ✅ Refresh utilisateurs - utilise getUserStats()
-  const refreshUsers = async () => {
-    try {
-      setLoadingUsers(true);
-      const data = await adminStatsService.getUserStats();
-      setUsersStats(data);
-    } catch (error) {
-      console.error('Erreur refresh utilisateurs:', error);
-    } finally {
-      setLoadingUsers(false);
-    }
-  };
-
-  // ✅ Refresh contacts - utilise getContactStats()
-  const refreshContacts = async () => {
-    try {
-      setLoadingContacts(true);
-      const data = await adminStatsService.getContactStats();
-      setContactsStats(data);
-    } catch (error) {
-      console.error('Erreur refresh contacts:', error);
-    } finally {
-      setLoadingContacts(false);
-    }
-  };
-
-  // ✅ Refresh système - utilise getSystemStatus()
-  const refreshSystem = async () => {
-    try {
-      setLoadingSystem(true);
-      const data = await adminStatsService.getSystemStatus();
-      setSystemStatus(data);
-    } catch (error) {
-      console.error('Erreur refresh système:', error);
-    } finally {
-      setLoadingSystem(false);
-    }
-  };
-
-  if (loadingAll) {
+  if (user?.role !== 'admin') {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
-        <div className="text-center max-w-xs">
-          <RefreshCw className="animate-spin mx-auto mb-4 text-sky-600" size={48} />
-          <p className="text-gray-600 font-medium">Chargement des statistiques...</p>
-          <p className="text-sm text-gray-500 mt-2">Veuillez patienter</p>
+      <div className='min-h-screen flex items-center justify-center'>
+        <div className='text-center max-w-md p-8'>
+          <div className='inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4'>
+            <AlertTriangle className='w-8 h-8 text-red-600' />
+          </div>
+          <div className='text-gray-900 text-xl font-semibold mb-2'>
+            Accès restreint
+          </div>
+          <div className='text-gray-600 mb-6'>
+            Cette interface est réservée aux administrateurs du système.
+          </div>
+          <div className='text-xs text-gray-500 bg-gray-100 rounded-lg p-3'>
+            <Shield className='w-3 h-3 inline mr-1' />
+            Sécurité renforcée • Audit des accès
+          </div>
         </div>
       </div>
     );
   }
 
+  // Gestion des erreurs
+  if (error) {
+    return (
+      <div className='min-h-screen flex items-center justify-center'>
+        <div className='text-center max-w-md p-8'>
+          <div className='inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4'>
+            <AlertTriangle className='w-8 h-8 text-red-600' />
+          </div>
+          <div className='text-gray-900 text-xl font-semibold mb-2'>
+            Erreur de chargement
+          </div>
+          <div className='text-gray-600 mb-6'>{error}</div>
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className='bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2 mx-auto'
+          >
+            <RefreshCw
+              size={18}
+              className={isRefreshing ? 'animate-spin' : ''}
+            />
+            {isRefreshing ? 'Rechargement...' : 'Réessayer'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Configuration des cartes de statistiques
+  const statCards = [
+    {
+      title: 'Utilisateurs',
+      value: stats?.totalUsers || 0,
+      icon: Users,
+      color: 'from-blue-500 to-blue-600',
+      iconBg: 'bg-blue-100',
+      iconColor: 'text-blue-600',
+      description: `${stats?.activeUsers || 0} actifs`,
+      trend: (stats?.activeUsers || 0) > 0 ? 'positive' : 'neutral',
+      detail: `${stats?.inactiveUsers || 0} inactifs`,
+    },
+    {
+      title: 'Rendez-vous',
+      value: stats?.totalRendezvous || 0,
+      icon: Calendar,
+      color: 'from-emerald-500 to-emerald-600',
+      iconBg: 'bg-emerald-100',
+      iconColor: 'text-emerald-600',
+      description: `${stats?.rendezvousStats?.confirmed || 0} confirmés`,
+      trend: 'neutral',
+      detail: `${stats?.rendezvousStats?.pending || 0} en attente`,
+    },
+    {
+      title: 'Procédures',
+      value: stats?.totalProcedures || 0,
+      icon: FileText,
+      color: 'from-violet-500 to-violet-600',
+      iconBg: 'bg-violet-100',
+      iconColor: 'text-violet-600',
+      description: 'En cours et terminées',
+      trend: 'neutral',
+      detail: `${stats?.proceduresByStatus?.length || 0} statuts`,
+    },
+    {
+      title: 'Administrateurs',
+      value: stats?.adminUsers || 0,
+      icon: Shield,
+      color: 'from-amber-500 to-amber-600',
+      iconBg: 'bg-amber-100',
+      iconColor: 'text-amber-600',
+      description: 'Accès sécurisé',
+      trend: 'neutral',
+      detail: `${stats?.regularUsers || 0} utilisateurs réguliers`,
+      isAdmin: true,
+    },
+    {
+      title: 'Messages',
+      value: stats?.totalContacts || 0,
+      icon: MessageSquare,
+      color: 'from-indigo-500 to-indigo-600',
+      iconBg: 'bg-indigo-100',
+      iconColor: 'text-indigo-600',
+      description: `${stats?.unreadContacts || 0} non lus`,
+      trend: (stats?.unreadContacts || 0) > 0 ? 'attention' : 'positive',
+      detail: 'Dernières 24h',
+    },
+    {
+      title: 'Système',
+      value: 'ACTIF',
+      icon: CheckCircle,
+      color: 'from-green-500 to-green-600',
+      iconBg: 'bg-green-100',
+      iconColor: 'text-green-600',
+      description: 'Normal',
+      trend: 'positive',
+      isSystem: true,
+    },
+  ];
+
+  // Statistiques des procédures
+  const procedureStatusStats = [
+    {
+      status: 'En cours',
+      value:
+        safeFind(stats?.proceduresByStatus, 'En cours') ||
+        safeFind(stats?.proceduresByStatus, 'en cours'),
+      icon: Clock,
+      color: 'text-yellow-600',
+      bgColor: 'bg-yellow-50',
+      borderColor: 'border-yellow-200',
+    },
+    {
+      status: 'Terminées',
+      value:
+        safeFind(stats?.proceduresByStatus, 'Terminée') ||
+        safeFind(stats?.proceduresByStatus, 'terminée'),
+      icon: CheckCircle,
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-50',
+      borderColor: 'border-emerald-200',
+    },
+    {
+      status: 'Refusées',
+      value:
+        safeFind(stats?.proceduresByStatus, 'Refusée') ||
+        safeFind(stats?.proceduresByStatus, 'refusée'),
+      icon: AlertTriangle,
+      color: 'text-red-600',
+      bgColor: 'bg-red-50',
+      borderColor: 'border-red-200',
+    },
+    {
+      status: 'En attente',
+      value:
+        safeFind(stats?.proceduresByStatus, 'En attente') ||
+        safeFind(stats?.proceduresByStatus, 'en attente'),
+      icon: Clock,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-50',
+      borderColor: 'border-blue-200',
+    },
+  ];
+
+  // Destinations populaires
+  const popularDestinations = (stats?.proceduresByDestination || [])
+    .slice(0, 5)
+    .map(dest => ({
+      name: dest._id,
+      count: dest.count,
+      percentage:
+        (stats?.totalProcedures || 0) > 0
+          ? Math.round((dest.count / (stats?.totalProcedures || 1)) * 100)
+          : 0,
+    }));
+
   return (
-    <div className="min-h-screen">
-      <div className="px-2 py-4 sm:px-4 sm:py-6 md:px-6 lg:px-8 max-w-7xl mx-auto">
-        {/* Stats Cards Grid - avec refresh individuel */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-5">
-          <StatsCard
-            title="Utilisateurs totaux"
-            value={usersStats?.totalUsers || 0}
-            icon={<Users className="text-sky-600" size={24} />}
-            subtitle={`${usersStats?.activeUsers || 0} actifs`}
-            onRefresh={refreshUsers}
-            loading={loadingUsers}
-          />
-          
-          <StatsCard
-            title="Procédures"
-            value={proceduresStats?.total || 0}
-            icon={<FileText className="text-sky-600" size={24} />}
-            subtitle={`${proceduresStats?.active || 0} en cours`}
-            onRefresh={refreshProcedures}
-            loading={loadingProcedures}
-          />
-          
-          <StatsCard
-            title="Rendez-vous"
-            value={rendezvousStats?.total || 0}
-            icon={<Calendar className="text-sky-600" size={24} />}
-            subtitle={`${rendezvousStats?.confirmed || 0} confirmés`}
-          />
-          
-          <StatsCard
-            title="Messages"
-            value={contactsStats?.total || 0}
-            icon={<MessageSquare className="text-sky-600" size={24} />}
-            subtitle={`${contactsStats?.unread || 0} non lus`}
-            onRefresh={refreshContacts}
-            loading={loadingContacts}
-          />
-        </div>
+    <>
+      <Helmet>
+        <title>Tableau de Bord Administrateur - Paname Consulting</title>
+        <meta
+          name='description'
+          content='Interface sécurisée de gestion administrative avec statistiques et contrôles systèmes'
+        />
+        <meta name='robots' content='noindex, nofollow' />
+        <meta name='googlebot' content='noindex, nofollow' />
+        <meta name='bingbot' content='noindex, nofollow' />
+        <meta name='yandexbot' content='noindex, nofollow' />
+        <meta name='duckduckbot' content='noindex, nofollow' />
+        <meta name='baidu' content='noindex, nofollow' />
+        <meta name='naver' content='noindex, nofollow' />
+        <meta name='seznam' content='noindex, nofollow' />
+      </Helmet>
 
-        {/* Detailed Stats Section - avec refresh individuel */}
-        <div className="grid grid-cols-1 gap-5 mb-6">
-          {/* Procédures Details */}
-          <DetailCard
-            title="Détail des procédures"
-            icon={<BarChart3 className="text-sky-600" size={24} />}
-            data={[
-              { label: 'En attente', value: proceduresStats?.pending || 0, color: 'text-yellow-600' },
-              { label: 'En cours', value: proceduresStats?.active || 0, color: 'text-sky-600' },
-              { label: 'Complétées', value: proceduresStats?.completed || 0, color: 'text-green-600' },
-              { label: 'Annulées', value: proceduresStats?.cancelled || 0, color: 'text-red-600' },
-            ]}
-            onRefresh={refreshProcedures}
-            loading={loadingProcedures}
-          />
-
-          {/* Users Details */}
-          <DetailCard
-            title="Activité utilisateurs"
-            icon={<Users className="text-sky-600" size={24} />}
-            data={[
-              { label: 'Utilisateurs actifs', value: usersStats?.activeUsers || 0, color: 'text-green-600' },
-              { label: 'Utilisateurs inactifs', value: usersStats?.inactiveUsers || 0, color: 'text-gray-600' },
-              { label: 'Connexions (24h)', value: usersStats?.last24hLogins || 0, color: 'text-sky-600' },
-              { label: 'Inscriptions (7j)', value: usersStats?.last7dRegistrations || 0, color: 'text-purple-600' },
-            ]}
-            onRefresh={refreshUsers}
-            loading={loadingUsers}
-          />
-        </div>
-
-        {/* Contacts & Rendezvous Details */}
-        <div className="grid grid-cols-1 gap-5 mb-6">
-          <DetailCard
-            title="Détail des contacts"
-            icon={<MessageSquare className="text-sky-600" size={24} />}
-            data={[
-              { label: 'Non lus', value: contactsStats?.unread || 0, color: 'text-orange-600' },
-              { label: 'Lus', value: contactsStats?.read || 0, color: 'text-sky-600' },
-              { label: 'Répondus', value: contactsStats?.replied || 0, color: 'text-green-600' },
-            ]}
-            onRefresh={refreshContacts}
-            loading={loadingContacts}
-          />
-
-          <DetailCard
-            title="Détail des rendez-vous"
-            icon={<Calendar className="text-sky-600" size={24} />}
-            data={[
-              { label: 'Confirmés', value: rendezvousStats?.confirmed || 0, color: 'text-green-600' },
-              { label: 'En attente', value: rendezvousStats?.pending || 0, color: 'text-yellow-600' },
-              { label: 'Complétés', value: rendezvousStats?.completed || 0, color: 'text-sky-600' },
-              { label: 'Annulés', value: rendezvousStats?.cancelled || 0, color: 'text-red-600' },
-            ]}
-          />
-        </div>
-
-        {/* System Status - avec refresh individuel */}
-        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 relative">
-          {loadingSystem && (
-            <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg z-10">
-              <RefreshCw className="animate-spin text-sky-600" size={32} />
-            </div>
-          )}
-          <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <div className="flex items-center">
-              <Activity className="text-sky-600 mr-2" size={24} />
-              <h2 className="text-base sm:text-lg font-semibold text-gray-800">État du système</h2>
-            </div>
-            <button
-              onClick={refreshSystem}
-              disabled={loadingSystem}
-              className="p-1.5 sm:p-2 hover:bg-sky-100 rounded-lg transition-colors disabled:opacity-50"
-              title="Actualiser"
-            >
-              <RefreshCw size={18} className={`text-sky-600 ${loadingSystem ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            <StatusBadge 
-              status={systemStatus?.database || false} 
-              label="Base de données" 
-            />
-            <StatusBadge 
-              status={systemStatus?.cache || false} 
-              label="Cache" 
-            />
-            <StatusBadge 
-              status={!systemStatus?.maintenanceMode} 
-              label="Service disponible" 
-            />
-          </div>
-          {systemStatus?.uptime && (
-            <div className="mt-4 pt-4 border-t flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs sm:text-sm text-gray-600">
-              <div className="flex items-center">
-                <Clock size={16} className="mr-2 text-sky-600 flex-shrink-0" />
-                <span>Temps de fonctionnement: <span className="font-medium text-gray-800">{systemStatus.uptime}</span></span>
-              </div>
-              {systemStatus?.version && (
-                <div className="flex items-center">
-                  <Server size={16} className="mr-2 text-sky-600 flex-shrink-0" />
-                  <span>Version: <span className="font-medium text-gray-800">{systemStatus.version}</span></span>
+      {/* Interface principale */}
+      <div className='min-h-screen'>
+        <div className='p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto'>
+          {/* En-tête amélioré */}
+          <div className='bg-white rounded-2xl shadow-lg p-6 md:p-8 border border-gray-200'>
+            <div className='flex flex-col md:flex-row md:items-center justify-between gap-6'>
+              <div className='space-y-3'>
+                <div className='flex items-center gap-3'>
+                  <div className='p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-md'>
+                    <Shield className='w-6 h-6 text-white' />
+                  </div>
+                  <div>
+                    <h1 className='text-2xl md:text-3xl font-bold text-gray-900'>
+                      Tableau de Bord Administrateur
+                    </h1>
+                    <div className='flex items-center gap-2 mt-1'>
+                      <div className='flex items-center gap-1 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-xs font-medium'>
+                        <Shield size={12} />
+                        <span>Session sécurisée</span>
+                      </div>
+                      <div className='h-1 w-1 bg-gray-300 rounded-full'></div>
+                      <div className='text-xs text-gray-500'>
+                        ID: {user?.id?.substring(0, 8)}...
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
 
-        {/* Quick Stats Row */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 text-center border-t-4 border-sky-500">
-            <Globe className="mx-auto mb-1.5 sm:mb-2 text-sky-600" size={20} />
-            <div className="text-xl sm:text-2xl font-bold text-gray-800">{destinationsStats?.total || 0}</div>
-            <div className="text-xs sm:text-sm text-gray-600 mt-1">Destinations</div>
+                <div className='space-y-1'>
+                  <p className='text-gray-700'>
+                    Bonjour{' '}
+                    <span className='font-semibold text-gray-900'>
+                      {user?.firstName}
+                    </span>
+                    <span className='text-gray-500 mx-1'>•</span>
+                    <span className='text-gray-600'>Rôle: Administrateur</span>
+                  </p>
+                  {lastRefreshTime && (
+                    <div className='flex items-center gap-2 text-sm text-gray-500'>
+                      <Clock size={14} />
+                      <span>Dernière mise à jour: {lastRefreshTime}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className='flex flex-wrap items-center gap-3'>
+                <button
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className='flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-all shadow-sm hover:shadow-md'
+                >
+                  <RefreshCw
+                    size={18}
+                    className={isRefreshing ? 'animate-spin' : ''}
+                  />
+                  <span className='font-medium'>
+                    {isRefreshing ? 'Actualisation...' : 'Actualiser'}
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 text-center border-t-4 border-sky-500">
-            <Calendar className="mx-auto mb-1.5 sm:mb-2 text-sky-600" size={20} />
-            <div className="text-xl sm:text-2xl font-bold text-gray-800">{rendezvousStats?.today || 0}</div>
-            <div className="text-xs sm:text-sm text-gray-600 mt-1">Aujourd'hui</div>
+
+          {/* Cartes de statistiques */}
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4'>
+            {statCards.map((card, index) => {
+              const Icon = card.icon;
+              return (
+                <div
+                  key={index}
+                  className={`bg-white rounded-2xl shadow-sm border p-5 hover:shadow-md transition-all duration-200 group border-gray-200 hover:border-gray-300`}
+                >
+                  <div className='flex items-start justify-between mb-3'>
+                    <div className={`p-2.5 rounded-xl ${card.iconBg}`}>
+                      <Icon className={`w-5 h-5 ${card.iconColor}`} />
+                    </div>
+                    {card.trend === 'positive' && (
+                      <div className='flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full'>
+                        <TrendingUp size={12} />
+                        <span className='ml-1'>+</span>
+                      </div>
+                    )}
+                    {card.trend === 'warning' && (
+                      <div className='flex items-center text-xs font-medium text-yellow-600 bg-yellow-50 px-2 py-1 rounded-full'>
+                        <AlertTriangle size={12} />
+                      </div>
+                    )}
+                    {card.trend === 'attention' && (
+                      <div className='flex items-center text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full animate-pulse'>
+                        <AlertTriangle size={12} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className='space-y-1'>
+                    <p className='text-sm font-medium text-gray-600 truncate'>
+                      {card.title}
+                    </p>
+                    <div
+                      className={`text-2xl font-bold bg-gradient-to-r ${card.color} bg-clip-text text-transparent`}
+                    >
+                      {typeof card.value === 'string'
+                        ? card.value
+                        : card.value.toLocaleString('fr-FR')}
+                    </div>
+                    <p className='text-xs text-gray-500 truncate'>
+                      {card.description}
+                    </p>
+                    {card.detail && (
+                      <p className='text-xs text-gray-400'>{card.detail}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 text-center border-t-4 border-sky-500">
-            <Clock className="mx-auto mb-1.5 sm:mb-2 text-sky-600" size={20} />
-            <div className="text-xl sm:text-2xl font-bold text-gray-800">{rendezvousStats?.upcoming || 0}</div>
-            <div className="text-xs sm:text-sm text-gray-600 mt-1">À venir</div>
+
+          {/* Deuxième ligne : Statistiques détaillées */}
+          <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+            {/* Procédures */}
+            <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-6'>
+              <div className='flex items-center justify-between mb-6'>
+                <div className='flex items-center space-x-2'>
+                  <div className='p-2 bg-blue-50 rounded-lg'>
+                    <FileText className='w-5 h-5 text-blue-600' />
+                  </div>
+                  <h2 className='text-lg font-semibold text-gray-900'>
+                    Statut des Procédures
+                  </h2>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <span className='text-sm text-gray-500'>
+                    Total:{' '}
+                    {(stats?.totalProcedures || 0).toLocaleString('fr-FR')}
+                  </span>
+                  <BarChart3 size={16} className='text-gray-400' />
+                </div>
+              </div>
+              <div className='space-y-3'>
+                {procedureStatusStats.map((stat, index) => {
+                  const Icon = stat.icon;
+                  const percentage =
+                    (stats?.totalProcedures || 0) > 0
+                      ? Math.round(
+                          (stat.value / (stats?.totalProcedures || 1)) * 100
+                        )
+                      : 0;
+
+                  return (
+                    <div
+                      key={index}
+                      className={`flex items-center justify-between p-3 rounded-xl border ${stat.borderColor} ${stat.bgColor}`}
+                    >
+                      <div className='flex items-center space-x-3'>
+                        <div className='p-1.5 rounded-lg bg-white shadow-sm'>
+                          <Icon className={`w-4 h-4 ${stat.color}`} />
+                        </div>
+                        <div>
+                          <span className='text-sm font-medium text-gray-800'>
+                            {stat.status}
+                          </span>
+                          <div className='h-1 w-16 bg-gray-200 rounded-full overflow-hidden mt-1'>
+                            <div
+                              className={`h-full ${stat.color.replace('text-', 'bg-')}`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className='flex items-center space-x-4'>
+                        <span className='text-sm text-gray-500'>
+                          {percentage}%
+                        </span>
+                        <span className='text-lg font-bold text-gray-900 min-w-[60px] text-right'>
+                          {stat.value.toLocaleString('fr-FR')}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Rendez-vous */}
+            <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-6'>
+              <div className='flex items-center justify-between mb-6'>
+                <div className='flex items-center space-x-2'>
+                  <div className='p-2 bg-emerald-50 rounded-lg'>
+                    <Calendar className='w-5 h-5 text-emerald-600' />
+                  </div>
+                  <h2 className='text-lg font-semibold text-gray-900'>
+                    Rendez-vous
+                  </h2>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <span className='text-sm text-gray-500'>
+                    Total:{' '}
+                    {(stats?.totalRendezvous || 0).toLocaleString('fr-FR')}
+                  </span>
+                  <UserCheck size={16} className='text-gray-400' />
+                </div>
+              </div>
+              <div className='space-y-3'>
+                {[
+                  {
+                    status: 'En attente',
+                    value: stats?.rendezvousStats?.pending || 0,
+                    color: 'yellow',
+                  },
+                  {
+                    status: 'Confirmés',
+                    value: stats?.rendezvousStats?.confirmed || 0,
+                    color: 'blue',
+                  },
+                  {
+                    status: 'Terminés',
+                    value: stats?.rendezvousStats?.completed || 0,
+                    color: 'emerald',
+                  },
+                  {
+                    status: 'Annulés',
+                    value: stats?.rendezvousStats?.cancelled || 0,
+                    color: 'red',
+                  },
+                ].map((stat, index) => {
+                  const percentage =
+                    (stats?.totalRendezvous || 0) > 0
+                      ? Math.round(
+                          (stat.value / (stats?.totalRendezvous || 1)) * 100
+                        )
+                      : 0;
+
+                  return (
+                    <div key={index} className='space-y-2'>
+                      <div className='flex items-center justify-between'>
+                        <span className='text-sm font-medium text-gray-700'>
+                          {stat.status}
+                        </span>
+                        <div className='flex items-center space-x-3'>
+                          <span className='text-sm text-gray-500'>
+                            {percentage}%
+                          </span>
+                          <span
+                            className={`px-3 py-1 rounded-full text-sm font-medium ${
+                              stat.color === 'yellow'
+                                ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                                : stat.color === 'blue'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : stat.color === 'emerald'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : 'bg-red-50 text-red-700 border-red-200'
+                            }`}
+                          >
+                            {stat.value.toLocaleString('fr-FR')}
+                          </span>
+                        </div>
+                      </div>
+                      <div className='h-2 bg-gray-200 rounded-full overflow-hidden'>
+                        <div
+                          className={`h-full rounded-full ${
+                            stat.color === 'yellow'
+                              ? 'bg-yellow-500'
+                              : stat.color === 'blue'
+                                ? 'bg-blue-500'
+                                : stat.color === 'emerald'
+                                  ? 'bg-emerald-500'
+                                  : 'bg-red-500'
+                          }`}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 text-center border-t-4 border-sky-500">
-            <MessageSquare className="mx-auto mb-1.5 sm:mb-2 text-sky-600" size={20} />
-            <div className="text-xl sm:text-2xl font-bold text-gray-800">{contactsStats?.replied || 0}</div>
-            <div className="text-xs sm:text-sm text-gray-600 mt-1">Réponses</div>
+
+          {/* Troisième ligne */}
+          <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+            {/* Destinations */}
+            <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-6'>
+              <div className='flex items-center justify-between mb-6'>
+                <div className='flex items-center space-x-2'>
+                  <div className='p-2 bg-violet-50 rounded-lg'>
+                    <Globe className='w-5 h-5 text-violet-600' />
+                  </div>
+                  <h2 className='text-lg font-semibold text-gray-900'>
+                    Destinations populaires
+                  </h2>
+                </div>
+                <span className='text-sm text-gray-500'>
+                  Top 5 • Procédures
+                </span>
+              </div>
+              <div className='space-y-4'>
+                {popularDestinations.length > 0 ? (
+                  popularDestinations.map((destination, index) => (
+                    <div key={index} className='space-y-2'>
+                      <div className='flex items-center justify-between'>
+                        <div className='flex items-center gap-2'>
+                          <div className='w-2 h-2 bg-violet-500 rounded-full'></div>
+                          <span className='text-sm font-medium text-gray-800 truncate'>
+                            {destination.name}
+                          </span>
+                        </div>
+                        <div className='flex items-center gap-3'>
+                          <span className='text-sm text-gray-500'>
+                            {destination.percentage}%
+                          </span>
+                          <span className='text-sm font-semibold text-gray-900'>
+                            {destination.count.toLocaleString('fr-FR')}
+                          </span>
+                        </div>
+                      </div>
+                      <div className='h-2 bg-gray-200 rounded-full overflow-hidden'>
+                        <div
+                          className='h-full bg-gradient-to-r from-violet-500 to-violet-600 rounded-full'
+                          style={{ width: `${destination.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className='text-center py-8'>
+                    <Globe className='w-12 h-12 text-gray-300 mx-auto mb-3' />
+                    <p className='text-gray-500'>
+                      Aucune donnée de destination
+                    </p>
+                    <p className='text-sm text-gray-400 mt-1'>
+                      Les procédures apparaîtront ici
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Activités */}
+            <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-6'>
+              <div className='flex items-center justify-between mb-6'>
+                <div className='flex items-center space-x-2'>
+                  <div className='p-2 bg-amber-50 rounded-lg'>
+                    <Clock className='w-5 h-5 text-amber-600' />
+                  </div>
+                  <h2 className='text-lg font-semibold text-gray-900'>
+                    Activités récentes
+                  </h2>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <span className='text-sm text-gray-500'>
+                    {activities.length} activité
+                    {activities.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+              <div className='space-y-4 max-h-[300px] overflow-y-auto pr-2'>
+                {activities.length > 0 ? (
+                  activities.map((activity, index) => (
+                    <div
+                      key={index}
+                      className='flex items-start space-x-3 pb-4 border-b border-gray-100 last:border-0 group'
+                    >
+                      <div className='flex-shrink-0 mt-0.5'>
+                        <div className='p-1.5 rounded-lg bg-gray-50 group-hover:bg-gray-100 transition-colors'>
+                          <ActivityIcon type={activity.type} />
+                        </div>
+                      </div>
+                      <div className='flex-1 min-w-0 space-y-1'>
+                        <p className='text-sm font-medium text-gray-900 line-clamp-2'>
+                          {activity.description}
+                        </p>
+                        <div className='flex items-center justify-between'>
+                          <div className='flex items-center gap-2'>
+                            <div className='text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded'>
+                              {activity.type}
+                            </div>
+                            <span className='text-xs text-gray-500'>
+                              {activity.userEmail
+                                ? `${activity.userEmail.substring(0, 3)}...@...`
+                                : 'Système'}
+                            </span>
+                          </div>
+                          <span className='text-xs text-gray-500 flex-shrink-0'>
+                            {new Date(activity.timestamp).toLocaleDateString(
+                              'fr-FR',
+                              {
+                                day: '2-digit',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              }
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className='text-center py-8'>
+                    <Clock className='w-12 h-12 text-gray-300 mx-auto mb-3' />
+                    <p className='text-gray-500'>Aucune activité récente</p>
+                    <p className='text-sm text-gray-400 mt-1'>
+                      Les actions apparaîtront ici
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Pied de page sécurisé */}
+          <div className='pt-6 border-t border-gray-200'>
+            <div className='flex flex-col md:flex-row md:items-center justify-between gap-4 text-sm text-gray-500'>
+              <div className='flex items-center gap-4'>
+                <div className='flex items-center gap-2'>
+                  <Shield size={14} className='text-gray-400' />
+                  <span>Session sécurisée • Chiffrement TLS</span>
+                </div>
+                <div className='h-4 w-px bg-gray-300'></div>
+                <div className='flex items-center gap-2'>
+                  <Clock size={14} className='text-gray-400' />
+                  <span>Dernière activité: maintenant</span>
+                </div>
+              </div>
+              <div className='flex items-center gap-2'>
+                <div className='w-2 h-2 bg-emerald-500 rounded-full animate-pulse'></div>
+                <span>Système opérationnel</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
-// ✅ Enrober strictement avec RequireAdmin
-export default function ProtectedAdminDashboard() {
-  return (
-    <RequireAdmin>
-      <AdminDashboard />
-    </RequireAdmin>
-  );
-}
+export default AdminDashboard;
