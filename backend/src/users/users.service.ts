@@ -13,6 +13,7 @@ import { UpdatePasswordDto } from "../auth/dto/update-password.dto";
 import { UpdateUserDto } from "../auth/dto/update-user.dto";
 import { User, UserRole } from "../schemas/user.schema";
 import { AuthConstants } from "../auth/auth.constants";
+import { isValidObjectId } from "mongoose"; // Déjà présente
 
 @Injectable()
 export class UsersService {
@@ -116,19 +117,19 @@ export class UsersService {
   }
 
   async findByRole(role: UserRole): Promise<User | null> {
-    const cacheKey = this.getCacheKey("findByRole", role);
-    const cached = this.getCache(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const user = await this.userModel.findOne({ role }).exec();
-    this.setCache(cacheKey, user);
-    return user;
+  const cacheKey = this.getCacheKey("findByRole", role);
+  const cached = this.getCache(cacheKey);
+  if (cached) {
+    return cached;
   }
 
+  const user = await this.userModel.findOne({ role }).exec();
+  this.setCache(cacheKey, user);
+  return user;
+}
+
   async findOne(id: string): Promise<User | null> {
-    if (!Types.ObjectId.isValid(id)) {
+    if (!isValidObjectId(id)) {
       this.logger.warn('Tentative de recherche avec ID invalide');
       return null;
     }
@@ -435,7 +436,7 @@ async create(createUserDto: RegisterDto): Promise<User> {
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     this.logger.log('Début mise à jour utilisateur');
 
-    if (!id || !Types.ObjectId.isValid(id)) {
+    if (!id || !isValidObjectId(id)) {
       this.logger.warn('ID utilisateur invalide');
       throw new BadRequestException("ID utilisateur invalide");
     }
@@ -546,7 +547,7 @@ async create(createUserDto: RegisterDto): Promise<User> {
         const existingUserWithEmail = await this.userModel
           .findOne({
             email: updateData.email,
-            _id: { $ne: new Types.ObjectId(userId) },
+            _id: { $ne: new  (isValidObjectId as any).constructor(userId)},
           })
           .select("_id")
           .exec();
@@ -561,7 +562,7 @@ async create(createUserDto: RegisterDto): Promise<User> {
         const existingUserWithPhone = await this.userModel
           .findOne({
             telephone: updateData.telephone,
-            _id: { $ne: new Types.ObjectId(userId) },
+            _id: { $ne: new  (isValidObjectId as any).constructor(userId) },
           })
           .select("_id")
           .exec();
@@ -571,7 +572,7 @@ async create(createUserDto: RegisterDto): Promise<User> {
           throw new BadRequestException("Ce numéro de téléphone est déjà utilisé");
         }
       }
-    }
+  }
 
   private handleUpdateError(error: any): never {
     if (error?.code === 11000) {
