@@ -13,13 +13,17 @@ const GlobalToastContainer = () => (
     position='top-right'
     autoClose={3000}
     hideProgressBar={false}
-    newestOnTop={true}
-    closeOnClick
-    pauseOnHover
-    draggable
+    newestOnTop={false}
+    closeOnClick={true}
+    rtl={false}
+    pauseOnFocusLoss={false}
+    draggable={true}
+    pauseOnHover={true}
     theme='light'
     limit={1}
-    pauseOnFocusLoss={false}
+    toastClassName='toast-custom'
+    bodyClassName='toast-body'
+    progressClassName='toast-progress'
   />
 );
 
