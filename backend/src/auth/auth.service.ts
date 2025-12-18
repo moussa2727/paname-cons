@@ -129,109 +129,107 @@ export class AuthService {
     this.logger.log(`Réinitialisation des tentatives pour ${this.maskEmail(email)}`);
   }
 
-  async register(registerDto: RegisterDto) {
-    try {
-      const adminEmail = process.env.EMAIL_USER;
-      const defaultAdminPassword = process.env.DEFAULT_ADMIN_PASSWORD;
-      
-      if (registerDto.email === adminEmail) {
-        const existingAdmin = await this.usersService.findByRole(UserRole.ADMIN);
-        if (existingAdmin) {
-          this.logger.warn(`Tentative d'enregistrement d'un deuxième admin spécifique`);
-          throw new BadRequestException(
-            "Un administrateur existe déjà dans le système",
-          );
-        }
-        
-        if (registerDto.password !== defaultAdminPassword) {
-          this.logger.warn(`Mot de passe incorrect pour l'admin spécifique`);
-          throw new BadRequestException("Mot de passe administrateur invalide");
-        }
-        
-        registerDto.role = UserRole.ADMIN;
-        this.logger.log(`Inscription de l'admin spécifique: ${this.maskEmail(adminEmail)}`);
+ async register(registerDto: RegisterDto) {
+  try {
+    const adminEmail = process.env.EMAIL_USER;
+    
+    // ✅ LOGIQUE SIMPLIFIÉE : TOUJOURS USER SAUF EMAIL_USER (premier seulement)
+    const existingAdmin = await this.usersService.findByRole(UserRole.ADMIN);
+    
+    if (registerDto.email === adminEmail) {
+      // Email admin spécifique détecté
+      if (existingAdmin) {
+        // Admin existe déjà → devient USER
+        registerDto.role = UserRole.USER;
+        this.logger.warn(`⚠️ Email admin utilisé pour créer un USER (admin existe déjà)`);
       } else {
-        const existingAdmin = await this.usersService.findByRole(UserRole.ADMIN);
-        registerDto.role = existingAdmin ? UserRole.USER : UserRole.ADMIN;
+        // Premier admin → devient ADMIN
+        registerDto.role = UserRole.ADMIN;
+        this.logger.log(`✅ Création du SEUL et UNIQUE admin: ${this.maskEmail(adminEmail)}`);
       }
-
-      const newUser = await this.usersService.create(registerDto);
-      const userId = this.convertObjectIdToString(newUser._id);
-
-      const jtiAccess = uuidv4();
-      const jtiRefresh = uuidv4();
-
-      const access_token = this.jwtService.sign(
-        {
-          sub: userId,
-          email: newUser.email,
-          role: newUser.role,
-          jti: jtiAccess,
-          tokenType: "access",
-        },
-        {
-          expiresIn: AuthConstants.JWT_EXPIRATION,
-        },
-      );
-
-      const refresh_token = this.jwtService.sign(
-        {
-          sub: userId,
-          email: newUser.email,
-          role: newUser.role,
-          jti: jtiRefresh,
-          tokenType: "refresh",
-        },
-        {
-          expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
-          secret: process.env.JWT_REFRESH_SECRET,
-        },
-      );
-
-      await this.sessionService.create(
-        userId,
-        access_token,
-        new Date(Date.now() + AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000),
-      );
-
-      await this.refreshTokenService.deactivateAllForUser(userId);
-      const decodedRefresh = this.jwtService.decode(refresh_token) as any;
-      const refreshExp = new Date(
-        (decodedRefresh?.exp || 0) * 1000 || Date.now() + AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000,
-      );
-      await this.refreshTokenService.create(userId, refresh_token, refreshExp);
-
-      try {
-        await this.mailService.sendWelcomeEmail(
-          newUser.email,
-          newUser.firstName,
-        );
-      } catch (emailError) {
-        this.logger.warn(`Échec envoi email bienvenue: ${emailError.message}`);
-      }
-
-      this.logger.log(`Nouvel utilisateur enregistré: ${this.maskEmail(newUser.email)}`);
-
-      return {
-        access_token,
-        refresh_token,
-        user: {
-          id: userId,
-          email: newUser.email,
-          firstName: newUser.firstName,
-          lastName: newUser.lastName,
-          telephone: newUser.telephone,
-          role: newUser.role,
-          isAdmin: newUser.role === UserRole.ADMIN,
-          isActive: newUser.isActive,
-        },
-      };
-
-    } catch (error) {
-      this.logger.error(`Erreur lors de l'enregistrement: ${error.message}`, error.stack);
-      throw error;
+    } else {
+      // Tous les autres emails sont USER
+      registerDto.role = UserRole.USER;
+      this.logger.log(`✅ Création d'utilisateur standard: ${this.maskEmail(registerDto.email)}`);
     }
+
+    const newUser = await this.usersService.create(registerDto);
+    const userId = this.convertObjectIdToString(newUser._id);
+
+    const jtiAccess = uuidv4();
+    const jtiRefresh = uuidv4();
+
+    const access_token = this.jwtService.sign(
+      {
+        sub: userId,
+        email: newUser.email,
+        role: newUser.role,
+        jti: jtiAccess,
+        tokenType: "access",
+      },
+      {
+        expiresIn: AuthConstants.JWT_EXPIRATION,
+      },
+    );
+
+    const refresh_token = this.jwtService.sign(
+      {
+        sub: userId,
+        email: newUser.email,
+        role: newUser.role,
+        jti: jtiRefresh,
+        tokenType: "refresh",
+      },
+      {
+        expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
+        secret: process.env.JWT_REFRESH_SECRET,
+      },
+    );
+
+    await this.sessionService.create(
+      userId,
+      access_token,
+      new Date(Date.now() + AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000),
+    );
+
+    await this.refreshTokenService.deactivateAllForUser(userId);
+    const decodedRefresh = this.jwtService.decode(refresh_token) as any;
+    const refreshExp = new Date(
+      (decodedRefresh?.exp || 0) * 1000 || Date.now() + AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000,
+    );
+    await this.refreshTokenService.create(userId, refresh_token, refreshExp);
+
+    try {
+      await this.mailService.sendWelcomeEmail(
+        newUser.email,
+        newUser.firstName,
+      );
+    } catch (emailError) {
+      this.logger.warn(`Échec envoi email bienvenue: ${emailError.message}`);
+    }
+
+    this.logger.log(`Nouvel utilisateur enregistré: ${this.maskEmail(newUser.email)}`);
+
+    return {
+      access_token,
+      refresh_token,
+      user: {
+        id: userId,
+        email: newUser.email,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        telephone: newUser.telephone,
+        role: newUser.role,
+        isAdmin: newUser.role === UserRole.ADMIN,
+        isActive: newUser.isActive,
+      },
+    };
+
+  } catch (error) {
+    this.logger.error(`Erreur lors de l'enregistrement: ${error.message}`, error.stack);
+    throw error;
   }
+}
 
   async login(user: User) {
     const jtiAccess = uuidv4();

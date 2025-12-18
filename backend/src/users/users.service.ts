@@ -307,7 +307,7 @@ export class UsersService {
     this.clearUserCache();
   }
 
- async create(createUserDto: RegisterDto): Promise<User> {
+async create(createUserDto: RegisterDto): Promise<User> {
   this.logger.log('Début création utilisateur');
 
   try {
