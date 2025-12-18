@@ -3,7 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
-import { ToastContainer, toast, ToastOptions, ToastContent } from 'react-toastify';
+import { ToastContainer, toast, ToastOptions, ToastContent, ToastContainerProps } from 'react-toastify';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
 import 'react-toastify/dist/ReactToastify.css';
@@ -15,11 +15,7 @@ export type ToastType = 'default' | 'success' | 'error' | 'warning' | 'info';
 export interface CustomToastOptions extends ToastOptions {
   type?: ToastType;
   mobileOptimized?: boolean;
-}
-
-interface ToastManagerOptions extends ToastOptions {
-  toastId?: string;
-  containerId?: string;
+  limit?: number; // Ajout de la propriété limit
 }
 
 // ==================== TOAST MANAGER ====================
@@ -82,13 +78,15 @@ class ToastManager {
       },
     };
 
-    const mergedOptions: ToastOptions = {
+    const mergedOptions: CustomToastOptions = {
       ...defaultOptions,
       ...options,
       toastId: messageHash,
     };
 
-    if (options.limit === 1 || !options.limit) {
+    // Vérifier la limite de toasts
+    const limit = options.limit ?? 1; // Utiliser la valeur fournie ou 1 par défaut
+    if (limit === 1) {
       this.clearAll();
     }
 
@@ -130,7 +128,7 @@ class ToastManager {
     return `toast_${Math.abs(hash)}`;
   }
 
-  private removeToast(hash: string): void {
+  private removeToast(hash: string | number): void {
     this.activeToasts.delete(hash);
     const toastElement = document.querySelector(`[id="${hash}"]`);
     if (toastElement && toastElement.parentNode) {
@@ -284,9 +282,9 @@ export const useToast = () => {
 
       const toastId = showToast(content, {
         ...options,
-        onClose: () => {
+        onClose: (toastId) => {
           lastToastRef.current = null;
-          options.onClose?.();
+          options.onClose?.(toastId);
         },
       });
 
@@ -377,10 +375,6 @@ export const useToast = () => {
 
 // ==================== COMPOSANT GLOBAL TOAST CONTAINER ====================
 const GlobalToastContainer: React.FC = () => {
-  const toastOptions: ToastManagerOptions = {
-    containerId: 'main-toast-container',
-  };
-
   return (
     <ToastContainer
       position='top-right'
@@ -394,7 +388,7 @@ const GlobalToastContainer: React.FC = () => {
       limit={1}
       pauseOnFocusLoss={false}
       enableMultiContainer={false}
-      containerId={toastOptions.containerId}
+      containerId='main-toast-container'
       style={{
         fontSize: '14px',
         maxWidth: '90vw',
