@@ -90,16 +90,6 @@ interface LogoutAllResponse {
   };
 }
 
-interface RefreshResponse {
-  access_token: string;
-  refresh_token?: string;
-  message?: string;
-  expiresIn?: number;
-  loggedOut?: boolean;
-  sessionExpired?: boolean;
-  requiresReauth?: boolean;
-}
-
 interface AuthContextType {
   user: User | null;
   access_token: string | null;
@@ -205,6 +195,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
+  const lastLoginTimeRef = useRef<number>(0);
 
   const [user, setUser] = useState<User | null>(() => {
     const stored = window.localStorage?.getItem(STORAGE_KEYS.USER_DATA);
@@ -772,54 +763,99 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   const savedToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
 
-  if (!savedToken) {
-    setIsLoading(false);
-    return;
-  }
-
-  try {
-    const decoded = jwtDecode<JwtPayload>(savedToken);
-    const currentTime = Date.now();
-    const tokenExpirationTime = decoded.exp * 1000;
-    const tokenCreationTime = decoded.iat * 1000;
-    const timeUntilExpiration = tokenExpirationTime - currentTime;
-    const tokenAge = currentTime - tokenCreationTime;
-
-    // ✅ DÉLAI MINIMUM : 30 secondes avant toute vérification de refresh
-    if (tokenAge < 30 * 1000) {
-      if (!user) {
-        await fetchUserData();
-      }
+    if (!savedToken) {
       setIsLoading(false);
       return;
     }
 
-    const isTokenExpired = timeUntilExpiration < -30000;
-    
-    if (isTokenExpired) {
-      if (!isRefreshingRef.current) {
-        const refreshed = await refreshToken();
-        if (!refreshed && timeUntilExpiration < -(2 * 60 * 1000)) {
-          logout();
+    try {
+      // ✅ PERIODE DE GRÂCE (Nouveau) : Ignorer TOUS les checks juste après un login
+      const TIME_AFTER_LOGIN_TO_SKIP_CHECKS = 45 * 1000; // 45 secondes (un peu plus que 30 pour être sûr)
+const timeSinceLastLogin = Date.now() - lastLoginTimeRef.current;
+      
+      if (timeSinceLastLogin < TIME_AFTER_LOGIN_TO_SKIP_CHECKS) {
+        console.log(`🕒 Période de grâce active (il y a ${Math.round(timeSinceLastLogin/1000)}s). Skip des vérifications de refresh.`);
+        if (!user) {
+          console.log('📥 Chargement des données utilisateur (période de grâce)...');
+          await fetchUserData();
         }
+        setIsLoading(false);
+        return; // On quitte la fonction checkAuth ici
       }
-    } else if (timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS) {
-      if (!isRefreshingRef.current) {
-        await refreshToken();
+
+      console.log(`🔍 Début checkAuth (période de grâce terminée: ${Math.round(timeSinceLastLogin/1000)}s)`);
+
+      // DÉBUT DE VOTRE LOGIQUE ORIGINALE
+      const decoded = jwtDecode<JwtPayload>(savedToken);
+      const currentTime = Date.now();
+      const tokenExpirationTime = decoded.exp * 1000;
+      const tokenCreationTime = decoded.iat * 1000;
+      const timeUntilExpiration = tokenExpirationTime - currentTime;
+      const tokenAge = currentTime - tokenCreationTime;
+
+      console.log(`📊 Stats token - Âge: ${Math.round(tokenAge/1000)}s, Expire dans: ${Math.round(timeUntilExpiration/1000)}s`);
+
+      // ✅ DÉLAI MINIMUM EXISTANT : 30 secondes avant toute vérification de refresh
+      if (tokenAge < 30 * 1000) {
+        console.log(`🕒 Token trop jeune (${Math.round(tokenAge/1000)}s). Chargement simple.`);
+        if (!user) {
+          await fetchUserData();
+        }
+        setIsLoading(false);
+        return;
       }
-    } else {
-      if (!user) {
-        await fetchUserData();
+
+      const isTokenExpired = timeUntilExpiration < -30000; // 30 secondes
+      
+      if (isTokenExpired) {
+        console.log('⏰ Token expiré depuis plus de 30s, tentative de rafraîchissement...');
+        
+        if (!isRefreshingRef.current) {
+          const refreshed = await refreshToken();
+          if (!refreshed) {
+            console.warn('⚠️ Refresh échoué, mais on garde la session pour l\'instant');
+            if (timeUntilExpiration < -(2 * 60 * 1000)) { // Expiré depuis > 2 minutes
+              console.warn('⚠️ Refresh échoué et token trop vieux, déconnexion...');
+              logout();
+            }
+          } else {
+            refreshAttemptsRef.current = 0;
+          }
+        }
+      } else if (timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS) {
+        console.log(`🔄 Token expire bientôt (${Math.round(timeUntilExpiration/1000)}s), refresh préventif...`);
+        
+        if (!isRefreshingRef.current) {
+          const refreshed = await refreshToken();
+          if (!refreshed) {
+            console.warn('⚠️ Refresh préventif échoué');
+            refreshAttemptsRef.current++;
+            
+            if (refreshAttemptsRef.current >= 2) {
+              console.warn('❌ Trop d\'échecs de refresh préventif, déconnexion...');
+              logout();
+            }
+          } else {
+            refreshAttemptsRef.current = 0;
+          }
+        }
+      } else {
+        if (!user) {
+          console.log('📥 Chargement des données utilisateur...');
+          await fetchUserData();
+        }
+        console.log(`✅ Token valide. Expire dans: ${Math.round(timeUntilExpiration/1000)}s`);
       }
+    } catch (error: unknown) {
+      console.error('❌ Erreur dans checkAuth:', error);
+      if (error instanceof Error && error.message.includes('Invalid token')) {
+        cleanupAuthData();
+      }
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error: unknown) {
-    if (error instanceof Error && error.message.includes('Invalid token')) {
-      cleanupAuthData();
-    }
-  } finally {
-    setIsLoading(false);
-  }
-}, [fetchUserData, refreshToken, user, logout, cleanupAuthData]);
+  }, [fetchUserData, refreshToken, user, logout, cleanupAuthData]);
+
 
   const resetPassword = useCallback(
     async (token: string, newPassword: string): Promise<void> => {
@@ -925,7 +961,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     fetchWithAuth,
   };
 
-  return 
+    return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 // ==================== HOOKS ====================
