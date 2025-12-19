@@ -100,6 +100,8 @@ const Hero = () => {
     { name: 'Algérie', slug: 'algerie' },
     { name: 'Tunisie', slug: 'tunisie' },
     { name: 'Sénégal', slug: 'senegal' },
+    { name: 'Russie', slug: 'russie' },
+
   ];
 
   const handleDestinationClick = (countrySlug: string) => {
@@ -107,6 +109,7 @@ const Hero = () => {
   };
 
   return (
+    <>
     <div className='min-h-screen bg-gray-50 lg:mt-10'>
       {/* Hero Section - Mobile First */}
       <div className='relative min-h-screen bg-gradient-to-br from-sky-600 via-sky-700 to-sky-800 text-white overflow-hidden'>
@@ -311,6 +314,7 @@ const Hero = () => {
         </div>
       </section>
     </div>
+    </>
   );
 };
 
