@@ -29,13 +29,16 @@ export class NotificationService {
       
       // Configuration SMTP simplifiée
       this.transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
+        host: this.configService.get<string>('EMAIL_HOST') || 'smtp.gmail.com',
         port: parseInt(this.configService.get<string>('EMAIL_PORT') || '587'),
         secure: this.configService.get<string>('EMAIL_SECURE') === 'true',
         auth: {
           user: emailUser,
-          pass: emailPass
-        }
+          pass: emailPass,
+        },
+        tls: {
+          rejectUnauthorized: this.configService.get<string>('NODE_ENV') === 'production',
+        },
       });
 
       // Vérification de la connexion

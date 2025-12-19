@@ -34,18 +34,24 @@ export class MailService {
       return;
     }
 
+    const host = this.configService.get<string>('EMAIL_HOST') || 'smtp.gmail.com';
+    const port = parseInt(this.configService.get<string>('EMAIL_PORT') || '587');
+    const secure = this.configService.get<string>('EMAIL_SECURE') === 'true';
+
     this.transporter = nodemailer.createTransport({
-      host: this.configService.get('EMAIL_HOST') || 'smtp.gmail.com',
-      port: parseInt(this.configService.get('EMAIL_PORT') || '587'),
-      secure: this.configService.get('EMAIL_SECURE') === 'true',
+      host,
+      port,
+      secure,
       auth: {
         user: this.configService.get('EMAIL_USER'),
         pass: this.configService.get('EMAIL_PASS'),
       },
       tls: {
-        rejectUnauthorized: this.configService.get('NODE_ENV') === 'production',
+        rejectUnauthorized: this.configService.get<string>('NODE_ENV') === 'production',
       },
     });
+
+    this.logger.log(`MailService transport initialisé (host=${host}, port=${port}, secure=${secure})`);
   }
 
   async checkConnection(): Promise<boolean> {
