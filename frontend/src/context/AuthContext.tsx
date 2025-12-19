@@ -926,12 +926,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return 
-  (
-    <>
-      <AuthContext.Provider value={value}>{children}</AuthContext.Provider>      
-    </>
-  )
-  ;
 };
 
 // ==================== HOOKS ====================
