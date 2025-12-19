@@ -768,111 +768,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
  const checkAuth = useCallback(async (): Promise<void> => {
-    setIsLoading(true);
-    
-    const savedToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+  setIsLoading(true);
+  
+  const savedToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
 
-    if (!savedToken) {
+  if (!savedToken) {
+    setIsLoading(false);
+    return;
+  }
+
+  try {
+    const decoded = jwtDecode<JwtPayload>(savedToken);
+    const currentTime = Date.now();
+    const tokenExpirationTime = decoded.exp * 1000;
+    const tokenCreationTime = decoded.iat * 1000;
+    const timeUntilExpiration = tokenExpirationTime - currentTime;
+    const tokenAge = currentTime - tokenCreationTime;
+
+    // ✅ DÉLAI MINIMUM : 30 secondes avant toute vérification de refresh
+    if (tokenAge < 30 * 1000) {
+      if (!user) {
+        await fetchUserData();
+      }
       setIsLoading(false);
       return;
     }
 
-    try {
-      const decoded = jwtDecode<JwtPayload>(savedToken);
-      const currentTime = Date.now();
-      const tokenExpirationTime = decoded.exp * 1000;
-      const tokenCreationTime = decoded.iat * 1000;
-      const timeUntilExpiration = tokenExpirationTime - currentTime;
-      const tokenAge = currentTime - tokenCreationTime;
-
-      // ✅ DÉLAI MINIMUM AVANT PREMIER REFRESH : 30 secondes
-      const MIN_TOKEN_AGE_FOR_REFRESH = 30 * 1000; // 30 secondes
-      
-      // ✅ SEULEMENT tenter refresh si le token a au moins 30 secondes
-      if (tokenAge < MIN_TOKEN_AGE_FOR_REFRESH) {
-        console.log(`🕒 Token trop jeune (${Math.round(tokenAge/1000)}s), chargement simple sans refresh`);
-        if (!user) {
-          await fetchUserData();
-        }
-        setIsLoading(false);
-        return;
-      }
-
-      // ✅ TOKEN EXPIRÉ DEPUIS PLUS DE 30 SECONDES
-      const isTokenExpired = timeUntilExpiration < -30000; // 30 secondes
-      
-      if (isTokenExpired) {
-        console.log('⏰ Token expiré depuis plus de 30s, tentative de rafraîchissement...');
-        
-        // ✅ VÉRIFIER SI LE TOKEN EST TROP VIEUX (expiré depuis plus de 5 minutes)
-        const isTokenTooOld = timeUntilExpiration < -(5 * 60 * 1000); // 5 minutes
-        
-        if (isTokenTooOld) {
-          console.warn('❌ Token expiré depuis plus de 5 minutes, déconnexion nécessaire');
+    const isTokenExpired = timeUntilExpiration < -30000;
+    
+    if (isTokenExpired) {
+      if (!isRefreshingRef.current) {
+        const refreshed = await refreshToken();
+        if (!refreshed && timeUntilExpiration < -(2 * 60 * 1000)) {
           logout();
-          toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-          setIsLoading(false);
-          return;
         }
-        
-        if (!isRefreshingRef.current) {
-          const refreshed = await refreshToken();
-          if (!refreshed) {
-            console.warn('⚠️ Refresh échoué, mais on garde la session pour l\'instant');
-            
-            // ✅ SI ÉCHEC ET TOKEN PRESQUE TROP VIEUX, DÉCONNECTER
-            if (timeUntilExpiration < -(2 * 60 * 1000)) { // Expiré depuis > 2 minutes
-              console.warn('⚠️ Refresh échoué et token trop vieux, déconnexion...');
-              logout();
-              toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-            }
-          } else {
-            refreshAttemptsRef.current = 0;
-          }
-        }
-      } 
-      // ✅ REFRESH PRÉVENTIF (token expire dans moins de 1 minute)
-      else if (timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS) {
-        console.log(`🔄 Token expire bientôt (${Math.round(timeUntilExpiration/1000)}s), refresh préventif...`);
-        
-        if (!isRefreshingRef.current) {
-          const refreshed = await refreshToken();
-          if (!refreshed) {
-            console.warn('⚠️ Refresh préventif échoué');
-            refreshAttemptsRef.current++;
-            
-            // ✅ Si plusieurs échecs de refresh préventif, considérer comme expiré
-            if (refreshAttemptsRef.current >= 2) {
-              console.warn('❌ Trop d\'échecs de refresh préventif, déconnexion...');
-              logout();
-              toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-            }
-          } else {
-            refreshAttemptsRef.current = 0;
-          }
-        }
-      } 
-      // ✅ TOKEN VALIDE - JUSTE CHARGER LES DONNÉES UTILISATEUR
-      else {
-        if (!user) {
-          await fetchUserData();
-        }
-        
-        // ✅ LOGS DE DÉBOGAGE
-        console.log(`✅ Token valide. Expire dans: ${Math.round(timeUntilExpiration/1000)}s, Âge: ${Math.round(tokenAge/1000)}s`);
       }
-    } catch (error: unknown) {
-      console.warn('⚠️ Erreur vérification auth:', error);
-      
-      // ✅ EN CAS D'ERREUR DE DÉCODAGE, DÉCONNECTER
-      if (error instanceof Error && (error.message.includes('Invalid token') || error.message.includes('jwt malformed'))) {
-        console.error('❌ Token JWT invalide, déconnexion...');
-        cleanupAuthData();
+    } else if (timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS) {
+      if (!isRefreshingRef.current) {
+        await refreshToken();
       }
-    } finally {
-      setIsLoading(false);
+    } else {
+      if (!user) {
+        await fetchUserData();
+      }
     }
-  }, [fetchUserData, refreshToken, user, logout, cleanupAuthData, toast]);
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message.includes('Invalid token')) {
+      cleanupAuthData();
+    }
+  } finally {
+    setIsLoading(false);
+  }
+}, [fetchUserData, refreshToken, user, logout, cleanupAuthData]);
 
   const resetPassword = useCallback(
     async (token: string, newPassword: string): Promise<void> => {
