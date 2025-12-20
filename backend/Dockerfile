@@ -1,42 +1,60 @@
-# ============ ÉTAPE DE BUILD ============
+# Stage 1: Builder
 FROM node:18-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+# Install pnpm globalement
+RUN npm install -g pnpm@9.15.4
 
+# Définir le répertoire de travail
 WORKDIR /app
 
-# Copie de tout le backend
-COPY backend/ ./
-
-# Installation
-RUN pnpm install --frozen-lockfile --prefer-offline
-RUN pnpm add @nestjs/common@^11 @nestjs/core@^11 @nestjs/platform-express@^11
-
-# Construction forcée avec configuration modifiée
-RUN sed -i 's/"skipLibCheck": false/"skipLibCheck": true/g' tsconfig.json || true
-RUN pnpm build 
-
-# ============ ÉTAPE DE PRODUCTION ============
-FROM node:18-alpine AS production
-ARG NODE_ENV=production
-ENV NODE_ENV=${NODE_ENV}
-ENV PORT=10000
-
-RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
-
-WORKDIR /app
-
+# Copier les fichiers de dépendances
 COPY backend/package.json backend/pnpm-lock.yaml* ./
 
-RUN pnpm install --prod --frozen-lockfile --prefer-offline
+# Installer toutes les dépendances
+RUN pnpm install --frozen-lockfile
 
+# Copier le code source
+COPY backend/ ./
+
+# Builder l'application
+RUN pnpm build
+
+# Vérifier que la build a réussi
+RUN ls -la dist/ && echo "=== Fichier main.js existe ? ===" && test -f dist/main.js && echo "OUI" || echo "NON"
+
+# Stage 2: Production
+FROM node:18-alpine AS production
+
+# Installer pnpm pour la production
+RUN npm install -g pnpm@9.15.4
+
+WORKDIR /app
+
+# Copier uniquement les fichiers nécessaires pour la production
 COPY --from=builder /app/dist ./dist
+COPY backend/package.json backend/pnpm-lock.yaml* ./
 
+# Installer uniquement les dépendances de production
+RUN pnpm install --prod --frozen-lockfile
+
+# Créer l'utilisateur non-root
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S node -u 1001 && \
+    chown -R node:nodejs /app
+
+# Créer les dossiers nécessaires
 RUN mkdir -p /app/uploads /app/logs && \
-    chown -R node:node /app
+    chown -R node:nodejs /app/uploads /app/logs
 
+# Basculer vers l'utilisateur non-root
 USER node
 
-EXPOSE $PORT
+# Exposer le port
+EXPOSE 10000
 
+# Variable d'environnement pour le port
+ENV PORT=10000
+ENV NODE_ENV=production
+
+# Commande de démarrage
 CMD ["node", "dist/main.js"]

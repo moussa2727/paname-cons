@@ -286,54 +286,60 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [access_token, cleanupAuthData, navigate]);
 
-  const fetchUserData = useCallback(async (): Promise<void> => {
+ const fetchUserData = useCallback(async (): Promise<void> => {
     try {
-      const token = access_token || window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-      
-      const response = await window.fetch(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.ME}`,
-        {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token && { Authorization: `Bearer ${token}` }),
+        const token = access_token || window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+        
+        // ✅ Ne pas appeler si pas de token
+        if (!token) {
+          console.log('❌ Pas de token pour fetchUserData');
+          return;
+        }
+        
+        const response = await window.fetch(
+          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.ME}`,
+          {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token && { Authorization: `Bearer ${token}` }),
+            }
+          }
+        );
+        
+        if (response.ok) {
+          const userData = await response.json();
+          
+          const mappedUser: User = {
+            id: userData.id || userData._id || '',
+            email: userData.email || '',
+            firstName: userData.firstName || '',
+            lastName: userData.lastName || '',
+            role: userData.role || UserRole.USER,
+            isActive: userData.isActive !== false,
+            telephone: userData.telephone || '',
+            isAdmin: userData.role === UserRole.ADMIN,
+          };
+
+          setUser(mappedUser);
+          window.localStorage?.setItem(
+            STORAGE_KEYS.USER_DATA,
+            JSON.stringify(mappedUser)
+          );
+          
+          console.log('✅ Données utilisateur mises à jour');
+        } else {
+          if (response.status === 401) {
+            console.log('❌ Token invalide dans fetchUserData');
+            // Ne pas nettoyer immédiatement, laisser checkAuth gérer
           }
         }
-      );
-      
-      if (response.ok) {
-        const userData = await response.json();
-        
-        const mappedUser: User = {
-          id: userData.id || userData._id || '',
-          email: userData.email || '',
-          firstName: userData.firstName || '',
-          lastName: userData.lastName || '',
-          role: userData.role || UserRole.USER,
-          isActive: userData.isActive !== false,
-          telephone: userData.telephone || '',
-          isAdmin: userData.role === UserRole.ADMIN,
-        };
-
-        setUser(mappedUser);
-        window.localStorage?.setItem(
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify(mappedUser)
-        );
-      } else {
-        if (response.status === 401) {
-          cleanupAuthData();
-        }
+      } catch (error) {
+        console.warn('⚠️ Erreur récupération utilisateur:', error);
       }
-    } catch (error) {
-      console.warn('Erreur récupération utilisateur:', error);
-    }
-  }, [access_token, cleanupAuthData]);
+    }, [access_token, cleanupAuthData]);
 
-  const updateProfile = useCallback(async (): Promise<void> => {
-    await fetchUserData();
-  }, [fetchUserData]);
 
   const handleAuthError = useCallback((error: any, context: string = ''): void => {
     const errorMessage = error.message || 'Erreur inconnue';
@@ -369,270 +375,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [navigate]);
 
   // ==================== MÉTHODES D'AUTHENTIFICATION ====================
-  const login = useCallback(
-    async (email: string, password: string): Promise<void> => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const response = await window.fetch(
-          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
-          {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email, password }),
-            credentials: 'include',
-          }
-        );
-
-        const data: LoginResponse = await response.json();
-
-        if (!response.ok) {
-          if (data.code === AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS) {
-            throw new Error(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS);
-          }
-          
-          if (data.code === AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED) {
-            throw new Error(AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED);
-          }
-          
-          if (data.code === AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE) {
-            throw new Error(AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE);
-          }
-          
-          if (data.code && data.code.includes(AUTH_CONSTANTS.ERROR_CODES.COMPTE_TEMPORAIREMENT_DECONNECTE)) {
-            throw new Error(data.code);
-          }
-          
-          if (data.code === AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE) {
-            throw new Error(AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE);
-          }
-          
-          throw new Error(data.message || 'Erreur de connexion');
-        }
-
-        if (!data.access_token || !data.user) {
-          throw new Error('Réponse invalide du serveur');
-        }
-
-        window.localStorage?.setItem(
-          STORAGE_KEYS.ACCESS_TOKEN,
-          data.access_token
-        );
-        setAccessToken(data.access_token);
-
-        const userData: User = {
-          id: data.user.id,
-          email: data.user.email,
-          firstName: data.user.firstName,
-          lastName: data.user.lastName,
-          role: data.user.role,
-          telephone: data.user.telephone,
-          isActive: true,
-          isAdmin: data.user.role === UserRole.ADMIN,
-        };
-
-        setUser(userData);
-        window.localStorage?.setItem(
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify(userData)
-        );
-        window.localStorage?.setItem(
-          STORAGE_KEYS.SESSION_START,
-          Date.now().toString()
-        );
-
-        const decoded = jwtDecode<JwtPayload>(data.access_token);
-        
-        if (refreshTimeoutRef.current) {
-          window.clearTimeout(refreshTimeoutRef.current);
-        }
-        
-        const tokenExpirationMs = decoded.exp * 1000;
-        const currentTimeMs = Date.now();
-        const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
-        
-        const refreshTime = Math.max(
-          30000,
-          timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
-        );
-
-        if (refreshTime > 0) {
-          refreshTimeoutRef.current = window.setTimeout(async () => {
-            if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
-              const refreshed = await refreshToken();
-              if (refreshed) {
-                refreshAttemptsRef.current = 0;
-              } else {
-                refreshAttemptsRef.current++;
-              }
-            } else {
-              logout();
-              toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-            }
-          }, refreshTime);
-        }
-
-        const redirectPath =
-          data.user.role === UserRole.ADMIN
-            ? REDIRECT_PATHS.ADMIN_DASHBOARD
-            : REDIRECT_PATHS.HOME;
-
-        navigate(redirectPath, { replace: true });
-        toast.success(TOAST_MESSAGES.LOGIN_SUCCESS);
-        
-      } catch (err: any) {
-        handleAuthError(err, 'login');
-        throw err;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [navigate, handleAuthError]
-  );
-
-  const register = useCallback(
-    async (formData: RegisterFormData): Promise<void> => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const response = await window.fetch(
-          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REGISTER}`,
-          {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              firstName: formData.firstName.trim(),
-              lastName: formData.lastName.trim(),
-              email: formData.email.toLowerCase().trim(),
-              telephone: formData.telephone.trim(),
-              password: formData.password,
-            }),
-            credentials: 'include',
-          }
-        );
-
-        const data: RegisterResponse = await response.json();
-
-        if (!response.ok) {
-          if (response.status === 400) {
-            const errorMessage = data.message || "Données invalides";
-            
-            if (data.errors) {
-              const validationErrors = Object.values(data.errors).join(', ');
-              throw new Error(`Validation échouée : ${validationErrors}`);
-            }
-            
-            throw new Error(errorMessage);
-          }
-          
-          throw new Error(data.message || "Erreur lors de l'inscription");
-        }
-
-        if (data.access_token) {
-          window.localStorage?.setItem(
-            STORAGE_KEYS.ACCESS_TOKEN,
-            data.access_token
-          );
-          setAccessToken(data.access_token);
-        }
-
-        const userData: User = {
-          id: data.user.id,
-          email: data.user.email,
-          firstName: data.user.firstName,
-          lastName: data.user.lastName,
-          role: data.user.role,
-          telephone: data.user.telephone,
-          isActive: data.user.isActive !== false,
-          isAdmin: data.user.role === UserRole.ADMIN,
-        };
-
-        setUser(userData);
-        window.localStorage?.setItem(
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify(userData)
-        );
-        window.localStorage?.setItem(
-          STORAGE_KEYS.SESSION_START,
-          Date.now().toString()
-        );
-
-        if (data.access_token) {
-          try {
-            const decoded = jwtDecode<JwtPayload>(data.access_token);
-            
-            if (refreshTimeoutRef.current) {
-              window.clearTimeout(refreshTimeoutRef.current);
-            }
-            
-            const tokenExpirationMs = decoded.exp * 1000;
-            const currentTimeMs = Date.now();
-            const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
-            
-            const refreshTime = Math.max(
-              30000,
-              timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
-            );
-
-            if (refreshTime > 0) {
-              refreshTimeoutRef.current = window.setTimeout(async () => {
-                if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
-                  const refreshed = await refreshToken();
-                  if (refreshed) {
-                    refreshAttemptsRef.current = 0;
-                  } else {
-                    refreshAttemptsRef.current++;
-                  }
-                } else {
-                  logout();
-                  toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-                }
-              }, refreshTime);
-            }
-          } catch (error) {
-            console.warn('⚠️ Erreur décodage token après inscription:', error);
-          }
-        }
-
-        const redirectPath = userData.role === UserRole.ADMIN
-          ? REDIRECT_PATHS.ADMIN_DASHBOARD
-          : REDIRECT_PATHS.HOME;
-
-        navigate(redirectPath, { replace: true });
-        
-        toast.success(TOAST_MESSAGES.REGISTER_SUCCESS);
-        
-      } catch (err: any) {
-        handleAuthError(err, 'register');
-        throw err;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [navigate, handleAuthError]
-  );
 
   const refreshToken = useCallback(async (): Promise<boolean> => {
+    // ✅ Vérifier si déjà en cours
     if (isRefreshingRef.current) {
-      console.log('⚠️ Refresh déjà en cours');
+      console.log('🔒 Refresh déjà en cours, skip');
       return false;
     }
 
+    // ✅ Vérifier le délai minimum entre les refresh
     const lastRefreshTime = window.localStorage?.getItem('last_refresh_time');
     if (lastRefreshTime) {
       const timeSinceLastRefresh = Date.now() - parseInt(lastRefreshTime);
-      if (timeSinceLastRefresh < 30000) {
+      if (timeSinceLastRefresh < AUTH_CONSTANTS.MIN_REFRESH_INTERVAL_MS) {
+        console.log(`⏳ Trop tôt pour rafraîchir (${Math.round(timeSinceLastRefresh/1000)}s)`);
         return false;
       }
     }
 
+    // ✅ Vérifier si on a atteint le maximum de tentatives
+    if (refreshAttemptsRef.current >= AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
+      console.warn(`❌ Maximum de tentatives atteint: ${refreshAttemptsRef.current}`);
+      return false;
+    }
+
     isRefreshingRef.current = true;
+    console.log('🔄 Début du refresh token...');
 
     try {
       const response = await window.fetch(
@@ -650,6 +418,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!response.ok) {
         console.warn(`❌ Refresh échoué: ${response.status}`);
+        refreshAttemptsRef.current++;
         return false;
       }
 
@@ -657,21 +426,55 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!data.access_token) {
         console.error('❌ Pas de nouveau token reçu');
+        refreshAttemptsRef.current++;
         return false;
       }
 
+      // ✅ Mettre à jour le token
       window.localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.access_token);
       setAccessToken(data.access_token);
       
+      // ✅ Réinitialiser les tentatives
+      refreshAttemptsRef.current = 0;
+      
+      // ✅ Mettre à jour les données utilisateur
       await fetchUserData();
       
+      // ✅ Enregistrer le moment du refresh
       window.localStorage.setItem('last_refresh_time', Date.now().toString());
+      
+      // ✅ Reprogrammer le prochain refresh
+      try {
+        const decoded = jwtDecode<JwtPayload>(data.access_token);
+        const tokenExpirationMs = decoded.exp * 1000;
+        const currentTimeMs = Date.now();
+        const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
+        
+        const refreshTime = Math.max(
+          30000,
+          timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
+        );
+
+        if (refreshTimeoutRef.current) {
+          window.clearTimeout(refreshTimeoutRef.current);
+        }
+
+        if (refreshTime > 0) {
+          refreshTimeoutRef.current = window.setTimeout(async () => {
+            console.log('🔄 Déclenchement du refresh automatique programmé...');
+            await refreshToken();
+          }, refreshTime);
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur décodage nouveau token:', error);
+      }
       
       console.log('✅ Token rafraîchi avec succès');
       return true;
 
     } catch (error) {
       console.error('❌ Erreur lors du refresh:', error);
+      refreshAttemptsRef.current++;
       
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         console.warn('🌐 Erreur réseau - le token actuel reste valable');
@@ -701,6 +504,307 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast.info(TOAST_MESSAGES.LOGOUT_SUCCESS);
     }
   }, [access_token, cleanupAuthData, navigate, fetchWithAuth]);
+
+
+  const login = useCallback(
+  async (email: string, password: string): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
+
+    // Nettoyer les anciens timeouts
+    if (refreshTimeoutRef.current) {
+      window.clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
+
+    try {
+      const response = await window.fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
+        {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+          credentials: 'include',
+        }
+      );
+
+      const data: LoginResponse = await response.json();
+
+      if (!response.ok) {
+        if (data.code === AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS) {
+          throw new Error(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS);
+        }
+        
+        if (data.code === AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED) {
+          throw new Error(AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED);
+        }
+        
+        if (data.code === AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE) {
+          throw new Error(AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE);
+        }
+        
+        if (data.code && data.code.includes(AUTH_CONSTANTS.ERROR_CODES.COMPTE_TEMPORAIREMENT_DECONNECTE)) {
+          throw new Error(data.code);
+        }
+        
+        if (data.code === AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE) {
+          throw new Error(AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE);
+        }
+        
+        throw new Error(data.message || 'Erreur de connexion');
+      }
+
+      if (!data.access_token || !data.user) {
+        throw new Error('Réponse invalide du serveur');
+      }
+
+      // Stocker le token
+      window.localStorage?.setItem(
+        STORAGE_KEYS.ACCESS_TOKEN,
+        data.access_token
+      );
+      setAccessToken(data.access_token);
+
+      // Créer l'objet utilisateur
+      const userData: User = {
+        id: data.user.id,
+        email: data.user.email,
+        firstName: data.user.firstName,
+        lastName: data.user.lastName,
+        role: data.user.role,
+        telephone: data.user.telephone,
+        isActive: true,
+        isAdmin: data.user.role === UserRole.ADMIN,
+      };
+
+      // Mettre à jour l'état et le stockage
+      setUser(userData);
+      window.localStorage?.setItem(
+        STORAGE_KEYS.USER_DATA,
+        JSON.stringify(userData)
+      );
+      window.localStorage?.setItem(
+        STORAGE_KEYS.SESSION_START,
+        Date.now().toString()
+      );
+
+      // METTRE À JOUR LE DERNIER LOGIN (CRITIQUE !)
+      lastLoginTimeRef.current = Date.now();
+      console.log(`✅ Dernier login mis à jour: ${new Date(lastLoginTimeRef.current).toLocaleTimeString()}`);
+
+      // Réinitialiser les tentatives de refresh
+      refreshAttemptsRef.current = 0;
+
+      // Programmer le rafraîchissement automatique
+      try {
+        const decoded = jwtDecode<JwtPayload>(data.access_token);
+        
+        const tokenExpirationMs = decoded.exp * 1000;
+        const currentTimeMs = Date.now();
+        const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
+        
+        // Calculer le moment du rafraîchissement (1 minute avant expiration)
+        const refreshTime = Math.max(
+          30000, // minimum 30 secondes
+          timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
+        );
+
+        console.log(`⏰ Token expire dans ${Math.round(timeUntilExpiration/1000)}s`);
+        console.log(`🔄 Refresh programmé dans ${Math.round(refreshTime/1000)}s`);
+
+        if (refreshTime > 0) {
+          refreshTimeoutRef.current = window.setTimeout(async () => {
+            console.log('🔄 Déclenchement du refresh automatique...');
+            if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
+              const refreshed = await refreshToken();
+              if (refreshed) {
+                refreshAttemptsRef.current = 0;
+                console.log('✅ Refresh automatique réussi');
+              } else {
+                refreshAttemptsRef.current++;
+                console.warn(`⚠️ Refresh automatique échoué (tentative ${refreshAttemptsRef.current})`);
+              }
+            } else {
+              console.warn('❌ Trop d\'échecs de refresh, déconnexion');
+              logout();
+              toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+            }
+          }, refreshTime);
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur décodage token:', error);
+      }
+
+      // Redirection basée sur le rôle
+      const redirectPath =
+        data.user.role === UserRole.ADMIN
+          ? REDIRECT_PATHS.ADMIN_DASHBOARD
+          : REDIRECT_PATHS.HOME;
+
+      navigate(redirectPath, { replace: true });
+      toast.success(TOAST_MESSAGES.LOGIN_SUCCESS);
+      
+    } catch (err: any) {
+      handleAuthError(err, 'login');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  },
+  [navigate, handleAuthError, refreshToken, logout]
+  );
+
+
+
+
+  const register = useCallback(
+  async (formData: RegisterFormData): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
+
+    // Nettoyer les anciens timeouts
+    if (refreshTimeoutRef.current) {
+      window.clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
+
+    try {
+      const response = await window.fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REGISTER}`,
+        {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            firstName: formData.firstName.trim(),
+            lastName: formData.lastName.trim(),
+            email: formData.email.toLowerCase().trim(),
+            telephone: formData.telephone.trim(),
+            password: formData.password,
+          }),
+          credentials: 'include',
+        }
+      );
+
+      const data: RegisterResponse = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 400) {
+          const errorMessage = data.message || "Données invalides";
+          
+          if (data.errors) {
+            const validationErrors = Object.values(data.errors).join(', ');
+            throw new Error(`Validation échouée : ${validationErrors}`);
+          }
+          
+          throw new Error(errorMessage);
+        }
+        
+        throw new Error(data.message || "Erreur lors de l'inscription");
+      }
+
+      // Si un token est retourné (connexion automatique)
+      if (data.access_token) {
+        window.localStorage?.setItem(
+          STORAGE_KEYS.ACCESS_TOKEN,
+          data.access_token
+        );
+        setAccessToken(data.access_token);
+      }
+
+      // Créer l'objet utilisateur
+      const userData: User = {
+        id: data.user.id,
+        email: data.user.email,
+        firstName: data.user.firstName,
+        lastName: data.user.lastName,
+        role: data.user.role,
+        telephone: data.user.telephone,
+        isActive: data.user.isActive !== false,
+        isAdmin: data.user.role === UserRole.ADMIN,
+      };
+
+      // Mettre à jour l'état et le stockage
+      setUser(userData);
+      window.localStorage?.setItem(
+        STORAGE_KEYS.USER_DATA,
+        JSON.stringify(userData)
+      );
+      window.localStorage?.setItem(
+        STORAGE_KEYS.SESSION_START,
+        Date.now().toString()
+      );
+
+      // METTRE À JOUR LE DERNIER LOGIN (CRITIQUE !)
+      lastLoginTimeRef.current = Date.now();
+      console.log(`✅ Dernier login (register) mis à jour: ${new Date(lastLoginTimeRef.current).toLocaleTimeString()}`);
+
+      // Réinitialiser les tentatives de refresh
+      refreshAttemptsRef.current = 0;
+
+      // Programmer le rafraîchissement automatique (si token présent)
+      if (data.access_token) {
+        try {
+          const decoded = jwtDecode<JwtPayload>(data.access_token);
+          
+          const tokenExpirationMs = decoded.exp * 1000;
+          const currentTimeMs = Date.now();
+          const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
+          
+          const refreshTime = Math.max(
+            30000,
+            timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
+          );
+
+          console.log(`⏰ Token expire dans ${Math.round(timeUntilExpiration/1000)}s`);
+          console.log(`🔄 Refresh programmé dans ${Math.round(refreshTime/1000)}s`);
+
+          if (refreshTime > 0) {
+            refreshTimeoutRef.current = window.setTimeout(async () => {
+              console.log('🔄 Déclenchement du refresh automatique après inscription...');
+              if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
+                const refreshed = await refreshToken();
+                if (refreshed) {
+                  refreshAttemptsRef.current = 0;
+                  console.log('✅ Refresh automatique réussi après inscription');
+                } else {
+                  refreshAttemptsRef.current++;
+                  console.warn(`⚠️ Refresh automatique échoué après inscription (tentative ${refreshAttemptsRef.current})`);
+                }
+              } else {
+                console.warn('❌ Trop d\'échecs de refresh après inscription, déconnexion');
+                logout();
+                toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+              }
+            }, refreshTime);
+          }
+        } catch (error) {
+          console.warn('⚠️ Erreur décodage token après inscription:', error);
+        }
+      }
+
+      // Redirection basée sur le rôle
+      const redirectPath = userData.role === UserRole.ADMIN
+        ? REDIRECT_PATHS.ADMIN_DASHBOARD
+        : REDIRECT_PATHS.HOME;
+
+      navigate(redirectPath, { replace: true });
+      
+      toast.success(TOAST_MESSAGES.REGISTER_SUCCESS);
+      
+    } catch (err: any) {
+      handleAuthError(err, 'register');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  },
+  [navigate, handleAuthError, refreshToken, logout]
+);
+
 
   const logoutAll = useCallback(async (): Promise<LogoutAllResponse> => {
     if (!access_token || user?.role !== UserRole.ADMIN) {
@@ -758,34 +862,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [navigate, handleAuthError]
   );
 
- const checkAuth = useCallback(async (): Promise<void> => {
-  setIsLoading(true);
-  
-  const savedToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+ 
+  const checkAuth = useCallback(async (): Promise<void> => {
+    console.log('🔍 Début checkAuth...');
+    
+    // ✅ Vérifier si déjà en cours
+    if (isRefreshingRef.current) {
+      console.log('🔒 checkAuth: Refresh déjà en cours, skip');
+      setIsLoading(false);
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    const savedToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
 
     if (!savedToken) {
+      console.log('❌ checkAuth: Pas de token stocké');
       setIsLoading(false);
       return;
     }
 
     try {
-      // ✅ PERIODE DE GRÂCE (Nouveau) : Ignorer TOUS les checks juste après un login
-      const TIME_AFTER_LOGIN_TO_SKIP_CHECKS = 45 * 1000; // 45 secondes (un peu plus que 30 pour être sûr)
-const timeSinceLastLogin = Date.now() - lastLoginTimeRef.current;
+      // ✅ PÉRIODE DE GRÂCE après login/register
+      const TIME_AFTER_LOGIN_TO_SKIP_CHECKS = 45 * 1000; // 45 secondes
+      const timeSinceLastLogin = Date.now() - lastLoginTimeRef.current;
       
       if (timeSinceLastLogin < TIME_AFTER_LOGIN_TO_SKIP_CHECKS) {
-        console.log(`🕒 Période de grâce active (il y a ${Math.round(timeSinceLastLogin/1000)}s). Skip des vérifications de refresh.`);
+        console.log(`🕒 checkAuth: Période de grâce active (${Math.round(timeSinceLastLogin/1000)}s).`);
+        
+        // Charger les données utilisateur si manquantes
         if (!user) {
-          console.log('📥 Chargement des données utilisateur (période de grâce)...');
+          console.log('📥 checkAuth: Chargement données utilisateur...');
           await fetchUserData();
         }
+        
         setIsLoading(false);
-        return; // On quitte la fonction checkAuth ici
+        return;
       }
 
-      console.log(`🔍 Début checkAuth (période de grâce terminée: ${Math.round(timeSinceLastLogin/1000)}s)`);
+      console.log(`📊 checkAuth: Période de grâce terminée (${Math.round(timeSinceLastLogin/1000)}s)`);
 
-      // DÉBUT DE VOTRE LOGIQUE ORIGINALE
+      // ✅ Décoder et vérifier le token
       const decoded = jwtDecode<JwtPayload>(savedToken);
       const currentTime = Date.now();
       const tokenExpirationTime = decoded.exp * 1000;
@@ -793,11 +911,11 @@ const timeSinceLastLogin = Date.now() - lastLoginTimeRef.current;
       const timeUntilExpiration = tokenExpirationTime - currentTime;
       const tokenAge = currentTime - tokenCreationTime;
 
-      console.log(`📊 Stats token - Âge: ${Math.round(tokenAge/1000)}s, Expire dans: ${Math.round(timeUntilExpiration/1000)}s`);
+      console.log(`📊 Token stats - Âge: ${Math.round(tokenAge/1000)}s, Expire dans: ${Math.round(timeUntilExpiration/1000)}s`);
 
-      // ✅ DÉLAI MINIMUM EXISTANT : 30 secondes avant toute vérification de refresh
+      // ✅ Si token très jeune (< 30s), juste charger les données
       if (tokenAge < 30 * 1000) {
-        console.log(`🕒 Token trop jeune (${Math.round(tokenAge/1000)}s). Chargement simple.`);
+        console.log(`🕒 Token trop jeune (${Math.round(tokenAge/1000)}s). Chargement données...`);
         if (!user) {
           await fetchUserData();
         }
@@ -805,50 +923,66 @@ const timeSinceLastLogin = Date.now() - lastLoginTimeRef.current;
         return;
       }
 
-      const isTokenExpired = timeUntilExpiration < -30000; // 30 secondes
+      // ✅ Token expiré depuis plus de 30 secondes
+      const isTokenExpired = timeUntilExpiration < -30000;
       
       if (isTokenExpired) {
-        console.log('⏰ Token expiré depuis plus de 30s, tentative de rafraîchissement...');
+        console.log(`⏰ Token expiré depuis ${Math.abs(Math.round(timeUntilExpiration/1000))}s`);
         
-        if (!isRefreshingRef.current) {
-          const refreshed = await refreshToken();
-          if (!refreshed) {
-            console.warn('⚠️ Refresh échoué, mais on garde la session pour l\'instant');
-            if (timeUntilExpiration < -(2 * 60 * 1000)) { // Expiré depuis > 2 minutes
-              console.warn('⚠️ Refresh échoué et token trop vieux, déconnexion...');
-              logout();
-            }
-          } else {
-            refreshAttemptsRef.current = 0;
-          }
+        // Si expiré depuis plus de 5 minutes, déconnecter immédiatement
+        if (timeUntilExpiration < -(5 * 60 * 1000)) {
+          console.log('❌ Token trop vieux, déconnexion immédiate');
+          logout();
+          return;
         }
-      } else if (timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS) {
+        
+        // Sinon tenter un refresh
+        console.log('🔄 Tentative de refresh...');
+        const refreshed = await refreshToken();
+        
+        if (!refreshed) {
+          console.warn('⚠️ Refresh échoué');
+          
+          // Si le token est vraiment trop vieux (> 2 minutes), déconnecter
+          if (timeUntilExpiration < -(2 * 60 * 1000)) {
+            console.warn('❌ Token trop vieux après échec refresh, déconnexion...');
+            logout();
+          }
+        } else {
+          console.log('✅ Refresh réussi');
+        }
+      } 
+      // ✅ Token expire bientôt (< 1 minute)
+      else if (timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS) {
         console.log(`🔄 Token expire bientôt (${Math.round(timeUntilExpiration/1000)}s), refresh préventif...`);
         
-        if (!isRefreshingRef.current) {
-          const refreshed = await refreshToken();
-          if (!refreshed) {
-            console.warn('⚠️ Refresh préventif échoué');
-            refreshAttemptsRef.current++;
-            
-            if (refreshAttemptsRef.current >= 2) {
-              console.warn('❌ Trop d\'échecs de refresh préventif, déconnexion...');
-              logout();
-            }
-          } else {
-            refreshAttemptsRef.current = 0;
-          }
+        const refreshed = await refreshToken();
+        if (!refreshed) {
+          console.warn('⚠️ Refresh préventif échoué');
+          refreshAttemptsRef.current++;
+        } else {
+          refreshAttemptsRef.current = 0;
         }
-      } else {
+      } 
+      // ✅ Token valide
+      else {
+        console.log(`✅ Token valide. Expire dans: ${Math.round(timeUntilExpiration/1000)}s`);
+        
+        // Charger les données utilisateur si manquantes
         if (!user) {
-          console.log('📥 Chargement des données utilisateur...');
+          console.log('📥 Chargement données utilisateur...');
           await fetchUserData();
         }
-        console.log(`✅ Token valide. Expire dans: ${Math.round(timeUntilExpiration/1000)}s`);
       }
+
     } catch (error: unknown) {
       console.error('❌ Erreur dans checkAuth:', error);
-      if (error instanceof Error && error.message.includes('Invalid token')) {
+      
+      // Si token invalide, nettoyer
+      if (error instanceof Error && 
+          (error.message.includes('Invalid token') || 
+          error.message.includes('jwt malformed'))) {
+        console.log('❌ Token invalide, nettoyage');
         cleanupAuthData();
       }
     } finally {
