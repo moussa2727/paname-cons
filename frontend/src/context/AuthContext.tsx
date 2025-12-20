@@ -1040,42 +1040,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
   // ==================== EFFETS ====================
-  useEffect(() => {
-    let isMounted = true;
+ useEffect(() => {
+  let isMounted = true;
 
-    const initializeAuth = async (): Promise<void> => {
-      if (!isMounted) return;
+  const initializeAuth = async (): Promise<void> => {
+    if (!isMounted) return;
 
-      await checkAuth();
+    await checkAuth();
 
-      if (isMounted) {
-        sessionCheckIntervalRef.current = window.setInterval(() => {
-          const sessionStart = window.localStorage?.getItem(
-            STORAGE_KEYS.SESSION_START
-          );
-          if (sessionStart) {
-            const sessionAge = Date.now() - parseInt(sessionStart);
-            if (sessionAge > AUTH_CONSTANTS.MAX_SESSION_DURATION_MS) {
-              logout();
-              toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-            }
-          }
-        }, 60 * 1000);
-      }
-    };
+    if (isMounted) {
+      // ✅ RÉDUIRE la fréquence des vérifications à 1 minute
+      sessionCheckIntervalRef.current = window.setInterval(() => {
+        if (user && access_token) {
+          checkAuth().catch(() => {
+            // Ignorer les erreurs silencieusement
+          });
+        }
+      }, 60 * 1000); // 1 minute au lieu de vérification constante
+    }
+  };
 
-    initializeAuth();
+  initializeAuth();
 
-    return () => {
-      isMounted = false;
-      if (refreshTimeoutRef.current) {
-        window.clearTimeout(refreshTimeoutRef.current);
-      }
-      if (sessionCheckIntervalRef.current) {
-        window.clearInterval(sessionCheckIntervalRef.current);
-      }
-    };
-  }, [checkAuth, logout]);
+  return () => {
+    isMounted = false;
+    if (refreshTimeoutRef.current) {
+      window.clearTimeout(refreshTimeoutRef.current);
+    }
+    if (sessionCheckIntervalRef.current) {
+      window.clearInterval(sessionCheckIntervalRef.current);
+    }
+  };
+}, [checkAuth, logout, user, access_token]); // ✅ Ajouter les dépendances
 
   // ==================== VALEUR DU CONTEXT ====================
   const value: AuthContextType = {
