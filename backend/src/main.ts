@@ -28,8 +28,7 @@ const productionOrigins = [
   "https://www.panameconsulting.com",
   "https://panameconsulting.vercel.app",
   "https://vercel.live",
-  "http://localhost:5713",
-  "http://localhost:5173"
+  "http://localhost:5713"
 ];
 
 function isOriginAllowed(origin: string, allowedOrigins: string[]): boolean {
