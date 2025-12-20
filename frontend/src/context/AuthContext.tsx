@@ -507,22 +507,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [fetchUserData]);
 
   const logout = useCallback(async (): Promise<void> => {
-    try {
-      if (access_token) {
-        await fetchWithAuth(API_CONFIG.ENDPOINTS.LOGOUT, {
-          method: 'POST',
-        });
-      }
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('⚠️ Erreur logout backend (peut être normal):', error);
-      }
-    } finally {
-      cleanupAuthData();
-      navigate(REDIRECT_PATHS.LOGIN, { replace: true });
-      toast.info(TOAST_MESSAGES.LOGOUT_SUCCESS);
+  try {
+    if (refreshTimeoutRef.current) {
+      window.clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
     }
-  }, [access_token, cleanupAuthData, navigate, fetchWithAuth]);
+    
+    if (access_token) {
+      await fetchWithAuth(API_CONFIG.ENDPOINTS.LOGOUT, {
+        method: 'POST',
+      }).catch(() => {
+        // Ignorer les erreurs de déconnexion backend
+        console.log('ℹ️ Déconnexion backend ignorée (peut être normale)');
+      });
+    }
+  } catch (error) {
+    console.log('ℹ️ Erreur logout (ignorée):', error);
+  } finally {
+    cleanupAuthData();
+    navigate(REDIRECT_PATHS.LOGIN, { replace: true });
+    toast.info(TOAST_MESSAGES.LOGOUT_SUCCESS);
+  }
+}, [access_token, cleanupAuthData, navigate, fetchWithAuth]);
 
 
   const login = useCallback(
