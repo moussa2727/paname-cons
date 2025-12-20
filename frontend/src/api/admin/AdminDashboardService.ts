@@ -47,9 +47,6 @@ class AdminDashboardService {
 
   private constructor() {
     this.baseUrl = import.meta.env.VITE_API_URL;
-    console.log(
-      `📡 AdminDashboardService initialisé avec URL: ${this.baseUrl}`
-    );
   }
 
   static getInstance(): AdminDashboardService {
