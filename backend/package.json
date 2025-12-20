@@ -60,7 +60,6 @@
     "rxjs": "^7.8.2",
     "socket.io": "^4.8.1",
     "typeorm": "^0.3.28",
-    "uuid": "9",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0"
   },
@@ -96,6 +95,7 @@
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.50.0",
     "webpack": "^5.104.1",
