@@ -369,129 +369,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [navigate]);
 
   // ==================== MÉTHODES D'AUTHENTIFICATION ====================
-  const login = useCallback(
-    async (email: string, password: string): Promise<void> => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const response = await window.fetch(
-          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
-          {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email, password }),
-            credentials: 'include',
-          }
-        );
-
-        const data: LoginResponse = await response.json();
-
-        if (!response.ok) {
-          if (data.code === AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS) {
-            throw new Error(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS);
-          }
-          
-          if (data.code === AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED) {
-            throw new Error(AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED);
-          }
-          
-          if (data.code === AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE) {
-            throw new Error(AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE);
-          }
-          
-          if (data.code && data.code.includes(AUTH_CONSTANTS.ERROR_CODES.COMPTE_TEMPORAIREMENT_DECONNECTE)) {
-            throw new Error(data.code);
-          }
-          
-          if (data.code === AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE) {
-            throw new Error(AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE);
-          }
-          
-          throw new Error(data.message || 'Erreur de connexion');
-        }
-
-        if (!data.access_token || !data.user) {
-          throw new Error('Réponse invalide du serveur');
-        }
-
-        window.localStorage?.setItem(
-          STORAGE_KEYS.ACCESS_TOKEN,
-          data.access_token
-        );
-        setAccessToken(data.access_token);
-
-        const userData: User = {
-          id: data.user.id,
-          email: data.user.email,
-          firstName: data.user.firstName,
-          lastName: data.user.lastName,
-          role: data.user.role,
-          telephone: data.user.telephone,
-          isActive: true,
-          isAdmin: data.user.role === UserRole.ADMIN,
-        };
-
-        setUser(userData);
-        window.localStorage?.setItem(
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify(userData)
-        );
-        window.localStorage?.setItem(
-          STORAGE_KEYS.SESSION_START,
-          Date.now().toString()
-        );
-
-        const decoded = jwtDecode<JwtPayload>(data.access_token);
-        
-        if (refreshTimeoutRef.current) {
-          window.clearTimeout(refreshTimeoutRef.current);
-        }
-        
-        const tokenExpirationMs = decoded.exp * 1000;
-        const currentTimeMs = Date.now();
-        const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
-        
-        const refreshTime = Math.max(
-          30000,
-          timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
-        );
-
-        if (refreshTime > 0) {
-          refreshTimeoutRef.current = window.setTimeout(async () => {
-            if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
-              const refreshed = await refreshToken();
-              if (refreshed) {
-                refreshAttemptsRef.current = 0;
-              } else {
-                refreshAttemptsRef.current++;
-              }
-            } else {
-              logout();
-              toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-            }
-          }, refreshTime);
-        }
-
-        const redirectPath =
-          data.user.role === UserRole.ADMIN
-            ? REDIRECT_PATHS.ADMIN_DASHBOARD
-            : REDIRECT_PATHS.HOME;
-
-        navigate(redirectPath, { replace: true });
-        toast.success(TOAST_MESSAGES.LOGIN_SUCCESS);
-        
-      } catch (err: any) {
-        handleAuthError(err, 'login');
-        throw err;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [navigate, handleAuthError]
-  );
+  
 
   const register = useCallback(
     async (formData: RegisterFormData): Promise<void> => {
@@ -618,71 +496,119 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [navigate, handleAuthError]
   );
 
-  const refreshToken = useCallback(async (): Promise<boolean> => {
-    if (isRefreshingRef.current) {
-      console.log('⚠️ Refresh déjà en cours');
+ const refreshToken = useCallback(async (): Promise<boolean> => {
+  // ✅ PREVENT MULTIPLE SIMULTANEOUS REFRESHES
+  if (isRefreshingRef.current) {
+    console.log('⚠️ Refresh déjà en cours, attente...');
+    return false;
+  }
+
+  // ✅ VERIFY USER IS STILL LOGGED IN
+  const currentToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+  if (!currentToken) {
+    console.log('❌ Pas de token, déconnexion en cours?');
+    return false;
+  }
+
+  // ✅ PREVENT REFRESH TOO SOON AFTER LOGIN (30 seconds cooldown)
+  const sessionStart = window.localStorage?.getItem(STORAGE_KEYS.SESSION_START);
+  if (sessionStart) {
+    const sessionAge = Date.now() - parseInt(sessionStart);
+    if (sessionAge < 30 * 1000) { // 30 seconds
+      console.log(`🕒 Session trop récente (${Math.round(sessionAge/1000)}s), pas de refresh`);
+      return false;
+    }
+  }
+
+  // ✅ PREVENT FREQUENT REFRESH ATTEMPTS
+  const lastRefreshTime = window.localStorage?.getItem('last_refresh_time');
+  if (lastRefreshTime) {
+    const timeSinceLastRefresh = Date.now() - parseInt(lastRefreshTime);
+    if (timeSinceLastRefresh < AUTH_CONSTANTS.MIN_REFRESH_INTERVAL_MS) {
+      console.log(`⏳ Dernier refresh trop récent (${Math.round(timeSinceLastRefresh/1000)}s)`);
+      return false;
+    }
+  }
+
+  isRefreshingRef.current = true;
+  console.log('🔄 Début du refresh token...');
+
+  try {
+    const response = await window.fetch(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REFRESH}`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      }
+    );
+
+    if (response.status === 401) {
+      const errorData = await response.json().catch(() => ({}));
+      
+      if (errorData.loggedOut || errorData.sessionExpired) {
+        console.log('❌ Refresh échoué - session expirée ou déconnexion en cours');
+        cleanupAuthData();
+        return false;
+      }
+      
+      console.log('❌ Refresh token invalide ou expiré');
       return false;
     }
 
-    const lastRefreshTime = window.localStorage?.getItem('last_refresh_time');
-    if (lastRefreshTime) {
-      const timeSinceLastRefresh = Date.now() - parseInt(lastRefreshTime);
-      if (timeSinceLastRefresh < 30000) {
-        return false;
-      }
-    }
-
-    isRefreshingRef.current = true;
-
-    try {
-      const response = await window.fetch(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REFRESH}`,
-        {
-          method: 'POST',
-          credentials: 'include',
-        }
-      );
-
-      if (response.status === 401) {
-        console.log('❌ Refresh token invalide ou expiré');
-        return false;
-      }
-
-      if (!response.ok) {
-        console.warn(`❌ Refresh échoué: ${response.status}`);
-        return false;
-      }
-
-      const data = await response.json();
-
-      if (!data.access_token) {
-        console.error('❌ Pas de nouveau token reçu');
-        return false;
-      }
-
-      window.localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.access_token);
-      setAccessToken(data.access_token);
-      
-      await fetchUserData();
-      
-      window.localStorage.setItem('last_refresh_time', Date.now().toString());
-      
-      console.log('✅ Token rafraîchi avec succès');
-      return true;
-
-    } catch (error) {
-      console.error('❌ Erreur lors du refresh:', error);
-      
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        console.warn('🌐 Erreur réseau - le token actuel reste valable');
-        return false;
-      }
-      
+    if (!response.ok) {
+      console.warn(`❌ Refresh échoué: ${response.status}`);
       return false;
-    } finally {
-      isRefreshingRef.current = false;
     }
-  }, [fetchUserData]);
+
+    const data = await response.json();
+
+    if (!data.access_token) {
+      console.error('❌ Pas de nouveau token reçu');
+      return false;
+    }
+
+    // ✅ UPDATE TOKEN
+    window.localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.access_token);
+    setAccessToken(data.access_token);
+    
+    // ✅ RESET REFRESH ATTEMPTS ON SUCCESS
+    refreshAttemptsRef.current = 0;
+    
+    // ✅ UPDATE LAST REFRESH TIME
+    window.localStorage.setItem('last_refresh_time', Date.now().toString());
+    
+    // ✅ UPDATE USER DATA (but don't trigger infinite loops)
+    setTimeout(() => {
+      fetchUserData().catch(() => {
+        console.warn('⚠️ Échec récupération données utilisateur après refresh');
+      });
+    }, 100);
+    
+    console.log('✅ Token rafraîchi avec succès');
+    return true;
+
+  } catch (error: unknown) {
+    console.error('❌ Erreur lors du refresh:', error);
+    
+    if ((error as any).name === 'AbortError' || (error instanceof TypeError && error.message.includes('Failed to fetch'))) {
+      console.warn('🌐 Erreur réseau - le token actuel reste valable');
+      return false;
+    }
+    
+    refreshAttemptsRef.current++;
+    
+    if (refreshAttemptsRef.current >= AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
+      console.warn('❌ Trop d\'échecs de refresh, déconnexion...');
+      cleanupAuthData();
+      toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+    }
+    
+    return false;
+  } finally {
+    isRefreshingRef.current = false;
+  }
+}, [fetchUserData, cleanupAuthData]);
 
   const logout = useCallback(async (): Promise<void> => {
     try {
@@ -701,6 +627,157 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast.info(TOAST_MESSAGES.LOGOUT_SUCCESS);
     }
   }, [access_token, cleanupAuthData, navigate, fetchWithAuth]);
+
+
+  const login = useCallback(
+  async (email: string, password: string): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await window.fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
+        {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+          credentials: 'include',
+        }
+      );
+
+      const data: LoginResponse = await response.json();
+
+      if (!response.ok) {
+        if (data.code === AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS) {
+          throw new Error(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS);
+        }
+        
+        if (data.code === AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED) {
+          throw new Error(AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED);
+        }
+        
+        if (data.code === AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE) {
+          throw new Error(AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE);
+        }
+        
+        if (data.code && data.code.includes(AUTH_CONSTANTS.ERROR_CODES.COMPTE_TEMPORAIREMENT_DECONNECTE)) {
+          throw new Error(data.code);
+        }
+        
+        if (data.code === AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE) {
+          throw new Error(AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE);
+        }
+        
+        throw new Error(data.message || 'Erreur de connexion');
+      }
+
+      if (!data.access_token || !data.user) {
+        throw new Error('Réponse invalide du serveur');
+      }
+
+      // ✅ STORE TOKEN
+      window.localStorage?.setItem(
+        STORAGE_KEYS.ACCESS_TOKEN,
+        data.access_token
+      );
+      setAccessToken(data.access_token);
+
+      // ✅ STORE USER DATA
+      const userData: User = {
+        id: data.user.id,
+        email: data.user.email,
+        firstName: data.user.firstName,
+        lastName: data.user.lastName,
+        role: data.user.role,
+        telephone: data.user.telephone,
+        isActive: true,
+        isAdmin: data.user.role === UserRole.ADMIN,
+      };
+
+      setUser(userData);
+      window.localStorage?.setItem(
+        STORAGE_KEYS.USER_DATA,
+        JSON.stringify(userData)
+      );
+      
+      // ✅ TRACK LOGIN TIME (CRITICAL FIX)
+      const currentTime = Date.now();
+      window.localStorage?.setItem(
+        STORAGE_KEYS.SESSION_START,
+        currentTime.toString()
+      );
+      lastLoginTimeRef.current = currentTime; // Track login time for grace period
+      console.log(`✅ Login time tracked: ${currentTime}`);
+
+      // ✅ SET UP AUTO REFRESH
+      try {
+        const decoded = jwtDecode<JwtPayload>(data.access_token);
+        
+        // Clear any existing refresh timeout
+        if (refreshTimeoutRef.current) {
+          window.clearTimeout(refreshTimeoutRef.current);
+        }
+        
+        const tokenExpirationMs = decoded.exp * 1000;
+        const currentTimeMs = Date.now();
+        const timeUntilExpiration = tokenExpirationMs - currentTimeMs;
+        
+        // Calculate when to refresh (1 minute before expiration)
+        const refreshTime = Math.max(
+          30000, // Minimum 30 seconds
+          timeUntilExpiration - AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS
+        );
+
+        console.log(`⏰ Token expires in: ${Math.round(timeUntilExpiration/1000)}s`);
+        console.log(`🔄 Will refresh in: ${Math.round(refreshTime/1000)}s`);
+
+        if (refreshTime > 0) {
+          refreshTimeoutRef.current = window.setTimeout(async () => {
+            if (refreshAttemptsRef.current < AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
+              console.log('🔄 Auto-refresh triggered...');
+              const refreshed = await refreshToken();
+              if (refreshed) {
+                console.log('✅ Auto-refresh successful');
+                refreshAttemptsRef.current = 0;
+              } else {
+                console.warn('⚠️ Auto-refresh failed');
+                refreshAttemptsRef.current++;
+              }
+            } else {
+              console.error('❌ Too many refresh failures, logging out');
+              logout();
+              toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+            }
+          }, refreshTime);
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not setup auto-refresh:', error);
+      }
+
+      // ✅ RESET REFRESH ATTEMPTS ON SUCCESSFUL LOGIN
+      refreshAttemptsRef.current = 0;
+      isRefreshingRef.current = false;
+
+      // ✅ REDIRECT
+      const redirectPath =
+        data.user.role === UserRole.ADMIN
+          ? REDIRECT_PATHS.ADMIN_DASHBOARD
+          : REDIRECT_PATHS.HOME;
+
+      navigate(redirectPath, { replace: true });
+      toast.success(TOAST_MESSAGES.LOGIN_SUCCESS);
+      
+    } catch (err: any) {
+      handleAuthError(err, 'login');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  },
+  [navigate, handleAuthError, refreshToken, logout]
+);
 
   const logoutAll = useCallback(async (): Promise<LogoutAllResponse> => {
     if (!access_token || user?.role !== UserRole.ADMIN) {
@@ -758,103 +835,74 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [navigate, handleAuthError]
   );
 
- const checkAuth = useCallback(async (): Promise<void> => {
+  const checkAuth = useCallback(async (): Promise<void> => {
   setIsLoading(true);
   
   const savedToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
 
-    if (!savedToken) {
+  if (!savedToken) {
+    setIsLoading(false);
+    return;
+  }
+
+  try {
+    // ✅ EXTENDED GRACE PERIOD AFTER LOGIN (60 seconds)
+    const GRACE_PERIOD_MS = 60 * 1000; // 60 seconds
+    const timeSinceLastLogin = Date.now() - lastLoginTimeRef.current;
+    
+    if (timeSinceLastLogin < GRACE_PERIOD_MS) {
+      console.log(`🕒 Période de grâce active (il y a ${Math.round(timeSinceLastLogin/1000)}s).`);
+      if (!user) {
+        console.log('📥 Chargement des données utilisateur (période de grâce)...');
+        await fetchUserData();
+      }
       setIsLoading(false);
       return;
     }
 
-    try {
-      // ✅ PERIODE DE GRÂCE (Nouveau) : Ignorer TOUS les checks juste après un login
-      const TIME_AFTER_LOGIN_TO_SKIP_CHECKS = 45 * 1000; // 45 secondes (un peu plus que 30 pour être sûr)
-const timeSinceLastLogin = Date.now() - lastLoginTimeRef.current;
+    console.log(`🔍 Vérification auth (période de grâce terminée)`);
+
+    const decoded = jwtDecode<JwtPayload>(savedToken);
+    const currentTime = Date.now();
+    const tokenExpirationTime = decoded.exp * 1000;
+    const timeUntilExpiration = tokenExpirationTime - currentTime;
+
+    console.log(`📊 Token expire dans: ${Math.round(timeUntilExpiration/1000)}s`);
+
+    // ✅ LESS AGGRESSIVE CHECKING
+    const isTokenExpired = timeUntilExpiration < -60000; // 60 seconds grace period
+    
+    if (isTokenExpired) {
+      console.log('⏰ Token expiré depuis plus de 60s, tentative de rafraîchissement...');
       
-      if (timeSinceLastLogin < TIME_AFTER_LOGIN_TO_SKIP_CHECKS) {
-        console.log(`🕒 Période de grâce active (il y a ${Math.round(timeSinceLastLogin/1000)}s). Skip des vérifications de refresh.`);
-        if (!user) {
-          console.log('📥 Chargement des données utilisateur (période de grâce)...');
-          await fetchUserData();
-        }
-        setIsLoading(false);
-        return; // On quitte la fonction checkAuth ici
+      const refreshed = await refreshToken();
+      if (!refreshed && timeUntilExpiration < -(5 * 60 * 1000)) { // 5 minutes
+        console.warn('⚠️ Refresh échoué et token trop vieux, déconnexion...');
+        logout();
       }
-
-      console.log(`🔍 Début checkAuth (période de grâce terminée: ${Math.round(timeSinceLastLogin/1000)}s)`);
-
-      // DÉBUT DE VOTRE LOGIQUE ORIGINALE
-      const decoded = jwtDecode<JwtPayload>(savedToken);
-      const currentTime = Date.now();
-      const tokenExpirationTime = decoded.exp * 1000;
-      const tokenCreationTime = decoded.iat * 1000;
-      const timeUntilExpiration = tokenExpirationTime - currentTime;
-      const tokenAge = currentTime - tokenCreationTime;
-
-      console.log(`📊 Stats token - Âge: ${Math.round(tokenAge/1000)}s, Expire dans: ${Math.round(timeUntilExpiration/1000)}s`);
-
-      // ✅ DÉLAI MINIMUM EXISTANT : 30 secondes avant toute vérification de refresh
-      if (tokenAge < 30 * 1000) {
-        console.log(`🕒 Token trop jeune (${Math.round(tokenAge/1000)}s). Chargement simple.`);
-        if (!user) {
-          await fetchUserData();
-        }
-        setIsLoading(false);
-        return;
-      }
-
-      const isTokenExpired = timeUntilExpiration < -30000; // 30 secondes
+    } else if (timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS) {
+      console.log(`🔄 Token expire bientôt (${Math.round(timeUntilExpiration/1000)}s), refresh préventif...`);
       
-      if (isTokenExpired) {
-        console.log('⏰ Token expiré depuis plus de 30s, tentative de rafraîchissement...');
-        
-        if (!isRefreshingRef.current) {
-          const refreshed = await refreshToken();
-          if (!refreshed) {
-            console.warn('⚠️ Refresh échoué, mais on garde la session pour l\'instant');
-            if (timeUntilExpiration < -(2 * 60 * 1000)) { // Expiré depuis > 2 minutes
-              console.warn('⚠️ Refresh échoué et token trop vieux, déconnexion...');
-              logout();
-            }
-          } else {
-            refreshAttemptsRef.current = 0;
-          }
-        }
-      } else if (timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS) {
-        console.log(`🔄 Token expire bientôt (${Math.round(timeUntilExpiration/1000)}s), refresh préventif...`);
-        
-        if (!isRefreshingRef.current) {
-          const refreshed = await refreshToken();
-          if (!refreshed) {
-            console.warn('⚠️ Refresh préventif échoué');
-            refreshAttemptsRef.current++;
-            
-            if (refreshAttemptsRef.current >= 2) {
-              console.warn('❌ Trop d\'échecs de refresh préventif, déconnexion...');
-              logout();
-            }
-          } else {
-            refreshAttemptsRef.current = 0;
-          }
-        }
-      } else {
-        if (!user) {
-          console.log('📥 Chargement des données utilisateur...');
-          await fetchUserData();
-        }
-        console.log(`✅ Token valide. Expire dans: ${Math.round(timeUntilExpiration/1000)}s`);
+      const refreshed = await refreshToken();
+      if (!refreshed) {
+        console.warn('⚠️ Refresh préventif échoué');
       }
-    } catch (error: unknown) {
-      console.error('❌ Erreur dans checkAuth:', error);
-      if (error instanceof Error && error.message.includes('Invalid token')) {
-        cleanupAuthData();
+    } else {
+      if (!user) {
+        console.log('📥 Chargement des données utilisateur...');
+        await fetchUserData();
       }
-    } finally {
-      setIsLoading(false);
+      console.log(`✅ Token valide.`);
     }
-  }, [fetchUserData, refreshToken, user, logout, cleanupAuthData]);
+  } catch (error: unknown) {
+    console.error('❌ Erreur dans checkAuth:', error);
+    if (error instanceof Error && error.message.includes('Invalid token')) {
+      cleanupAuthData();
+    }
+  } finally {
+    setIsLoading(false);
+  }
+}, [fetchUserData, refreshToken, user, logout, cleanupAuthData]);
 
 
   const resetPassword = useCallback(
