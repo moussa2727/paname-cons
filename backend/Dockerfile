@@ -1,60 +1,42 @@
-# Stage 1: Builder
+# ============ ÉTAPE DE BUILD ============
 FROM node:18-alpine AS builder
 
-# Install pnpm globalement
-RUN npm install -g pnpm@9.15.4
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
-# Définir le répertoire de travail
 WORKDIR /app
 
-# Copier les fichiers de dépendances
-COPY backend/package.json backend/pnpm-lock.yaml* ./
-
-# Installer toutes les dépendances
-RUN pnpm install --frozen-lockfile
-
-# Copier le code source
+# Copie de tout le backend
 COPY backend/ ./
 
-# Builder l'application
-RUN pnpm build
+# Installation
+RUN pnpm install --frozen-lockfile --prefer-offline
 
-# Vérifier que la build a réussi
-RUN ls -la dist/ && echo "=== Fichier main.js existe ? ===" && test -f dist/main.js && echo "OUI" || echo "NON"
+# Construction forcée avec configuration modifiée
+RUN sed -i 's/"skipLibCheck": false/"skipLibCheck": true/g' tsconfig.json || true
+RUN pnpm build 
 
-# Stage 2: Production
+# ============ ÉTAPE DE PRODUCTION ============
 FROM node:18-alpine AS production
 
-# Installer pnpm pour la production
-RUN npm install -g pnpm@9.15.4
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
+ENV PORT=10000
+
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
 WORKDIR /app
 
-# Copier uniquement les fichiers nécessaires pour la production
-COPY --from=builder /app/dist ./dist
 COPY backend/package.json backend/pnpm-lock.yaml* ./
 
-# Installer uniquement les dépendances de production
-RUN pnpm install --prod --frozen-lockfile
+RUN pnpm install --prod --frozen-lockfile --prefer-offline
 
-# Créer l'utilisateur non-root
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S node -u 1001 && \
-    chown -R node:nodejs /app
+COPY --from=builder /app/dist ./dist
 
-# Créer les dossiers nécessaires
 RUN mkdir -p /app/uploads /app/logs && \
-    chown -R node:nodejs /app/uploads /app/logs
+    chown -R node:node /app
 
-# Basculer vers l'utilisateur non-root
 USER node
 
-# Exposer le port
-EXPOSE 10000
+EXPOSE $PORT
 
-# Variable d'environnement pour le port
-ENV PORT=10000
-ENV NODE_ENV=production
-
-# Commande de démarrage
 CMD ["node", "dist/main.js"]

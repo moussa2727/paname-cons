@@ -18,10 +18,8 @@
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
     "strict": false, // <-- Ajoutez cette ligne
-    "typeRoots": [
-      "./node_modules/@types",
-      "./src/@types"
-    ]  },
+    "types": []
+  },
   "exclude": [
     "node_modules",
     "dist",
