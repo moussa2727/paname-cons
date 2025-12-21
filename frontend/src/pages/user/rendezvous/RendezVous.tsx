@@ -418,7 +418,7 @@ const RendezVous = () => {
       submitData.filiere = formData.filiere;
     }
 
-    console.log('📤 Données envoyées au backend:', submitData);
+    console.log('📤 Données envoyées au backend avec succès.');
 
     setLoading(true);
 
