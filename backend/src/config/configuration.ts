@@ -8,4 +8,9 @@ export default registerAs("app", () => ({
   adminEmail: process.env.EMAIL_USER,
   uploadDir: process.env.UPLOAD_DIR,
   loadDir: process.env.LOAD_DIR,
+  emailUser: process.env.EMAIL_USER,
+  emailPass: process.env.EMAIL_PASS,
+  emailHost: process.env.EMAIL_HOST,
+  emailPort: process.env.EMAIL_PORT,
+  emailSecure: process.env.EMAIL_SECURE
 }));

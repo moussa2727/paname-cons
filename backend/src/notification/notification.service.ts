@@ -1,23 +1,52 @@
-// src/notification/notification.service.ts
 import { Injectable, Logger } from '@nestjs/common';
+import * as nodemailer from 'nodemailer';
 import { Rendezvous } from '../schemas/rendezvous.schema';
 import { Procedure, ProcedureStatus, StepStatus } from '../schemas/procedure.schema';
 import { ConfigService } from '@nestjs/config';
 import { Contact } from '../schemas/contact.schema';
-import { EmailTransportService } from '../mail/email-transport.service';
 
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
+  private transporter: nodemailer.Transporter;
+  private emailServiceAvailable: boolean = false;
+  private fromEmail: string = '';
   private appName: string = 'Paname Consulting';
-  private frontendUrl: string = '';
+  private frontendUrl: string = 'https://panameconsulting.vercel.app';
 
-  constructor(
-    private configService: ConfigService,
-    private emailTransport: EmailTransportService
-  ) {
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'https://panameconsulting.vercel.app';
+  constructor(private configService: ConfigService) {
+    this.initializeEmailService();
   }
+
+ private initializeEmailService() {
+  const emailUser = this.configService.get<string>('EMAIL_USER') || process.env.EMAIL_USER;
+  const emailPass = this.configService.get<string>('EMAIL_PASS') || process.env.EMAIL_PASS;
+  
+  if (emailUser && emailPass) {
+    this.emailServiceAvailable = true;
+    this.fromEmail = `"Paname Consulting" <${emailUser}>`;
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || this.frontendUrl;
+    
+    // Méthode éprouvée en production
+    this.transporter = nodemailer.createTransport({
+      service: 'gmail', // Utilise directement le service Gmail
+      auth: {
+        user: emailUser,
+        pass: emailPass
+      }
+    });
+
+    // Vérification de la connexion
+    this.transporter.verify()
+      .then(() => this.logger.log('Service email initialisé avec succès'))
+      .catch(err => {
+        this.logger.error('Erreur lors de l\'initialisation du service email:', err.message);
+        this.emailServiceAvailable = false;
+      });
+  } else {
+    this.logger.warn('Service email désactivé - EMAIL_USER ou EMAIL_PASS manquant');
+  }
+}
 
   private async sendEmail(
     to: string, 
@@ -25,26 +54,26 @@ export class NotificationService {
     html: string, 
     context: string
   ): Promise<boolean> {
-    if (!this.emailTransport.isServiceAvailable()) {
+    if (!this.emailServiceAvailable) {
       this.logger.warn(`Notification "${context}" ignorée - service email indisponible`);
       return false;
     }
 
-    const mailOptions = {
-      to: to,
-      subject: subject,
-      html: html,
-    };
-
-    const success = await this.emailTransport.sendEmail(mailOptions);
-    
-    if (success) {
-      this.logger.log(`Notification envoyée (${context}) à: ${this.maskEmail(to)}`);
-    } else {
-      this.logger.error(`Échec d'envoi notification (${context}) à: ${this.maskEmail(to)}`);
+    try {
+      await this.transporter.sendMail({
+        from: this.fromEmail,
+        to: to,
+        subject: subject,
+        html: html
+      });
+      
+      this.logger.log(`Email envoyé (${context}) à: ${this.maskEmail(to)}`);
+      return true;
+      
+    } catch (error) {
+      this.logger.error(`Erreur lors de l'envoi "${context}": ${error.message}`);
+      return false;
     }
-    
-    return success;
   }
 
   private getBaseTemplate(header: string, content: string, firstName: string): string {
@@ -433,10 +462,12 @@ export class NotificationService {
     return `${maskedName}@${domain}`;
   }
 
-  getServiceStatus(): { available: boolean; reason?: string } {
+  getEmailStatus(): { available: boolean; message: string } {
     return {
-      available: this.emailTransport.isServiceAvailable(),
-      reason: this.emailTransport.isServiceAvailable() ? undefined : 'Service email non configuré ou indisponible'
+      available: this.emailServiceAvailable,
+      message: this.emailServiceAvailable 
+        ? 'Service email disponible' 
+        : 'Service email indisponible - vérifiez EMAIL_USER et EMAIL_PASS'
     };
   }
 }

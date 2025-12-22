@@ -16,6 +16,7 @@ import * as cookieParser from "cookie-parser";
 import { join } from "path";
 import { AppModule } from "./app.module";
 
+
 // 📦 ÉTENDRE L'INTERFACE REQUEST D'EXPRESS
 declare global {
   namespace Express {
@@ -359,7 +360,7 @@ async function bootstrap() {
 
     // ✅ CONFIGURATION GLOBALE
     app.setGlobalPrefix("api", {
-      exclude: ['/', '/health', '/api', '/uploads', '/uploads/(.*)']
+      exclude: ['/', '/health', '/api']
     });
     
     // ✅ VALIDATION GLOBALE
@@ -389,24 +390,79 @@ async function bootstrap() {
       }),
     );
 
-    // ✅ RATE LIMITING GLOBAL
-    const rateLimit = require("express-rate-limit");
-    app.use(
-      rateLimit({
-        windowMs: 30 * 60 * 1000,
-        max: 5000,
-        message: {
-          status: 429,
-          message: "Trop de requêtes, veuillez réessayer plus tard.",
-        },
-        standardHeaders: true,
-        legacyHeaders: false,
-        skipSuccessfulRequests: false,
-        keyGenerator: (req: { ip: any; headers: { [x: string]: any; }; }) => {
-          return req.ip || req.headers['x-forwarded-for'] || 'unknown';
-        }
-      }),
-    );
+    // ✅ RATE LIMITING AVEC DÉTECTION PAR RÔLE
+const rateLimit = require("express-rate-limit");
+
+// Middleware pour détecter les routes admin
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Liste des préfixes de routes admin
+  const adminRoutePrefixes = [
+    '/api/users/stats',
+    '/api/users/:id/toggle-status',
+    '/api/users/maintenance-',
+    '/api/users/:id/admin-reset-password',
+    '/api/procedures/admin/',
+    '/api/auth/logout-all',
+    '/api/contact', // Attention: GET seulement pour admin, POST pour tous
+    '/api/contact/stats',
+    '/api/contact/:id/',
+    '/api/destinations', // Attention: GET pour tous, POST/PUT/DELETE pour admin
+    '/api/rendezvous', // Attention: POST pour tous, GET admin
+    '/api/rendezvous/:id/status',
+    '/api/rendezvous/:id/confirm'
+  ];
+  
+  // Détecter si c'est une route admin
+  const isAdminRoute = adminRoutePrefixes.some(prefix => {
+    if (req.method === 'GET' && req.path === '/api/contact') {
+      return true; // GET /api/contact est admin
+    }
+    if (req.method === 'GET' && req.path === '/api/rendezvous') {
+      return true; // GET /api/rendezvous est admin
+    }
+    if (req.method === 'GET' && req.path.startsWith('/api/destinations') && req.path !== '/api/destinations/all') {
+      return true; // GET /api/destinations (sans /all) est admin
+    }
+    return req.path.startsWith(prefix);
+  });
+  
+  // Ajouter un flag à la requête
+  (req as any).isAdminRoute = isAdminRoute;
+  
+  next();
+});
+
+// ✅ RATE LIMIT UNIQUE AVEC LOGIQUE CONDITIONNELLE
+app.use(
+  rateLimit({
+    windowMs: 30 * 60 * 1000, // 30 minutes
+    max: (req: express.Request) => {
+      // ✅ ADMIN: 25,000 requêtes
+      if ((req as any).isAdminRoute) {
+        return 25000;
+      }
+      // ✅ UTILISATEURS NORMAUX: 5,000 requêtes
+      return 5000;
+    },
+    message: (req: express.Request) => {
+      const limit = (req as any).isAdminRoute ? 25000 : 5000;
+      return {
+        status: 429,
+        message: `Trop de requêtes (${limit} req/30min), veuillez réessayer plus tard.`,
+        limit: limit,
+        window: "30 minutes"
+      };
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: false,
+    keyGenerator: (req: express.Request) => {
+      const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+      // Différencier les clés par type d'utilisateur
+      return (req as any).isAdminRoute ? `admin_${ip}` : `user_${ip}`;
+    }
+  }),
+);
 
     const port = process.env.PORT || 10000;
     const host = "0.0.0.0";
@@ -464,7 +520,7 @@ process.on("uncaughtException", (error: Error) => {
   });
 });
 
-process.on("unhandledRejection", (reason: any, promise: Promise<any>) => {
+process.on("unhandledRejection", (reason: any, _promise: Promise<any>) => {
   const logger = new Logger("UnhandledRejection");
   
   logger.error("⚠️ Promise rejection non gérée", {
