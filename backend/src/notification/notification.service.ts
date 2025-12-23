@@ -15,44 +15,88 @@ export class NotificationService {
   private frontendUrl: string = 'https://panameconsulting.vercel.app';
 
   constructor(private configService: ConfigService) {
-    this.initializeEmailService();
+    // Délai pour laisser le ConfigService s'initialiser
+    setTimeout(() => {
+      this.initializeEmailService();
+    }, 1000);
   }
 
-  private initializeEmailService() {
-    // 🔧 CONFIGURATION SIMPLIFIÉE POUR GMAIL
-    const emailUser = this.configService.get<string>('EMAIL_USER') || process.env.EMAIL_USER;
-    const emailPass = this.configService.get<string>('EMAIL_PASS') || process.env.EMAIL_PASS;
+  private async initializeEmailService() {
+    const emailUser = this.configService.get<string>('EMAIL_USER');
+    const emailPass = this.configService.get<string>('EMAIL_PASS');
 
     if (!emailUser || !emailPass) {
-      this.logger.warn('❌ Service email désactivé - EMAIL_USER ou EMAIL_PASS manquant');
-      this.emailServiceAvailable = false;
+      this.logger.warn('❌ Service email désactivé - credentials manquants');
       return;
     }
 
-    this.emailServiceAvailable = true;
     this.fromEmail = `"Paname Consulting" <${emailUser}>`;
-    
-    // ✅ CONFIGURATION GMAIL FIXE
-    this.transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      auth: {
-        user: emailUser,
-        pass: emailPass
-      }
-    });
 
-    // ✅ TEST DE CONNEXION
-    this.transporter.verify()
-      .then(() => {
-        this.logger.log('✅ Service email Gmail initialisé avec succès');
-        this.logger.log(`📧 Envoi depuis: ${this.maskEmail(emailUser)}`);
-      })
-      .catch((error) => {
-        this.logger.error(`❌ Échec de la connexion Gmail: ${error.message}`);
+    try {
+      this.logger.log('🔄 Initialisation du service email Gmail...');
+      
+      // Configuration simplifiée utilisant 'service' au lieu de host/port
+      const transporterConfig: any = {
+        service: 'gmail', // Configuration Gmail prédéfinie
+        auth: {
+          user: process.env.EMAIL_USER || this.configService.get<string>('EMAIL_USER'),
+          pass: process.env.EMAIL_PASS || this.configService.get<string>('EMAIL_PASS')
+        },
+        pool: true,
+        maxConnections: 5,
+        maxMessages: 10,
+        socketTimeout: 30000,
+        connectionTimeout: 10000,
+        // Désactiver temporairement la vérification SSL stricte
+        tls: {
+          rejectUnauthorized: false
+        }
+      };
+
+      this.transporter = nodemailer.createTransport(transporterConfig);
+
+      // Test de connexion avec timeout
+      const testPromise = this.transporter.verify();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout après 15s')), 15000)
+      );
+
+      await Promise.race([testPromise, timeoutPromise]);
+
+      this.emailServiceAvailable = true;
+      this.logger.log('✅ Service email Gmail initialisé avec succès');
+      this.logger.log(`📧 Envoi depuis: ${this.maskEmail(emailUser)}`);
+      
+    } catch (error) {
+      this.logger.error(`❌ Échec initialisation email Gmail: ${error.message}`);
+      
+      // Essayer une configuration alternative
+      try {
+        this.logger.log('🔄 Essai avec configuration alternative...');
+        
+        // Configuration alternative simple
+        this.transporter = nodemailer.createTransport({
+          host: 'smtp.gmail.com',
+          port: 587,
+          secure: false,
+          auth: {
+            user: process.env.EMAIL_USER || this.configService.get<string>('EMAIL_USER'),
+            pass: process.env.EMAIL_PASS || this.configService.get<string>('EMAIL_PASS')
+          },
+          tls: {
+            rejectUnauthorized: false
+          }
+        });
+
+        await this.transporter.verify();
+        this.emailServiceAvailable = true;
+        this.logger.log('✅ Configuration alternative réussie');
+        
+      } catch (altError) {
+        this.logger.error(`❌ Configuration alternative échouée: ${altError.message}`);
         this.emailServiceAvailable = false;
-      });
+      }
+    }
   }
 
   private async sendEmail(
