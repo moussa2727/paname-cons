@@ -15,7 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOutIcon,
-  Shield,
+  Settings2Icon,
   AlertTriangle,
 } from 'lucide-react';
 
@@ -213,7 +213,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
             <div className='flex items-center justify-between'>
               <div className='flex items-center space-x-3'>
                 <div className='w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm'>
-                  <Shield className='w-6 h-6 text-white' />
+                  <Settings2Icon className='w-6 h-6 text-white' />
                 </div>
                 <div>
                   <h1 className='text-lg font-bold text-white tracking-tight'>
@@ -273,7 +273,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                   {getDisplayName()}
                 </p>
                 <p className='text-xs text-slate-500 flex items-center gap-1'>
-                  <Shield className='w-3 h-3' />
+                  <Settings2Icon className='w-3 h-3' />
                   Administrateur
                 </p>
               </div>
@@ -330,7 +330,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
             <div className='flex justify-between items-center h-16'>
               <div className='flex items-center space-x-3'>
                 <div className='w-10 h-10 bg-gradient-to-r from-sky-500 to-sky-600 rounded-xl flex items-center justify-center shadow-md'>
-                  <Shield className='w-6 h-6 text-white' />
+                  <Settings2Icon className='w-6 h-6 text-white' />
                 </div>
                 <div>
                   <h1 className='text-lg font-bold text-slate-800'>Admin</h1>
@@ -504,7 +504,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                 <>
                   <div className='text-center mb-6'>
                     <div className='w-20 h-20 mx-auto bg-gradient-to-br from-sky-100 to-blue-100 rounded-full flex items-center justify-center mb-4'>
-                      <Shield className='w-10 h-10 text-sky-600' />
+                      <Settings2Icon className='w-10 h-10 text-sky-600' />
                     </div>
                     <h3 className='text-lg font-semibold text-slate-800 mb-2'>
                       Confirmer la déconnexion globale
