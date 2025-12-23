@@ -19,65 +19,42 @@ export class NotificationService {
   }
 
   private initializeEmailService() {
-  // 🔧 CORRIGER : Chercher les deux noms possibles
-  const emailUser = this.configService.get<string>('EMAIL_USER') || 
-                    process.env.EMAIL_USER || 
-                    this.configService.get<string>('EMAIL_USERNAME');
-  
-  const emailPass = this.configService.get<string>('EMAIL_PASS') || 
-                    process.env.EMAIL_PASS || 
-                    this.configService.get<string>('EMAIL_PASSWORD');
+    // 🔧 CONFIGURATION SIMPLIFIÉE POUR GMAIL
+    const emailUser = this.configService.get<string>('EMAIL_USER') || process.env.EMAIL_USER;
+    const emailPass = this.configService.get<string>('EMAIL_PASS') || process.env.EMAIL_PASS;
 
-  this.logger.log(`🔧 Email Config - USER: ${emailUser ? '✓' : '✗'}, PASS: ${emailPass ? '✓' : '✗'}`);
+    if (!emailUser || !emailPass) {
+      this.logger.warn('❌ Service email désactivé - EMAIL_USER ou EMAIL_PASS manquant');
+      this.emailServiceAvailable = false;
+      return;
+    }
 
-  if (!emailUser || !emailPass) {
-    this.logger.error('❌ Service email désactivé - EMAIL_USER ou EMAIL_PASS manquant');
-    this.logger.error(`   EMAIL_USER: ${emailUser ? 'Set' : 'Missing'}`);
-    this.logger.error(`   EMAIL_PASS: ${emailPass ? 'Set' : 'Missing'}`);
-    this.emailServiceAvailable = false;
-    return;
+    this.emailServiceAvailable = true;
+    this.fromEmail = `"Paname Consulting" <${emailUser}>`;
+    
+    // ✅ CONFIGURATION GMAIL FIXE
+    this.transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: emailUser,
+        pass: emailPass
+      }
+    });
+
+    // ✅ TEST DE CONNEXION
+    this.transporter.verify()
+      .then(() => {
+        this.logger.log('✅ Service email Gmail initialisé avec succès');
+        this.logger.log(`📧 Envoi depuis: ${this.maskEmail(emailUser)}`);
+      })
+      .catch((error) => {
+        this.logger.error(`❌ Échec de la connexion Gmail: ${error.message}`);
+        this.emailServiceAvailable = false;
+      });
   }
 
-  this.emailServiceAvailable = true;
-  this.fromEmail = `"Paname Consulting" <${emailUser}>`;
-  this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || this.frontendUrl;
-
-  // ✅ CONFIGURATION OPTIMISÉE POUR PRODUCTION
-  this.transporter = nodemailer.createTransport({
-    host: this.configService.get<string>('EMAIL_HOST') || 'smtp.gmail.com',
-    port: parseInt(this.configService.get<string>('EMAIL_PORT') || '587'),
-    secure: false, // true pour 465, false pour 587
-    auth: {
-      user: emailUser,
-      pass: emailPass
-    },
-    tls: {
-      rejectUnauthorized: false // Important pour Railway/Heroku
-    },
-    // Options de timeout
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000
-  });
-
-  // ✅ TEST DE CONNEXION ROBUSTE
-  this.transporter.verify()
-  .then(() => {
-    this.logger.log('✅ Service email initialisé avec succès');
-    this.logger.log(`   Envoi depuis: ${this.maskEmail(emailUser)}`);
-    
-    // ✅ CORRECTION : Récupérer les valeurs de configuration
-    const host = this.configService.get<string>('EMAIL_HOST') || 'smtp.gmail.com';
-    const port = parseInt(this.configService.get<string>('EMAIL_PORT') || '587');
-    this.logger.log(`   Serveur SMTP: ${host}:${port}`);
-    
-    // OU utiliser les options du transporter de manière sûre
-    const transporterOptions = (this.transporter as any).options || {};
-    if (transporterOptions.host) {
-      this.logger.log(`   Serveur SMTP (transporter): ${transporterOptions.host}:${transporterOptions.port || 587}`);
-    }
-  })
-}
   private async sendEmail(
     to: string, 
     subject: string, 
@@ -85,7 +62,7 @@ export class NotificationService {
     context: string
   ): Promise<boolean> {
     if (!this.emailServiceAvailable) {
-      this.logger.warn(`Notification "${context}" ignorée - service email indisponible`);
+      this.logger.warn(`📧 Notification "${context}" ignorée - service email indisponible`);
       return false;
     }
 
@@ -97,11 +74,11 @@ export class NotificationService {
         html: html
       });
       
-      this.logger.log(`Email envoyé (${context}) à: ${this.maskEmail(to)}`);
+      this.logger.log(`📧 Email envoyé (${context}) à: ${this.maskEmail(to)}`);
       return true;
       
     } catch (error) {
-      this.logger.error(`Erreur lors de l'envoi "${context}": ${error.message}`);
+      this.logger.error(`❌ Erreur "${context}": ${error.message}`);
       return false;
     }
   }
@@ -432,7 +409,7 @@ export class NotificationService {
   async sendContactNotification(contact: Contact): Promise<boolean> {
     const adminEmail = this.configService.get<string>('EMAIL_USER');
     if (!adminEmail) {
-      this.logger.warn("Email admin non configuré - notification contact ignorée");
+      this.logger.warn("📧 Email admin non configuré - notification contact ignorée");
       return false;
     }
 
@@ -496,8 +473,8 @@ export class NotificationService {
     return {
       available: this.emailServiceAvailable,
       message: this.emailServiceAvailable 
-        ? 'Service email disponible' 
-        : 'Service email indisponible - vérifiez EMAIL_USER et EMAIL_PASS'
+        ? '📧 Service email disponible' 
+        : '❌ Service email indisponible - vérifiez EMAIL_USER et EMAIL_PASS'
     };
   }
 }
