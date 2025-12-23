@@ -363,25 +363,25 @@ function App() {
             }
           />
 
-            <Route
-              path='/gestionnaire/*'
-              element={
-                <RequireAdmin>
-                  <Suspense fallback={<Loader />}>
-                    <AdminLayout />
-                  </Suspense>
-                </RequireAdmin>
-              }
-            >
-              <Route path='statistiques' element={<AdminDashboard />} />
-              <Route path='utilisateurs' element={<UsersManagement />} />
-              <Route path='messages' element={<AdminMessages />} />
-              <Route path='procedures' element={<AdminProcedure />} />
-              <Route path='profil' element={<AdminProfile />} />
-              <Route path='destinations' element={<AdminDestinations />} />
-              <Route path='rendez-vous' element={<AdminRendezVous />} />
-              <Route path='*' element={<NotFound />} />
-            </Route>
+        <Route
+      path='/gestionnaire/*'
+      element={
+        <RequireAdmin>
+          <Suspense fallback={<Loader />}>
+            <AdminLayout />
+          </Suspense>
+        </RequireAdmin>
+      }
+    >
+      <Route path='statistiques' element={<AdminDashboard />} />
+      <Route path='utilisateurs' element={<UsersManagement />} />
+      <Route path='messages' element={<AdminMessages />} />
+      <Route path='procedures' element={<AdminProcedure />} />
+      <Route path='profil' element={<AdminProfile />} />
+      <Route path='destinations' element={<AdminDestinations />} />
+      <Route path='rendez-vous' element={<AdminRendezVous />} />
+      <Route path='*' element={<NotFound />} />
+    </Route>
 
           {/* Route 404 pour toutes les autres routes */}
           <Route path='*' element={<NotFound />} />
