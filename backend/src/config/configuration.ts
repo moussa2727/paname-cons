@@ -14,3 +14,4 @@ export default registerAs("app", () => ({
   emailPort: process.env.EMAIL_PORT,
   emailSecure: process.env.EMAIL_SECURE
 }));
+  
