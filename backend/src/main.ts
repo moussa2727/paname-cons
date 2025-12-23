@@ -33,6 +33,7 @@ const productionOrigins = [
   "https://panameconsulting.com",
   "https://www.panameconsulting.com",
   "https://panameconsulting.vercel.app",
+  "https://panameconsulting.up.railway.app",
   "https://vercel.live",
   "http://localhost:5713",
 ];
