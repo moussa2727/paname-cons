@@ -34,8 +34,7 @@ import MotdePasseoublie from './pages/MotdePasseoublie';
 // Pages admin (lazy loaded)
 const UsersManagement = lazy(() => import('./pages/admin/UsersManagement'));
 const AdminLayout = lazy(() => import('./AdminLayout'));
-const AdminMessages = lazy(() =>
-  import('./pages/admin/AdminMessages'));
+const AdminMessages = lazy(() => import('./pages/admin/AdminMessages'));
 const AdminProfile = lazy(() => import('./pages/admin/AdminProfile'));
 const AdminProcedure = lazy(() => import('./pages/admin/AdminProcedure'));
 const AdminDestinations = lazy(() => import('./pages/admin/AdminDestinations'));
@@ -75,6 +74,7 @@ function App() {
   const [navigationKey, setNavigationKey] = useState(0);
   const { isLoading, isAuthenticated, user } = useAuth();
   const [isAOSInitialized, setIsAOSInitialized] = useState(false);
+  const [isPageLoading, setIsPageLoading] = useState(false);
 
   const safeScrollToTop = useCallback((behavior: ScrollBehavior = 'smooth') => {
     if (typeof globalThis.window === 'undefined') return;
@@ -88,6 +88,20 @@ function App() {
       globalThis.window.scrollTo(0, 0);
     }
   }, []);
+
+  // Gestion du chargement lors du changement de page
+  useEffect(() => {
+    const handleStart = () => setIsPageLoading(true);
+    const handleComplete = () => {
+      setIsPageLoading(false);
+      safeScrollToTop('auto');
+    };
+
+    handleStart();
+    const timer = setTimeout(handleComplete, 300); // Petit délai pour éviter le flash
+
+    return () => clearTimeout(timer);
+  }, [location.pathname, safeScrollToTop]);
 
   useEffect(() => {
     safeScrollToTop();
@@ -131,8 +145,7 @@ function App() {
           name='description'
           content="Paname Consulting : expert en accompagnement étudiant à l'étranger, organisation de voyages d'affaires et demandes de visa. Conseil personnalisé pour votre réussite internationale."
         />
-          <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta 
           name="viewport" 
           content="width=device-width, initial-scale=1, maximum-scale=5" 
@@ -142,11 +155,13 @@ function App() {
         <link rel="apple-touch-icon" href="/paname-consulting.png" />
         <link rel="manifest" href="/manifest.json" />
         <meta property="og:url" content="https://panameconsulting.vercel.app" />
-
       </Helmet>
 
-      <div key={navigationKey}>
+      {isPageLoading && <Loader />}
+      
+      <div key={navigationKey} className={isPageLoading ? 'opacity-50' : 'opacity-100 transition-opacity duration-300'}>
         <Routes>
+          {/* Routes publiques */}
           <Route
             path='/'
             element={
@@ -183,6 +198,7 @@ function App() {
             }
           />
 
+          {/* Routes authentifiées (utilisateurs) */}
           <Route
             path='/rendez-vous'
             element={
@@ -200,6 +216,58 @@ function App() {
             }
           />
 
+          <Route
+            path='/mes-rendez-vous'
+            element={
+              isAuthenticated ? (
+                <MinimalLayout>
+                  <MesRendezVous />
+                </MinimalLayout>
+              ) : (
+                <Navigate
+                  to='/connexion'
+                  replace
+                  state={{ from: location.pathname }}
+                />
+              )
+            }
+          />
+
+          <Route
+            path='/mon-profil'
+            element={
+              isAuthenticated ? (
+                <MinimalLayout>
+                  <UserProfile />
+                </MinimalLayout>
+              ) : (
+                <Navigate
+                  to='/connexion'
+                  replace
+                  state={{ from: location.pathname }}
+                />
+              )
+            }
+          />
+
+          <Route
+            path='/ma-procedure'
+            element={
+              isAuthenticated ? (
+                <MinimalLayout>
+                  <UserProcedure />
+                </MinimalLayout>
+              ) : (
+                <Navigate
+                  to='/connexion'
+                  replace
+                  state={{ from: location.pathname }}
+                />
+              )
+            }
+          />
+
+          {/* Routes d'authentification */}
           <Route
             path='/reset-password'
             element={
@@ -263,54 +331,13 @@ function App() {
             }
           />
 
+          {/* Routes admin - utilisant le layout imbriqué */}
           <Route
-            path='/mes-rendez-vous'
+            path='/gestionnaire'
             element={
-              isAuthenticated ? (
-                <MinimalLayout>
-                  <MesRendezVous />
-                </MinimalLayout>
-              ) : (
-                <Navigate
-                  to='/connexion'
-                  replace
-                  state={{ from: location.pathname }}
-                />
-              )
-            }
-          />
-
-          <Route
-            path='/mon-profil'
-            element={
-              isAuthenticated ? (
-                <MinimalLayout>
-                  <UserProfile />
-                </MinimalLayout>
-              ) : (
-                <Navigate
-                  to='/connexion'
-                  replace
-                  state={{ from: location.pathname }}
-                />
-              )
-            }
-          />
-
-          <Route
-            path='/ma-procedure'
-            element={
-              isAuthenticated ? (
-                <MinimalLayout>
-                  <UserProcedure />
-                </MinimalLayout>
-              ) : (
-                <Navigate
-                  to='/connexion'
-                  replace
-                  state={{ from: location.pathname }}
-                />
-              )
+              <RequireAdmin>
+                <Navigate to='/gestionnaire/statistiques' replace />
+              </RequireAdmin>
             }
           />
 
@@ -325,21 +352,18 @@ function App() {
             }
           >
             <Route index element={<Navigate to='statistiques' replace />} />
-            <Route path='utilisateurs' element={<UsersManagement />} />
             <Route path='statistiques' element={<AdminDashboard />} />
+            <Route path='utilisateurs' element={<UsersManagement />} />
             <Route path='messages' element={<AdminMessages />} />
             <Route path='procedures' element={<AdminProcedure />} />
             <Route path='profil' element={<AdminProfile />} />
             <Route path='destinations' element={<AdminDestinations />} />
             <Route path='rendez-vous' element={<AdminRendezVous />} />
+            {/* Route catch-all pour les sous-routes admin non définies */}
+            <Route path='*' element={<NotFound />} />
           </Route>
 
-         
-          <Route
-            path='/gestionnaire'
-            element={<Navigate to='/gestionnaire/statistiques' replace />}
-          />
-
+          {/* Route 404 pour toutes les autres routes */}
           <Route path='*' element={<NotFound />} />
         </Routes>
       </div>

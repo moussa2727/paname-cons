@@ -49,7 +49,7 @@ const navTabs = [
   },
   {
     id: 'procedures',
-    label: 'Dossier',
+    label: 'Procédure',
     to: '/ma-procedure',
     icon: FileText,
   },
