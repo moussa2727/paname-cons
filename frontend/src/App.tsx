@@ -69,12 +69,58 @@ const MinimalLayout = ({ children }: { children: ReactNode }) => {
   );
 };
 
+// Layout pour la page d'accueil avec loader intégré
+const AccueilLayout = ({ children }: { children: ReactNode }) => {
+  const location = useLocation();
+  const [showLoader, setShowLoader] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  useEffect(() => {
+    // Timer pour montrer le loader sur la page d'accueil seulement
+    const timer = setTimeout(() => {
+      setShowLoader(false);
+      setHasLoaded(true);
+    }, 2000); // Durée du loader sur la page d'accueil
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Si ce n'est pas la page d'accueil, ne pas montrer le loader
+  if (location.pathname !== '/') {
+    return (
+      <div className='flex flex-col min-h-screen w-full overflow-x-hidden touch-pan-y'>
+        <Header />
+        <main className='flex-1 mt-20'>{children}</main>
+        <Footer />
+      </div>
+    );
+  }
+
+  return (
+    <div className='flex flex-col min-h-screen w-full overflow-x-hidden touch-pan-y'>
+      <Header />
+      <main className='flex-1 mt-20'>
+        {/* Loader uniquement sur la page d'accueil */}
+        {showLoader ? (
+          <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
+            <Loader />
+          </div>
+        ) : null}
+        {/* Contenu avec transition */}
+        <div className={showLoader ? 'opacity-0' : 'opacity-100 transition-opacity duration-500'}>
+          {children}
+        </div>
+      </main>
+      <Footer />
+    </div>
+  );
+};
+
 function App() {
   const location = useLocation();
   const [navigationKey, setNavigationKey] = useState(0);
   const { isLoading, isAuthenticated, user } = useAuth();
   const [isAOSInitialized, setIsAOSInitialized] = useState(false);
-  const [isPageLoading, setIsPageLoading] = useState(false);
 
   const safeScrollToTop = useCallback((behavior: ScrollBehavior = 'smooth') => {
     if (typeof globalThis.window === 'undefined') return;
@@ -88,20 +134,6 @@ function App() {
       globalThis.window.scrollTo(0, 0);
     }
   }, []);
-
-  // Gestion du chargement lors du changement de page
-  useEffect(() => {
-    const handleStart = () => setIsPageLoading(true);
-    const handleComplete = () => {
-      setIsPageLoading(false);
-      safeScrollToTop('auto');
-    };
-
-    handleStart();
-    const timer = setTimeout(handleComplete, 300); // Petit délai pour éviter le flash
-
-    return () => clearTimeout(timer);
-  }, [location.pathname, safeScrollToTop]);
 
   useEffect(() => {
     safeScrollToTop();
@@ -130,6 +162,7 @@ function App() {
     setIsAOSInitialized(true);
   }, [isAOSInitialized]);
 
+  // Loader global pendant le chargement de l'authentification
   if (isLoading) {
     return <Loader />;
   }
@@ -157,20 +190,19 @@ function App() {
         <meta property="og:url" content="https://panameconsulting.vercel.app" />
       </Helmet>
 
-      {isPageLoading && <Loader />}
-      
-      <div key={navigationKey} className={isPageLoading ? 'opacity-50' : 'opacity-100 transition-opacity duration-300'}>
+      <div key={navigationKey}>
         <Routes>
-          {/* Routes publiques */}
+          {/* Page d'accueil avec loader */}
           <Route
             path='/'
             element={
-              <PublicLayout>
+              <AccueilLayout>
                 <Accueil />
-              </PublicLayout>
+              </AccueilLayout>
             }
           />
 
+          {/* Autres pages publiques sans loader */}
           <Route
             path='/services'
             element={
@@ -331,37 +363,25 @@ function App() {
             }
           />
 
-          {/* Routes admin - utilisant le layout imbriqué */}
-          <Route
-            path='/gestionnaire'
-            element={
-              <RequireAdmin>
-                <Navigate to='/gestionnaire/statistiques' replace />
-              </RequireAdmin>
-            }
-          />
-
-          <Route
-            path='/gestionnaire/*'
-            element={
-              <RequireAdmin>
-                <Suspense fallback={<Loader />}>
-                  <AdminLayout />
-                </Suspense>
-              </RequireAdmin>
-            }
-          >
-            <Route index element={<Navigate to='statistiques' replace />} />
-            <Route path='statistiques' element={<AdminDashboard />} />
-            <Route path='utilisateurs' element={<UsersManagement />} />
-            <Route path='messages' element={<AdminMessages />} />
-            <Route path='procedures' element={<AdminProcedure />} />
-            <Route path='profil' element={<AdminProfile />} />
-            <Route path='destinations' element={<AdminDestinations />} />
-            <Route path='rendez-vous' element={<AdminRendezVous />} />
-            {/* Route catch-all pour les sous-routes admin non définies */}
-            <Route path='*' element={<NotFound />} />
-          </Route>
+            <Route
+              path='/gestionnaire/*'
+              element={
+                <RequireAdmin>
+                  <Suspense fallback={<Loader />}>
+                    <AdminLayout />
+                  </Suspense>
+                </RequireAdmin>
+              }
+            >
+              <Route path='statistiques' element={<AdminDashboard />} />
+              <Route path='utilisateurs' element={<UsersManagement />} />
+              <Route path='messages' element={<AdminMessages />} />
+              <Route path='procedures' element={<AdminProcedure />} />
+              <Route path='profil' element={<AdminProfile />} />
+              <Route path='destinations' element={<AdminDestinations />} />
+              <Route path='rendez-vous' element={<AdminRendezVous />} />
+              <Route path='*' element={<NotFound />} />
+            </Route>
 
           {/* Route 404 pour toutes les autres routes */}
           <Route path='*' element={<NotFound />} />
