@@ -226,7 +226,7 @@ function Header(): React.JSX.Element {
     },
     {
       name: 'Mon Profil',
-      path: '/gestionnaire/mon-profil',
+      path: '/gestionnaire/profil',
       icon: <UserIcon className='w-4 h-4' />,
       visible: true,
     },
