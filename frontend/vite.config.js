@@ -34,7 +34,6 @@ export default defineConfig(({ mode }) => ({
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'ui-vendor': ['lucide-react', 'react-toastify'],
-          'date-vendor': ['date-fns', 'date-fns/locale/fr'],
           'admin': [
             './src/pages/admin/AdminDashboard.tsx',
             './src/pages/admin/UsersManagement.tsx',
@@ -42,6 +41,12 @@ export default defineConfig(({ mode }) => ({
             './src/pages/admin/AdminProfile.tsx',
             './src/pages/admin/AdminProcedure.tsx',
             './src/pages/admin/AdminDestinations.tsx'
+          ],
+          'user': [
+            './src/pages/user/rendezvous/MesRendezVous.tsx',
+            './src/pages/user/rendezvous/RendezVous.tsx',
+            './src/pages/user/UserProfile.tsx',
+            './src/pages/user/UserProcedure.tsx',
           ]
         }
       }
