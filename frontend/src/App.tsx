@@ -315,7 +315,7 @@ function App() {
               isAuthenticated ? (
                 <Navigate
                   to={user?.role === 'admin' || user?.isAdmin === true 
-                    ? '/gestionnaire/statistiques' 
+                    ? '/'  // ← MODIFIÉ: Redirige vers la page d'accueil, pas vers /gestionnaire/statistiques
                     : '/'}
                   replace
                 />
@@ -333,7 +333,7 @@ function App() {
               isAuthenticated ? (
                 <Navigate
                   to={user?.role === 'admin' || user?.isAdmin === true 
-                    ? '/gestionnaire/statistiques' 
+                    ? '/'  // ← MODIFIÉ: Redirige vers la page d'accueil, pas vers /gestionnaire/statistiques
                     : '/'}
                   replace
                 />
@@ -351,7 +351,7 @@ function App() {
               isAuthenticated ? (
                 <Navigate
                   to={user?.role === 'admin' || user?.isAdmin === true 
-                    ? '/gestionnaire/statistiques' 
+                    ? '/'  // ← MODIFIÉ: Redirige vers la page d'accueil, pas vers /gestionnaire/statistiques
                     : '/'}
                   replace
                 />
@@ -363,25 +363,104 @@ function App() {
             }
           />
 
+          {/* Routes admin - TOUTES LES ROUTES EXPLICITES */}
+          {/* /gestionnaire seul → NotFound */}
+          <Route path="/gestionnaire" element={<NotFound />} />
+
+          {/* Routes admin avec layout */}
           <Route
-            path='/gestionnaire/*'
+            path='/gestionnaire/statistiques'
             element={
               <RequireAdmin>
                 <Suspense fallback={<Loader />}>
-                  <AdminLayout />
+                  <AdminLayout>
+                    <AdminDashboard />
+                  </AdminLayout>
                 </Suspense>
               </RequireAdmin>
             }
-          >
-            <Route path='statistiques' element={<AdminDashboard />} />
-            <Route path='utilisateurs' element={<UsersManagement />} />
-            <Route path='messages' element={<AdminMessages />} />
-            <Route path='procedures' element={<AdminProcedure />} />
-            <Route path='profil' element={<AdminProfile />} />
-            <Route path='destinations' element={<AdminDestinations />} />
-            <Route path='rendez-vous' element={<AdminRendezVous />} />
-            <Route path='*' element={<NotFound />} />
-          </Route>
+          />
+          
+          <Route
+            path='/gestionnaire/utilisateurs'
+            element={
+              <RequireAdmin>
+                <Suspense fallback={<Loader />}>
+                  <AdminLayout>
+                    <UsersManagement />
+                  </AdminLayout>
+                </Suspense>
+              </RequireAdmin>
+            }
+          />
+          
+          <Route
+            path='/gestionnaire/messages'
+            element={
+              <RequireAdmin>
+                <Suspense fallback={<Loader />}>
+                  <AdminLayout>
+                    <AdminMessages />
+                  </AdminLayout>
+                </Suspense>
+              </RequireAdmin>
+            }
+          />
+          
+          <Route
+            path='/gestionnaire/procedures'
+            element={
+              <RequireAdmin>
+                <Suspense fallback={<Loader />}>
+                  <AdminLayout>
+                    <AdminProcedure />
+                  </AdminLayout>
+                </Suspense>
+              </RequireAdmin>
+            }
+          />
+          
+          <Route
+            path='/gestionnaire/profil'
+            element={
+              <RequireAdmin>
+                <Suspense fallback={<Loader />}>
+                  <AdminLayout>
+                    <AdminProfile />
+                  </AdminLayout>
+                </Suspense>
+              </RequireAdmin>
+            }
+          />
+          
+          <Route
+            path='/gestionnaire/destinations'
+            element={
+              <RequireAdmin>
+                <Suspense fallback={<Loader />}>
+                  <AdminLayout>
+                    <AdminDestinations />
+                  </AdminLayout>
+                </Suspense>
+              </RequireAdmin>
+            }
+          />
+          
+          <Route
+            path='/gestionnaire/rendez-vous'
+            element={
+              <RequireAdmin>
+                <Suspense fallback={<Loader />}>
+                  <AdminLayout>
+                    <AdminRendezVous />
+                  </AdminLayout>
+                </Suspense>
+              </RequireAdmin>
+            }
+          />
+
+          {/* Autres routes sous /gestionnaire → NotFound */}
+          <Route path="/gestionnaire/*" element={<NotFound />} />
 
           {/* Route 404 pour toutes les autres routes */}
           <Route path='*' element={<NotFound />} />
