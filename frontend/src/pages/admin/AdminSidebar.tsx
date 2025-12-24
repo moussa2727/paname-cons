@@ -63,7 +63,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
   const menuItems = [
     {
       name: 'Tableau de bord',
-      path: '/gestionnaire',
+      path: '/gestionnaire/statistiques',
       icon: <LayoutDashboard className='w-5 h-5' />,
       basePath: '/gestionnaire/statistiques',
     },
