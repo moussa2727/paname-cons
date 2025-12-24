@@ -1,134 +1,71 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
-import { createTransport, Transporter } from 'nodemailer';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Rendezvous } from '../schemas/rendezvous.schema';
-import { Procedure, ProcedureStatus, StepStatus } from '../schemas/procedure.schema';
-import { Contact } from '../schemas/contact.schema';
+import { ResendService } from '../config/resend.service';
 
 @Injectable()
-export class NotificationService {
-  private readonly logger = new Logger(NotificationService.name);
-  private transporter: Transporter;
-  private emailServiceAvailable: boolean = false;
-  private fromEmail: string = '';
+export class MailService {
+  private readonly logger = new Logger(MailService.name);
   private readonly appName: string = 'Paname Consulting';
-  private readonly frontendUrl: string = 'https://panameconsulting.vercel.app';
+  private readonly frontendUrl: string;
 
   constructor(
+    private readonly resendService: ResendService,
     private readonly configService: ConfigService
   ) {
-    this.initializeEmailService();
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'https://panameconsulting.vercel.app';
   }
 
   async initManually(): Promise<void> {
-    await this.initializeEmailService();
+    await this.resendService.initManually();
   }
 
-  private async initializeEmailService(): Promise<void> {
-    const emailUser = this.configService.get<string>('EMAIL_USER') || process.env.EMAIL_USER;
-    const emailPass = this.configService.get<string>('EMAIL_PASS') || process.env.EMAIL_PASS;
-
-    if (!emailUser || !emailPass) {
-      this.logger.error('❌ EMAIL_USER ou EMAIL_PASS manquant');
-      this.emailServiceAvailable = false;
-      return;
+  /**
+   * Envoi d'email générique
+   */
+  async sendEmail(options: {
+    to: string;
+    subject: string;
+    html: string;
+    replyTo?: string;
+    cc?: string[];
+    bcc?: string[];
+    attachments?: Array<{
+      filename: string;
+      content?: Buffer | string;
+      path?: string;
+      contentType?: string;
+    }>;
+  }): Promise<boolean> {
+    if (!this.resendService.isServiceAvailable()) {
+      this.logger.warn('📧 Envoi ignoré - service indisponible');
+      return false;
     }
 
-    this.fromEmail = `"${this.appName}" <${emailUser}>`;
-
-    try {
-      this.logger.log('🔄 Initialisation SMTP Gmail (Port 465)...');
-      
-      // Configuration SMTP avec port 465 (SSL)
-      this.transporter = createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
-        auth: {
-          user: emailUser,
-          pass: emailPass
-        },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 10000
-      });
-
-      await this.transporter.verify();
-      this.emailServiceAvailable = true;
-      this.logger.log('✅ Service email opérationnel (SSL:465)');
-      
-    } catch (error: any) {
-      this.logger.error(`❌ Erreur port 465: ${error.message}`);
-      
-      // Essai avec port 587 (TLS)
-      try {
-        this.logger.log('🔄 Tentative port 587 (TLS)...');
-        
-        this.transporter = createTransport({
-          host: 'smtp.gmail.com',
-          port: 587,
-          secure: false,
-          auth: {
-            user: emailUser,
-            pass: emailPass
-          },
-          connectionTimeout: 10000,
-          greetingTimeout: 10000,
-          socketTimeout: 10000,
-          tls: {
-            rejectUnauthorized: false
-          }
-        });
-
-        await this.transporter.verify();
-        this.emailServiceAvailable = true;
-        this.logger.log('✅ Service email opérationnel (TLS:587)');
-        
-      } catch (altError: any) {
-        this.logger.error(`❌ Erreur port 587: ${altError.message}`);
-        this.logger.error('💡 Railway bloque probablement les ports SMTP sortants');
-        this.logger.error('💡 Solutions: 1) Utiliser SendGrid/Resend, 2) Contacter Railway, 3) Utiliser un proxy SMTP');
-        this.emailServiceAvailable = false;
-      }
-    }
+    return await this.resendService.sendEmail({
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+      replyTo: options.replyTo
+    });
   }
 
-  private async sendEmail(
-    to: string, 
-    subject: string, 
-    html: string, 
-    context: string
+  /**
+   * Email de réinitialisation de mot de passe
+   */
+  async sendPasswordReset(
+    email: string, 
+    resetToken: string, 
+    firstName: string = ''
   ): Promise<boolean> {
-    if (!this.emailServiceAvailable || !this.transporter) {
-      this.logger.warn(`📧 "${context}" ignorée - service indisponible`);
-      return false;
-    }
+    const resetUrl = `${this.frontendUrl}/reset-password?token=${resetToken}`;
 
-    try {
-      await this.transporter.sendMail({
-        from: this.fromEmail,
-        to,
-        subject,
-        html
-      });
-      
-      this.logger.log(`📧 Email envoyé (${context}) à: ${this.maskEmail(to)}`);
-      return true;
-      
-    } catch (error: any) {
-      this.logger.error(`❌ Erreur "${context}": ${error.message}`);
-      return false;
-    }
-  }
-
-  private getBaseTemplate(header: string, content: string, firstName: string): string {
-    return `
+    const html = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${this.appName} - ${header}</title>
+        <title>Réinitialisation de mot de passe - ${this.appName}</title>
         <style>
           body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; 
@@ -147,31 +84,18 @@ export class NotificationService {
             border: 1px solid #e5e7eb;
           }
           .header { 
-            background: linear-gradient(135deg, #0ea5e9, #0284c7); 
+            background: linear-gradient(135deg, #0ea5e9, #0369a1); 
             color: white; 
             padding: 40px 30px; 
             text-align: center; 
           }
           .header h1 {
             margin: 0;
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 700;
-          }
-          .header p {
-            margin: 10px 0 0 0;
-            font-size: 16px;
-            opacity: 0.95;
           }
           .content { 
             padding: 40px 30px; 
-          }
-          .footer { 
-            text-align: center; 
-            margin-top: 40px; 
-            padding-top: 25px; 
-            border-top: 1px solid #e5e7eb; 
-            color: #6b7280; 
-            font-size: 13px; 
           }
           .info-box { 
             background: #f8fafc; 
@@ -183,7 +107,7 @@ export class NotificationService {
           .button { 
             display: inline-block; 
             padding: 14px 28px; 
-            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            background: linear-gradient(135deg, #0ea5e9, #0369a1); 
             color: white; 
             text-decoration: none; 
             border-radius: 6px; 
@@ -191,48 +115,53 @@ export class NotificationService {
             font-size: 15px;
             transition: all 0.2s ease;
           }
-          .button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);
-          }
-          .website-link { 
-            color: #0284c7; 
-            text-decoration: none; 
-            font-weight: 500;
-          }
-          .website-link:hover {
-            text-decoration: underline;
-          }
-          .greeting {
-            font-size: 16px;
-            margin-bottom: 25px;
-          }
-          .details {
-            margin: 25px 0;
-            line-height: 1.8;
-          }
-          .detail-item {
-            margin-bottom: 10px;
-          }
-          .detail-label {
-            font-weight: 600;
-            color: #374151;
+          .footer { 
+            margin-top: 40px; 
+            padding-top: 25px; 
+            border-top: 1px solid #e2e8f0; 
+            text-align: center; 
+            color: #6b7280; 
+            font-size: 13px; 
           }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>${this.appName}</h1>
-            <p>${header}</p>
+            <h1>Réinitialisation de mot de passe</h1>
           </div>
           <div class="content">
-            <p class="greeting">Bonjour <strong>${firstName}</strong>,</p>
-            ${content}
+            <p>Bonjour ${firstName ? `<strong>${firstName}</strong>` : 'Cher client'},</p>
+            <p>Vous avez demandé à réinitialiser votre mot de passe. Cliquez sur le bouton ci-dessous pour procéder :</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetUrl}" class="button">Réinitialiser mon mot de passe</a>
+            </div>
+
+            <div class="info-box">
+              <p style="margin: 0; color: #374151; font-size: 14px;">
+                <strong>Informations importantes :</strong>
+              </p>
+              <ul style="margin: 10px 0 0 0; padding-left: 20px; font-size: 14px;">
+                <li>Ce lien est valable pendant <strong>1 heure</strong></li>
+                <li>Ne partagez jamais ce lien avec personne</li>
+                <li>Si vous n'avez pas fait cette demande, ignorez cet email</li>
+              </ul>
+            </div>
+
+            <p style="color: #6b7280; font-size: 14px; text-align: center;">
+              Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur :<br>
+              <code style="background: #f3f4f6; padding: 5px 10px; border-radius: 4px; font-size: 12px; word-break: break-all;">
+                ${resetUrl}
+              </code>
+            </p>
+            
             <div class="footer">
               <p>Cordialement,<br><strong>L'équipe ${this.appName}</strong></p>
-              <p style="margin-top: 15px;">
-                <a href="${this.frontendUrl}" class="website-link">${this.frontendUrl.replace('https://', '')}</a>
+              <p style="margin-top: 10px;">
+                <a href="${this.frontendUrl}" style="color: #0ea5e9; text-decoration: none; font-weight: 500;">
+                  Accéder à notre site
+                </a>
               </p>
             </div>
           </div>
@@ -240,489 +169,452 @@ export class NotificationService {
       </body>
       </html>
     `;
-  }
 
-  // ==================== RENDEZ-VOUS NOTIFICATIONS ====================
-
-  async sendConfirmation(rendezvous: Rendezvous): Promise<boolean> {
-    const dateFormatted = new Date(rendezvous.date).toLocaleDateString("fr-FR", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric"
+    return await this.sendEmail({
+      to: email,
+      subject: `Réinitialisation de votre mot de passe - ${this.appName}`,
+      html,
     });
-
-    const content = `
-      <div class="details">
-        <p>Votre rendez-vous a été confirmé avec succès.</p>
-        
-        <div class="info-box">
-          <h3 style="margin-top: 0; color: #0ea5e9;">Détails du rendez-vous</h3>
-          <div class="detail-item">
-            <span class="detail-label">Date :</span> ${dateFormatted}
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Heure :</span> ${rendezvous.time}
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Lieu :</span> ${this.appName} - Kalaban Coura
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Statut :</span> <span style="color: #10b981; font-weight: 600;">Confirmé</span>
-          </div>
-        </div>
-        
-        <p>Nous vous attendons avec impatience.</p>
-      </div>
-    `;
-
-    return await this.sendEmail(
-      rendezvous.email,
-      "Confirmation de votre rendez-vous - Paname Consulting",
-      this.getBaseTemplate("Rendez-vous Confirmé", content, rendezvous.firstName),
-      "confirmation-rendezvous"
-    );
   }
 
-  async sendReminder(rendezvous: Rendezvous): Promise<boolean> {
-    const content = `
-      <div class="details">
-        <p>Rappel : Vous avez un rendez-vous aujourd'hui.</p>
-        
-        <div class="info-box">
-          <h3 style="margin-top: 0; color: #0ea5e9;">Votre rendez-vous aujourd'hui</h3>
-          <div class="detail-item">
-            <span class="detail-label">Heure :</span> ${rendezvous.time}
+  /**
+   * Email de bienvenue
+   */
+  async sendWelcomeEmail(email: string, firstName: string): Promise<boolean> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Bienvenue chez ${this.appName}</title>
+        <style>
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; 
+            line-height: 1.6; 
+            color: #333; 
+            max-width: 600px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background-color: #f0f9ff;
+          }
+          .container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(14, 165, 233, 0.1);
+            border: 1px solid #bae6fd;
+          }
+          .header { 
+            background: linear-gradient(135deg, #0ea5e9, #0369a1); 
+            color: white; 
+            padding: 50px 30px; 
+            text-align: center; 
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+          }
+          .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 16px;
+          }
+          .content { 
+            padding: 40px 30px; 
+          }
+          .welcome-box { 
+            background: linear-gradient(135deg, #f0f9ff, #e0f2fe); 
+            padding: 30px; 
+            border-radius: 8px; 
+            margin: 25px 0; 
+            text-align: center;
+            border: 1px solid #bae6fd;
+          }
+          .features {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 30px 0;
+          }
+          .feature {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+          }
+          .feature-icon {
+            background: #0ea5e9;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+          }
+          .button { 
+            display: inline-block; 
+            padding: 14px 28px; 
+            background: linear-gradient(135deg, #0ea5e9, #0369a1); 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: 600;
+            font-size: 15px;
+            transition: all 0.2s ease;
+          }
+          .footer { 
+            margin-top: 40px; 
+            padding-top: 25px; 
+            border-top: 1px solid #e2e8f0; 
+            text-align: center; 
+            color: #6b7280; 
+            font-size: 13px; 
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Bienvenue chez ${this.appName}</h1>
+            <p>Votre aventure internationale commence ici</p>
           </div>
-          <div class="detail-item">
-            <span class="detail-label">Lieu :</span> ${this.appName} - Kalaban Coura
-          </div>
-        </div>
-        
-        <p>Nous sommes impatients de vous rencontrer.</p>
-      </div>
-    `;
-
-    return await this.sendEmail(
-      rendezvous.email,
-      "Rappel - Rendez-vous aujourd'hui - Paname Consulting",
-      this.getBaseTemplate("Rappel de Rendez-vous", content, rendezvous.firstName),
-      "rappel-rendezvous"
-    );
-  }
-
-  async sendStatusUpdate(rendezvous: Rendezvous): Promise<boolean> {
-    let content = "";
-    let subject = "";
-    let header = "Mise à jour de Rendez-vous";
-
-    switch (rendezvous.status) {
-      case "Confirmé":
-        subject = "Rendez-vous Confirmé - Paname Consulting";
-        content = `
-          <div class="details">
-            <p>Votre rendez-vous a été confirmé.</p>
+          <div class="content">
+            <p>Bonjour <strong>${firstName}</strong>,</p>
+            <p>Nous sommes ravis de vous accueillir dans la communauté <strong>${this.appName}</strong> !</p>
             
-            <div class="info-box">
-              <h3 style="margin-top: 0; color: #0ea5e9;">Rendez-vous confirmé</h3>
-              <div class="detail-item">
-                <span class="detail-label">Date :</span> ${new Date(rendezvous.date).toLocaleDateString("fr-FR")}
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Heure :</span> ${rendezvous.time}
-              </div>
+            <div class="welcome-box">
+              <p style="margin: 0 0 15px 0; font-size: 18px; font-weight: 600; color: #0369a1;">
+                🎉 Votre compte a été créé avec succès
+              </p>
+              <p style="margin: 0; font-size: 15px;">
+                Vous pouvez maintenant accéder à toutes les fonctionnalités de votre espace personnel.
+              </p>
             </div>
-          </div>
-        `;
-        break;
 
-      case "Annulé":
-        subject = "Rendez-vous Annulé - Paname Consulting";
-        header = "Rendez-vous Annulé";
-        const cancelledBy = rendezvous.cancelledBy === 'admin' ? 'par notre équipe' : 'à votre demande';
-        content = `
-          <div class="details">
-            <p>Votre rendez-vous a été annulé ${cancelledBy}.</p>
-            
-            <div class="info-box">
-              <h3 style="margin-top: 0; color: #0ea5e9;">Rendez-vous annulé</h3>
-              <div class="detail-item">
-                <span class="detail-label">Date prévue :</span> ${new Date(rendezvous.date).toLocaleDateString("fr-FR")}
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Heure prévue :</span> ${rendezvous.time}
-              </div>
-              ${rendezvous.cancellationReason ? `
-                <div class="detail-item">
-                  <span class="detail-label">Raison :</span> ${rendezvous.cancellationReason}
+            <div class="features">
+              <div class="feature">
+                <div class="feature-icon">✓</div>
+                <div>
+                  <strong>Prendre rendez-vous</strong> avec nos conseillers experts
                 </div>
-              ` : ""}
+              </div>
+              <div class="feature">
+                <div class="feature-icon">✓</div>
+                <div>
+                  <strong>Suivre votre procédure</strong> étape par étape
+                </div>
+              </div>
+              <div class="feature">
+                <div class="feature-icon">✓</div>
+                <div>
+                  <strong>Recevoir des notifications</strong> sur l'avancement de votre dossier
+                </div>
+              </div>
+              <div class="feature">
+                <div class="feature-icon">✓</div>
+                <div>
+                  <strong>Gérer vos documents</strong> en toute sécurité
+                </div>
+              </div>
             </div>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${this.frontendUrl}" class="button">Accéder à mon espace personnel</a>
+            </div>
+
+            <p>Nous sommes impatients de vous accompagner dans votre projet d'études à l'international et de vous aider à réaliser vos ambitions.</p>
             
-            <div style="text-align: center; margin-top: 30px;">
-              <a href="${this.frontendUrl}" class="button">Reprogrammer un rendez-vous</a>
+            <div class="footer">
+              <p>Cordialement,<br><strong>L'équipe ${this.appName}</strong></p>
+              <p style="margin-top: 15px;">
+                Pour toute question, n'hésitez pas à nous contacter à l'adresse :<br>
+                <a href="mailto:support@panameconsulting.com" style="color: #0ea5e9; text-decoration: none;">
+                  support@panameconsulting.com
+                </a>
+              </p>
             </div>
           </div>
-        `;
-        break;
+        </div>
+      </body>
+      </html>
+    `;
 
-      case "Terminé":
-        header = "Rendez-vous Terminé";
-        if (rendezvous.avisAdmin === "Favorable") {
-          subject = "Rendez-vous Terminé - Avis Favorable - Paname Consulting";
-          content = `
-            <div class="details">
-              <p>Votre rendez-vous s'est déroulé avec succès.</p>
-              
-              <div class="info-box">
-                <h3 style="margin-top: 0; color: #10b981;">Avis favorable</h3>
-                <p>Votre dossier a reçu un avis favorable.</p>
-                <p>Votre procédure d'admission a été lancée.</p>
-              </div>
-              
-              <p>Félicitations pour cette première étape réussie.</p>
-            </div>
-          `;
-        } else if (rendezvous.avisAdmin === "Défavorable") {
-          subject = "Rendez-vous Terminé - Paname Consulting";
-          content = `
-            <div class="details">
-              <p>Votre rendez-vous est maintenant terminé.</p>
-              
-              <div class="info-box">
-                <h3 style="margin-top: 0; color: #ef4444;">Compte rendu</h3>
-                <p>Votre dossier n'a pas reçu un avis favorable pour le programme envisagé.</p>
-              </div>
-              
-              <p>Notre équipe reste à votre disposition pour étudier d'autres alternatives.</p>
-            </div>
-          `;
-        }
-        break;
-
-      case "En attente":
-        subject = "Statut Modifié - En Attente - Paname Consulting";
-        header = "Rendez-vous en Attente";
-        content = `
-          <div class="details">
-            <p>Votre demande de rendez-vous est en attente de confirmation.</p>
-            
-            <div class="info-box">
-              <h3 style="margin-top: 0; color: #f59e0b;">En attente de confirmation</h3>
-              <p>Nous traitons votre demande dans les meilleurs délais.</p>
-            </div>
-          </div>
-        `;
-        break;
-    }
-
-    if (content && subject) {
-      return await this.sendEmail(
-        rendezvous.email,
-        subject,
-        this.getBaseTemplate(header, content, rendezvous.firstName),
-        `mise-à-jour-statut:${rendezvous.status}`
-      );
-    }
-
-    return false;
+    return await this.sendEmail({
+      to: email,
+      subject: `Bienvenue chez ${this.appName}`,
+      html,
+    });
   }
 
-  // ==================== PROCEDURE NOTIFICATIONS ====================
-
-  async sendProcedureUpdate(procedure: Procedure): Promise<boolean> {
-    const currentStep = procedure.steps.find(s => s.statut === StepStatus.IN_PROGRESS);
-    const completedSteps = procedure.steps.filter(s => s.statut === StepStatus.COMPLETED).length;
-    const totalSteps = procedure.steps.length;
-    const progress = Math.round((completedSteps / totalSteps) * 100);
-
-    let content = "";
-    let header = "Mise à jour de Procédure";
-    let subject = "Mise à jour de votre procédure - Paname Consulting";
-
-    if (currentStep) {
-      content = `
-        <div class="details">
-          <p>Votre procédure d'admission avance.</p>
-          
-          <div class="info-box">
-            <h3 style="margin-top: 0; color: #0ea5e9;">Avancement</h3>
-            <div class="detail-item">
-              <span class="detail-label">Progression :</span> 
-              <div style="background: #e5e7eb; height: 8px; border-radius: 4px; margin: 5px 0; width: 100%; overflow: hidden;">
-                <div style="background: linear-gradient(90deg, #0ea5e9, #0284c7); height: 100%; width: ${progress}%;"></div>
-              </div>
-              <span style="font-weight: 600;">${progress}%</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Étape en cours :</span> ${currentStep.nom}
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Statut :</span> ${procedure.statut}
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Destination :</span> ${procedure.destination}
-            </div>
-          </div>
-          
-          <p>Notre équipe travaille activement sur votre dossier.</p>
-        </div>
-      `;
-    } else if (procedure.statut === ProcedureStatus.COMPLETED) {
-      subject = "Procédure Terminée - Paname Consulting";
-      header = "Procédure Finalisée";
-      content = `
-        <div class="details">
-          <p>Votre procédure d'admission est maintenant terminée avec succès.</p>
-          
-          <div class="info-box">
-            <h3 style="margin-top: 0; color: #10b981;">Procédure finalisée</h3>
-            <div class="detail-item">
-              <span class="detail-label">Statut :</span> <span style="color: #10b981; font-weight: 600;">${procedure.statut}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Destination :</span> ${procedure.destination}
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Filière :</span> ${procedure.filiere}
-            </div>
-          </div>
-          
-          <p>Félicitations ! Vous avez franchi toutes les étapes nécessaires.</p>
-        </div>
-      `;
-    } else if (procedure.statut === ProcedureStatus.REJECTED) {
-      subject = "Procédure Rejetée - Paname Consulting";
-      header = "Procédure Rejetée";
-      content = `
-        <div class="details">
-          <p>Votre procédure d'admission a été rejetée.</p>
-          
-          <div class="info-box">
-            <h3 style="margin-top: 0; color: #ef4444;">Décision</h3>
-            <div class="detail-item">
-              <span class="detail-label">Statut :</span> <span style="color: #ef4444; font-weight: 600;">${procedure.statut}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Destination :</span> ${procedure.destination}
-            </div>
-            ${procedure.raisonRejet ? `
-              <div class="detail-item">
-                <span class="detail-label">Raison :</span> ${procedure.raisonRejet}
-              </div>
-            ` : ""}
-          </div>
-          
-          <p>Notre équipe reste à votre disposition pour discuter des alternatives.</p>
-        </div>
-      `;
-    }
-
-    if (content) {
-      return await this.sendEmail(
-        procedure.email,
-        subject,
-        this.getBaseTemplate(header, content, procedure.prenom),
-        `mise-à-jour-procedure:${procedure.statut}`
-      );
-    }
-
-    return false;
-  }
-
-  async sendProcedureCreation(
-    procedure: Procedure,
-    rendezvous: Rendezvous
+  /**
+   * Email de vérification d'adresse email
+   */
+  async sendVerificationEmail(
+    email: string, 
+    verificationToken: string, 
+    firstName: string
   ): Promise<boolean> {
-    const content = `
-      <div class="details">
-        <p>Suite à l'avis favorable de votre rendez-vous, votre procédure d'admission a été lancée.</p>
-        
-        <div class="info-box">
-          <h3 style="margin-top: 0; color: #10b981;">Votre procédure est lancée</h3>
-          <div class="detail-item">
-            <span class="detail-label">Destination :</span> ${procedure.destination}
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Filière :</span> ${procedure.filiere}
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Date du rendez-vous :</span> ${new Date(rendezvous.date).toLocaleDateString("fr-FR")}
-          </div>
-        </div>
-        
-        <p>Notre équipe va désormais vous accompagner pas à pas.</p>
-      </div>
-    `;
+    const verifyUrl = `${this.frontendUrl}/verify-email?token=${verificationToken}`;
 
-    return await this.sendEmail(
-      procedure.email,
-      "Votre procédure est lancée - Paname Consulting",
-      this.getBaseTemplate("Procédure Créée", content, procedure.prenom),
-      "création-procédure"
-    );
-  }
-
-  async sendCancellationNotification(procedure: Procedure): Promise<boolean> {
-    const content = `
-      <div class="details">
-        <p>Votre procédure d'admission a été annulée.</p>
-        
-        <div class="info-box">
-          <h3 style="margin-top: 0; color: #ef4444;">Annulation</h3>
-          <div class="detail-item">
-            <span class="detail-label">Destination :</span> ${procedure.destination}
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Vérification de votre adresse email - ${this.appName}</title>
+        <style>
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; 
+            line-height: 1.6; 
+            color: #333; 
+            max-width: 600px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background-color: #f0fdf4;
+          }
+          .container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(5, 150, 105, 0.1);
+            border: 1px solid #a7f3d0;
+          }
+          .header { 
+            background: linear-gradient(135deg, #10b981, #059669); 
+            color: white; 
+            padding: 40px 30px; 
+            text-align: center; 
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+          }
+          .content { 
+            padding: 40px 30px; 
+          }
+          .button { 
+            display: inline-block; 
+            padding: 14px 28px; 
+            background: linear-gradient(135deg, #10b981, #059669); 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: 600;
+            font-size: 15px;
+            transition: all 0.2s ease;
+          }
+          .verification-box {
+            background: #f0fdf4;
+            padding: 25px;
+            border-radius: 8px;
+            border: 1px solid #a7f3d0;
+            margin: 25px 0;
+            text-align: center;
+          }
+          .footer { 
+            margin-top: 40px; 
+            padding-top: 25px; 
+            border-top: 1px solid #e2e8f0; 
+            text-align: center; 
+            color: #6b7280; 
+            font-size: 13px; 
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Vérification de votre adresse email</h1>
           </div>
-          ${procedure.deletionReason ? `
-            <div class="detail-item">
-              <span class="detail-label">Raison :</span> ${procedure.deletionReason}
+          <div class="content">
+            <p>Bonjour <strong>${firstName}</strong>,</p>
+            <p>Pour finaliser votre inscription et sécuriser votre compte, veuillez vérifier votre adresse email :</p>
+            
+            <div class="verification-box">
+              <p style="margin: 0 0 20px 0; font-size: 16px; font-weight: 600; color: #059669;">
+                Cliquez sur le bouton ci-dessous pour vérifier votre email
+              </p>
+              <a href="${verifyUrl}" class="button">Vérifier mon adresse email</a>
             </div>
-          ` : ""}
+
+            <p style="color: #6b7280; font-size: 14px;">
+              <strong>Pourquoi vérifier votre email ?</strong><br>
+              Cela nous permet de :<br>
+              • Sécuriser votre compte<br>
+              • Vous envoyer des notifications importantes<br>
+              • Assurer que nous pouvons vous contacter
+            </p>
+
+            <p style="color: #9ca3af; font-size: 14px; text-align: center;">
+              Si le bouton ne fonctionne pas, copiez-collez ce lien :<br>
+              <code style="background: #f3f4f6; padding: 5px 10px; border-radius: 4px; font-size: 12px; word-break: break-all;">
+                ${verifyUrl}
+              </code>
+            </p>
+
+            <div class="footer">
+              <p>Cordialement,<br><strong>L'équipe ${this.appName}</strong></p>
+              <p style="margin-top: 10px; font-size: 12px; color: #9ca3af;">
+                Si vous n'avez pas créé de compte, vous pouvez ignorer cet email en toute sécurité.
+              </p>
+            </div>
+          </div>
         </div>
-        
-        <p>Notre équipe reste à votre disposition pour toute question.</p>
-      </div>
+      </body>
+      </html>
     `;
 
-    return await this.sendEmail(
-      procedure.email,
-      "Annulation de votre procédure - Paname Consulting",
-      this.getBaseTemplate("Procédure Annulée", content, procedure.prenom),
-      "annulation-procédure"
-    );
+    return await this.sendEmail({
+      to: email,
+      subject: `Vérification de votre adresse email - ${this.appName}`,
+      html,
+    });
   }
 
-  // ==================== CONTACT NOTIFICATIONS ====================
-
-  async sendContactReply(contact: Contact, reply: string): Promise<boolean> {
-    const content = `
-      <div class="details">
-        <p>Nous vous répondons à votre message :</p>
-        
-        <div class="info-box">
-          <div style="white-space: pre-line; line-height: 1.7;">${reply}</div>
-        </div>
-        
-        <p>Nous espérons que cette réponse correspond à vos attentes.</p>
-      </div>
-    `;
-
-    return await this.sendEmail(
-      contact.email,
-      "Réponse à votre message - Paname Consulting",
-      this.getBaseTemplate("Réponse de notre équipe", content, contact.firstName || "Cher client"),
-      "réponse-contact"
-    );
-  }
-
-  async sendContactNotification(contact: Contact): Promise<boolean> {
-    const adminEmail = this.configService.get<string>('EMAIL_USER') || process.env.EMAIL_USER;
+  /**
+   * Email d'alerte admin
+   */
+  async sendAdminAlert(subject: string, message: string): Promise<boolean> {
+    const adminEmail = this.configService.get<string>('EMAIL_USER');
+    
     if (!adminEmail) {
-      this.logger.warn("📧 Email admin non configuré");
+      this.logger.warn('📧 Email admin non configuré');
       return false;
     }
 
-    const content = `
-      <div class="details">
-        <p>Nouveau message de contact reçu :</p>
-        
-        <div class="info-box">
-          <h3 style="margin-top: 0; color: #0ea5e9;">Informations</h3>
-          <div class="detail-item">
-            <span class="detail-label">Nom :</span> ${contact.firstName} ${contact.lastName}
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Alerte Administration - ${this.appName}</title>
+        <style>
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; 
+            line-height: 1.6; 
+            color: #333; 
+            max-width: 600px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background-color: #fef2f2;
+          }
+          .container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(239, 68, 68, 0.1);
+            border: 1px solid #fecaca;
+          }
+          .header { 
+            background: linear-gradient(135deg, #ef4444, #dc2626); 
+            color: white; 
+            padding: 30px 20px; 
+            text-align: center; 
+          }
+          .header h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 700;
+          }
+          .content { 
+            padding: 30px; 
+          }
+          .alert-box { 
+            background: #fef2f2; 
+            padding: 25px; 
+            border-radius: 8px; 
+            border-left: 4px solid #ef4444; 
+            margin: 20px 0; 
+          }
+          .alert-details {
+            background: #fff;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            padding: 20px;
+            margin: 15px 0;
+          }
+          .footer { 
+            margin-top: 30px; 
+            padding-top: 20px; 
+            border-top: 1px solid #e2e8f0; 
+            text-align: center; 
+            color: #6b7280; 
+            font-size: 11px; 
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2>⚠️ Alerte Administration</h2>
           </div>
-          <div class="detail-item">
-            <span class="detail-label">Email :</span> ${contact.email}
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Date :</span> ${new Date().toLocaleString("fr-FR")}
+          <div class="content">
+            <div class="alert-box">
+              <p style="margin: 0 0 15px 0; font-weight: 600; color: #dc2626;">
+                Une alerte nécessitant votre attention a été déclenchée
+              </p>
+              
+              <div class="alert-details">
+                <p style="margin: 0 0 10px 0;">
+                  <strong>Sujet :</strong> ${subject}
+                </p>
+                <p style="margin: 0 0 10px 0;">
+                  <strong>Date :</strong> ${new Date().toLocaleString('fr-FR')}
+                </p>
+                <p style="margin: 0 0 10px 0;">
+                  <strong>Niveau :</strong> <span style="color: #dc2626; font-weight: 600;">ALERTE</span>
+                </p>
+              </div>
+
+              <div style="background: #fff; border: 1px solid #fecaca; border-radius: 6px; padding: 15px; margin: 15px 0;">
+                <p style="margin: 0; white-space: pre-line; font-family: monospace; font-size: 13px; line-height: 1.5;">
+                  ${message}
+                </p>
+              </div>
+            </div>
+            
+            <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px; color: #92400e;">
+                <strong>Action recommandée :</strong> Vérifier immédiatement la cause de cette alerte et prendre les mesures nécessaires.
+              </p>
+            </div>
+            
+            <div class="footer">
+              <p>Alerte générée automatiquement par le système ${this.appName}</p>
+              <p style="margin-top: 5px; font-size: 10px;">
+                ID: ${Date.now()}-${Math.random().toString(36).substring(2, 9)}
+              </p>
+            </div>
           </div>
         </div>
-        
-        <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #8b5cf6;">
-          <h4 style="margin-top: 0; color: #8b5cf6;">Message :</h4>
-          <div style="white-space: pre-line; line-height: 1.7;">${contact.message}</div>
-        </div>
-        
-        <p>Pour répondre : Répondre directement à cet email.</p>
-      </div>
+      </body>
+      </html>
     `;
 
-    return await this.sendEmail(
-      adminEmail,
-      'Nouveau message de contact - Paname Consulting',
-      this.getBaseTemplate("Nouveau Message Contact", content, "Équipe"),
-      'notification-contact-admin'
-    );
+    return await this.sendEmail({
+      to: adminEmail,
+      subject: `[ALERTE] ${subject}`,
+      html,
+    });
   }
 
-  async sendContactConfirmation(contact: Contact): Promise<boolean> {
-    const content = `
-      <div class="details">
-        <p>Nous accusons réception de votre message.</p>
-        
-        <div class="info-box">
-          <p>Votre demande a bien été enregistrée et sera traitée dans les plus brefs délais.</p>
-          <div class="detail-item">
-            <span class="detail-label">Délai de réponse :</span> 48 heures ouvrables maximum
-          </div>
-        </div>
-        
-        <p>Un membre de notre équipe vous contactera rapidement.</p>
-      </div>
-    `;
-
-    return await this.sendEmail(
-      contact.email,
-      'Confirmation de votre message - Paname Consulting',
-      this.getBaseTemplate("Confirmation de Réception", content, contact.firstName || "Cher client"),
-      'confirmation-contact'
-    );
+  /**
+   * Vérifie si le service est disponible
+   */
+  getStatus(): { available: boolean; message: string } {
+    return this.resendService.getStatus();
   }
 
-  // ==================== UTILITY METHODS ====================
-
-  private maskEmail(email: string): string {
-    if (!email || !email.includes('@')) return '***@***';
-    const [name, domain] = email.split('@');
-    const maskedName = name.length > 2 
-      ? name.substring(0, 2) + '***' + (name.length > 3 ? name.substring(name.length - 1) : '')
-      : '***';
-    return `${maskedName}@${domain}`;
-  }
-
-  getEmailStatus(): { available: boolean; message: string } {
-    return {
-      available: this.emailServiceAvailable,
-      message: this.emailServiceAvailable 
-        ? '📧 Service email disponible' 
-        : '❌ Service email indisponible - vérifiez EMAIL_USER et EMAIL_PASS dans les variables d\'environnement'
-    };
-  }
-
-  // Nouvelle méthode pour tester la connexion
+  /**
+   * Teste la connexion
+   */
   async testConnection(): Promise<{ success: boolean; message: string }> {
-    try {
-      if (!this.transporter) {
-        await this.initializeEmailService();
-      }
-      
-      if (this.emailServiceAvailable) {
-        return {
-          success: true,
-          message: '✅ Service email opérationnel'
-        };
-      } else {
-        return {
-          success: false,
-          message: '❌ Service email non disponible'
-        };
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        message: `❌ Erreur de test: ${error.message}`
-      };
-    }
+    return await this.resendService.testConnection();
   }
 }
