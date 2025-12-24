@@ -3,24 +3,24 @@ import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  FiCalendar,
-  FiClock,
-  FiMapPin,
-  FiBook,
-  FiAward,
-  FiCheckCircle,
-  FiXCircle,
-  FiAlertCircle,
-  FiTrash2,
-  FiChevronLeft,
-  FiChevronRight,
-  FiRefreshCw,
-  FiInfo,
-  FiStar,
-  FiFilter,
-  FiX,
-  FiAlertTriangle,
-} from 'react-icons/fi';
+  Calendar,
+  Clock,
+  MapPin,
+  Book,
+  Award,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  Info,
+  Star,
+  Filter,
+  X,
+  AlertTriangle,
+} from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { UserHeader } from '../../../components/user/UserHeader';
 import { 
@@ -134,9 +134,9 @@ const MesRendezvous = () => {
   // Vérification d'authentification
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-sky-50 to-white">
         <div className="text-center">
-          <div className="animate-pulse rounded-full h-16 w-16 bg-gradient-to-r from-sky-400 to-blue-500 mx-auto mb-4 flex items-center justify-center">
+          <div className="animate-pulse rounded-full h-16 w-16 bg-linear-to-r from-sky-400 to-blue-500 mx-auto mb-4 flex items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent"></div>
           </div>
           <p className="text-gray-600 animate-pulse">Chargement de l'authentification...</p>
@@ -247,7 +247,7 @@ const MesRendezvous = () => {
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="p-1.5 bg-red-50 rounded-lg">
-              <FiAlertTriangle className="h-4 w-4 text-red-600" />
+              <AlertTriangle className="h-4 w-4 text-red-600" />
             </div>
             <h3 className="text-sm font-semibold text-gray-900">Annuler le rendez-vous</h3>
           </div>
@@ -255,14 +255,14 @@ const MesRendezvous = () => {
             onClick={() => setShowCancelPopover(null)}
             className="text-gray-400 hover:text-gray-500 transition-colors"
           >
-            <FiX className="h-4 w-4" />
+            <X className="h-4 w-4" />
           </button>
         </div>
         
         <div className="space-y-3">
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
             <div className="flex items-start gap-2">
-              <FiAlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
               <div>
                 <p className="text-xs text-amber-800 font-medium">Cette action est irréversible</p>
                 <p className="text-xs text-amber-700 mt-1">
@@ -304,7 +304,7 @@ const MesRendezvous = () => {
               </>
             ) : (
               <>
-                <FiTrash2 className="h-3 w-3" />
+                <Trash2 className="h-3 w-3" />
                 Confirmer
               </>
             )}
@@ -330,17 +330,17 @@ const MesRendezvous = () => {
 
   const renderStatusBadge = (status: string) => (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusColors[status] || 'bg-gray-100 text-gray-800 border-gray-300'}`}>
-      {status === 'En attente' && <FiAlertCircle className="mr-1 h-3 w-3" />}
-      {status === 'Confirmé' && <FiCheckCircle className="mr-1 h-3 w-3" />}
-      {status === 'Terminé' && <FiCheckCircle className="mr-1 h-3 w-3" />}
-      {status === 'Annulé' && <FiXCircle className="mr-1 h-3 w-3" />}
+      {status === 'En attente' && <AlertCircle className="mr-1 h-3 w-3" />}
+      {status === 'Confirmé' && <CheckCircle className="mr-1 h-3 w-3" />}
+      {status === 'Terminé' && <CheckCircle className="mr-1 h-3 w-3" />}
+      {status === 'Annulé' && <XCircle className="mr-1 h-3 w-3" />}
       {status}
     </span>
   );
 
   const renderAvisBadge = (avis: string) => (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${avisColors[avis] || 'bg-gray-100 text-gray-800 border-gray-300'}`}>
-      <FiStar className="mr-1 h-3 w-3" />
+      <Star className="mr-1 h-3 w-3" />
       {avis}
     </span>
   );
@@ -359,24 +359,24 @@ const MesRendezvous = () => {
 
           <div className="space-y-2">
             <div className="flex items-center text-sm text-gray-700">
-              <FiCalendar className="mr-2 h-4 w-4 text-sky-500" />
+              <Calendar className="mr-2 h-4 w-4 text-sky-500" />
               <span className="font-medium">{UserRendezvousService.formatDate(rdv.date)}</span>
-              <FiClock className="ml-4 mr-2 h-4 w-4 text-sky-500" />
+              <Clock className="ml-4 mr-2 h-4 w-4 text-sky-500" />
               <span className="font-medium">{UserRendezvousService.formatTime(rdv.time)}</span>
             </div>
 
             <div className="flex items-center text-sm text-gray-600">
-              <FiMapPin className="mr-2 h-4 w-4 text-sky-500" />
+              <MapPin className="mr-2 h-4 w-4 text-sky-500" />
               <span>{UserRendezvousService.getEffectiveDestination(rdv)}</span>
             </div>
 
             <div className="flex items-center text-sm text-gray-600">
-              <FiBook className="mr-2 h-4 w-4 text-sky-500" />
+              <Book className="mr-2 h-4 w-4 text-sky-500" />
               <span>{UserRendezvousService.getEffectiveFiliere(rdv)}</span>
             </div>
 
             <div className="flex items-center text-sm text-gray-600">
-              <FiAward className="mr-2 h-4 w-4 text-sky-500" />
+              <Award className="mr-2 h-4 w-4 text-sky-500" />
               <span>{rdv.niveauEtude}</span>
             </div>
           </div>
@@ -397,7 +397,7 @@ const MesRendezvous = () => {
                   </>
                 ) : (
                   <>
-                    <FiTrash2 className="mr-2 h-3 w-3" />
+                    <Trash2 className="mr-2 h-3 w-3" />
                     Annuler
                   </>
                 )}
@@ -412,7 +412,7 @@ const MesRendezvous = () => {
           {rdv.status === 'Terminé' && rdv.avisAdmin && (
             <div className="text-xs text-gray-500">
               <div className="flex items-center">
-                <FiInfo className="mr-1 h-3 w-3" />
+                <Info className="mr-1 h-3 w-3" />
                 Avis administrateur reçu
               </div>
             </div>
@@ -453,6 +453,7 @@ const MesRendezvous = () => {
       <Helmet>
         <title>{currentPage.pageTitle}</title>
         <meta name="description" content={currentPage.description} />
+        <meta name="robots" content="noindex,nofollow" />
       </Helmet>
 
       <UserHeader
@@ -484,7 +485,7 @@ const MesRendezvous = () => {
 
       {/* Contenu principal */}
       <div 
-        className="min-h-screen bg-gradient-to-b from-sky-50 to-white"
+        className="min-h-screen bg-linear-to-b from-sky-50 to-white"
         style={{ paddingTop: `${headerHeight}px` }}
       >
         <div className="max-w-4xl mx-auto px-4 py-8">
@@ -492,7 +493,7 @@ const MesRendezvous = () => {
           <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <FiFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <select
                   value={selectedStatus}
                   onChange={(e) => {
@@ -515,7 +516,7 @@ const MesRendezvous = () => {
                 disabled={loading}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 Actualiser
               </button>
             </div>
@@ -524,7 +525,7 @@ const MesRendezvous = () => {
               onClick={() => navigate('/rendez-vous')}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
             >
-              <FiCalendar className="h-4 w-4" />
+              <Calendar className="h-4 w-4" />
               Nouveau rendez-vous
             </button>
           </div>
@@ -550,7 +551,7 @@ const MesRendezvous = () => {
           {!loading && rendezvous.length === 0 && (
             <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
               <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
-                <FiCalendar className="h-8 w-8 text-gray-400" />
+                <Calendar className="h-8 w-8 text-gray-400" />
               </div>
               <h3 className="text-lg font-medium text-gray-800 mb-2">
                 Aucun rendez-vous trouvé
@@ -564,7 +565,7 @@ const MesRendezvous = () => {
                 onClick={() => navigate('/rendez-vous')}
                 className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
               >
-                <FiCalendar className="h-4 w-4" />
+                <Calendar className="h-4 w-4" />
                 Prendre un rendez-vous
               </button>
             </div>
@@ -584,7 +585,7 @@ const MesRendezvous = () => {
                   disabled={pagination.page === 1}
                   className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <FiChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4" />
                   Précédent
                 </button>
 
@@ -605,7 +606,7 @@ const MesRendezvous = () => {
                       <button
                         key={pageNum}
                         onClick={() => handlePageChange(pageNum)}
-                        className={`min-w-[2.5rem] px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                        className={`min-w-10 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                           pagination.page === pageNum
                             ? 'bg-sky-600 text-white'
                             : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
@@ -623,7 +624,7 @@ const MesRendezvous = () => {
                   className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Suivant
-                  <FiChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -632,7 +633,7 @@ const MesRendezvous = () => {
           {/* Informations */}
           <div className="mt-8 bg-sky-50 border border-sky-200 rounded-lg p-4">
             <h3 className="font-medium text-sky-800 mb-2 flex items-center">
-              <FiInfo className="mr-2 h-4 w-4" />
+              <Info className="mr-2 h-4 w-4" />
               Informations importantes
             </h3>
             <ul className="text-sm text-sky-700 space-y-1">

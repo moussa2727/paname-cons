@@ -438,7 +438,7 @@ function Header(): React.JSX.Element {
                                 disabled={item.disabled}
                                 aria-disabled={item.disabled}
                               >
-                                <span className='flex-shrink-0 text-gray-400'>
+                                <span className='shrink-0 text-gray-400'>
                                   {item.icon}
                                 </span>
                                 <span className='ml-3 truncate'>{item.name}</span>
@@ -459,7 +459,7 @@ function Header(): React.JSX.Element {
                                 disabled={item.disabled}
                                 aria-disabled={item.disabled}
                               >
-                                <span className='flex-shrink-0'>
+                                <span className='shrink-0'>
                                   {item.icon}
                                 </span>
                                 <span className='ml-3 truncate'>{item.name}</span>
@@ -587,7 +587,7 @@ function Header(): React.JSX.Element {
                                 disabled={item.disabled}
                                 aria-disabled={item.disabled}
                               >
-                                <span className='flex-shrink-0 text-sky-500'>
+                                <span className='shrink-0 text-sky-500'>
                                   {item.icon}
                                 </span>
                                 <span className='ml-3 flex-1 text-left font-semibold'>{item.name}</span>
@@ -627,7 +627,7 @@ function Header(): React.JSX.Element {
                                 : 'text-gray-600 hover:bg-gray-50 hover:text-sky-500'
                             }`}
                           >
-                            <span className={`flex-shrink-0 ${
+                            <span className={`shrink-0 ${
                               location.pathname === item.path ? 'text-sky-500' : 'text-gray-400'
                             }`}>
                               {item.icon}

@@ -11,20 +11,20 @@ import { useNavigate } from 'react-router-dom';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 import {
-  FiUser,
-  FiMail,
-  FiPhone,
-  FiCalendar,
-  FiBook,
-  FiChevronRight,
-  FiChevronLeft,
-  FiGlobe,
-  FiTarget,
-  FiAward,
-  FiWatch,
-  FiCheckCircle,
-} from 'react-icons/fi';
-import { FaGraduationCap } from 'react-icons/fa';
+  User,
+  Mail,
+  Phone,
+  Calendar as CalendarIcon,
+  Book,
+  ChevronRight,
+  ChevronLeft,
+  Globe,
+  Target,
+  Award,
+  Clock,
+  CheckCircle,
+  GraduationCap,
+} from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 
 interface Destination {
@@ -601,7 +601,7 @@ const RendezVous = () => {
     <div data-aos='fade-up' className='space-y-3'>
       <h2 className='text-md font-semibold text-sky-600'>
         <span className='flex items-center gap-2'>
-          <FiUser className='text-sky-500 h-4 w-4' />
+          <User className='text-sky-500 h-4 w-4' />
           Informations personnelles
         </span>
       </h2>
@@ -657,7 +657,7 @@ const RendezVous = () => {
             className='mb-1 block text-xs font-medium text-gray-700'
           >
             <span className='flex items-center gap-1'>
-              <FiMail className='text-sky-500 h-3 w-3' />
+              <Mail className='text-sky-500 h-3 w-3' />
               Email *
             </span>
           </label>
@@ -681,7 +681,7 @@ const RendezVous = () => {
             className='mb-1 block text-xs font-medium text-gray-700'
           >
             <span className='flex items-center gap-1'>
-              <FiPhone className='text-sky-500 h-3 w-3' />
+              <Phone className='text-sky-500 h-3 w-3' />
               Téléphone *
             </span>
           </label>
@@ -714,7 +714,7 @@ const RendezVous = () => {
     <div data-aos='fade-up' className='space-y-3'>
       <h2 className='text-md font-semibold text-sky-600'>
         <span className='flex items-center gap-2'>
-          <FaGraduationCap className='text-sky-500 h-4 w-4' />
+          <GraduationCap className='text-sky-500 h-4 w-4' />
           Projet d'études
         </span>
       </h2>
@@ -725,7 +725,7 @@ const RendezVous = () => {
           className='mb-1 block text-xs font-medium text-gray-700'
         >
           <span className='flex items-center gap-1'>
-            <FiGlobe className='text-sky-500 h-3 w-3' />
+            <Globe className='text-sky-500 h-3 w-3' />
             Destination *
           </span>
         </label>
@@ -759,7 +759,7 @@ const RendezVous = () => {
                   className='mb-1 block text-xs font-medium text-gray-700'
                 >
                   <span className='flex items-center gap-1'>
-                    <FiTarget className='text-sky-500 h-3 w-3' />
+                    <Target className='text-sky-500 h-3 w-3' />
                     Précisez votre destination *
                   </span>
                 </label>
@@ -787,7 +787,7 @@ const RendezVous = () => {
             className='mb-1 block text-xs font-medium text-gray-700'
           >
             <span className='flex items-center gap-1'>
-              <FiAward className='text-sky-500 h-3 w-3' />
+              <Award className='text-sky-500 h-3 w-3' />
               Niveau d'étude *
             </span>
           </label>
@@ -814,7 +814,7 @@ const RendezVous = () => {
             className='mb-1 block text-xs font-medium text-gray-700'
           >
             <span className='flex items-center gap-1'>
-              <FiBook className='text-sky-500 h-3 w-3' />
+              <Book className='text-sky-500 h-3 w-3' />
               Filière *
             </span>
           </label>
@@ -864,7 +864,7 @@ const RendezVous = () => {
     <div data-aos='fade-up' className='space-y-3'>
       <h2 className='text-md font-semibold text-sky-600'>
         <span className='flex items-center gap-2'>
-          <FiCalendar className='text-sky-500 h-4 w-4' />
+          <CalendarIcon className='text-sky-500 h-4 w-4' />
           Choix du créneau
         </span>
       </h2>
@@ -875,7 +875,7 @@ const RendezVous = () => {
           className='mb-1 block text-xs font-medium text-gray-700'
         >
           <span className='flex items-center gap-1'>
-            <FiCalendar className='text-sky-500 h-3 w-3' />
+            <CalendarIcon className='text-sky-500 h-3 w-3' />
             Date *
           </span>
         </label>
@@ -911,7 +911,7 @@ const RendezVous = () => {
         <div>
           <label className='mb-1 block text-xs font-medium text-gray-700'>
             <span className='flex items-center gap-1'>
-              <FiWatch className='text-sky-500 h-3 w-3' />
+              <Clock className='text-sky-500 h-3 w-3' />
               Horaire *
             </span>
           </label>
@@ -1007,7 +1007,7 @@ const RendezVous = () => {
   const renderSuccessMessage = () => (
     <div data-aos='zoom-in' className='text-center'>
       <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100'>
-        <FiCheckCircle className='h-8 w-8 text-emerald-600' />
+        <CheckCircle className='h-8 w-8 text-emerald-600' />
       </div>
       <h2 className='mb-3 text-lg font-bold text-gray-800'>
         Rendez-vous confirmé !
@@ -1056,13 +1056,13 @@ const RendezVous = () => {
         />
       </Helmet>
 
-      <div className='min-h-screen bg-gradient-to-b from-sky-50 to-white py-6'>
+      <div className='min-h-screen bg-linear-to-b from-sky-50 to-white py-6'>
         <div className='mx-auto max-w-2xl px-3 sm:px-4'>
           {!isAuthenticated ? (
             <div data-aos='zoom-in' className='rounded-lg bg-white p-6 shadow'>
               <div className='text-center'>
                 <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-sky-100'>
-                  <FiUser className='h-8 w-8 text-sky-600' />
+                  <User className='h-8 w-8 text-sky-600' />
                 </div>
                 <h2 className='mb-3 text-lg font-bold text-gray-800'>
                   Connexion requise
@@ -1098,7 +1098,7 @@ const RendezVous = () => {
               className='overflow-hidden rounded-lg bg-white shadow-lg'
               data-aos='fade-up'
             >
-              <div className='border-b border-gray-100 bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-4'>
+              <div className='border-b border-gray-100 bg-linear-to-r from-sky-500 to-sky-600 px-6 py-4'>
                 <h1 className='text-xl font-bold text-white'>
                   📅 Prendre un rendez-vous
                 </h1>
@@ -1123,7 +1123,7 @@ const RendezVous = () => {
                       onClick={prevStep}
                       className='inline-flex items-center justify-center gap-2 rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-150 hover:bg-gray-50 focus:border-sky-500 focus:outline-none focus:ring-none'
                     >
-                      <FiChevronLeft className='h-4 w-4' />
+                      <ChevronLeft className='h-4 w-4' />
                       Retour
                     </button>
                   )}
@@ -1140,7 +1140,7 @@ const RendezVous = () => {
                       }`}
                     >
                       Continuer
-                      <FiChevronRight className='h-4 w-4' />
+                      <ChevronRight className='h-4 w-4' />
                     </button>
                   ) : (
                     <button
@@ -1160,7 +1160,7 @@ const RendezVous = () => {
                       ) : (
                         <>
                           Confirmer le rendez-vous
-                          <FiChevronRight className='h-4 w-4' />
+                          <ChevronRight className='h-4 w-4' />
                         </>
                       )}
                     </button>

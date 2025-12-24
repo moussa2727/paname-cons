@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const Hero = () => {
@@ -112,7 +111,7 @@ const Hero = () => {
     <>
     <div className='min-h-screen bg-gray-50 lg:mt-10'>
       {/* Hero Section - Mobile First */}
-      <div className='relative min-h-screen bg-gradient-to-br from-sky-600 via-sky-700 to-sky-800 text-white overflow-hidden'>
+      <div className='relative min-h-screen bg-linear-to-br from-sky-600 via-sky-700 to-sky-800 text-white overflow-hidden'>
         {/* Image de fond avec overlay */}
         <div
           className='absolute inset-0 bg-cover bg-center'
@@ -181,13 +180,13 @@ const Hero = () => {
                   <div className='flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center lg:justify-start'>
                     <button
                       onClick={() => navigate('/rendez-vous')}
-                      className='bg-white text-sky-600 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 hover:bg-sky-50 border-2 border-white min-w-[140px] sm:min-w-[160px]'
+                      className='bg-white text-sky-600 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 hover:bg-sky-50 border-2 border-white min-w-35 sm:min-w-40'
                     >
                       Rendez-Vous
                     </button>
                     <button
                       onClick={() => navigate('/services')}
-                      className='border-2 border-white text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm hover:bg-white hover:text-sky-600 transition-all duration-300 min-w-[140px] sm:min-w-[160px] backdrop-blur-sm'
+                      className='border-2 border-white text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm hover:bg-white hover:text-sky-600 transition-all duration-300 min-w-35 sm:min-w-40 backdrop-blur-sm'
                     >
                       Nos Services
                     </button>
@@ -276,7 +275,7 @@ const Hero = () => {
       </div>
 
       {/* Countries Section */}
-      <section className='py-4 sm:py-6 md:py-8 lg:py-12 bg-gradient-to-r from-sky-500 to-sky-600'>
+      <section className='py-4 sm:py-6 md:py-8 lg:py-12 bg-linear-to-r from-sky-500 to-sky-600'>
         <div className='container mx-auto px-3 sm:px-4'>
           <h2 className='text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-center text-white mb-1.5 sm:mb-2 md:mb-3'>
             Explorez nos Destinations

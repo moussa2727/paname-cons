@@ -337,7 +337,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
       </Helmet>
 
       <RequireAdmin>
-        <div className='min-h-screen max-w-[1024px] mx-auto overflow-x-hidden'>
+        <div className='min-h-screen max-w-5xl mx-auto overflow-x-hidden'>
           {/* Header */}
           <div className='mb-4 px-4'>
             <div className='flex items-center gap-2 mb-1'>
@@ -783,7 +783,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           {/* Liste des destinations */}
           <div className='bg-white rounded-xl border border-slate-200/60 overflow-hidden shadow-sm mx-4'>
             {/* En-tête */}
-            <div className='px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white'>
+            <div className='px-4 py-3 bg-linear-to-r from-blue-500 to-blue-600 text-white'>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
                   <svg
@@ -848,7 +848,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                       className='p-4 hover:bg-slate-50 transition-colors'
                     >
                       <div className='flex gap-3'>
-                        <div className='flex-shrink-0'>
+                        <div className='shrink-0'>
                           <img
                             src={dest.imagePath}
                             alt={dest.country}
@@ -922,7 +922,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
 
             {/* Version desktop - Tableau */}
             <div className='hidden lg:block overflow-x-auto'>
-              <table className='w-full min-w-[600px]'>
+              <table className='w-full min-w-150'>
                 <thead className='bg-slate-50'>
                   <tr>
                     <th className='px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider'>

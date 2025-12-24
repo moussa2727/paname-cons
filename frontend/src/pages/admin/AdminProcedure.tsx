@@ -47,6 +47,7 @@ import {
   StatsResponse,
 } from '../../api/admin/AdminProcedureService';
 
+
 // ==================== COMPOSANT PRINCIPAL ====================
 const AdminProcedure: React.FC = () => {
   // Utilisation du hook personnalisé
@@ -178,7 +179,7 @@ const AdminProcedure: React.FC = () => {
       StepStatus.COMPLETED
     );
     if (!validation.canModify) {
-      toast.error(validation.reason);
+      toast.error(validation.reason as string);
       return;
     }
 
@@ -583,7 +584,7 @@ const AdminProcedure: React.FC = () => {
 
         {/* Stats Cards */}
         <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8'>
-          <div className='bg-gradient-to-br from-blue-50 to-white p-5 rounded-2xl border border-blue-100'>
+          <div className='bg-linear-to-br from-blue-50 to-white p-5 rounded-2xl border border-blue-100'>
             <div className='flex items-center justify-between'>
               <div>
                 <div className='text-gray-500 text-sm font-medium'>
@@ -599,7 +600,7 @@ const AdminProcedure: React.FC = () => {
             </div>
           </div>
 
-          <div className='bg-gradient-to-br from-green-50 to-white p-5 rounded-2xl border border-green-100'>
+          <div className='bg-linear-to-br from-green-50 to-white p-5 rounded-2xl border border-green-100'>
             <div className='flex items-center justify-between'>
               <div>
                 <div className='text-gray-500 text-sm font-medium'>
@@ -615,7 +616,7 @@ const AdminProcedure: React.FC = () => {
             </div>
           </div>
 
-          <div className='bg-gradient-to-br from-red-50 to-white p-5 rounded-2xl border border-red-100'>
+          <div className='bg-linear-to-br from-red-50 to-white p-5 rounded-2xl border border-red-100'>
             <div className='flex items-center justify-between'>
               <div>
                 <div className='text-gray-500 text-sm font-medium'>
@@ -631,7 +632,7 @@ const AdminProcedure: React.FC = () => {
             </div>
           </div>
 
-          <div className='bg-gradient-to-br from-gray-50 to-white p-5 rounded-2xl border border-gray-100'>
+          <div className='bg-linear-to-br from-gray-50 to-white p-5 rounded-2xl border border-gray-100'>
             <div className='flex items-center justify-between'>
               <div>
                 <div className='text-gray-500 text-sm font-medium'>Total</div>
@@ -670,13 +671,13 @@ const AdminProcedure: React.FC = () => {
                 <div className='flex items-center justify-between'>
                   <div className='flex-1 min-w-0'>
                     <div className='flex items-center'>
-                      <UserCircle className='w-6 h-6 text-gray-400 mr-3 flex-shrink-0' />
+                      <UserCircle className='w-6 h-6 text-gray-400 mr-3 shrink-0' />
                       <div className='min-w-0'>
                         <h3 className='font-semibold text-gray-900 truncate'>
                           {procedure.prenom} {procedure.nom}
                         </h3>
                         <div className='flex items-center mt-1'>
-                          <Mail className='w-4 h-4 text-gray-400 mr-2 flex-shrink-0' />
+                          <Mail className='w-4 h-4 text-gray-400 mr-2 shrink-0' />
                           <p className='text-sm text-gray-600 truncate'>
                             {procedure.email}
                           </p>
@@ -687,9 +688,9 @@ const AdminProcedure: React.FC = () => {
                   <div className='flex items-center space-x-3 ml-4'>
                     {renderStatusBadge(procedure.statut)}
                     {expandedProcedure === procedure._id ? (
-                      <ChevronUp className='w-5 h-5 text-gray-400 flex-shrink-0' />
+                      <ChevronUp className='w-5 h-5 text-gray-400 shrink-0' />
                     ) : (
-                      <ChevronDown className='w-5 h-5 text-gray-400 flex-shrink-0' />
+                      <ChevronDown className='w-5 h-5 text-gray-400 shrink-0' />
                     )}
                   </div>
                 </div>
@@ -701,7 +702,7 @@ const AdminProcedure: React.FC = () => {
                   {/* Info Grid */}
                   <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                     <div className='flex items-start'>
-                      <MapPin className='w-5 h-5 text-gray-400 mr-3 mt-0.5 flex-shrink-0' />
+                      <MapPin className='w-5 h-5 text-gray-400 mr-3 mt-0.5 shrink-0' />
                       <div>
                         <div className='text-xs text-gray-500 font-medium'>
                           Destination
@@ -712,7 +713,7 @@ const AdminProcedure: React.FC = () => {
                       </div>
                     </div>
                     <div className='flex items-start'>
-                      <GraduationCap className='w-5 h-5 text-gray-400 mr-3 mt-0.5 flex-shrink-0' />
+                      <GraduationCap className='w-5 h-5 text-gray-400 mr-3 mt-0.5 shrink-0' />
                       <div>
                         <div className='text-xs text-gray-500 font-medium'>
                           Filière
@@ -724,7 +725,7 @@ const AdminProcedure: React.FC = () => {
                     </div>
                     {procedure.niveauEtude && (
                       <div className='flex items-start'>
-                        <BookOpen className='w-5 h-5 text-gray-400 mr-3 mt-0.5 flex-shrink-0' />
+                        <BookOpen className='w-5 h-5 text-gray-400 mr-3 mt-0.5 shrink-0' />
                         <div>
                           <div className='text-xs text-gray-500 font-medium'>
                             Niveau d'étude
@@ -737,7 +738,7 @@ const AdminProcedure: React.FC = () => {
                     )}
                     {procedure.telephone && (
                       <div className='flex items-start'>
-                        <Phone className='w-5 h-5 text-gray-400 mr-3 mt-0.5 flex-shrink-0' />
+                        <Phone className='w-5 h-5 text-gray-400 mr-3 mt-0.5 shrink-0' />
                         <div>
                           <div className='text-xs text-gray-500 font-medium'>
                             Téléphone
@@ -770,7 +771,7 @@ const AdminProcedure: React.FC = () => {
                                 {ProcedureService.translateStepName(step.nom)}
                               </div>
                               {step.raisonRefus && (
-                                <Info className='w-4 h-4 text-red-500 ml-2 flex-shrink-0' />
+                                <Info className='w-4 h-4 text-red-500 ml-2 shrink-0' />
                               )}
                             </div>
                             <div className='text-xs text-gray-500'>
@@ -940,7 +941,7 @@ const AdminProcedure: React.FC = () => {
                       </h4>
                       <div className='space-y-4'>
                         <div className='flex items-center'>
-                          <UserCircle className='w-5 h-5 text-gray-400 mr-3 flex-shrink-0' />
+                          <UserCircle className='w-5 h-5 text-gray-400 mr-3 shrink-0' />
                           <div>
                             <div className='text-xs text-gray-500'>
                               Nom complet
@@ -951,7 +952,7 @@ const AdminProcedure: React.FC = () => {
                           </div>
                         </div>
                         <div className='flex items-center'>
-                          <Mail className='w-5 h-5 text-gray-400 mr-3 flex-shrink-0' />
+                          <Mail className='w-5 h-5 text-gray-400 mr-3 shrink-0' />
                           <div>
                             <div className='text-xs text-gray-500'>Email</div>
                             <div className='text-sm font-medium'>
@@ -960,7 +961,7 @@ const AdminProcedure: React.FC = () => {
                           </div>
                         </div>
                         <div className='flex items-center'>
-                          <MapPin className='w-5 h-5 text-gray-400 mr-3 flex-shrink-0' />
+                          <MapPin className='w-5 h-5 text-gray-400 mr-3 shrink-0' />
                           <div>
                             <div className='text-xs text-gray-500'>
                               Destination
@@ -971,7 +972,7 @@ const AdminProcedure: React.FC = () => {
                           </div>
                         </div>
                         <div className='flex items-center'>
-                          <GraduationCap className='w-5 h-5 text-gray-400 mr-3 flex-shrink-0' />
+                          <GraduationCap className='w-5 h-5 text-gray-400 mr-3 shrink-0' />
                           <div>
                             <div className='text-xs text-gray-500'>Filière</div>
                             <div className='text-sm font-medium'>
@@ -1195,7 +1196,7 @@ const AdminProcedure: React.FC = () => {
 
                   <div className='p-6 overflow-y-auto max-h-[60vh] space-y-6'>
                     {/* Total */}
-                    <div className='text-center bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl'>
+                    <div className='text-center bg-linear-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl'>
                       <div className='text-4xl font-bold text-gray-900'>
                         {stats.total}
                       </div>

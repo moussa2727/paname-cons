@@ -1,10 +1,10 @@
-// UserProfile.tsx - COMPLET ET SÉCURISÉ
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { UserHeader, usePageConfig } from '../../components/user/UserHeader';
 import { useAuth } from '../../context/AuthContext';
-import { userProfileService, UserUpdateData, PasswordUpdateData } from '../../api/user/Profile/userProfileApi';
-import { Loader2, Mail, Phone, Calendar, Shield, User, UserCheck, Lock, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
+import { userProfileService, UserUpdateData } from '../../api/user/Profile/userProfileApi';
+import { Loader2, Mail, Phone, Shield, User, UserCheck, Lock, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
+import { Helmet } from 'react-helmet-async';
 
 const UserProfile = () => {
   const { user, updateProfile, fetchWithAuth, refreshToken, access_token } = useAuth();
@@ -284,7 +284,17 @@ const UserProfile = () => {
   }, [user, profileData.email]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white pt-16 pb-8">
+    <>
+      
+      <Helmet>
+        <title>{pageConfig.title}</title>
+        <meta name="description" content={pageConfig.description} />
+        {/* noindex,nofollow */}
+        <meta name="robots" content="noindex,nofollow" />
+        
+      </Helmet>
+
+      <div className="min-h-screen bg-linear-to-b from-gray-50 to-white pt-16 pb-8">
       <UserHeader
         title={pageConfig.title}
         subtitle={pageConfig.subtitle}
@@ -383,12 +393,12 @@ const UserProfile = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-sky-500 to-sky-600 text-white font-medium rounded-xl hover:from-sky-600 hover:to-sky-700 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                  className="w-full py-3 px-4 bg-linear-to-r from-sky-500 to-sky-600 text-white font-medium rounded-xl hover:from-sky-600 hover:to-sky-700 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                 >
                   {isLoading ? (
                     <span className="flex items-center justify-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Enregistrement...
+                     Chargement ....
                     </span>
                   ) : (
                     'Mettre à jour mon profil'
@@ -564,7 +574,7 @@ const UserProfile = () => {
               <button
                 type="submit"
                 disabled={isUpdatingPassword || passwordErrors.length > 0 || !passwordData.currentPassword}
-                className="w-full py-3 px-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                className="w-full py-3 px-4 bg-linear-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
               >
                 {isUpdatingPassword ? (
                   <span className="flex items-center justify-center gap-2">
@@ -589,7 +599,7 @@ const UserProfile = () => {
 
             <div className="space-y-4">
               {/* Statut du compte */}
-              <div className="flex items-center justify-between p-4 bg-gradient-to-r from-sky-50 to-blue-50 rounded-xl border border-sky-100">
+              <div className="flex items-center justify-between p-4 bg-linear-to-r from-sky-50 to-blue-50 rounded-xl border border-sky-100">
                 <div className="flex items-center gap-3">
                   <div className={`w-3 h-3 rounded-full ${
                     user?.isActive ? 'bg-green-500' : 'bg-red-500'
@@ -611,25 +621,25 @@ const UserProfile = () => {
               <h3 className="font-medium text-gray-900 mb-3">Conseils de sécurité</h3>
               <ul className="space-y-2">
                 <li className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-2 flex-shrink-0" />
+                  <div className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-2 shrink-0" />
                   <span className="text-sm text-gray-600">
                     Utilisez des mots de passe uniques et complexes
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-2 flex-shrink-0" />
+                  <div className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-2 shrink-0" />
                   <span className="text-sm text-gray-600">
                     Ne partagez jamais vos identifiants de connexion
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-2 flex-shrink-0" />
+                  <div className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-2 shrink-0" />
                   <span className="text-sm text-gray-600">
                     Déconnectez-vous des appareils publics après utilisation
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-2 flex-shrink-0" />
+                  <div className="w-1.5 h-1.5 bg-sky-500 rounded-full mt-2 shrink-0" />
                   <span className="text-sm text-gray-600">
                     Activez l'authentification à deux facteurs si disponible
                   </span>
@@ -640,6 +650,8 @@ const UserProfile = () => {
         </div>
       </div>
     </div>
+    </>
+  
   );
 };
 

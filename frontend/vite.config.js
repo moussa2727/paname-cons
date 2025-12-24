@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
   
+   css: {
+    devSourcemap: false, 
+  },
   // Configuration du serveur de développement
   server: {
     host: true, // Permet l'accès depuis le réseau local
@@ -59,7 +62,9 @@ export default defineConfig(({ mode }) => ({
       'date-fns',
       'date-fns/locale/fr',
       '@heroicons/react/24/outline', 
-      'react-icons/fi'
+      'react-icons/fi',
+      'lucide-react',     
+      'react-toastify'
     ],
     exclude: ['date-fns-tz']
   },

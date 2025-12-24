@@ -637,7 +637,7 @@ const AdminRendezVous = (): React.JSX.Element => {
 
   if (!service) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-slate-50 to-blue-50/30 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
       </div>
     );
@@ -654,7 +654,7 @@ const AdminRendezVous = (): React.JSX.Element => {
         <meta name='robots' content='noindex, nofollow' />
       </Helmet>
       
-      <div className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30' onClick={closeAllMenus}>
+      <div className='min-h-screen bg-linear-to-br from-slate-50 to-blue-50/30' onClick={closeAllMenus}>
         {/* Container principal */}
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8'>
           
@@ -797,20 +797,20 @@ const AdminRendezVous = (): React.JSX.Element => {
                             ) : (
                               <>
                                 <div className='flex items-center gap-2 mb-1'>
-                                  <User className='w-4 h-4 text-slate-400 flex-shrink-0' />
+                                  <User className='w-4 h-4 text-slate-400 shrink-0' />
                                   <h3 className='font-semibold text-slate-800 truncate'>
                                     {rdv.firstName} {rdv.lastName}
                                   </h3>
                                 </div>
                                 <div className='flex items-center gap-2 text-xs text-slate-600 mb-1 truncate'>
-                                  <Mail className='w-3 h-3 text-slate-400 flex-shrink-0' />
+                                  <Mail className='w-3 h-3 text-slate-400 shrink-0' />
                                   <span className='truncate'>{rdv.email}</span>
                                 </div>
                               </>
                             )}
                           </div>
                           
-                          <div className='relative flex-shrink-0 ml-2'>
+                          <div className='relative shrink-0 ml-2'>
                             {isEditing ? (
                               <button
                                 onClick={() => handleUpdateRendezvous(rdv.id)}
@@ -958,13 +958,13 @@ const AdminRendezVous = (): React.JSX.Element => {
                           <div className='grid grid-cols-2 gap-4 text-sm mb-4'>
                             <div className='space-y-2'>
                               <div className='flex items-center gap-2'>
-                                <Calendar className='w-3 h-3 text-slate-400 flex-shrink-0' />
+                                <Calendar className='w-3 h-3 text-slate-400 shrink-0' />
                                 <span className='text-slate-700 truncate'>
                                   {new Date(rdv.date).toLocaleDateString('fr-FR')}
                                 </span>
                               </div>
                               <div className='flex items-center gap-2'>
-                                <Clock className='w-3 h-3 text-slate-400 flex-shrink-0' />
+                                <Clock className='w-3 h-3 text-slate-400 shrink-0' />
                                 <span className='text-slate-700 truncate'>
                                   {formatTime(rdv.time)}
                                 </span>
@@ -972,7 +972,7 @@ const AdminRendezVous = (): React.JSX.Element => {
                             </div>
                             <div className='space-y-2'>
                               <div className='flex items-center gap-2'>
-                                <MapPin className='w-3 h-3 text-slate-400 flex-shrink-0' />
+                                <MapPin className='w-3 h-3 text-slate-400 shrink-0' />
                                 <span className='text-slate-700 truncate'>
                                   {rdv.destination === 'Autre' && rdv.destinationAutre
                                     ? rdv.destinationAutre
@@ -980,7 +980,7 @@ const AdminRendezVous = (): React.JSX.Element => {
                                 </span>
                               </div>
                               <div className='flex items-center gap-2'>
-                                <BookOpen className='w-3 h-3 text-slate-400 flex-shrink-0' />
+                                <BookOpen className='w-3 h-3 text-slate-400 shrink-0' />
                                 <span className='text-slate-700 truncate'>
                                   {rdv.filiere === 'Autre' && rdv.filiereAutre
                                     ? rdv.filiereAutre
@@ -1113,17 +1113,17 @@ const AdminRendezVous = (): React.JSX.Element => {
                             ) : (
                               <div className='space-y-1'>
                                 <div className='flex items-center gap-2'>
-                                  <User className='w-4 h-4 text-slate-400 flex-shrink-0' />
+                                  <User className='w-4 h-4 text-slate-400 shrink-0' />
                                   <span className='font-medium text-slate-800'>
                                     {rdv.firstName} {rdv.lastName}
                                   </span>
                                 </div>
                                 <div className='flex items-center gap-2 text-sm'>
-                                  <Mail className='w-3 h-3 text-slate-400 flex-shrink-0' />
+                                  <Mail className='w-3 h-3 text-slate-400 shrink-0' />
                                   <span className='text-slate-700 truncate'>{rdv.email}</span>
                                 </div>
                                 <div className='flex items-center gap-2 text-sm'>
-                                  <Phone className='w-3 h-3 text-slate-400 flex-shrink-0' />
+                                  <Phone className='w-3 h-3 text-slate-400 shrink-0' />
                                   <span className='text-slate-700'>{rdv.telephone}</span>
                                 </div>
                               </div>
@@ -1133,13 +1133,13 @@ const AdminRendezVous = (): React.JSX.Element => {
                           <td className='px-6 py-4'>
                             <div className='space-y-2'>
                               <div className='flex items-center gap-2'>
-                                <Calendar className='w-4 h-4 text-slate-400 flex-shrink-0' />
+                                <Calendar className='w-4 h-4 text-slate-400 shrink-0' />
                                 <span className='text-slate-700 font-medium'>
                                   {new Date(rdv.date).toLocaleDateString('fr-FR')}
                                 </span>
                               </div>
                               <div className='flex items-center gap-2'>
-                                <Clock className='w-4 h-4 text-slate-400 flex-shrink-0' />
+                                <Clock className='w-4 h-4 text-slate-400 shrink-0' />
                                 <span className='text-slate-700'>
                                   {formatTime(rdv.time)}
                                 </span>
@@ -1211,7 +1211,7 @@ const AdminRendezVous = (): React.JSX.Element => {
                             ) : (
                               <div className='space-y-2'>
                                 <div className='flex items-start gap-2'>
-                                  <MapPin className='w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0' />
+                                  <MapPin className='w-4 h-4 text-slate-400 mt-0.5 shrink-0' />
                                   <div className='min-w-0'>
                                     <div className='font-medium text-slate-800'>Destination</div>
                                     <div className='text-sm text-slate-600 truncate'>
@@ -1222,7 +1222,7 @@ const AdminRendezVous = (): React.JSX.Element => {
                                   </div>
                                 </div>
                                 <div className='flex items-start gap-2'>
-                                  <BookOpen className='w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0' />
+                                  <BookOpen className='w-4 h-4 text-slate-400 mt-0.5 shrink-0' />
                                   <div className='min-w-0'>
                                     <div className='font-medium text-slate-800'>Filière</div>
                                     <div className='text-sm text-slate-600 truncate'>
@@ -1254,9 +1254,9 @@ const AdminRendezVous = (): React.JSX.Element => {
                               {rdv.status === 'Terminé' && rdv.avisAdmin && (
                                 <div className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-2 ${getAvisColor(rdv.avisAdmin)}`}>
                                   {rdv.avisAdmin === 'Favorable' ? (
-                                    <CheckCircle className='w-3 h-3 flex-shrink-0' />
+                                    <CheckCircle className='w-3 h-3 shrink-0' />
                                   ) : (
-                                    <XCircle className='w-3 h-3 flex-shrink-0' />
+                                    <XCircle className='w-3 h-3 shrink-0' />
                                   )}
                                   {rdv.avisAdmin}
                                 </div>
@@ -1363,7 +1363,7 @@ const AdminRendezVous = (): React.JSX.Element => {
           <div className='bg-white rounded-2xl shadow-xl max-w-sm w-full mx-auto animate-in fade-in zoom-in-95 duration-200'>
             <div className='p-5 border-b border-slate-200'>
               <div className='flex items-center gap-3'>
-                <AlertCircle className='w-6 h-6 text-red-500 flex-shrink-0' />
+                <AlertCircle className='w-6 h-6 text-red-500 shrink-0' />
                 <h2 className='text-lg font-bold text-slate-800'>
                   Confirmer la suppression
                 </h2>
@@ -1398,7 +1398,7 @@ const AdminRendezVous = (): React.JSX.Element => {
           <div className='bg-white rounded-2xl shadow-xl max-w-xs w-full mx-auto animate-in fade-in zoom-in-95 duration-200'>
             <div className='p-5 border-b border-slate-200'>
               <div className='flex items-center gap-2'>
-                <AlertCircle className='w-5 h-5 text-blue-500 flex-shrink-0' />
+                <AlertCircle className='w-5 h-5 text-blue-500 shrink-0' />
                 <h2 className='text-base font-bold text-slate-800'>
                   Avis Administratif
                 </h2>
@@ -1422,9 +1422,9 @@ const AdminRendezVous = (): React.JSX.Element => {
                     <div className='font-semibold text-sm flex items-center justify-between'>
                       <span>{avis}</span>
                       {avis === 'Favorable' ? (
-                        <CheckCircle className='w-4 h-4 text-emerald-600 flex-shrink-0' />
+                        <CheckCircle className='w-4 h-4 text-emerald-600 shrink-0' />
                       ) : (
-                        <XCircle className='w-4 h-4 text-rose-600 flex-shrink-0' />
+                        <XCircle className='w-4 h-4 text-rose-600 shrink-0' />
                       )}
                     </div>
                     <div className='text-xs mt-1 opacity-75'>

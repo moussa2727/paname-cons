@@ -202,7 +202,7 @@ const AdminDashboard = () => {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className='bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2 mx-auto'
+            className='bg-linear-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2 mx-auto'
           >
             <RefreshCw
               size={18}
@@ -368,7 +368,7 @@ const AdminDashboard = () => {
             <div className='flex flex-col md:flex-row md:items-center justify-between gap-6'>
               <div className='space-y-3'>
                 <div className='flex items-center gap-3'>
-                  <div className='p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-md'>
+                  <div className='p-2 bg-linear-to-br from-blue-500 to-blue-600 rounded-xl shadow-md'>
                     <Shield className='w-6 h-6 text-white' />
                   </div>
                   <div>
@@ -460,7 +460,7 @@ const AdminDashboard = () => {
                       {card.title}
                     </p>
                     <div
-                      className={`text-2xl font-bold bg-gradient-to-r ${card.color} bg-clip-text text-transparent`}
+                      className={`text-2xl font-bold bg-linear-to-r ${card.color} bg-clip-text text-transparent`}
                     >
                       {typeof card.value === 'string'
                         ? card.value
@@ -534,7 +534,7 @@ const AdminDashboard = () => {
                         <span className='text-sm text-gray-500'>
                           {percentage}%
                         </span>
-                        <span className='text-lg font-bold text-gray-900 min-w-[60px] text-right'>
+                        <span className='text-lg font-bold text-gray-900 min-w-15 text-right'>
                           {stat.value.toLocaleString('fr-FR')}
                         </span>
                       </div>
@@ -678,7 +678,7 @@ const AdminDashboard = () => {
                       </div>
                       <div className='h-2 bg-gray-200 rounded-full overflow-hidden'>
                         <div
-                          className='h-full bg-gradient-to-r from-violet-500 to-violet-600 rounded-full'
+                          className='h-full bg-linear-to-r from-violet-500 to-violet-600 rounded-full'
                           style={{ width: `${destination.percentage}%` }}
                         />
                       </div>
@@ -716,14 +716,14 @@ const AdminDashboard = () => {
                   </span>
                 </div>
               </div>
-              <div className='space-y-4 max-h-[300px] overflow-y-auto pr-2'>
+              <div className='space-y-4 max-h-75 overflow-y-auto pr-2'>
                 {activities.length > 0 ? (
                   activities.map((activity, index) => (
                     <div
                       key={index}
                       className='flex items-start space-x-3 pb-4 border-b border-gray-100 last:border-0 group'
                     >
-                      <div className='flex-shrink-0 mt-0.5'>
+                      <div className='shrink-0 mt-0.5'>
                         <div className='p-1.5 rounded-lg bg-gray-50 group-hover:bg-gray-100 transition-colors'>
                           <ActivityIcon type={activity.type} />
                         </div>
@@ -743,7 +743,7 @@ const AdminDashboard = () => {
                                 : 'Système'}
                             </span>
                           </div>
-                          <span className='text-xs text-gray-500 flex-shrink-0'>
+                          <span className='text-xs text-gray-500 shrink-0'>
                             {new Date(activity.timestamp).toLocaleDateString(
                               'fr-FR',
                               {

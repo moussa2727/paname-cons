@@ -36,7 +36,7 @@ import { UserHeader } from '../../components/user/UserHeader';
 
 // Composant de chargement
 const LoadingScreen = ({ message = "Chargement..." }: { message?: string }) => (
-  <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-sky-50 to-white">
+  <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-sky-50 to-white">
     <div className="text-center">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mx-auto mb-4"></div>
       <p className="text-gray-600">{message}</p>
@@ -223,6 +223,8 @@ const UserProcedureComponent = (): React.JSX.Element => {
       <Helmet>
         <title>{currentPage.pageTitle}</title>
         <meta name="description" content={currentPage.description} />
+        <meta name="robots" content="noindex,nofollow" />
+        
       </Helmet>
 
       <UserHeader
@@ -287,7 +289,7 @@ const UserProcedureComponent = (): React.JSX.Element => {
 
       {/* Contenu principal avec padding pour compenser le header fixe */}
       <div 
-        className="min-h-screen bg-gradient-to-b from-sky-50 to-white"
+        className="min-h-screen bg-linear-to-b from-sky-50 to-white"
         style={{ paddingTop: `${headerHeight}px` }}
       >
         <main className='p-4 max-w-6xl mx-auto'>
@@ -336,7 +338,7 @@ const UserProcedureComponent = (): React.JSX.Element => {
                               {procedure.destination}
                             </h3>
                             <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium border flex-shrink-0 ${getProcedureStatusColor(procedure.statut)}`}
+                              className={`px-2 py-1 rounded-full text-xs font-medium border shrink-0 ${getProcedureStatusColor(procedure.statut)}`}
                             >
                               {getProcedureDisplayStatus(procedure.statut)}
                             </span>
@@ -353,7 +355,7 @@ const UserProcedureComponent = (): React.JSX.Element => {
                           </div>
                         </div>
 
-                        <ChevronRight className='w-5 h-5 text-gray-400 flex-shrink-0 ml-2' />
+                        <ChevronRight className='w-5 h-5 text-gray-400 shrink-0 ml-2' />
                       </div>
 
                       <div className='mb-3'>
@@ -506,7 +508,7 @@ const UserProcedureComponent = (): React.JSX.Element => {
                           )}
                         </div>
 
-                        <div className='bg-gradient-to-r from-sky-50 to-blue-50 rounded-2xl p-5 border border-sky-100'>
+                        <div className='bg-linear-to-r from-sky-50 to-blue-50 rounded-2xl p-5 border border-sky-100'>
                           <div className='flex justify-between items-center mb-3'>
                             <span className='text-sm font-medium text-gray-700'>
                               Progression globale
@@ -519,7 +521,7 @@ const UserProcedureComponent = (): React.JSX.Element => {
                           </div>
                           <div className='w-full bg-sky-200 rounded-full h-2.5 mb-2'>
                             <div
-                              className='bg-gradient-to-r from-sky-500 to-blue-500 h-2.5 rounded-full transition-all duration-700'
+                              className='bg-linear-to-r from-sky-500 to-blue-500 h-2.5 rounded-full transition-all duration-700'
                               style={{
                                 width: `${getProgressStatus(selectedProcedure).percentage}%`,
                               }}
@@ -544,7 +546,7 @@ const UserProcedureComponent = (): React.JSX.Element => {
                                   key={step.nom}
                                   className='flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group'
                                 >
-                                  <div className='flex-shrink-0'>
+                                  <div className='shrink-0'>
                                     {getStepStatusIcon(step.statut)}
                                   </div>
                                   <div className='flex-1 min-w-0'>
@@ -860,7 +862,7 @@ const UserProcedureComponent = (): React.JSX.Element => {
                         className='bg-white border border-gray-200 rounded-2xl p-4 transition-all hover:shadow-sm'
                       >
                         <div className='flex items-start gap-3'>
-                          <div className='flex-shrink-0 mt-1'>
+                          <div className='shrink-0 mt-1'>
                             {getStepStatusIcon(step.statut)}
                           </div>
                           <div className='flex-1 min-w-0'>

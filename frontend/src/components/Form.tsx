@@ -225,7 +225,7 @@ const Form = () => {
             <section
               className='relative w-full md:w-1/3 text-white space-y-6 p-8 lg:p-12 
               overflow-hidden
-              bg-gradient-to-tr from-sky-600 via-sky-500 to-sky-400
+              bg-linear-to-tr from-sky-600 via-sky-500 to-sky-400
               before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_30%_40%,rgba(255,255,255,0.2),transparent_50%)]
               before:animate-[pulse_6s_ease-in-out_infinite]
               after:absolute after:inset-0 after:bg-[url("https://www.transparenttextures.com/patterns/cubes.png")]
