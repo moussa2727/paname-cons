@@ -65,7 +65,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
       name: 'Tableau de bord',
       path: '/gestionnaire',
       icon: <LayoutDashboard className='w-5 h-5' />,
-      basePath: '/gestionnaire',
+      basePath: '/gestionnaire/statistiques',
     },
     {
       name: 'Utilisateurs',
