@@ -22,7 +22,8 @@ const RENDEZVOUS_STATUS = {
   PENDING: 'En attente' as const,
   CONFIRMED: 'Confirmé' as const,
   COMPLETED: 'Terminé' as const,
-  CANCELLED: 'Annulé' as const
+  CANCELLED: 'Annulé' as const,
+  EXPIRED: 'Expiré' as const // Nouveau statut
 };
 
 const ADMIN_OPINION = {
@@ -34,6 +35,7 @@ const MAX_SLOTS_PER_DAY = 24;
 const WORKING_HOURS = { start: 9, end: 16.5 };
 const CANCELLATION_THRESHOLD_HOURS = 2;
 const AUTO_CANCEL_PENDING_HOURS = 5;
+const AUTO_EXPIRE_MINUTES = 10; // Expiration automatique après 10 minutes
 
 // Type pour les statuts
 type RendezvousStatus = typeof RENDEZVOUS_STATUS[keyof typeof RENDEZVOUS_STATUS];
@@ -477,10 +479,11 @@ export class RendezvousService {
       throw new NotFoundException("Rendez-vous non trouvé");
     }
 
-    // Si le rendez-vous est terminé, interdire toute modification
-    if (rdv.status === RENDEZVOUS_STATUS.COMPLETED) {
-      this.logger.warn('Tentative de modification d\'un rendez-vous terminé');
-      throw new BadRequestException("Impossible de modifier un rendez-vous terminé");
+    // Si le rendez-vous est terminé ou expiré, interdire toute modification
+    if (rdv.status === RENDEZVOUS_STATUS.COMPLETED || 
+        rdv.status === RENDEZVOUS_STATUS.EXPIRED) {
+      this.logger.warn('Tentative de modification d\'un rendez-vous terminé ou expiré');
+      throw new BadRequestException("Impossible de modifier un rendez-vous terminé ou expiré");
     }
 
     // Vérifier les permissions avec email
@@ -558,7 +561,7 @@ export class RendezvousService {
 
     // Si admin veut changer le statut
     if (updateDto.status && isAdmin) {
-      // Admin peut mettre en attente, confirmer, annuler ou terminer
+      // Admin peut mettre en attente, confirmer, annuler, terminer ou expirer
       if (!Object.values(RENDEZVOUS_STATUS).includes(updateDto.status as RendezvousStatus)) {
         throw new BadRequestException("Statut invalide");
       }
@@ -580,6 +583,12 @@ export class RendezvousService {
             await this.createProcedureIfEligible(rdv);
           }, 0);
         }
+      }
+      
+      // Pour "Expiré", pas besoin d'avis admin
+      if (updateDto.status === RENDEZVOUS_STATUS.EXPIRED && updateDto.avisAdmin) {
+        this.logger.warn('Avis admin ignoré pour le statut Expiré');
+        updateDto.avisAdmin = undefined;
       }
     } else if (updateDto.status && !isAdmin) {
       // Utilisateur normal ne peut que annuler un rendez-vous confirmé
@@ -628,11 +637,11 @@ export class RendezvousService {
       throw new BadRequestException("Statut invalide");
     }
 
-    if (status === RENDEZVOUS_STATUS.COMPLETED && !avisAdmin) {
-      this.logger.warn('Avis admin manquant pour terminer le rendez-vous');
-      throw new BadRequestException(
-        "L'avis admin est obligatoire pour terminer un rendez-vous",
-      );
+    // Pour "Expiré", pas besoin d'avis admin
+    if (status === RENDEZVOUS_STATUS.EXPIRED && avisAdmin) {
+      this.logger.warn('Avis admin non requis pour le statut Expiré');
+      // Ne pas lever d'exception, juste ignorer l'avis admin
+      avisAdmin = undefined;
     }
 
     // Pour "Terminé", vérifier que avisAdmin est Favorable ou Défavorable
@@ -679,10 +688,11 @@ export class RendezvousService {
       throw new NotFoundException("Rendez-vous non trouvé");
     }
 
-    // Si le rendez-vous est terminé, interdire l'annulation
-    if (rdv.status === RENDEZVOUS_STATUS.COMPLETED) {
-      this.logger.warn('Tentative d\'annulation d\'un rendez-vous terminé');
-      throw new BadRequestException("Impossible d'annuler un rendez-vous terminé");
+    // Si le rendez-vous est terminé ou expiré, interdire l'annulation
+    if (rdv.status === RENDEZVOUS_STATUS.COMPLETED || 
+        rdv.status === RENDEZVOUS_STATUS.EXPIRED) {
+      this.logger.warn('Tentative d\'annulation d\'un rendez-vous terminé ou expiré');
+      throw new BadRequestException("Impossible d'annuler un rendez-vous terminé ou expiré");
     }
 
     // Vérifier les permissions avec email
@@ -1055,17 +1065,67 @@ export class RendezvousService {
 
   @Cron("0 * * * *")
   async updatePastRendezVous(): Promise<void> {
-    const today = new Date().toISOString().split("T")[0];
-    const result = await this.rendezvousModel.updateMany(
-      {
-        date: { $lt: today },
-        status: { $in: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.CONFIRMED] },
-      },
-      { $set: { status: RENDEZVOUS_STATUS.COMPLETED } },
-    );
+    // Cette méthode peut rester pour gérer d'autres logiques si besoin
+    // Mais l'expiration automatique est maintenant gérée par autoExpirePastRendezVous()
+    this.logger.debug('Méthode updatePastRendezVous appelée (maintenant gérée par autoExpirePastRendezVous)');
+  }
 
-    if (result.modifiedCount > 0) {
-      this.logger.log(`${result.modifiedCount} rendez-vous passés mis à jour automatiquement`);
+  @Cron("*/10 * * * *") // Toutes les 10 minutes
+  async autoExpirePastRendezVous(): Promise<void> {
+    try {
+      const now = new Date();
+      const currentDate = now.toISOString().split("T")[0];
+      const currentTime = now.getHours() * 60 + now.getMinutes();
+      
+      // 1. Rendez-vous d'hier ou avant (date passée)
+      const pastDateResult = await this.rendezvousModel.updateMany(
+        {
+          date: { $lt: currentDate },
+          status: { $in: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.CONFIRMED] },
+        },
+        { 
+          $set: { 
+            status: RENDEZVOUS_STATUS.EXPIRED,
+            updatedAt: new Date()
+          } 
+        },
+      );
+
+      // 2. Rendez-vous d'aujourd'hui avec heure passée de plus de 10 minutes
+      const todayRendezvous = await this.rendezvousModel.find({
+        date: currentDate,
+        status: { $in: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.CONFIRMED] }
+      });
+
+      let todayExpiredCount = 0;
+      for (const rdv of todayRendezvous) {
+        if (!rdv.time) continue;
+        
+        const [hours, minutes] = rdv.time.split(":").map(Number);
+        const rdvTimeInMinutes = hours * 60 + minutes;
+        
+        // Vérifier si l'heure du rendez-vous est passée de plus de 10 minutes
+        if ((rdvTimeInMinutes + AUTO_EXPIRE_MINUTES) <= currentTime) {
+          await this.rendezvousModel.findByIdAndUpdate(
+            rdv._id,
+            { 
+              $set: { 
+                status: RENDEZVOUS_STATUS.EXPIRED,
+                updatedAt: new Date()
+              } 
+            }
+          );
+          todayExpiredCount++;
+        }
+      }
+
+      const totalExpired = pastDateResult.modifiedCount + todayExpiredCount;
+      if (totalExpired > 0) {
+        this.logger.log(`${totalExpired} rendez-vous automatiquement expirés (${pastDateResult.modifiedCount} dates passées, ${todayExpiredCount} créneaux passés de +10min aujourd'hui)`);
+      }
+
+    } catch (error) {
+      this.logger.error(`Erreur lors de l'expiration automatique des rendez-vous: ${error.message}`);
     }
   }
 

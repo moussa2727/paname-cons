@@ -25,7 +25,8 @@ const RENDEZVOUS_STATUS = {
   PENDING: 'En attente',
   CONFIRMED: 'Confirmé',
   COMPLETED: 'Terminé',
-  CANCELLED: 'Annulé'
+  CANCELLED: 'Annulé',
+  EXPIRED: 'Expiré' 
 } as const;
 
 const ADMIN_OPINION = {

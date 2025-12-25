@@ -25,12 +25,13 @@ import { AuthenticatedRequest } from '../shared/interfaces/authenticated-user.in
 import { ApiOperation, ApiResponse, ApiQuery, ApiTags, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { CacheKey, CacheTTL } from '@nestjs/cache-manager';
 
-// Constantes pour la cohérence
+
 const RENDEZVOUS_STATUS = {
   PENDING: 'En attente',
   CONFIRMED: 'Confirmé',
   COMPLETED: 'Terminé',
-  CANCELLED: 'Annulé'
+  CANCELLED: 'Annulé',
+  EXPIRED: 'Expiré' 
 } as const;
 
 const ADMIN_OPINION = {
