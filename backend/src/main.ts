@@ -26,9 +26,9 @@ declare global {
   }
 }
 
-const isProduction = true;
+const isProduction = process.env.NODE_ENV === 'production';
 
-// 🌐 ORIGINES AUTORISÉES EN PRODUCTION EXCLUSIVE
+// 🌐 ORIGINES AUTORISÉES EN PRODUCTION
 const productionOrigins = [
   "https://panameconsulting.com",
   "https://www.panameconsulting.com",
@@ -36,7 +36,21 @@ const productionOrigins = [
   "https://panameconsulting.up.railway.app",
   "https://vercel.live",
   "http://localhost:5713",
+  "http://127.0.0.1:5173", // AJOUTÉ POUR LE FRONTEND EN LOCAL
 ];
+
+// 🌐 ORIGINES AUTORISÉES EN DÉVELOPPEMENT
+const developmentOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:3000",
+  "http://localhost:8080",
+  "http://localhost:5713",
+  "http://localhost:10000",
+];
+
+// 🌐 COMBINER LES ORIGINES SELON L'ENVIRONNEMENT
+const allowedOrigins = isProduction ? productionOrigins : [...productionOrigins, ...developmentOrigins];
 
 // Fonction pour vérifier si une origine correspond à un pattern avec wildcard
 function isOriginAllowed(origin: string, allowedOrigins: string[]): boolean {
@@ -112,7 +126,7 @@ async function bootstrap() {
           scriptSrc: ["'self'", "'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", "data:", "https:"],
-          connectSrc: ["'self'", ...productionOrigins],
+          connectSrc: ["'self'", ...allowedOrigins],
           fontSrc: ["'self'", "https:"],
           objectSrc: ["'none'"],
           mediaSrc: ["'self'"],
@@ -185,30 +199,37 @@ async function bootstrap() {
   });
 
   // ✅ CONFIGURATION CORS STRICTE
-  logger.log(`Configuration CORS pour environnement: PRODUCTION EXCLUSIVE`);
+  logger.log(`Configuration CORS pour environnement: ${isProduction ? 'PRODUCTION' : 'DEVELOPPEMENT'}`);
   logger.log(`Parsing middleware: ✅ JSON, URL-encoded, Cookies activés`);
-  logger.log(`Origines autorisées: ${productionOrigins.length} origines`);
+  logger.log(`Origines autorisées: ${allowedOrigins.length} origines`);
 
   app.enableCors({
     origin: (origin, callback) => {
+      // 🔓 En développement, autoriser toutes les origines locales sans origine
+      if (!isProduction) {
+        if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+          logger.debug(`✅ Développement - Origine autorisée: ${origin || 'sans origine'}`);
+          callback(null, true);
+          return;
+        }
+      }
+
       // 🔒 Autoriser les requêtes sans origine UNIQUEMENT pour les routes publiques
       if (!origin) {
-        // Note: Nous ne pouvons pas accéder à req ici, donc on utilise une approche différente
-        // On permettra les routes publiques sans origine via le middleware suivant
         logger.debug(`Requête sans origine détectée - sera gérée par le middleware`);
         callback(null, true); // On autorise temporairement
         return;
       }
 
       // 🔒 Vérification stricte des origines
-      const isAllowed = isOriginAllowed(origin, productionOrigins);
+      const isAllowed = isOriginAllowed(origin, allowedOrigins);
 
       if (isAllowed) {
         logger.debug(`✅ Origine autorisée: ${origin}`);
         callback(null, true);
       } else {
         logger.warn(`❌ Origine non autorisée: ${origin}`);
-        logger.warn(`   Origines autorisées: ${productionOrigins.join(', ')}`);
+        logger.warn(`   Origines autorisées: ${allowedOrigins.join(', ')}`);
         callback(new Error(`Origine non autorisée: ${origin}`), false);
       }
     },
@@ -296,10 +317,14 @@ async function bootstrap() {
           <h1>🚀 API Paname Consulting</h1>
           <div class="status">
             <p><strong>Status:</strong> ✅ En ligne</p>
-            <p><strong>Environnement:</strong> PRODUCTION</p>
+            <p><strong>Environnement:</strong> ${isProduction ? 'PRODUCTION' : 'DEVELOPPEMENT'}</p>
             <p><strong>Version:</strong> ${process.env.npm_package_version || '1.0.0'}</p>
             <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
-            <p><strong>Parsing:</strong> ✅ JSON, URL-encoded, Cookies, Text</p>
+            <p><strong>CORS:</strong> ✅ ${allowedOrigins.length} origines autorisées</p>
+          </div>
+          <div class="links">
+            <a href="/health">Health Check</a>
+            <a href="/api">API Info</a>
           </div>
         </div>
       </body>
@@ -313,16 +338,15 @@ async function bootstrap() {
       status: "healthy",
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      memory: process.memoryUsage(),
-      parsing: {
-        json: "enabled",
-        urlencoded: "enabled",
-        cookies: "enabled",
-        text: "enabled"
-      },
+      environment: isProduction ? "production" : "development",
       cors: {
-        allowedOrigins: productionOrigins,
+        allowedOrigins: allowedOrigins,
+        allowedCount: allowedOrigins.length,
         credentials: "enabled"
+      },
+      memory: {
+        heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB",
+        heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + "MB"
       }
     });
   });
@@ -334,16 +358,14 @@ async function bootstrap() {
       service: "paname-consulting-api",
       version: process.env.npm_package_version || "1.0.0",
       timestamp: new Date().toISOString(),
-      environment: "production",
-      support: "panameconsulting906@gmail.com",
-      uptime: process.uptime(),
-      parsing: {
-        json: "enabled",
-        urlencoded: "enabled",
-        cookies: "enabled"
-      },
+      environment: isProduction ? "production" : "development",
       cors: {
-        allowedOrigins: productionOrigins
+        allowedOrigins: allowedOrigins,
+        allowedCount: allowedOrigins.length
+      },
+      endpoints: {
+        public: ["/", "/health", "/api"],
+        protected: "/api/*"
       }
     });
   });
@@ -353,15 +375,30 @@ async function bootstrap() {
     // Répondre immédiatement aux requêtes OPTIONS (pré-vol CORS)
     if (req.method === "OPTIONS") {
       const origin = req.headers.origin;
-      if (origin && isOriginAllowed(origin, productionOrigins)) {
+      if (origin && isOriginAllowed(origin, allowedOrigins)) {
         res.header("Access-Control-Allow-Origin", origin);
+        res.header("Access-Control-Allow-Credentials", "true");
+      } else if (!isProduction) {
+        // En développement, autoriser toutes les origines pour les pré-vols
+        res.header("Access-Control-Allow-Origin", origin || "*");
+        res.header("Access-Control-Allow-Credentials", "true");
       }
-      res.header("Access-Control-Allow-Credentials", "true");
       res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
       res.header("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, Origin, X-Requested-With, Cookie, Access-Control-Allow-Credentials");
       res.header("Access-Control-Expose-Headers", "Authorization, X-RateLimit-Limit, X-RateLimit-Remaining, Set-Cookie, Access-Control-Allow-Origin");
       res.header("Access-Control-Max-Age", "86400");
       return res.status(200).end();
+    }
+    
+    // Pour les autres requêtes, ajouter les headers CORS si l'origine est autorisée
+    const origin = req.headers.origin;
+    if (origin && isOriginAllowed(origin, allowedOrigins)) {
+      res.header("Access-Control-Allow-Origin", origin);
+      res.header("Access-Control-Allow-Credentials", "true");
+    } else if (!isProduction && origin) {
+      // En développement, autoriser toutes les origines locales
+      res.header("Access-Control-Allow-Origin", origin);
+      res.header("Access-Control-Allow-Credentials", "true");
     }
     
     next();
@@ -504,19 +541,19 @@ async function bootstrap() {
     // ✅ LOG DE DÉMARRAGE DÉTAILLÉ
     logger.log(`========================================`);
     logger.log(`🚀 Application: Paname Consulting API`);
-    logger.log(`📍 Environnement: PRODUCTION EXCLUSIVE`);
+    logger.log(`📍 Environnement: ${isProduction ? 'PRODUCTION' : 'DEVELOPPEMENT'}`);
     logger.log(`🌐 Host: ${host}`);
     logger.log(`🚪 Port: ${port}`);
     logger.log(`📁 Dossier uploads: ${uploadsDir}`);
     logger.log(`🔒 Mode production: ${isProduction}`);
-    logger.log(`🔐 CORS activé: ${productionOrigins.length} origines`);
+    logger.log(`🔐 CORS activé: ${allowedOrigins.length} origines`);
     logger.log(`📝 Parsing middleware: ✅ Activé`);
     logger.log(`🍪 Cookie parser: ✅ Activé`);
     logger.log(`========================================`);
     
     // ✅ LISTE DES ORIGINES AUTORISÉES
     logger.log(`🌍 Origines CORS autorisées:`);
-    productionOrigins.forEach(origin => {
+    allowedOrigins.forEach(origin => {
       logger.log(`   • ${origin}`);
     });
 
@@ -525,7 +562,7 @@ async function bootstrap() {
 
     logger.log(`✅ Serveur démarré sur http://${host}:${port}`);
     logger.log(`✅ Health check: http://${host}:${port}/health`);
-    logger.log(`✅ Parsing middleware: JSON, URL-encoded, Cookies activés`);
+    logger.log(`✅ Frontend local: http://localhost:5173 autorisé`);
     
     // ✅ INFORMATION DE MONITORING
     const memoryUsage = process.memoryUsage();
@@ -536,7 +573,7 @@ async function bootstrap() {
     logger.error("❌ Erreur fatale au démarrage", {
       message: error instanceof Error ? error.message : "Erreur inconnue",
       timestamp: new Date().toISOString(),
-      environment: "production",
+      environment: isProduction ? "production" : "development",
     });
     
     process.exit(1);

@@ -1,4 +1,3 @@
-// AdminMessages.tsx - Version Mobile avec Toast uniques
 import React, { useState, useEffect } from 'react';
 import { useAdminContactService } from '../../api/admin/AdminContactService';
 import { useAuth } from '../../context/AuthContext';

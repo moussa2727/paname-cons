@@ -20,6 +20,8 @@ import {
   Filter,
   X,
   AlertTriangle,
+  Ban,
+  Clock3,
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { UserHeader } from '../../../components/user/UserHeader';
@@ -51,24 +53,23 @@ const pageConfigs = {
   },
 };
 
+// UTILISATION DES CONSTANTES DU SERVICE (cohérent avec backend)
 const statusOptions = [
   { value: '', label: 'Tous les statuts' },
-  { value: 'En attente', label: 'En attente' },
-  { value: 'Confirmé', label: 'Confirmé' },
-  { value: 'Terminé', label: 'Terminé' },
-  { value: 'Annulé', label: 'Annulé' },
+  { value: UserRendezvousService.STATUS.PENDING, label: 'En attente' },
+  { value: UserRendezvousService.STATUS.CONFIRMED, label: 'Confirmé' },
+  { value: UserRendezvousService.STATUS.COMPLETED, label: 'Terminé' },
+  { value: UserRendezvousService.STATUS.CANCELLED, label: 'Annulé' },
+  { value: UserRendezvousService.STATUS.EXPIRED, label: 'Expiré' }, 
 ];
 
-const statusColors: Record<string, string> = {
-  'En attente': 'bg-amber-100 text-amber-800 border-amber-300',
-  'Confirmé': 'bg-sky-100 text-sky-800 border-sky-300',
-  'Terminé': 'bg-emerald-100 text-emerald-800 border-emerald-300',
-  'Annulé': 'bg-red-100 text-red-800 border-red-300',
-};
-
-const avisColors: Record<string, string> = {
-  'Favorable': 'bg-emerald-100 text-emerald-800 border-emerald-300',
-  'Défavorable': 'bg-red-100 text-red-800 border-red-300',
+// Icônes pour chaque statut (cohérent avec le backend)
+const statusIcons: Record<string, React.ReactNode> = {
+  [UserRendezvousService.STATUS.PENDING]: <AlertCircle className="mr-1 h-3 w-3" />,
+  [UserRendezvousService.STATUS.CONFIRMED]: <CheckCircle className="mr-1 h-3 w-3" />,
+  [UserRendezvousService.STATUS.COMPLETED]: <CheckCircle className="mr-1 h-3 w-3" />,
+  [UserRendezvousService.STATUS.CANCELLED]: <XCircle className="mr-1 h-3 w-3" />,
+  [UserRendezvousService.STATUS.EXPIRED]: <Ban className="mr-1 h-3 w-3" />,
 };
 
 const MesRendezvous = () => {
@@ -161,15 +162,29 @@ const MesRendezvous = () => {
     return new UserRendezvousService(authFunctions);
   }, [authFunctions]);
 
-  // Fonction pour charger les rendez-vous
+  // Fonction pour charger les rendez-vous avec validation
   const fetchRendezvous = useCallback(async () => {
     setLoading(true);
     
     try {
+      // Validation du statut sélectionné
+      if (selectedStatus && !UserRendezvousService.isValidStatus(selectedStatus)) {
+        toast.error(`Statut invalide: ${selectedStatus}`);
+        setSelectedStatus('');
+        return;
+      }
+
       const data = await rendezvousService.fetchUserRendezvous({
         page: pagination.page,
         limit: pagination.limit,
         status: selectedStatus || undefined,
+      });
+      
+      // Vérification de la cohérence des données
+      data.data.forEach(rdv => {
+        if (!UserRendezvousService.isValidStatus(rdv.status)) {
+          console.warn(`Rendez-vous avec statut invalide: ${rdv.status}`);
+        }
       });
       
       setRendezvous(data.data);
@@ -183,8 +198,10 @@ const MesRendezvous = () => {
     } catch (error: any) {
       console.error('Erreur lors du chargement des rendez-vous:', error);
       
-      if (error.message !== 'SESSION_EXPIRED' && 
-          error.message !== 'SESSION_CHECK_IN_PROGRESS') {
+      if (error.message === 'INVALID_STATUS_FILTER') {
+        setSelectedStatus('');
+      } else if (error.message !== 'SESSION_EXPIRED' && 
+                 error.message !== 'SESSION_CHECK_IN_PROGRESS') {
         toast.error("Impossible de charger les rendez-vous");
       }
     } finally {
@@ -199,13 +216,32 @@ const MesRendezvous = () => {
     }
   }, [location.pathname, selectedStatus, pagination.page, fetchRendezvous]);
 
-  // Annuler un rendez-vous
+  // Annuler un rendez-vous avec validation
   const handleCancelRendezvous = async (rdvId: string) => {
+    const rdv = rendezvous.find(r => r._id === rdvId);
+    if (!rdv) return;
+    
+    // Validation préalable (cohérent avec backend)
+    if (rdv.status !== UserRendezvousService.STATUS.CONFIRMED) {
+      toast.error('Seuls les rendez-vous confirmés peuvent être annulés');
+      return;
+    }
+    
+    if (!UserRendezvousService.canCancelRendezvous(rdv)) {
+      toast.error('Impossible d\'annuler ce rendez-vous (trop proche de l\'heure ou déjà passé)');
+      return;
+    }
+    
     setShowCancelPopover(null);
     setCancelling(rdvId);
     
     try {
       const updatedRdv = await rendezvousService.cancelRendezvous(rdvId);
+      
+      // Vérification que le statut est bien "Annulé"
+      if (updatedRdv.status !== UserRendezvousService.STATUS.CANCELLED) {
+        console.warn(`Rendez-vous annulé mais statut différent: ${updatedRdv.status}`);
+      }
       
       setRendezvous(prev => 
         prev.map(rdv => 
@@ -213,13 +249,14 @@ const MesRendezvous = () => {
         )
       );
       
-      toast.success('Rendez-vous annulé avec succès');
+      // Pas besoin de toast ici, le service le gère déjà
     } catch (error: any) {
       console.error('Erreur lors de l\'annulation:', error);
       
+      // Les erreurs spécifiques sont déjà gérées par le service
       if (error.message !== 'SESSION_EXPIRED' && 
           error.message !== 'SESSION_CHECK_IN_PROGRESS') {
-        toast.error("Impossible d'annuler le rendez-vous");
+        // Le service a déjà affiché le toast d'erreur
       }
     } finally {
       setCancelling(null);
@@ -228,6 +265,20 @@ const MesRendezvous = () => {
 
   // Ouvrir le popover d'annulation
   const openCancelPopover = (rdvId: string, event: React.MouseEvent) => {
+    const rdv = rendezvous.find(r => r._id === rdvId);
+    if (!rdv) return;
+    
+    // Validation avant d'ouvrir le popover
+    if (rdv.status !== UserRendezvousService.STATUS.CONFIRMED) {
+      toast.error('Seuls les rendez-vous confirmés peuvent être annulés');
+      return;
+    }
+    
+    if (!UserRendezvousService.canCancelRendezvous(rdv)) {
+      toast.error('Impossible d\'annuler ce rendez-vous (trop proche de l\'heure ou déjà passé)');
+      return;
+    }
+    
     event.stopPropagation();
     setShowCancelPopover(rdvId);
   };
@@ -281,6 +332,8 @@ const MesRendezvous = () => {
               <span className="font-medium">Rendez-vous du :</span> {UserRendezvousService.formatDate(rdv.date)} à {UserRendezvousService.formatTime(rdv.time)}
               <br />
               <span className="font-medium">Destination :</span> {UserRendezvousService.getEffectiveDestination(rdv)}
+              <br />
+              <span className="font-medium">Statut actuel :</span> {rdv.status}
             </p>
           </div>
         </div>
@@ -328,117 +381,157 @@ const MesRendezvous = () => {
     }
   };
 
-  const renderStatusBadge = (status: string) => (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusColors[status] || 'bg-gray-100 text-gray-800 border-gray-300'}`}>
-      {status === 'En attente' && <AlertCircle className="mr-1 h-3 w-3" />}
-      {status === 'Confirmé' && <CheckCircle className="mr-1 h-3 w-3" />}
-      {status === 'Terminé' && <CheckCircle className="mr-1 h-3 w-3" />}
-      {status === 'Annulé' && <XCircle className="mr-1 h-3 w-3" />}
-      {status}
-    </span>
-  );
+  const renderStatusBadge = (status: string) => {
+    const colorClass = UserRendezvousService.getStatusColor(status);
+    const icon = statusIcons[status] || <Info className="mr-1 h-3 w-3" />;
+    
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${colorClass}`}>
+        {icon}
+        {status}
+      </span>
+    );
+  };
 
-  const renderAvisBadge = (avis: string) => (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${avisColors[avis] || 'bg-gray-100 text-gray-800 border-gray-300'}`}>
-      <Star className="mr-1 h-3 w-3" />
-      {avis}
-    </span>
-  );
+  const renderAvisBadge = (avis: string) => {
+    const colorClass = UserRendezvousService.getAvisColor(avis);
+    
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${colorClass}`}>
+        <Star className="mr-1 h-3 w-3" />
+        {avis}
+      </span>
+    );
+  };
 
-  const renderRendezvousItem = (rdv: Rendezvous) => (
-    <div 
-      key={rdv._id} 
-      className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-all duration-300 relative"
-    >
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div className="flex-1">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            {renderStatusBadge(rdv.status)}
-            {rdv.status === 'Terminé' && rdv.avisAdmin && renderAvisBadge(rdv.avisAdmin)}
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center text-sm text-gray-700">
-              <Calendar className="mr-2 h-4 w-4 text-sky-500" />
-              <span className="font-medium">{UserRendezvousService.formatDate(rdv.date)}</span>
-              <Clock className="ml-4 mr-2 h-4 w-4 text-sky-500" />
-              <span className="font-medium">{UserRendezvousService.formatTime(rdv.time)}</span>
-            </div>
-
-            <div className="flex items-center text-sm text-gray-600">
-              <MapPin className="mr-2 h-4 w-4 text-sky-500" />
-              <span>{UserRendezvousService.getEffectiveDestination(rdv)}</span>
-            </div>
-
-            <div className="flex items-center text-sm text-gray-600">
-              <Book className="mr-2 h-4 w-4 text-sky-500" />
-              <span>{UserRendezvousService.getEffectiveFiliere(rdv)}</span>
-            </div>
-
-            <div className="flex items-center text-sm text-gray-600">
-              <Award className="mr-2 h-4 w-4 text-sky-500" />
-              <span>{rdv.niveauEtude}</span>
+  const renderRendezvousItem = (rdv: Rendezvous) => {
+    const isPast = UserRendezvousService.isRendezvousPast(rdv);
+    const canCancel = UserRendezvousService.canCancelRendezvous(rdv);
+    const effectiveDestination = UserRendezvousService.getEffectiveDestination(rdv);
+    const effectiveFiliere = UserRendezvousService.getEffectiveFiliere(rdv);
+    
+    return (
+      <div 
+        key={rdv._id} 
+        className={`bg-white rounded-lg border p-4 hover:shadow-md transition-all duration-300 relative ${
+          isPast ? 'border-gray-300 opacity-90' : 'border-gray-200'
+        }`}
+      >
+        {isPast && (
+          <div className="absolute top-2 right-2">
+            <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+              <Clock3 className="h-3 w-3" />
+              Passé
             </div>
           </div>
-        </div>
-
-        <div className="flex flex-col sm:items-end gap-2">
-          {UserRendezvousService.canCancelRendezvous(rdv) && (
-            <div className="relative">
-              <button
-                onClick={(e) => openCancelPopover(rdv._id, e)}
-                disabled={cancelling === rdv._id}
-                className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 hover:border-red-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed relative"
-              >
-                {cancelling === rdv._id ? (
-                  <>
-                    <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-red-600 border-t-transparent"></div>
-                    Annulation...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="mr-2 h-3 w-3" />
-                    Annuler
-                  </>
-                )}
-              </button>
-              
-              {showCancelPopover === rdv._id && (
-                <CancelConfirmationPopover rdvId={rdv._id} rdv={rdv} />
-              )}
+        )}
+        
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="flex-1">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              {renderStatusBadge(rdv.status)}
+              {rdv.status === UserRendezvousService.STATUS.COMPLETED && rdv.avisAdmin && renderAvisBadge(rdv.avisAdmin)}
             </div>
-          )}
 
-          {rdv.status === 'Terminé' && rdv.avisAdmin && (
-            <div className="text-xs text-gray-500">
-              <div className="flex items-center">
-                <Info className="mr-1 h-3 w-3" />
-                Avis administrateur reçu
+            <div className="space-y-2">
+              <div className="flex items-center text-sm text-gray-700">
+                <Calendar className="mr-2 h-4 w-4 text-sky-500" />
+                <span className="font-medium">{UserRendezvousService.formatDate(rdv.date)}</span>
+                <Clock className="ml-4 mr-2 h-4 w-4 text-sky-500" />
+                <span className="font-medium">{UserRendezvousService.formatTime(rdv.time)}</span>
+                {isPast && <span className="ml-2 text-xs text-gray-500">(passé)</span>}
+              </div>
+
+              <div className="flex items-center text-sm text-gray-600">
+                <MapPin className="mr-2 h-4 w-4 text-sky-500" />
+                <span>{effectiveDestination}</span>
+              </div>
+
+              <div className="flex items-center text-sm text-gray-600">
+                <Book className="mr-2 h-4 w-4 text-sky-500" />
+                <span>{effectiveFiliere}</span>
+              </div>
+
+              <div className="flex items-center text-sm text-gray-600">
+                <Award className="mr-2 h-4 w-4 text-sky-500" />
+                <span>{rdv.niveauEtude}</span>
               </div>
             </div>
-          )}
-
-          <div className="text-xs text-gray-400">
-            Créé le {new Date(rdv.createdAt).toLocaleDateString('fr-FR')}
           </div>
-        </div>
-      </div>
 
-      {rdv.status === 'Annulé' && rdv.cancellationReason && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <div className="text-sm text-gray-600">
-            <span className="font-medium">Raison d'annulation :</span>{' '}
-            {rdv.cancellationReason}
-          </div>
-          {rdv.cancelledAt && (
-            <div className="text-xs text-gray-500 mt-1">
-              Annulé le {new Date(rdv.cancelledAt).toLocaleDateString('fr-FR')}
+          <div className="flex flex-col sm:items-end gap-2">
+            {rdv.status === UserRendezvousService.STATUS.CONFIRMED && canCancel && (
+              <div className="relative">
+                <button
+                  onClick={(e) => openCancelPopover(rdv._id, e)}
+                  disabled={cancelling === rdv._id}
+                  className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 hover:border-red-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed relative"
+                >
+                  {cancelling === rdv._id ? (
+                    <>
+                      <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-red-600 border-t-transparent"></div>
+                      Annulation...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="mr-2 h-3 w-3" />
+                      Annuler
+                    </>
+                  )}
+                </button>
+                
+                {showCancelPopover === rdv._id && (
+                  <CancelConfirmationPopover rdvId={rdv._id} rdv={rdv} />
+                )}
+              </div>
+            )}
+
+            {!canCancel && rdv.status === UserRendezvousService.STATUS.CONFIRMED && (
+              <div className="text-xs text-gray-500 flex items-center">
+                <AlertCircle className="mr-1 h-3 w-3 text-amber-500" />
+                Annulation non disponible
+              </div>
+            )}
+
+            {rdv.status === UserRendezvousService.STATUS.COMPLETED && rdv.avisAdmin && (
+              <div className="text-xs text-gray-500">
+                <div className="flex items-center">
+                  <Info className="mr-1 h-3 w-3" />
+                  Avis administrateur reçu
+                </div>
+              </div>
+            )}
+
+            {rdv.status === UserRendezvousService.STATUS.EXPIRED && (
+              <div className="text-xs text-gray-500 flex items-center">
+                <Ban className="mr-1 h-3 w-3" />
+                Automatiquement expiré
+              </div>
+            )}
+
+            <div className="text-xs text-gray-400">
+              Créé le {new Date(rdv.createdAt).toLocaleDateString('fr-FR')}
             </div>
-          )}
+          </div>
         </div>
-      )}
-    </div>
-  );
+
+        {rdv.status === UserRendezvousService.STATUS.CANCELLED && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="text-sm text-gray-600">
+              <span className="font-medium">Raison d'annulation :</span>{' '}
+              {rdv.cancellationReason || 'Non spécifiée'}
+            </div>
+            {rdv.cancelledAt && (
+              <div className="text-xs text-gray-500 mt-1">
+                Annulé le {new Date(rdv.cancelledAt).toLocaleDateString('fr-FR')}
+                {rdv.cancelledBy && ` par ${rdv.cancelledBy === 'admin' ? 'l\'administrateur' : 'vous'}`}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Mise à jour de la hauteur du header après le rendu
   useEffect(() => {
@@ -634,14 +727,16 @@ const MesRendezvous = () => {
           <div className="mt-8 bg-sky-50 border border-sky-200 rounded-lg p-4">
             <h3 className="font-medium text-sky-800 mb-2 flex items-center">
               <Info className="mr-2 h-4 w-4" />
-              Informations importantes
+              Informations importantes (cohérentes avec le backend)
             </h3>
             <ul className="text-sm text-sky-700 space-y-1">
-              <li>• Les rendez-vous annulés apparaissent avec la raison d'annulation</li>
+              <li>• Les rendez-vous sont <strong>automatiquement confirmés</strong> après création</li>
+              <li>• Vous ne pouvez avoir qu'un seul rendez-vous <strong>Confirmé</strong> à la fois</li>
               <li>• Vous ne pouvez annuler qu'un rendez-vous <strong>Confirmé</strong></li>
-              <li>• L'annulation n'est plus possible à moins de 2 heures du rendez-vous</li>
-              <li>• Pour les rendez-vous <strong>Terminés</strong>, l'avis administrateur est affiché</li>
+              <li>• L'annulation n'est plus possible à moins de <strong>2 heures</strong> du rendez-vous</li>
+              <li>• Les rendez-vous passés de plus de <strong>10 minutes</strong> sont automatiquement <strong>Expirés</strong></li>
               <li>• Un rendez-vous <strong>Terminé</strong> avec avis <strong>Favorable</strong> peut déclencher une procédure</li>
+              <li>• Les rendez-vous <strong>Expirés</strong> ne peuvent pas être modifiés ou annulés</li>
             </ul>
           </div>
         </div>
