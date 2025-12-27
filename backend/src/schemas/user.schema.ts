@@ -1,6 +1,6 @@
 
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { Document, Model , Types} from "mongoose";
+import { Document, Model } from "mongoose";
 import { UserRole } from "../enums/user-role.enum";
 
 export interface UserModel extends Model<User> {
@@ -8,29 +8,14 @@ export interface UserModel extends Model<User> {
   existsById(userId: string): Promise<boolean>;
 }
 
-
 @Schema({ 
   timestamps: true,
   collection: "users",
   toJSON: { 
-    virtuals: true,
-    transform: function(_doc: any, ret: { id: any; _id: { toString: () => any; }; __v: any; password: any; }) {
-      ret.id = ret._id.toString();
-      delete ret._id;
-      delete ret.__v;
-      delete ret.password;
-      return ret;
-    }
+    virtuals: true
   },
   toObject: { 
-    virtuals: true,
-    transform: function(_doc: any, ret: { id: any; _id: { toString: () => any; }; __v: any; password: any; }) {
-      ret.id = ret._id.toString();
-      delete ret._id;
-      delete ret.__v;
-      delete ret.password;
-      return ret;
-    }
+    virtuals: true
   }
 })
 export class User extends Document {
@@ -98,7 +83,7 @@ export class User extends Document {
   @Prop({ 
     type: Date,
     index: true,
-    expires: 86400 // ⚠️ Correction: option Mongoose pour TTL
+    expires: 86400 
   })
   logoutUntil?: Date;
 
@@ -125,8 +110,7 @@ export class User extends Document {
 
   @Prop({ type: Date })
   updatedAt?: Date;
-
-  _id: Types.ObjectId;
+  id: any;
 
   // Virtuals
   public get fullName(): string {

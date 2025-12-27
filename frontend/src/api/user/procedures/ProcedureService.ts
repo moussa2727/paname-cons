@@ -62,6 +62,7 @@ export interface UserProcedure {
   dateDerniereModification?: Date;
   createdAt: Date;
   updatedAt: Date;
+  isDeleted?: boolean; // ✅ AJOUT: Champ pour suivre l'état de suppression
 }
 
 export interface PaginatedUserProcedures {
@@ -181,6 +182,9 @@ class ProcedureApiService {
         `/api/procedures/${procedureId}/cancel`,
         {
           method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify({ reason } as CancelProcedureDto),
         }
       );
@@ -235,6 +239,7 @@ class ProcedureApiService {
         : undefined,
       createdAt: new Date(data.createdAt),
       updatedAt: new Date(data.updatedAt),
+      isDeleted: data.isDeleted || false, // ✅ AJOUT
     };
   }
 
@@ -257,7 +262,7 @@ class ProcedureApiService {
   /**
    * Messages d'erreur utilisateur-friendly
    */
-  private getUserFriendlyMessage(errorCode: string): string {
+  private getUserFriendlyMessage = (errorCode: string): string => {
     const messages: Record<string, string> = {
       SESSION_EXPIRED: 'Session expirée - Veuillez vous reconnecter',
       'ID de procédure manquant': 'Identifiant de procédure manquant',
@@ -266,10 +271,15 @@ class ProcedureApiService {
       'Erreur 403': 'Accès refusé',
       'Erreur 404': 'Procédure non trouvée',
       'Erreur 500': 'Erreur serveur',
+      'Validation failed': 'Erreur de validation des données',
+      'Procédure déjà finalisée': 'Cette procédure est déjà finalisée',
+      'Vous ne pouvez annuler que vos propres procédures': 'Action non autorisée',
+      'Procédure déjà annulée': 'Cette procédure est déjà annulée',
     };
 
-    return messages[errorCode] || 'Une erreur est survenue';
-  }
+   return messages[errorCode] || errorCode || 'Une erreur est survenue';
+  };
+
 }
 
 // ==================== HOOKS PERSONNALISÉS UTILISANT LE CONTEXTE ====================
@@ -410,6 +420,7 @@ export const useCancelProcedure = () => {
         return data;
       } catch (err: any) {
         const errorMessage = err.message || 'ERREUR_INCONNUE';
+        toast.error(errorMessage);
         throw err;
       } finally {
         setLoading(false);
@@ -428,6 +439,7 @@ export const useCancelProcedure = () => {
 
 /**
  * Vérifie si une procédure peut être annulée
+ * ✅ CORRECTION: Inclure les procédures déjà annulées comme non annulables
  */
 export const canCancelProcedure = (procedure: UserProcedure): boolean => {
   const finalStatuses = [
@@ -437,6 +449,11 @@ export const canCancelProcedure = (procedure: UserProcedure): boolean => {
   ];
 
   if (finalStatuses.includes(procedure.statut)) {
+    return false;
+  }
+
+  // Vérifier si la procédure est marquée comme supprimée (soft delete)
+  if (procedure.isDeleted) {
     return false;
   }
 
@@ -450,6 +467,7 @@ export const canCancelProcedure = (procedure: UserProcedure): boolean => {
 
 /**
  * Calcule la progression d'une procédure
+ * ✅ CORRECTION: Inclure les étapes annulées dans le calcul
  */
 export const getProgressStatus = (
   procedure: UserProcedure
@@ -459,14 +477,19 @@ export const getProgressStatus = (
   total: number;
 } => {
   const totalSteps = procedure.steps.length;
-  const completedSteps = procedure.steps.filter(
-    (step: UserProcedureStep) => step.statut === StepStatus.COMPLETED
+  
+  // Compter les étapes terminées OU annulées/rejetées (car elles sont "finalisées")
+  const completedOrFinalSteps = procedure.steps.filter(
+    (step: UserProcedureStep) => 
+      step.statut === StepStatus.COMPLETED || 
+      step.statut === StepStatus.CANCELLED || 
+      step.statut === StepStatus.REJECTED
   ).length;
 
   return {
     percentage:
-      totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0,
-    completed: completedSteps,
+      totalSteps > 0 ? Math.round((completedOrFinalSteps / totalSteps) * 100) : 0,
+    completed: completedOrFinalSteps,
     total: totalSteps,
   };
 };
@@ -531,7 +554,7 @@ export const getProcedureStatusColor = (statut: ProcedureStatus): string => {
     case ProcedureStatus.COMPLETED:
       return 'bg-green-50 text-green-700 border-green-200';
     case ProcedureStatus.CANCELLED:
-      return 'bg-red-50 text-red-700 border-red-200';
+      return 'bg-gray-100 text-gray-700 border-gray-300'; // ✅ CHANGEMENT: Couleur plus neutre pour les annulées
     case ProcedureStatus.REJECTED:
       return 'bg-orange-50 text-orange-700 border-orange-200';
     default:
@@ -551,12 +574,20 @@ export const getStepStatusColor = (statut: StepStatus): string => {
     case StepStatus.COMPLETED:
       return 'bg-green-50 text-green-700 border-green-200';
     case StepStatus.CANCELLED:
-      return 'bg-red-50 text-red-700 border-red-200';
+      return 'bg-gray-100 text-gray-600 border-gray-300'; // ✅ CHANGEMENT: Couleur plus neutre
     case StepStatus.REJECTED:
       return 'bg-orange-50 text-orange-700 border-orange-200';
     default:
       return 'bg-gray-50 text-gray-700 border-gray-200';
   }
+};
+
+/**
+ * Vérifie si une procédure est visible (non supprimée)
+ */
+export const isProcedureVisible = (procedure: UserProcedure): boolean => {
+  // ✅ CORRECTION: Toujours visible maintenant, même si annulée
+  return true; // Toutes les procédures sont visibles
 };
 
 // Export pour utilisation externe

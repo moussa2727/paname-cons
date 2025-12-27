@@ -197,7 +197,6 @@ const ERROR_MESSAGES: ErrorMessages = {
 
 export class AdminRendezVousService {
   private fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>;
-  private baseUrl: string = import.meta.env.VITE_API_URL || '';
   private lastRequestTime: number = 0;
   private MIN_REQUEST_INTERVAL = 1000;
   private requestQueue: Promise<any> = Promise.resolve();
@@ -413,11 +412,6 @@ export class AdminRendezVousService {
           'Chargement des rendez-vous'
         );
         
-        toast.success(`${data.data.length} rendez-vous chargés`, {
-          autoClose: 2000,
-          position: "top-right",
-        });
-        
         return data;
       } catch (error) {
         if (error instanceof Error) {
@@ -503,7 +497,7 @@ export class AdminRendezVousService {
 
   // Méthode pour récupérer les rendez-vous d'un utilisateur spécifique
   async fetchUserRendezvous(
-    userEmail: string,
+    _userEmail: string,
     page: number = 1,
     limit: number = 10,
     status?: RendezvousStatus

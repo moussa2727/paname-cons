@@ -244,13 +244,13 @@ const UsersManagement: React.FC = () => {
       }
 
       const updatedUser = await userService.updateUser(
-        selectedUser._id,
+        selectedUser.id,
         updateData
       );
 
       setUsers(prev =>
         prev.map(user =>
-          user._id === selectedUser._id ? { ...user, ...updatedUser } : user
+          user.id === selectedUser.id ? { ...user, ...updatedUser } : user
         )
       );
 
@@ -285,7 +285,7 @@ const UsersManagement: React.FC = () => {
         return;
       }
 
-      await userService.adminResetPassword(selectedUser._id, passwordData);
+      await userService.adminResetPassword(selectedUser.id, passwordData);
 
       setPasswordData({
         newPassword: '',
@@ -310,16 +310,16 @@ const UsersManagement: React.FC = () => {
         return;
       }
 
-      if (selectedUser._id === currentUser?.id) {
+      if (selectedUser.id === currentUser?.id) {
         toast.error('🚫 Vous ne pouvez pas supprimer votre propre compte');
         setIsDeleteModalOpen(false);
         setSelectedUser(null);
         return;
       }
 
-      await userService.deleteUser(selectedUser._id);
+      await userService.deleteUser(selectedUser.id);
 
-      setUsers(prev => prev.filter(user => user._id !== selectedUser._id));
+      setUsers(prev => prev.filter(user => user.id !== selectedUser.id));
       await loadStats();
 
       setIsDeleteModalOpen(false);
@@ -333,15 +333,15 @@ const UsersManagement: React.FC = () => {
   // Basculer le statut actif/inactif
   const handleToggleStatus = async (user: AppUser) => {
     try {
-      if (user._id === currentUser?.id) {
+      if (user.id === currentUser?.id) {
         toast.error('🚫 Vous ne pouvez pas désactiver votre propre compte');
         return;
       }
 
-      const updatedUser = await userService.toggleUserStatus(user._id);
+      const updatedUser = await userService.toggleUserStatus(user.id);
 
       setUsers(prev =>
-        prev.map(u => (u._id === user._id ? { ...u, ...updatedUser } : u))
+        prev.map(u => (u.id === user.id ? { ...u, ...updatedUser } : u))
       );
 
       await loadStats();
@@ -644,7 +644,7 @@ const UsersManagement: React.FC = () => {
               <div className='divide-y divide-slate-200'>
                 {filteredUsers.map(user => (
                   <div
-                    key={user._id}
+                    key={user.id}
                     className='p-4 hover:bg-slate-50 transition-colors'
                   >
                     <div className='flex justify-between items-start mb-3'>
@@ -669,7 +669,7 @@ const UsersManagement: React.FC = () => {
                         <button
                           onClick={() =>
                             setShowMobileMenu(
-                              showMobileMenu === user._id ? null : user._id
+                              showMobileMenu === user.id ? null : user.id
                             )
                           }
                           className='p-2 hover:bg-slate-100 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 transition-all duration-200'
@@ -677,7 +677,7 @@ const UsersManagement: React.FC = () => {
                           <MoreVertical className='w-4 h-4 text-slate-500' />
                         </button>
 
-                        {showMobileMenu === user._id && (
+                        {showMobileMenu === user.id && (
                           <div className='absolute right-0 top-10 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-45'>
                             <button
                               onClick={() => openEditModal(user)}
@@ -695,7 +695,7 @@ const UsersManagement: React.FC = () => {
                             </button>
                             <button
                               onClick={() => handleToggleStatus(user)}
-                              disabled={user._id === currentUser?.id}
+                              disabled={user.id === currentUser?.id}
                               className='w-full px-4 py-2.5 text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2 border-b border-slate-200 disabled:opacity-50 focus:outline-none focus:ring-none'
                             >
                               {user.isActive ? (
@@ -707,7 +707,7 @@ const UsersManagement: React.FC = () => {
                             </button>
                             <button
                               onClick={() => openDeleteModal(user)}
-                              disabled={user._id === currentUser?.id}
+                              disabled={user.id === currentUser?.id}
                               className='w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-none'
                             >
                               <Trash2 className='w-4 h-4' />
@@ -741,7 +741,7 @@ const UsersManagement: React.FC = () => {
                     </div>
 
                     <div className='text-xs text-slate-500 truncate'>
-                      ID: {user._id}
+                      ID: {user.id}
                     </div>
                   </div>
                 ))}
@@ -802,7 +802,7 @@ const UsersManagement: React.FC = () => {
                 ) : (
                   filteredUsers.map(user => (
                     <tr
-                      key={user._id}
+                      key={user.id}
                       className='hover:bg-slate-50 transition-colors'
                     >
                       <td className='px-4 py-4'>
@@ -815,7 +815,7 @@ const UsersManagement: React.FC = () => {
                               {user.firstName} {user.lastName}
                             </p>
                             <p className='text-xs text-slate-500'>
-                              ID: {user._id.substring(0, 8)}...
+                              ID: {user.id.substring(0, 8)}...
                             </p>
                           </div>
                         </div>
@@ -876,16 +876,16 @@ const UsersManagement: React.FC = () => {
 
                           <button
                             onClick={() => handleToggleStatus(user)}
-                            disabled={user._id === currentUser?.id}
+                            disabled={user.id === currentUser?.id}
                             className={`p-2 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 transition-all duration-200 ${
-                              user._id === currentUser?.id
+                              user.id === currentUser?.id
                                 ? 'text-slate-400 cursor-not-allowed'
                                 : user.isActive
                                   ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50'
                                   : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
                             }`}
                             title={
-                              user._id === currentUser?.id
+                              user.id === currentUser?.id
                                 ? 'Impossible de modifier votre statut'
                                 : user.isActive
                                   ? 'Désactiver'
@@ -901,14 +901,14 @@ const UsersManagement: React.FC = () => {
 
                           <button
                             onClick={() => openDeleteModal(user)}
-                            disabled={user._id === currentUser?.id}
+                            disabled={user.id === currentUser?.id}
                             className={`p-2 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 transition-all duration-200 ${
-                              user._id === currentUser?.id
+                              user.id === currentUser?.id
                                 ? 'text-slate-400 cursor-not-allowed'
                                 : 'text-red-600 hover:text-red-700 hover:bg-red-50'
                             }`}
                             title={
-                              user._id === currentUser?.id
+                              user.id === currentUser?.id
                                 ? 'Impossible de supprimer votre compte'
                                 : 'Supprimer'
                             }
@@ -1108,7 +1108,7 @@ const UsersManagement: React.FC = () => {
                     </span>
                   </p>
                   <p className='text-xs text-slate-500 mt-1'>
-                    ID: {selectedUser._id}
+                    ID: {selectedUser.id}
                   </p>
                 </div>
 
@@ -1413,7 +1413,7 @@ const UsersManagement: React.FC = () => {
                 <p className='text-xs text-slate-500 text-center mt-1'>
                   Cette action est irréversible.
                 </p>
-                {selectedUser._id === currentUser?.id && (
+                {selectedUser.id === currentUser?.id && (
                   <p className='text-rose-600 text-xs text-center mt-2 bg-rose-50 p-2 rounded border border-rose-200'>
                     ⚠️ Vous ne pouvez pas supprimer votre compte
                   </p>
@@ -1429,9 +1429,9 @@ const UsersManagement: React.FC = () => {
                 </button>
                 <button
                   onClick={handleDeleteUser}
-                  disabled={selectedUser._id === currentUser?.id}
+                  disabled={selectedUser.id === currentUser?.id}
                   className={`flex-1 px-4 py-2.5 text-sm rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 transition-all duration-200 flex items-center justify-center gap-2 ${
-                    selectedUser._id === currentUser?.id
+                    selectedUser.id === currentUser?.id
                       ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                       : 'bg-rose-500 text-white hover:bg-rose-600'
                   }`}

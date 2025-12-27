@@ -98,7 +98,7 @@ class UserProfileService {
       const userData = await response.json();
 
       const user: User = {
-        id: userData.id || userData._id,
+        id: userData.id,
         email: userData.email,
         firstName: userData.firstName,
         lastName: userData.lastName,
@@ -183,7 +183,7 @@ class UserProfileService {
       toast.success(ERROR_MESSAGES.PROFILE_UPDATE_SUCCESS);
 
       return {
-        id: result.id || result._id,
+        id: result.id,
         email: result.email,
         firstName: result.firstName,
         lastName: result.lastName,

@@ -4,10 +4,10 @@
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
-    "experimentalDecorators": true, 
-    "sourceMap": false,
+    "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
     "target": "ES2020",
+    "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
     "incremental": true,
@@ -17,7 +17,7 @@
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
-    "strict": false,
+    "strict": false, // <-- Ajoutez cette ligne
     "types": []
   },
   "exclude": [

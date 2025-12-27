@@ -12,7 +12,6 @@ import {
   User,
   Mail,
   Phone,
-  GraduationCap,
   BookOpen,
   AlertCircle,
   ChevronDown,
@@ -42,7 +41,7 @@ interface Destination {
 
 // Interface pour les rendez-vous (en utilisant les types du service)
 interface Rendezvous {
-  id: string;  // L'API retourne 'id' au lieu de '_id'
+  id: string;  // L'API retourne 'id' 
   firstName: string;
   lastName: string;
   email: string;
@@ -204,9 +203,9 @@ const AdminRendezVous = (): React.JSX.Element => {
         search: searchTerm || undefined,
       });
       
-      // Normaliser les données - l'API retourne 'id' au lieu de '_id'
+      // Normaliser les données 
       const normalizedRendezvous = result.data?.map((rdv: any) => ({
-        id: rdv.id || rdv._id, // Prendre 'id' ou '_id' selon ce qui existe
+        id: rdv.id || rdv._id, 
         firstName: rdv.firstName,
         lastName: rdv.lastName,
         email: rdv.email,

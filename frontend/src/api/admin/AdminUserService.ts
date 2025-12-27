@@ -1,5 +1,5 @@
 export interface User {
-  _id: string;
+  id: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -42,7 +42,7 @@ class AdminUserService {
   private baseURL: string;
 
   constructor() {
-    this.baseURL = import.meta.env.VITE_API_URL || '';
+    this.baseURL = import.meta.env.VITE_API_URL ;
     this.initializeToken();
   }
 

@@ -92,20 +92,20 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
       setDestinations(transformedData);
 
       // Pour déboguer - seulement en développement
-      if (import.meta.env.DEV) {
-        console.log('Destinations loaded:', data);
-        console.log('Transformed destinations:', transformedData);
-        if (transformedData.length > 0) {
-          console.log('First destination image URL:', transformedData[0]?.imagePath);
-        }
-      }
+      // if (import.meta.env.DEV) {
+      //   console.log('Destinations loaded:', data);
+      //   console.log('Transformed destinations:', transformedData);
+      //   if (transformedData.length > 0) {
+      //     console.log('First destination image URL:', transformedData[0]?.imagePath);
+      //   }
+      // }
 
       // Mettre à jour les informations de source de données
       const stats = await destinationService.getStatistics();
 
-      if (import.meta.env.DEV) {
-        console.log('Stats:', stats);
-      }
+      // if (import.meta.env.DEV) {
+      //   console.log('Stats:', stats);
+      // }
 
       setDataSourceInfo({
         count: data.length,
@@ -135,26 +135,26 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
   // Vérifier les droits admin - CORRIGÉ
   const hasAdminRights = (): boolean => {
     if (!isAuthenticated || !user || !access_token) {
-      if (import.meta.env.DEV) {
-        console.log(
-          'hasAdminRights: false - not authenticated/no user/no token'
-        );
-      }
+      // if (import.meta.env.DEV) {
+      //   console.log(
+      //     'hasAdminRights: false - not authenticated/no user/no token'
+      //   );
+      // }
       return false;
     }
 
     // Vérifier le rôle admin
     const isAdminUser = user.role === 'admin';
 
-    if (import.meta.env.DEV) {
-      console.log('hasAdminRights check:', {
-        isAuthenticated,
-        user,
-        role: user?.role,
-        hasToken: !!access_token,
-        isAdminUser,
-      });
-    }
+    // if (import.meta.env.DEV) {
+    //   console.log('hasAdminRights check:', {
+    //     isAuthenticated,
+    //     user,
+    //     role: user?.role,
+    //     hasToken: !!access_token,
+    //     isAdminUser,
+    //   });
+    // }
 
     return isAdminUser;
   };
@@ -244,9 +244,9 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
       setShowDeleteConfirm(null);
       fetchDestinations();
     } catch (error: any) {
-      if (import.meta.env.DEV) {
-        console.error('Erreur détaillée:', error);
-      }
+      // if (import.meta.env.DEV) {
+      //   console.error('Erreur détaillée:', error);
+      // }
       // Le message d'erreur est déjà géré par le service
     } finally {
       setLoading(false);
@@ -300,15 +300,15 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
 
   useEffect(() => {
     // Log d'état d'authentification pour déboguer
-    if (import.meta.env.DEV) {
-      console.log('AdminDestinations Auth State:', {
-        access_token,
-        user,
-        isAuthenticated,
-        isAdmin: user?.role === 'admin',
-        userObject: user,
-      });
-    }
+    // if (import.meta.env.DEV) {
+    //   console.log('AdminDestinations Auth State:', {
+    //     access_token,
+    //     user,
+    //     isAuthenticated,
+    //     isAdmin: user?.role === 'admin',
+    //     userObject: user,
+    //   });
+    // }
 
     fetchDestinations();
     return () => {

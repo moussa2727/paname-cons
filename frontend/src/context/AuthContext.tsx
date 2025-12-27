@@ -311,13 +311,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userData = await response.json();
         
         const mappedUser: User = {
-          id: userData.id || userData._id || '',
-          email: userData.email || '',
-          firstName: userData.firstName || '',
-          lastName: userData.lastName || '',
+          id: userData.id,
+          email: userData.email,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
           role: userData.role || UserRole.USER,
           isActive: userData.isActive !== false,
-          telephone: userData.telephone || '',
+          telephone: userData.telephone,
           isAdmin: userData.role === UserRole.ADMIN,
         };
 
