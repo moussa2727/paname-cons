@@ -40,6 +40,9 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
+      - 8.8.4.4
+
+    network_mode: host
     
     # Health check pour surveiller l'état de l'application
     healthcheck:
