@@ -1,5 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useAdminContactService } from '../../api/admin/AdminContactService';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  useAdminContactService, 
+  type Contact, 
+  type ContactStats,
+  type ContactFilters 
+} from '../../api/admin/AdminContactService';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 import { Helmet } from 'react-helmet-async';
@@ -22,47 +27,14 @@ import {
   ChevronRight,
 } from 'lucide-react';
 
-// Interface locale alignée avec le service API
-interface ContactItem {
-  _id: string;
-  firstName?: string;
-  lastName?: string;
-  email: string;
-  message: string;
-  isRead: boolean;
-  adminResponse?: string;
-  respondedAt?: Date;
-  respondedBy?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Interface pour les statistiques
-interface ContactStats {
-  total: number;
-  unread: number;
-  read: number;
-  responded: number;
-  thisMonth: number;
-  lastMonth: number;
-}
-
-// Interface pour les filtres - page et limit sont obligatoires
-interface ContactFilters {
-  page: number;
-  limit: number;
-  isRead?: boolean;
-  search?: string;
-}
-
 const AdminMessages: React.FC = () => {
   const contactService = useAdminContactService();
   const { user } = useAuth();
 
-  // État pour les contacts avec typage strict
-  const [contacts, setContacts] = useState<ContactItem[]>([]);
+  // État pour les contacts avec typage direct du service
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [stats, setStats] = useState<ContactStats | null>(null);
-  const [selectedContact, setSelectedContact] = useState<ContactItem | null>(null);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   
   // États pour les modales
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -84,19 +56,24 @@ const AdminMessages: React.FC = () => {
 
   const [showFilters, setShowFilters] = useState(false);
   const [totalContacts, setTotalContacts] = useState(0);
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout>();
+
+  // Fonction utilitaire pour parser les dates
+  const parseContactDates = useCallback((contact: Contact): Contact => ({
+    ...contact,
+    createdAt: new Date(contact.createdAt),
+    updatedAt: new Date(contact.updatedAt),
+    respondedAt: contact.respondedAt ? new Date(contact.respondedAt) : undefined,
+  }), []);
 
   // Charger les contacts avec gestion d'erreur robuste
-  const loadContacts = async () => {
+  const loadContacts = useCallback(async () => {
     try {
       setLoading(true);
       const response = await contactService.getAllContacts(filters);
-      // Conversion explicite des dates si nécessaire
-      const contactsData = response.data.map(contact => ({
-        ...contact,
-        createdAt: new Date(contact.createdAt),
-        updatedAt: new Date(contact.updatedAt),
-        respondedAt: contact.respondedAt ? new Date(contact.respondedAt) : undefined,
-      }));
+      
+      // Conversion explicite des dates
+      const contactsData = response.data.map(parseContactDates);
       setContacts(contactsData);
       setTotalContacts(response.total);
     } catch (error: any) {
@@ -113,10 +90,10 @@ const AdminMessages: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [contactService, filters, parseContactDates]);
 
   // Charger les statistiques
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const statsData = await contactService.getContactStats();
       setStats(statsData);
@@ -128,23 +105,55 @@ const AdminMessages: React.FC = () => {
         toast.error(errorMessage);
       }
     }
-  };
+  }, [contactService]);
 
   // Charger les données quand les filtres changent
   useEffect(() => {
-    const fetchData = async () => {
-      await Promise.all([loadContacts(), loadStats()]);
+    loadContacts();
+  }, [filters.page, filters.limit, filters.isRead, loadContacts]);
+
+  // Charger les stats moins fréquemment
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
+  // Effet pour debounce la recherche
+  useEffect(() => {
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+
+    if (filters.search !== undefined) {
+      const timeout = setTimeout(() => {
+        setFilters(prev => ({ ...prev, page: 1 }));
+      }, 500);
+      
+      setSearchTimeout(timeout);
+    }
+
+    return () => {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
     };
-    
-    fetchData();
-  }, [filters]);
+  }, [filters.search]);
 
   // Gestionnaires d'actions avec typage strict
   const handleMarkAsRead = async (id: string) => {
     try {
       setActionLoading(`read-${id}`);
-      await contactService.markAsRead(id);
-      await Promise.all([loadContacts(), loadStats()]);
+      const updatedContact = await contactService.markAsRead(id);
+      
+      // Mettre à jour l'état local
+      setContacts(prev => 
+        prev.map(contact => 
+          contact._id === id ? parseContactDates(updatedContact) : contact
+        )
+      );
+      
+      // Recharger les stats
+      await loadStats();
+      
       toast.success('Message marqué comme lu');
     } catch (error: any) {
       const errorMessage = error.message || 'Erreur lors du marquage du message';
@@ -165,8 +174,21 @@ const AdminMessages: React.FC = () => {
 
     try {
       setActionLoading('reply');
-      await contactService.replyToMessage(selectedContact._id, replyMessage);
-      await Promise.all([loadContacts(), loadStats()]);
+      const updatedContact = await contactService.replyToMessage(selectedContact._id, replyMessage);
+      
+      // Mettre à jour l'état local
+      setContacts(prev => 
+        prev.map(contact => 
+          contact._id === selectedContact._id ? parseContactDates(updatedContact) : contact
+        )
+      );
+      
+      // Mettre à jour le contact sélectionné
+      setSelectedContact(parseContactDates(updatedContact));
+      
+      // Recharger les stats
+      await loadStats();
+      
       setIsReplyModalOpen(false);
       setReplyMessage('');
       toast.success('Réponse envoyée avec succès');
@@ -185,7 +207,13 @@ const AdminMessages: React.FC = () => {
     try {
       setActionLoading(`delete-${id}`);
       await contactService.deleteContact(id);
-      await Promise.all([loadContacts(), loadStats()]);
+      
+      // Mettre à jour l'état local
+      setContacts(prev => prev.filter(contact => contact._id !== id));
+      
+      // Recharger les stats
+      await loadStats();
+      
       setIsDeleteModalOpen(false);
       setSelectedContact(null);
       toast.success('Message supprimé avec succès');
@@ -200,19 +228,23 @@ const AdminMessages: React.FC = () => {
     }
   };
 
-  const confirmDelete = (contact: ContactItem) => {
+  const confirmDelete = (contact: Contact) => {
     setSelectedContact(contact);
     setIsDeleteModalOpen(true);
   };
 
-  const handleViewDetails = async (contact: ContactItem) => {
+  const handleViewDetails = async (contact: Contact) => {
     try {
-      setSelectedContact(contact);
+      // Récupérer les données fraîches du contact
+      const freshContact = await contactService.getContact(contact._id);
+      const parsedContact = parseContactDates(freshContact);
+      
+      setSelectedContact(parsedContact);
       setIsDetailModalOpen(true);
 
       // Marquer comme lu si ce n'est pas déjà fait
-      if (!contact.isRead) {
-        await handleMarkAsRead(contact._id);
+      if (!parsedContact.isRead) {
+        await handleMarkAsRead(parsedContact._id);
       }
     } catch (error: any) {
       const errorMessage = error.message || 'Erreur lors de la récupération des détails';
@@ -223,7 +255,7 @@ const AdminMessages: React.FC = () => {
     }
   };
 
-  const handleOpenReply = (contact: ContactItem) => {
+  const handleOpenReply = (contact: Contact) => {
     setSelectedContact(contact);
     setIsReplyModalOpen(true);
   };
@@ -249,6 +281,10 @@ const AdminMessages: React.FC = () => {
       [key]: value,
       page: 1, // Retour à la première page quand on change les filtres
     }));
+  };
+
+  const handleSearchChange = (value: string) => {
+    handleFilterChange('search', value);
   };
 
   const applyFilters = () => {
@@ -381,8 +417,8 @@ const AdminMessages: React.FC = () => {
                   <input
                     type='text'
                     placeholder='Nom, email ou message...'
-                    value={filters.search}
-                    onChange={e => handleFilterChange('search', e.target.value)}
+                    value={filters.search || ''}
+                    onChange={e => handleSearchChange(e.target.value)}
                     className='w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-none focus:border-blue-500 text-sm'
                   />
                   <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>

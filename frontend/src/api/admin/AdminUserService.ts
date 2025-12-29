@@ -1,3 +1,6 @@
+import { useAuth } from '../../context/AuthContext';
+
+// ===== INTERFACES (Alignées avec backend) =====
 export interface User {
   id: string;
   firstName: string;
@@ -25,7 +28,7 @@ export interface CreateUserDto {
   email: string;
   telephone: string;
   password: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'user'; // Note: Backend forcera USER pour tous les créations API
 }
 
 export interface UpdateUserDto {
@@ -33,284 +36,279 @@ export interface UpdateUserDto {
   telephone?: string;
 }
 
-// Variables d'environnement compatibles SSR
-const isBrowser = typeof window !== 'undefined';
-const isServer = typeof window === 'undefined';
+export interface AdminResetPasswordDto {
+  newPassword: string;
+  confirmNewPassword: string;
+}
 
-class AdminUserService {
-  private token: string | null = null;
-  private baseURL: string;
+// ===== HOOK PERSONNALISÉ =====
+export const useAdminUserService = () => {
+  const { fetchWithAuth, user, isAuthenticated } = useAuth();
+  const API_URL = import.meta.env.VITE_API_URL;
 
-  constructor() {
-    this.baseURL = import.meta.env.VITE_API_URL ;
-    this.initializeToken();
-  }
+  // Fonction utilitaire pour vérifier les droits admin
+  const isUserAdmin = (currentUser: any): boolean => {
+    return currentUser?.role === 'admin';
+  };
 
-  private initializeToken(): void {
-    try {
-      // ✅ Récupérer le token depuis localStorage (comme dans AuthContext)
-      if (isBrowser && window.localStorage) {
-        this.token = window.localStorage.getItem('access_token');
-      }
-
-      // Vérifier aussi dans le document.cookie pour le refresh token
-      if (!this.token && isBrowser) {
-        // Utiliser import.meta.env.MODE pour vérifier l'environnement
-        if (import.meta.env.DEV) {
-          console.warn('Token non trouvé dans localStorage');
-        }
-      }
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('Erreur accès localStorage:', error);
-      }
-    }
-  }
-
-  private async makeAuthenticatedRequest(
+  // Fonction de requête admin sécurisée
+  const secureAdminFetch = async (
     endpoint: string,
     options: RequestInit = {}
-  ): Promise<Response> {
-    // ✅ Vérifier et rafraîchir le token si nécessaire
-    if (!this.token) {
-      this.initializeToken();
+  ) => {
+    if (!isAuthenticated || !isUserAdmin(user)) {
+      throw new Error('Accès refusé : droits administrateur requis');
     }
 
-    if (!this.token) {
-      throw new Error('Token non disponible - Veuillez vous reconnecter');
-    }
+    try {
+      const response = await fetchWithAuth(endpoint, options);
 
-    const requestOptions: RequestInit = {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      credentials: 'include' as RequestCredentials,
-    };
-
-    // Utiliser fetch global (disponible dans Node 18+ et navigateurs)
-    const response = await fetch(`${this.baseURL}${endpoint}`, requestOptions);
-
-    // ✅ Gérer l'expiration du token
-    if (response.status === 401) {
-      if (import.meta.env.DEV) {
-        console.log('Token expiré, tentative de rafraîchissement...');
+      if (response.status === 401) {
+        throw new Error('Session expirée, veuillez vous reconnecter');
       }
 
-      // Essayer de rafraîchir le token via l'endpoint de refresh
-      const refreshed = await this.attemptTokenRefresh();
-      if (refreshed && this.token) {
-        // Réessayer la requête avec le nouveau token
-        requestOptions.headers = {
-          ...requestOptions.headers,
-          Authorization: `Bearer ${this.token}`,
-        };
-        return fetch(`${this.baseURL}${endpoint}`, requestOptions);
-      } else {
-        throw new Error('Session expirée - Veuillez vous reconnecter');
+      if (response.status === 403) {
+        throw new Error('Accès refusé : droits administrateur requis');
       }
-    }
 
-    return response;
-  }
-
-  private async attemptTokenRefresh(): Promise<boolean> {
-    if (!isBrowser) return false;
-
-    // Utiliser l'endpoint de refresh comme dans AuthContext
-    const response = await fetch(`${this.baseURL}/api/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include', // Important pour les cookies
-    });
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      if (data.logged_out || data.session_expired) {
-        return false;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Erreur ${response.status}`);
       }
-      return false;
-    }
 
-    const data = await response.json();
-
-    if (data.access_token) {
-      if (isBrowser && window.localStorage) {
-        window.localStorage.setItem('access_token', data.access_token);
+      return await response.json();
+    } catch (err: any) {
+      if (err.message === 'SESSION_EXPIRED') {
+        throw new Error('Session expirée, veuillez vous reconnecter');
       }
-      this.token = data.access_token;
-      return true;
+      throw err;
     }
-
-    return false;
-  }
+  };
 
   // === MÉTHODES ADMIN UNIQUEMENT ===
 
-  async getAllUsers(): Promise<User[]> {
-    const response = await this.makeAuthenticatedRequest('/api/users');
+  //  Récupérer tous les utilisateurs
+  const getAllUsers = async (): Promise<User[]> => {
+    try {
+      const response = await secureAdminFetch('/api/users', {
+        method: 'GET',
+      });
 
-    if (!response.ok) {
-      if (response.status === 403) {
+      // Backend retourne directement un tableau d'utilisateurs
+      return response as User[];
+    } catch (err: any) {
+      if (err.message.includes('permissions administrateur')) {
         throw new Error("Vous n'avez pas les permissions administrateur");
       }
+      throw err;
+    }
+  };
 
-      const errorData = await response.json().catch(() => ({}));
+  //  Obtenir les statistiques utilisateurs
+  const getUserStats = async (): Promise<UserStats> => {
+    try {
+      const stats = await secureAdminFetch('/api/users/stats', {
+        method: 'GET',
+      });
+
+      return stats as UserStats;
+    } catch (err: any) {
       throw new Error(
-        errorData.message ||
-          `Erreur ${response.status} lors de la récupération des utilisateurs`
+        err.message || 'Erreur lors de la récupération des statistiques'
       );
     }
+  };
 
-    const data = await response.json();
-    return data.data || data || [];
-  }
+  //  Créer un utilisateur (sera toujours USER sauf si email=EMAIL_USER et premier admin)
+  const createUser = async (userData: CreateUserDto): Promise<User> => {
+    try {
+      const result = await secureAdminFetch('/api/users', {
+        method: 'POST',
+        body: JSON.stringify(userData),
+      });
 
-  async getUserStats(): Promise<UserStats> {
-    const response = await this.makeAuthenticatedRequest('/api/users/stats');
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.message || 'Erreur lors de la récupération des statistiques'
-      );
+      // Backend retourne directement l'utilisateur créé avec id
+      return result as User;
+    } catch (err: any) {
+      if (err.message.includes('email est déjà utilisé')) {
+        throw new Error('Cet email est déjà utilisé');
+      }
+      if (err.message.includes('téléphone est déjà utilisé')) {
+        throw new Error('Ce numéro de téléphone est déjà utilisé');
+      }
+      if (err.message.includes('mot de passe doit contenir au moins 8 caractères')) {
+        throw new Error('Le mot de passe doit contenir au moins 8 caractères');
+      }
+      throw new Error(err.message || "Erreur lors de la création de l'utilisateur");
     }
+  };
 
-    return await response.json();
-  }
-
-  async createUser(userData: CreateUserDto): Promise<User> {
-    const response = await this.makeAuthenticatedRequest('/api/users', {
-      method: 'POST',
-      body: JSON.stringify(userData),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.message || "Erreur lors de la création de l'utilisateur"
-      );
-    }
-
-    const data = await response.json();
-    return data.data || data;
-  }
-
-  async updateUser(userId: string, userData: UpdateUserDto): Promise<User> {
-    const response = await this.makeAuthenticatedRequest(
-      `/api/users/${userId}`,
-      {
+  //  Mettre à jour un utilisateur
+  const updateUser = async (userId: string, userData: UpdateUserDto): Promise<User> => {
+    try {
+      const result = await secureAdminFetch(`/api/users/${userId}`, {
         method: 'PATCH',
         body: JSON.stringify(userData),
+      });
+
+      // Backend retourne { id, email, firstName, lastName, role, telephone, isActive }
+      return result as User;
+    } catch (err: any) {
+      if (err.message.includes('email est déjà utilisé')) {
+        throw new Error('Cet email est déjà utilisé');
       }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Erreur lors de la mise à jour');
+      if (err.message.includes('téléphone est déjà utilisé')) {
+        throw new Error('Ce numéro de téléphone est déjà utilisé');
+      }
+      if (err.message.includes('email est réservé')) {
+        throw new Error("Cet email est réservé à l'administrateur principal");
+      }
+      throw new Error(err.message || 'Erreur lors de la mise à jour');
     }
+  };
 
-    return await response.json();
-  }
-
-  async adminResetPassword(
+  //  Réinitialiser le mot de passe d'un utilisateur (admin)
+  const adminResetPassword = async (
     userId: string,
-    passwordData: { newPassword: string; confirmNewPassword: string }
-  ): Promise<void> {
-    // ✅ Changement de POST à PATCH
-    const response = await this.makeAuthenticatedRequest(
-      `/api/users/${userId}/admin-reset-password`,
-      {
+    passwordData: AdminResetPasswordDto
+  ): Promise<void> => {
+    try {
+      if (passwordData.newPassword !== passwordData.confirmNewPassword) {
+        throw new Error('Les mots de passe ne correspondent pas');
+      }
+
+      if (passwordData.newPassword.length < 8) {
+        throw new Error('Le mot de passe doit contenir au moins 8 caractères');
+      }
+
+      await secureAdminFetch(`/api/users/${userId}/admin-reset-password`, {
         method: 'PATCH',
         body: JSON.stringify(passwordData),
-      }
-    );
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      // Backend retourne { message: "Mot de passe réinitialisé avec succès" }
+    } catch (err: any) {
+      if (err.message.includes('administrateur principal')) {
+        throw new Error("Seul l'administrateur principal peut réinitialiser son mot de passe");
+      }
+      if (err.message.includes('ne correspondent pas')) {
+        throw new Error('Les mots de passe ne correspondent pas');
+      }
+      if (err.message.includes('au moins 8 caractères')) {
+        throw new Error('Le mot de passe doit contenir au moins 8 caractères');
+      }
       throw new Error(
-        errorData.message ||
-          'Erreur lors de la réinitialisation du mot de passe'
+        err.message || 'Erreur lors de la réinitialisation du mot de passe'
       );
     }
-  }
+  };
 
-  async deleteUser(userId: string): Promise<void> {
-    const response = await this.makeAuthenticatedRequest(
-      `/api/users/${userId}`,
-      {
-        method: 'DELETE',
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error('Utilisateur non trouvé');
-      }
-
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Erreur lors de la suppression');
-    }
-  }
-
-  async toggleUserStatus(userId: string): Promise<User> {
-    const response = await this.makeAuthenticatedRequest(
-      `/api/users/${userId}/toggle-status`,
-      {
-        method: 'PATCH',
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error('Utilisateur non trouvé');
-      }
-
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.message || 'Erreur lors du changement de statut'
-      );
-    }
-
-    const data = await response.json();
-    return data;
-  }
-
-  // === MÉTHODES UTILITAIRES ===
-
-  setToken(token: string): void {
-    this.token = token;
-    if (isBrowser && window.localStorage) {
-      window.localStorage.setItem('access_token', token);
-    }
-  }
-
-  clearToken(): void {
-    this.token = null;
+  //  Supprimer un utilisateur
+  const deleteUser = async (userId: string): Promise<void> => {
     try {
-      if (isBrowser && window.localStorage) {
-        window.localStorage.removeItem('access_token');
-        window.localStorage.removeItem('refresh_token');
+      await secureAdminFetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+      });
+
+      // Backend retourne 204 No Content
+    } catch (err: any) {
+      if (err.message.includes('404') || err.message.includes('non trouvé')) {
+        throw new Error('Utilisateur non trouvé');
       }
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('Erreur suppression token localStorage:', error);
+      if (err.message.includes('administrateur unique')) {
+        throw new Error("Impossible de supprimer l'administrateur unique du système");
       }
+      throw new Error(err.message || 'Erreur lors de la suppression');
     }
-  }
+  };
 
-  getToken(): string | null {
-    return this.token;
-  }
-}
+  //  Activer/désactiver un utilisateur
+  const toggleUserStatus = async (userId: string): Promise<User> => {
+    try {
+      const result = await secureAdminFetch(`/api/users/${userId}/toggle-status`, {
+        method: 'PATCH',
+      });
 
-// Hook personnalisé pour utiliser le service
-export const useAdminUserService = () => {
-  return new AdminUserService();
+      // Backend retourne directement l'utilisateur mis à jour
+      return result as User;
+    } catch (err: any) {
+      if (err.message.includes('404') || err.message.includes('non trouvé')) {
+        throw new Error('Utilisateur non trouvé');
+      }
+      if (err.message.includes('administrateur unique')) {
+        throw new Error("Impossible de désactiver l'administrateur unique du système");
+      }
+      throw new Error(
+        err.message || 'Erreur lors du changement de statut'
+      );
+    }
+  };
+
+  //  Vérifier l'accès d'un utilisateur
+  const checkUserAccess = async (userId: string): Promise<{
+    canAccess: boolean;
+    reason?: string;
+    user?: any;
+    details?: any;
+  }> => {
+    try {
+      const accessCheck = await secureAdminFetch(`/api/users/check-access/${userId}`, {
+        method: 'GET',
+      });
+
+      return accessCheck;
+    } catch (err: any) {
+      throw new Error(err.message || 'Erreur vérification accès');
+    }
+  };
+
+  //  Gestion du mode maintenance
+  const getMaintenanceStatus = async (): Promise<{
+    isActive: boolean;
+    enabledAt: string | null;
+    message: string;
+  }> => {
+    try {
+      const status = await secureAdminFetch('/api/users/maintenance-status', {
+        method: 'GET',
+      });
+
+      return status;
+    } catch (err: any) {
+      throw new Error(err.message || 'Erreur récupération statut maintenance');
+    }
+  };
+
+  const setMaintenanceMode = async (enabled: boolean): Promise<void> => {
+    try {
+      await secureAdminFetch('/api/users/maintenance-mode', {
+        method: 'POST',
+        body: JSON.stringify({ enabled }),
+      });
+
+      // Backend retourne { message: "Mode maintenance activé/désactivé" }
+    } catch (err: any) {
+      throw new Error(err.message || 'Erreur changement mode maintenance');
+    }
+  };
+
+  return {
+    // Méthodes admin
+    getAllUsers,
+    getUserStats,
+    createUser,
+    updateUser,
+    adminResetPassword,
+    deleteUser,
+    toggleUserStatus,
+    checkUserAccess,
+    getMaintenanceStatus,
+    setMaintenanceMode,
+
+    // Métadonnées
+    isAdmin: isUserAdmin(user),
+    canAccessAdmin: isAuthenticated && isUserAdmin(user),
+  };
 };
 
-export default AdminUserService;
+export default useAdminUserService;

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
@@ -24,10 +25,7 @@ import {
   BookOpen,
   Mail,
   Phone,
-  Globe,
-  BarChart3,
   Info,
-  Archive,
   UserCircle,
   TrendingUp,
   ListChecks,
@@ -37,7 +35,6 @@ import {
 import {
   ProcedureService,
   useProcedureService,
-  useProcedureActions,
   Procedure,
   ProcedureStatus,
   StepStatus,
@@ -47,17 +44,11 @@ import {
   StatsResponse,
 } from '../../api/admin/AdminProcedureService';
 
-
 // ==================== COMPOSANT PRINCIPAL ====================
 const AdminProcedure: React.FC = () => {
   // Utilisation du hook personnalisé
   const procedureService = useProcedureService();
-  const {
-    loading: actionLoading,
-    // Remove unused variable: error: actionError,
-    withErrorHandling,
-  } = useProcedureActions(procedureService);
-
+  
   // États
   const [procedures, setProcedures] = useState<Procedure[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,12 +89,13 @@ const AdminProcedure: React.FC = () => {
   );
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   // Chargement initial
   useEffect(() => {
     loadProcedures();
     loadStats();
-  }, [pagination.page, filters]);
+  }, [pagination.page, filters.email]); // Seul email déclenche un rechargement backend
 
   // Chargement des procédures
   const loadProcedures = useCallback(async () => {
@@ -111,59 +103,93 @@ const AdminProcedure: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const response = await withErrorHandling<PaginatedResponse>(
-        () =>
-          procedureService.fetchAdminProcedures(
-            pagination.page,
-            pagination.limit,
-            filters
-          ),
-        undefined
+      const response = await procedureService.fetchAdminProcedures(
+        pagination.page,
+        pagination.limit,
+        { email: filters.email } // Seul email est envoyé au backend
       );
 
-      setProcedures(response.data);
+      // Filtrage côté client pour les autres filtres
+      let filteredData = response.data;
+      
+      if (filters.statut) {
+        filteredData = filteredData.filter(p => p.statut === filters.statut);
+      }
+      
+      if (filters.destination) {
+        filteredData = filteredData.filter(p => 
+          p.destination.toLowerCase().includes(filters.destination!.toLowerCase())
+        );
+      }
+      
+      if (filters.filiere) {
+        filteredData = filteredData.filter(p => 
+          p.filiere.toLowerCase().includes(filters.filiere!.toLowerCase())
+        );
+      }
+      
+      if (filterInput) {
+        filteredData = filteredData.filter(p => 
+          p.email.toLowerCase().includes(filterInput.toLowerCase()) ||
+          p.prenom.toLowerCase().includes(filterInput.toLowerCase()) ||
+          p.nom.toLowerCase().includes(filterInput.toLowerCase())
+        );
+      }
+
+      setProcedures(filteredData);
       setPagination({
         page: response.page,
         limit: response.limit,
-        total: response.total,
-        totalPages: response.totalPages,
+        total: filteredData.length, // Total filtré côté client
+        totalPages: Math.ceil(filteredData.length / pagination.limit),
       });
     } catch (err: any) {
-      setError(err.message);
+      console.error('Erreur chargement procédures:', err);
+      setError(err.message || 'Erreur lors du chargement des procédures');
+      toast.error(err.message || 'Erreur lors du chargement des procédures');
     } finally {
       setLoading(false);
     }
-  }, [
-    pagination.page,
-    pagination.limit,
-    filters,
-    withErrorHandling,
-    procedureService,
-  ]);
+  }, [pagination.page, pagination.limit, filters, filterInput, procedureService]);
 
   // Chargement des statistiques
   const loadStats = useCallback(async () => {
     try {
-      const statsData = await withErrorHandling<StatsResponse>(
-        () => procedureService.getAdminProceduresOverview(),
-        undefined
-      );
+      const statsData = await procedureService.getProceduresOverview();
       setStats(statsData);
     } catch (err) {
-      // Only log errors in development
-      if (import.meta.env.DEV) {
-        console.error('Erreur chargement stats:', err);
-      }
+      console.error('Erreur chargement stats:', err);
     }
-  }, [withErrorHandling, procedureService]);
+  }, [procedureService]);
+
+  // Handler générique pour les actions avec gestion d'erreur
+  const handleAction = async <T,>(
+    action: () => Promise<T>,
+    successMessage: string,
+    errorMessage: string
+  ): Promise<T | null> => {
+    setActionLoading(true);
+    try {
+      const result = await action();
+      toast.success(successMessage);
+      return result;
+    } catch (err: any) {
+      console.error(`${errorMessage}:`, err);
+      toast.error(err.message || errorMessage);
+      return null;
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Rafraîchissement
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await withErrorHandling(async () => {
-        await Promise.all([loadProcedures(), loadStats()]);
-      }, 'Données rafraîchies');
+      await Promise.all([loadProcedures(), loadStats()]);
+      toast.success('Données rafraîchies');
+    } catch (err) {
+      console.error('Erreur rafraîchissement:', err);
     } finally {
       setRefreshing(false);
     }
@@ -178,34 +204,36 @@ const AdminProcedure: React.FC = () => {
       stepName,
       StepStatus.COMPLETED
     );
+    
     if (!validation.canModify) {
       toast.error(validation.reason as string);
       return;
     }
 
-    await withErrorHandling(async () => {
-      const updatedProcedure = await procedureService.updateAdminStep(
+    const result = await handleAction(
+      () => procedureService.updateStep(
         selectedProcedure._id,
         stepName,
         {
           statut: StepStatus.COMPLETED,
           dateMaj: new Date().toISOString(),
-          dateCompletion: new Date().toISOString(),
         }
-      );
+      ),
+      'Étape terminée avec succès',
+      'Erreur lors de la complétion de l\'étape'
+    );
 
+    if (result) {
       setProcedures(prev =>
-        prev.map(p => (p._id === selectedProcedure._id ? updatedProcedure : p))
+        prev.map(p => (p._id === selectedProcedure._id ? result : p))
       );
-
+      
       if (selectedProcedure._id === expandedProcedure) {
-        setSelectedProcedure(updatedProcedure);
+        setSelectedProcedure(result);
       }
-
-      return updatedProcedure;
-    }, 'Étape terminée avec succès');
-
-    closeModal();
+      
+      closeModal();
+    }
   };
 
   const handleRejectStep = async () => {
@@ -219,8 +247,13 @@ const AdminProcedure: React.FC = () => {
       return;
     }
 
-    await withErrorHandling(async () => {
-      const updatedProcedure = await procedureService.updateAdminStep(
+    if (actionReason.length > 500) {
+      toast.error('La raison ne doit pas dépasser 500 caractères');
+      return;
+    }
+
+    const result = await handleAction(
+      () => procedureService.updateStep(
         selectedProcedure._id,
         selectedStep,
         {
@@ -228,38 +261,43 @@ const AdminProcedure: React.FC = () => {
           raisonRefus: actionReason,
           dateMaj: new Date().toISOString(),
         }
-      );
+      ),
+      'Étape rejetée avec succès',
+      'Erreur lors du rejet de l\'étape'
+    );
 
+    if (result) {
       setProcedures(prev =>
-        prev.map(p => (p._id === selectedProcedure._id ? updatedProcedure : p))
+        prev.map(p => (p._id === selectedProcedure._id ? result : p))
       );
 
       if (selectedProcedure._id === expandedProcedure) {
-        setSelectedProcedure(updatedProcedure);
+        setSelectedProcedure(result);
       }
 
-      return updatedProcedure;
-    }, 'Étape rejetée avec succès');
-
-    closeModal();
+      closeModal();
+    }
   };
 
   // Actions sur les procédures
   const handleDeleteProcedure = async () => {
     if (!selectedProcedure) return;
 
-    await withErrorHandling(async () => {
-      await procedureService.deleteAdminProcedure(
+    const result = await handleAction(
+      () => procedureService.deleteProcedure(
         selectedProcedure._id,
-        actionReason || 'Supprimé par administrateur'
+        actionReason || undefined
+      ),
+      'Procédure supprimée avec succès',
+      'Erreur lors de la suppression de la procédure'
+    );
+
+    if (result) {
+      setProcedures(prev =>
+        prev.map(p => (p._id === selectedProcedure._id ? result : p))
       );
-
-      setProcedures(prev => prev.filter(p => p._id !== selectedProcedure._id));
-
-      return true;
-    }, 'Procédure supprimée avec succès');
-
-    closeModal();
+      closeModal();
+    }
   };
 
   const handleRejectProcedure = async () => {
@@ -273,28 +311,26 @@ const AdminProcedure: React.FC = () => {
       return;
     }
 
-    await withErrorHandling(async () => {
-      const updatedProcedure = await procedureService.rejectAdminProcedure(
+    if (actionReason.length > 500) {
+      toast.error('La raison ne doit pas dépasser 500 caractères');
+      return;
+    }
+
+    const result = await handleAction(
+      () => procedureService.rejectProcedure(
         selectedProcedure._id,
         actionReason
-      );
+      ),
+      'Procédure rejetée avec succès',
+      'Erreur lors du rejet de la procédure'
+    );
 
+    if (result) {
       setProcedures(prev =>
-        prev.map(p =>
-          p._id === selectedProcedure._id
-            ? {
-                ...p,
-                statut: ProcedureStatus.REJECTED,
-                raisonRejet: actionReason,
-              }
-            : p
-        )
+        prev.map(p => (p._id === selectedProcedure._id ? result : p))
       );
-
-      return updatedProcedure;
-    }, 'Procédure rejetée avec succès');
-
-    closeModal();
+      closeModal();
+    }
   };
 
   // Gestion des modals
@@ -327,14 +363,15 @@ const AdminProcedure: React.FC = () => {
   const handleFilterChange = useCallback(
     (key: keyof ProcedureFilters, value: string) => {
       setFilters(prev => ({ ...prev, [key]: value }));
-      setPagination(prev => ({ ...prev, page: 1 }));
+      if (key === 'email') {
+        setPagination(prev => ({ ...prev, page: 1 }));
+      }
     },
     []
   );
 
   const handleSearchInput = (value: string) => {
     setFilterInput(value);
-    setFilters(prev => ({ ...prev, search: value }));
   };
 
   const resetFilters = () => {
@@ -343,7 +380,6 @@ const AdminProcedure: React.FC = () => {
       statut: '',
       destination: '',
       filiere: '',
-      search: '',
     });
     setFilterInput('');
     setPagination(prev => ({ ...prev, page: 1 }));
@@ -376,7 +412,9 @@ const AdminProcedure: React.FC = () => {
         ? CheckCircle
         : status === ProcedureStatus.REJECTED
           ? XCircle
-          : Clock;
+          : status === ProcedureStatus.CANCELLED
+            ? XCircle
+            : Clock;
 
     return (
       <span
@@ -418,7 +456,7 @@ const AdminProcedure: React.FC = () => {
   // Calcul des statistiques locales
   const calculateLocalStats = useCallback(() => {
     return {
-      total: pagination.total,
+      total: procedures.length,
       inProgress: procedures.filter(
         p => p.statut === ProcedureStatus.IN_PROGRESS
       ).length,
@@ -429,7 +467,7 @@ const AdminProcedure: React.FC = () => {
       cancelled: procedures.filter(p => p.statut === ProcedureStatus.CANCELLED)
         .length,
     };
-  }, [procedures, pagination.total]);
+  }, [procedures]);
 
   const localStats = calculateLocalStats();
 
@@ -457,13 +495,6 @@ const AdminProcedure: React.FC = () => {
       <Helmet>
         <title>Gestion des Procédures - Admin</title>
         <meta name='robots' content='noindex, nofollow' />
-        <meta name='googlebot' content='noindex, nofollow' />
-        <meta name='bingbot' content='noindex, nofollow' />
-        <meta name='yandexbot' content='noindex, nofollow' />
-        <meta name='duckduckbot' content='noindex, nofollow' />
-        <meta name='baidu' content='noindex, nofollow' />
-        <meta name='naver' content='noindex, nofollow' />
-        <meta name='seznam' content='noindex, nofollow' />
       </Helmet>
 
       <div className='min-h-screen p-4 md:p-6'>
@@ -475,8 +506,8 @@ const AdminProcedure: React.FC = () => {
                 Gestion des Procédures
               </h1>
               <p className='text-gray-600 text-sm md:text-base mt-1'>
-                {pagination.total} procédures au total •{' '}
-                {ProcedureService.maskId('sample')}
+                {localStats.total} procédures affichées •{' '}
+                {stats?.total || 0} procédures totales
               </p>
             </div>
             <div className='flex items-center space-x-3'>
@@ -516,11 +547,7 @@ const AdminProcedure: React.FC = () => {
               Filtres avancés
             </button>
 
-            {(filters.email ||
-              filters.statut ||
-              filters.destination ||
-              filters.filiere ||
-              filters.search) && (
+            {(filters.email || filters.statut || filters.destination || filters.filiere) && (
               <button
                 onClick={resetFilters}
                 className='flex items-center text-sm text-blue-600 hover:text-blue-800 transition-colors'
@@ -536,7 +563,19 @@ const AdminProcedure: React.FC = () => {
               <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mb-4'>
                 <div>
                   <label className='block text-sm font-medium text-gray-700 mb-2'>
-                    Statut
+                    Email (filtre backend)
+                  </label>
+                  <input
+                    type='email'
+                    value={filters.email || ''}
+                    onChange={e => handleFilterChange('email', e.target.value)}
+                    className='w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors'
+                    placeholder='ex: utilisateur@email.com'
+                  />
+                </div>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>
+                    Statut (filtre client)
                   </label>
                   <select
                     value={filters.statut}
@@ -553,7 +592,7 @@ const AdminProcedure: React.FC = () => {
                 </div>
                 <div>
                   <label className='block text-sm font-medium text-gray-700 mb-2'>
-                    Destination
+                    Destination (filtre client)
                   </label>
                   <input
                     type='text'
@@ -565,19 +604,22 @@ const AdminProcedure: React.FC = () => {
                     placeholder='Filtrer par destination...'
                   />
                 </div>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>
+                    Filière (filtre client)
+                  </label>
+                  <input
+                    type='text'
+                    value={filters.filiere || ''}
+                    onChange={e => handleFilterChange('filiere', e.target.value)}
+                    className='w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors'
+                    placeholder='Filtrer par filière...'
+                  />
+                </div>
               </div>
-              <div>
-                <label className='block text-sm font-medium text-gray-700 mb-2'>
-                  Filière
-                </label>
-                <input
-                  type='text'
-                  value={filters.filiere || ''}
-                  onChange={e => handleFilterChange('filiere', e.target.value)}
-                  className='w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors'
-                  placeholder='Filtrer par filière...'
-                />
-              </div>
+              <p className='text-xs text-gray-500 mt-2'>
+                Note: Seul le filtre par email est envoyé au serveur. Les autres filtres sont appliqués localement.
+              </p>
             </div>
           )}
         </div>
@@ -635,7 +677,7 @@ const AdminProcedure: React.FC = () => {
           <div className='bg-linear-to-br from-gray-50 to-white p-5 rounded-2xl border border-gray-100'>
             <div className='flex items-center justify-between'>
               <div>
-                <div className='text-gray-500 text-sm font-medium'>Total</div>
+                <div className='text-gray-500 text-sm font-medium'>Affichées</div>
                 <div className='text-2xl font-bold text-gray-900 mt-1'>
                   {localStats.total}
                 </div>
@@ -679,7 +721,7 @@ const AdminProcedure: React.FC = () => {
                         <div className='flex items-center mt-1'>
                           <Mail className='w-4 h-4 text-gray-400 mr-2 shrink-0' />
                           <p className='text-sm text-gray-600 truncate'>
-                            {procedure.email}
+                            {ProcedureService.maskEmail(procedure.email)}
                           </p>
                         </div>
                       </div>
@@ -709,6 +751,7 @@ const AdminProcedure: React.FC = () => {
                         </div>
                         <div className='text-sm font-medium text-gray-900'>
                           {procedure.destination}
+                          {procedure.destinationAutre && ` (${procedure.destinationAutre})`}
                         </div>
                       </div>
                     </div>
@@ -719,36 +762,33 @@ const AdminProcedure: React.FC = () => {
                           Filière
                         </div>
                         <div className='text-sm font-medium text-gray-900'>
-                          {procedure.filiere || 'Non spécifié'}
+                          {procedure.filiere}
+                          {procedure.filiereAutre && ` (${procedure.filiereAutre})`}
                         </div>
                       </div>
                     </div>
-                    {procedure.niveauEtude && (
-                      <div className='flex items-start'>
-                        <BookOpen className='w-5 h-5 text-gray-400 mr-3 mt-0.5 shrink-0' />
-                        <div>
-                          <div className='text-xs text-gray-500 font-medium'>
-                            Niveau d'étude
-                          </div>
-                          <div className='text-sm font-medium text-gray-900'>
-                            {procedure.niveauEtude}
-                          </div>
+                    <div className='flex items-start'>
+                      <BookOpen className='w-5 h-5 text-gray-400 mr-3 mt-0.5 shrink-0' />
+                      <div>
+                        <div className='text-xs text-gray-500 font-medium'>
+                          Niveau d'étude
+                        </div>
+                        <div className='text-sm font-medium text-gray-900'>
+                          {procedure.niveauEtude}
                         </div>
                       </div>
-                    )}
-                    {procedure.telephone && (
-                      <div className='flex items-start'>
-                        <Phone className='w-5 h-5 text-gray-400 mr-3 mt-0.5 shrink-0' />
-                        <div>
-                          <div className='text-xs text-gray-500 font-medium'>
-                            Téléphone
-                          </div>
-                          <div className='text-sm font-medium text-gray-900'>
-                            {procedure.telephone}
-                          </div>
+                    </div>
+                    <div className='flex items-start'>
+                      <Phone className='w-5 h-5 text-gray-400 mr-3 mt-0.5 shrink-0' />
+                      <div>
+                        <div className='text-xs text-gray-500 font-medium'>
+                          Téléphone
+                        </div>
+                        <div className='text-sm font-medium text-gray-900'>
+                          {procedure.telephone}
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   {/* Steps */}
@@ -777,6 +817,7 @@ const AdminProcedure: React.FC = () => {
                             <div className='text-xs text-gray-500'>
                               Dernière mise à jour:{' '}
                               {ProcedureService.formatDate(step.dateMaj)}
+                              {step.dateCompletion && ` • Terminée: ${ProcedureService.formatDate(step.dateCompletion)}`}
                             </div>
                             {step.raisonRefus && (
                               <div className='text-xs text-red-600 mt-2 p-2 bg-red-50 rounded-lg'>
@@ -790,11 +831,20 @@ const AdminProcedure: React.FC = () => {
                               <button
                                 onClick={e => {
                                   e.stopPropagation();
-                                  openActionModal(
+                                  const validation = ProcedureService.canModifyStep(
                                     procedure,
-                                    'complete',
-                                    step.nom
+                                    step.nom,
+                                    StepStatus.COMPLETED
                                   );
+                                  if (validation.canModify) {
+                                    openActionModal(
+                                      procedure,
+                                      'complete',
+                                      step.nom
+                                    );
+                                  } else {
+                                    toast.error(validation.reason as string);
+                                  }
                                 }}
                                 className='p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors'
                                 title='Terminer cette étape'
@@ -837,11 +887,19 @@ const AdminProcedure: React.FC = () => {
                       Détails complets
                     </button>
                     <button
-                      onClick={() => openActionModal(procedure, 'reject')}
+                      onClick={() => {
+                        if (procedure.statut === ProcedureStatus.REJECTED || 
+                            procedure.statut === ProcedureStatus.CANCELLED) {
+                          toast.error('Cette procédure est déjà finalisée');
+                          return;
+                        }
+                        openActionModal(procedure, 'reject');
+                      }}
                       className='flex-1 flex items-center justify-center px-4 py-3 bg-red-50 text-red-700 rounded-xl hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
                       disabled={
                         procedure.statut === ProcedureStatus.REJECTED ||
-                        procedure.statut === ProcedureStatus.CANCELLED
+                        procedure.statut === ProcedureStatus.CANCELLED ||
+                        procedure.statut === ProcedureStatus.COMPLETED
                       }
                     >
                       <XCircle className='w-4 h-4 mr-2' />
@@ -866,10 +924,7 @@ const AdminProcedure: React.FC = () => {
               <p className='text-gray-600 mt-4 text-lg'>
                 Aucune procédure trouvée
               </p>
-              {(filters.email ||
-                filters.statut ||
-                filters.destination ||
-                filters.filiere) && (
+              {(filters.email || filters.statut || filters.destination || filters.filiere || filterInput) && (
                 <button
                   onClick={resetFilters}
                   className='mt-4 px-4 py-2 text-blue-600 hover:text-blue-800 text-sm font-medium'
@@ -886,7 +941,7 @@ const AdminProcedure: React.FC = () => {
           <div className='flex flex-col sm:flex-row items-center justify-between mt-8 pt-6 border-t border-gray-200'>
             <div className='text-sm text-gray-600 mb-4 sm:mb-0'>
               Page {pagination.page} sur {pagination.totalPages} •{' '}
-              {pagination.total} procédures
+              {localStats.total} procédures affichées
             </div>
             <div className='flex space-x-2'>
               <button
@@ -910,9 +965,7 @@ const AdminProcedure: React.FC = () => {
         )}
 
         {/* Modal Overlay */}
-        {(activeModal === 'detail' ||
-          activeModal === 'action' ||
-          activeModal === 'stats') && (
+        {(activeModal === 'detail' || activeModal === 'action') && (
           <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'>
             <div className='bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-hidden shadow-2xl'>
               {/* Detail Modal */}
@@ -956,7 +1009,7 @@ const AdminProcedure: React.FC = () => {
                           <div>
                             <div className='text-xs text-gray-500'>Email</div>
                             <div className='text-sm font-medium'>
-                              {selectedProcedure.email}
+                              {ProcedureService.maskEmail(selectedProcedure.email)}
                             </div>
                           </div>
                         </div>
@@ -968,6 +1021,7 @@ const AdminProcedure: React.FC = () => {
                             </div>
                             <div className='text-sm font-medium'>
                               {selectedProcedure.destination}
+                              {selectedProcedure.destinationAutre && ` (${selectedProcedure.destinationAutre})`}
                             </div>
                           </div>
                         </div>
@@ -976,7 +1030,30 @@ const AdminProcedure: React.FC = () => {
                           <div>
                             <div className='text-xs text-gray-500'>Filière</div>
                             <div className='text-sm font-medium'>
-                              {selectedProcedure.filiere || 'Non spécifié'}
+                              {selectedProcedure.filiere}
+                              {selectedProcedure.filiereAutre && ` (${selectedProcedure.filiereAutre})`}
+                            </div>
+                          </div>
+                        </div>
+                        <div className='flex items-center'>
+                          <BookOpen className='w-5 h-5 text-gray-400 mr-3 shrink-0' />
+                          <div>
+                            <div className='text-xs text-gray-500'>
+                              Niveau d'étude
+                            </div>
+                            <div className='text-sm font-medium'>
+                              {selectedProcedure.niveauEtude}
+                            </div>
+                          </div>
+                        </div>
+                        <div className='flex items-center'>
+                          <Phone className='w-5 h-5 text-gray-400 mr-3 shrink-0' />
+                          <div>
+                            <div className='text-xs text-gray-500'>
+                              Téléphone
+                            </div>
+                            <div className='text-sm font-medium'>
+                              {selectedProcedure.telephone}
                             </div>
                           </div>
                         </div>
@@ -996,7 +1073,7 @@ const AdminProcedure: React.FC = () => {
                         <div className='p-4 bg-red-50 rounded-xl'>
                           <div className='text-xs text-red-600 font-medium mb-1 flex items-center'>
                             <AlertTriangle className='w-3 h-3 mr-1' />
-                            Raison du rejet
+                            Raison du rejet/annulation
                           </div>
                           <div className='text-sm text-red-700'>
                             {selectedProcedure.raisonRejet}
@@ -1036,6 +1113,16 @@ const AdminProcedure: React.FC = () => {
                             <span className='font-medium'>
                               {ProcedureService.formatDate(
                                 selectedProcedure.dateCompletion
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        {selectedProcedure.dateDerniereModification && (
+                          <div className='flex justify-between text-sm'>
+                            <span className='text-gray-500'>Dernière modif</span>
+                            <span className='font-medium'>
+                              {ProcedureService.formatDate(
+                                selectedProcedure.dateDerniereModification
                               )}
                             </span>
                           </div>
@@ -1107,7 +1194,7 @@ const AdminProcedure: React.FC = () => {
                         />
                         <p className='text-xs text-gray-500 mt-2 flex items-center'>
                           <Info className='w-3 h-3 mr-1' />
-                          Minimum 5 caractères requis
+                          Minimum 5 caractères requis, maximum 500 caractères
                         </p>
                       </div>
                     )}
@@ -1172,108 +1259,6 @@ const AdminProcedure: React.FC = () => {
                         )}
                       </button>
                     </div>
-                  </div>
-                </>
-              )}
-
-              {/* Stats Modal */}
-              {activeModal === 'stats' && stats && (
-                <>
-                  <div className='p-6 border-b border-gray-200'>
-                    <div className='flex items-center justify-between'>
-                      <h3 className='text-lg font-semibold text-gray-900 flex items-center'>
-                        <BarChart3 className='w-5 h-5 mr-2' />
-                        Statistiques globales
-                      </h3>
-                      <button
-                        onClick={closeModal}
-                        className='p-2 hover:bg-gray-100 rounded-xl transition-colors'
-                      >
-                        <X className='w-5 h-5 text-gray-500' />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className='p-6 overflow-y-auto max-h-[60vh] space-y-6'>
-                    {/* Total */}
-                    <div className='text-center bg-linear-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl'>
-                      <div className='text-4xl font-bold text-gray-900'>
-                        {stats.total}
-                      </div>
-                      <div className='text-sm text-gray-600 mt-2'>
-                        Procédures totales
-                      </div>
-                    </div>
-
-                    {/* By Status */}
-                    <div>
-                      <h4 className='text-sm font-semibold text-gray-900 mb-4'>
-                        Répartition par statut
-                      </h4>
-                      <div className='space-y-3'>
-                        {stats.byStatus.map(item => (
-                          <div
-                            key={item._id}
-                            className='flex items-center justify-between p-4 bg-gray-50 rounded-xl'
-                          >
-                            <div className='flex items-center'>
-                              {item._id === ProcedureStatus.IN_PROGRESS && (
-                                <Clock className='w-4 h-4 mr-3 text-blue-500' />
-                              )}
-                              {item._id === ProcedureStatus.COMPLETED && (
-                                <CheckCircle className='w-4 h-4 mr-3 text-green-500' />
-                              )}
-                              {item._id === ProcedureStatus.REJECTED && (
-                                <XCircle className='w-4 h-4 mr-3 text-red-500' />
-                              )}
-                              {item._id === ProcedureStatus.CANCELLED && (
-                                <Archive className='w-4 h-4 mr-3 text-gray-500' />
-                              )}
-                              <span className='text-sm font-medium text-gray-900'>
-                                {item._id}
-                              </span>
-                            </div>
-                            <span className='text-lg font-bold text-blue-600'>
-                              {item.count}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* By Destination */}
-                    <div>
-                      <h4 className='text-sm font-semibold text-gray-900 mb-4'>
-                        Répartition par destination
-                      </h4>
-                      <div className='space-y-3'>
-                        {stats.byDestination.map(item => (
-                          <div
-                            key={item._id}
-                            className='flex items-center justify-between p-4 bg-gray-50 rounded-xl'
-                          >
-                            <div className='flex items-center'>
-                              <Globe className='w-4 h-4 mr-3 text-gray-500' />
-                              <span className='text-sm font-medium text-gray-900 truncate'>
-                                {item._id}
-                              </span>
-                            </div>
-                            <span className='text-lg font-bold text-green-600'>
-                              {item.count}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className='p-6 border-t border-gray-200'>
-                    <button
-                      onClick={closeModal}
-                      className='w-full px-4 py-3 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors font-medium'
-                    >
-                      Fermer
-                    </button>
                   </div>
                 </>
               )}

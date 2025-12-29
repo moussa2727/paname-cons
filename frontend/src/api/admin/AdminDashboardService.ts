@@ -1,5 +1,4 @@
 /* eslint-disable no-undef */
-
 import { useAuth } from '../../context/AuthContext';
 import React from 'react';
 
@@ -18,9 +17,10 @@ export interface DashboardStats {
     confirmed: number;
     completed: number;
     cancelled: number;
+    expired: number;
   };
-  totalContacts?: number;
-  unreadContacts?: number;
+  totalContacts: number;
+  unreadContacts: number;
 }
 
 export interface RecentActivity {
@@ -70,7 +70,7 @@ class AdminDashboardService {
     const requestKey = `${endpoint}:${JSON.stringify(options)}`;
 
     if (useRequestDeduplication && this.activeRequests.has(requestKey)) {
-      console.log(`🔄 Utilisation de la requête en cours pour ${endpoint}`);
+      console.log(` Utilisation de la requête en cours pour ${endpoint}`);
       return await this.activeRequests.get(requestKey)!;
     }
 
@@ -100,7 +100,7 @@ class AdminDashboardService {
 
     const requestPromise = (async () => {
       try {
-        console.log(`📤 Envoi requête ${endpoint}`);
+        console.log(` Envoi requête ${endpoint}`);
 
         const response = await fetch(url, {
           ...options,
@@ -142,13 +142,13 @@ class AdminDashboardService {
         }
 
         const data = await response.json();
-        console.log(`✅ Réponse reçue de ${endpoint}`);
+        console.log(` Réponse reçue de ${endpoint}`);
         return data;
       } catch (error: any) {
         clearTimeout(timeoutId);
 
         if (error.name === 'AbortError') {
-          console.error(`⏰ Timeout sur l'endpoint ${endpoint}`);
+          console.error(` Timeout sur l'endpoint ${endpoint}`);
           const timeoutError = new Error(
             'Le serveur met trop de temps à répondre'
           ) as ApiError;
@@ -156,7 +156,7 @@ class AdminDashboardService {
           throw timeoutError;
         }
 
-        console.error(`❌ API Error ${endpoint}:`, error);
+        console.error(` API Error ${endpoint}:`, error);
         throw error;
       } finally {
         if (useRequestDeduplication) {
@@ -184,7 +184,7 @@ class AdminDashboardService {
     if (useCache) {
       const cached = this.cache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-        console.log(`📦 Utilisation du cache pour ${endpoint}`);
+        console.log(` Utilisation du cache pour ${endpoint}`);
         return cached.data;
       }
     }
@@ -203,7 +203,7 @@ class AdminDashboardService {
         )[0]?.[0];
         if (oldestKey) {
           this.cache.delete(oldestKey);
-          console.log(`🧹 Cache nettoyé - clé supprimée: ${oldestKey}`);
+          console.log(` Cache nettoyé - clé supprimée: ${oldestKey}`);
         }
       }
     }
@@ -227,6 +227,7 @@ class AdminDashboardService {
         confirmed: 0,
         completed: 0,
         cancelled: 0,
+        expired: 0,
       },
       totalContacts: 0,
       unreadContacts: 0,
@@ -237,89 +238,104 @@ class AdminDashboardService {
 
   /**
    * Récupère toutes les statistiques pour le dashboard admin
+   * Utilise STRICTEMENT les endpoints définis dans les contrôleurs
    */
   async getDashboardStats(accessToken: string): Promise<DashboardStats> {
     try {
-      console.log('📊 Récupération des statistiques du dashboard');
+      console.log(' Récupération des statistiques du dashboard');
 
-      // Récupérer les statistiques utilisateurs avec cache
-      const userStats = await this.requestWithCache(
-        '/users/stats',
-        accessToken,
-        {},
-        true
-      );
+      // Récupérer TOUTES les stats en parallèle avec les endpoints officiels
+       const [userStats, procedureStats, contactStats, rendezvousStats] =
+      await Promise.allSettled([
+        // ✅ Endpoint: GET /users/stats 
+        this.requestWithCache('/users/stats', accessToken, {}, true).catch(
+          () => null
+        ),
+        
+        // ✅ Endpoint: GET /procedures/admin/stats 
+        this.requestWithCache(
+          '/procedures/admin/stats',
+          accessToken,
+          {},
+          true
+        ).catch(() => null),
+        
+        // ✅ Endpoint: GET /contact/stats 
+        this.requestWithCache('/contact/stats', accessToken, {}, true).catch(
+          () => null
+        ),
+        
+        // ✅ CORRIGÉ: Utiliser '/rendezvous/stats/overview' au lieu de '/rendezvous/stats'
+        this.requestWithCache('/rendezvous/stats/overview', accessToken, {}, true).catch(
+          () => null
+        ),
+      ])
 
-      // Initialiser avec les stats utilisateurs
-      const stats: DashboardStats = {
-        ...this.getDefaultStats(),
-        totalUsers: userStats.totalUsers || 0,
-        activeUsers: userStats.activeUsers || 0,
-        inactiveUsers: userStats.inactiveUsers || 0,
-        adminUsers: userStats.adminUsers || 0,
-        regularUsers: userStats.regularUsers || 0,
-      };
+      // Initialiser avec les valeurs par défaut
+      const stats: DashboardStats = this.getDefaultStats();
 
-      // Récupérer les autres stats en parallèle (sans bloquer)
-      const [procedureStats, contactStats, rendezvousResponse] =
-        await Promise.allSettled([
-          this.requestWithCache(
-            '/procedures/admin/stats',
-            accessToken,
-            {},
-            true
-          ).catch(() => null),
-          this.requestWithCache('/contact/stats', accessToken, {}, true).catch(
-            () => null
-          ),
-          this.requestWithCache(
-            '/rendezvous?limit=99',
-            accessToken,
-            {},
-            true
-          ).catch(() => ({ data: [] })),
-        ]);
+      // Traiter les statistiques utilisateurs
+      if (userStats.status === 'fulfilled' && userStats.value) {
+        const userData = userStats.value;
+        stats.totalUsers = userData.totalUsers || 0;
+        stats.activeUsers = userData.activeUsers || 0;
+        stats.inactiveUsers = userData.inactiveUsers || 0;
+        stats.adminUsers = userData.adminUsers || 0;
+        stats.regularUsers = userData.regularUsers || 0;
+      }
 
       // Traiter les statistiques des procédures
       if (procedureStats.status === 'fulfilled' && procedureStats.value) {
-        stats.totalProcedures = procedureStats.value.total || 0;
-        stats.proceduresByStatus = procedureStats.value.byStatus || [];
-        stats.proceduresByDestination =
-          procedureStats.value.byDestination || [];
+        const procData = procedureStats.value;
+        stats.totalProcedures = procData.total || 0;
+        stats.proceduresByStatus = procData.byStatus || [];
+        stats.proceduresByDestination = procData.byDestination || [];
       }
 
       // Traiter les statistiques des contacts
       if (contactStats.status === 'fulfilled' && contactStats.value) {
-        stats.totalContacts = contactStats.value.total || 0;
-        stats.unreadContacts = contactStats.value.unread || 0;
+        const contactData = contactStats.value;
+        stats.totalContacts = contactData.total || 0;
+        stats.unreadContacts = contactData.unread || 0;
       }
 
-      // Traiter les rendez-vous
-      if (
-        rendezvousResponse.status === 'fulfilled' &&
-        rendezvousResponse.value
-      ) {
-        const allRendezvous = rendezvousResponse.value.data || [];
-        stats.totalRendezvous = allRendezvous.length;
-        stats.rendezvousStats = {
-          pending: allRendezvous.filter(
-            (rdv: any) => rdv.status === 'En attente'
-          ).length,
-          confirmed: allRendezvous.filter(
-            (rdv: any) => rdv.status === 'Confirmé'
-          ).length,
-          completed: allRendezvous.filter(
-            (rdv: any) => rdv.status === 'Terminé'
-          ).length,
-          cancelled: allRendezvous.filter((rdv: any) => rdv.status === 'Annulé')
-            .length,
-        };
+      // Traiter les statistiques des rendez-vous
+      if (rendezvousStats.status === 'fulfilled' && rendezvousStats.value) {
+        const rdvData = rendezvousStats.value;
+        
+        // Format attendu depuis le backend
+        stats.totalRendezvous = rdvData.total || 0;
+        
+        // Si le backend retourne un tableau byStatus, le convertir en objet
+        if (rdvData.byStatus && Array.isArray(rdvData.byStatus)) {
+          const statusMap: Record<string, number> = {};
+          rdvData.byStatus.forEach((item: { _id: string; count: number }) => {
+            statusMap[item._id] = item.count;
+          });
+          
+          stats.rendezvousStats = {
+            pending: statusMap['En attente'] || 0,
+            confirmed: statusMap['Confirmé'] || 0,
+            completed: statusMap['Terminé'] || 0,
+            cancelled: statusMap['Annulé'] || 0,
+            expired: statusMap['Expiré'] || 0,
+          };
+        } else if (rdvData.stats) {
+          // Ou si le backend retourne directement un objet stats
+          stats.rendezvousStats = {
+            pending: rdvData.stats.pending || 0,
+            confirmed: rdvData.stats.confirmed || 0,
+            completed: rdvData.stats.completed || 0,
+            cancelled: rdvData.stats.cancelled || 0,
+            expired: rdvData.stats.expired || 0,
+          };
+        }
       }
 
-      console.log('✅ Statistiques récupérées avec succès');
+      console.log(' Statistiques récupérées avec succès');
       return stats;
     } catch (error: any) {
-      console.error('❌ Erreur récupération stats dashboard:', error);
+      console.error(' Erreur récupération stats dashboard:', error);
 
       // Retourner des valeurs par défaut en cas d'erreur
       return this.getDefaultStats();
@@ -328,6 +344,7 @@ class AdminDashboardService {
 
   /**
    * Récupère les activités récentes
+   * Utilise STRICTEMENT les endpoints définis dans les contrôleurs
    */
   async getRecentActivities(
     accessToken: string,
@@ -336,21 +353,26 @@ class AdminDashboardService {
     try {
       const activities: RecentActivity[] = [];
 
-      // Récupérer les activités en parallèle
+      // Récupérer les activités en parallèle avec les endpoints officiels
       const [proceduresResponse, rendezvousResponse, contactsResponse] =
         await Promise.allSettled([
+          //  Endpoint: GET /procedures/admin/all?page=1&limit={limit} (procedure.controller.ts ligne 46)
           this.requestWithCache(
             `/procedures/admin/all?page=1&limit=${limit}`,
             accessToken,
             {},
             false
           ),
+          
+          //  Endpoint: GET /rendezvous?page=1&limit={limit} (rendez-vous.controller.ts ligne 138)
           this.requestWithCache(
             `/rendezvous?page=1&limit=${limit}`,
             accessToken,
             {},
             false
           ),
+          
+          //  Endpoint: GET /contact?page=1&limit={limit} (contact.controller.ts ligne 27)
           this.requestWithCache(
             `/contact?page=1&limit=${limit}`,
             accessToken,
@@ -403,7 +425,7 @@ class AdminDashboardService {
             _id: contact._id,
             type: 'contact',
             action: contact.isRead ? 'lu' : 'non lu',
-            description: `Message de ${contact.email}: ${contact.subject}`,
+            description: `Message de ${contact.email}: ${contact.message?.substring(0, 50)}...`,
             timestamp: new Date(contact.createdAt),
             userEmail: contact.email,
           });
@@ -415,13 +437,14 @@ class AdminDashboardService {
         .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
         .slice(0, limit);
     } catch (error) {
-      console.error('❌ Erreur récupération activités récentes:', error);
+      console.error(' Erreur récupération activités récentes:', error);
       return [];
     }
   }
 
   /**
    * Récupère les statistiques détaillées des procédures
+   *  Endpoint: GET /procedures/admin/stats (procedure.controller.ts ligne 78)
    */
   async getDetailedProcedureStats(accessToken: string): Promise<any> {
     try {
@@ -432,7 +455,7 @@ class AdminDashboardService {
         true
       );
     } catch (error) {
-      console.error('❌ Erreur récupération stats procédures:', error);
+      console.error(' Erreur récupération stats procédures:', error);
       return {
         total: 0,
         pending: 0,
@@ -447,6 +470,7 @@ class AdminDashboardService {
 
   /**
    * Récupère les messages de contact non lus
+   *  Endpoint: GET /contact?isRead=false&limit=5 (contact.controller.ts ligne 27)
    */
   async getUnreadContacts(accessToken: string): Promise<any[]> {
     try {
@@ -458,8 +482,31 @@ class AdminDashboardService {
       );
       return response.data || [];
     } catch (error) {
-      console.error('❌ Erreur récupération contacts non lus:', error);
+      console.error(' Erreur récupération contacts non lus:', error);
       return [];
+    }
+  }
+
+  /**
+   * Récupère les statistiques détaillées des rendez-vous
+   *  NOUVEL Endpoint: GET /rendezvous/stats (ajouté dans le backend)
+   */
+  async getDetailedRendezvousStats(accessToken: string): Promise<any> {
+    try {
+      return await this.requestWithCache(
+        '/rendezvous/stats',
+        accessToken,
+        {},
+        true
+      );
+    } catch (error) {
+      console.error(' Erreur récupération stats rendez-vous:', error);
+      return {
+        total: 0,
+        byStatus: [],
+        upcoming: 0,
+        byDate: [],
+      };
     }
   }
 
@@ -469,7 +516,7 @@ class AdminDashboardService {
   clearCache(): void {
     const cacheSize = this.cache.size;
     this.cache.clear();
-    console.log(`🧹 Cache vidé - ${cacheSize} entrées supprimées`);
+    console.log(` Cache vidé - ${cacheSize} entrées supprimées`);
   }
 
   /**
@@ -478,7 +525,7 @@ class AdminDashboardService {
   cancelAllRequests(): void {
     const requestCount = this.activeRequests.size;
     this.activeRequests.clear();
-    console.log(`✋ ${requestCount} requêtes annulées`);
+    console.log(` ${requestCount} requêtes annulées`);
   }
 
   /**
@@ -488,11 +535,21 @@ class AdminDashboardService {
     cacheSize: number;
     activeRequests: number;
     baseUrl: string;
+    endpoints: string[];
   } {
     return {
       cacheSize: this.cache.size,
       activeRequests: this.activeRequests.size,
       baseUrl: this.baseUrl,
+      endpoints: [
+        '/users/stats',
+        '/procedures/admin/stats',
+        '/contact/stats',
+        '/rendezvous/stats',
+        '/procedures/admin/all',
+        '/rendezvous',
+        '/contact'
+      ],
     };
   }
 }
@@ -518,11 +575,11 @@ export const useAdminDashboard = () => {
     } catch (error: any) {
       // Si le token a expiré, essayer de le rafraîchir
       if (error.message === 'UNAUTHORIZED' && refreshToken) {
-        console.log('🔄 Tentative de rafraîchissement du token...');
+        console.log(' Tentative de rafraîchissement du token...');
         const refreshed = await refreshToken();
         if (refreshed && access_token) {
           // Réessayer avec le nouveau token
-          console.log('✅ Token rafraîchi, nouvelle tentative...');
+          console.log(' Token rafraîchi, nouvelle tentative...');
           return await fn(access_token);
         }
       }
@@ -543,6 +600,11 @@ export const useAdminDashboard = () => {
     getDetailedProcedureStats: () =>
       secureRequest(token =>
         adminDashboardService.getDetailedProcedureStats(token)
+      ),
+
+    getDetailedRendezvousStats: () =>
+      secureRequest(token =>
+        adminDashboardService.getDetailedRendezvousStats(token)
       ),
 
     getUnreadContacts: () =>
@@ -571,8 +633,8 @@ export const useDashboardData = () => {
   const lastFetchRef = React.useRef<number>(0);
   const isFetchingRef = React.useRef<boolean>(false);
   const fetchCountRef = React.useRef<number>(0);
-  const maxFetches = 3; // ✅ Limite de tentatives
-  const minInterval = 30000; // ✅ 30 secondes minimum entre les requêtes
+  const maxFetches = 3; //  Limite de tentatives
+  const minInterval = 30000; //  30 secondes minimum entre les requêtes
 
   const fetchDashboardData = React.useCallback(async () => {
     // Éviter les appels multiples
@@ -581,7 +643,7 @@ export const useDashboardData = () => {
       !isAuthenticated ||
       fetchCountRef.current >= maxFetches
     ) {
-      console.log('⏸️ Appel ignoré - en cours ou limite atteinte');
+      console.log(' Appel ignoré - en cours ou limite atteinte');
       return;
     }
 
@@ -591,7 +653,7 @@ export const useDashboardData = () => {
 
     if (timeSinceLastFetch < minInterval) {
       console.log(
-        `⏰ Trop tôt pour une nouvelle requête (${Math.round(timeSinceLastFetch / 1000)}s)`
+        ` Trop tôt pour une nouvelle requête (${Math.round(timeSinceLastFetch / 1000)}s)`
       );
       return;
     }
@@ -601,7 +663,7 @@ export const useDashboardData = () => {
     lastFetchRef.current = now;
 
     try {
-      console.log('🔄 Chargement des données du dashboard...');
+      console.log(' Chargement des données du dashboard...');
       setLoading(true);
       setError(null);
 
@@ -614,17 +676,18 @@ export const useDashboardData = () => {
       if (statsData.status === 'fulfilled') {
         setStats(statsData.value);
       } else {
-        console.error('❌ Erreur stats:', statsData.reason);
+        console.error(' Erreur stats:', statsData.reason);
+        setError('Erreur lors du chargement des statistiques');
       }
 
       if (activitiesData.status === 'fulfilled') {
         setActivities(activitiesData.value);
       } else {
-        console.error('❌ Erreur activités:', activitiesData.reason);
+        console.error(' Erreur activités:', activitiesData.reason);
       }
 
       fetchCountRef.current = 0; // Réinitialiser en cas de succès
-      console.log('✅ Données du dashboard chargées');
+      console.log(' Données du dashboard chargées');
     } catch (err: any) {
       console.error('❌ Erreur chargement dashboard:', err);
       setError(err.message || 'Erreur lors du chargement des données');
@@ -634,7 +697,7 @@ export const useDashboardData = () => {
         err.message?.includes('429') ||
         err.message?.includes('TOO_MANY_REQUESTS')
       ) {
-        console.warn('⚠️ Trop de requêtes, attente augmentée');
+        console.warn(' Trop de requêtes, attente augmentée');
         lastFetchRef.current = now + 60000; // Attendre 1 minute supplémentaire
       }
     } finally {
@@ -652,7 +715,7 @@ export const useDashboardData = () => {
   React.useEffect(() => {
     if (isAuthenticated) {
       console.log(
-        '🔐 Utilisateur authentifié, préparation chargement dashboard'
+        ' Utilisateur authentifié, préparation chargement dashboard'
       );
 
       // Attendre un peu avant la première requête
@@ -679,30 +742,30 @@ export const useDashboardData = () => {
   React.useEffect(() => {
     if (!isAuthenticated) {
       console.log(
-        '🛑 Arrêt rafraîchissement automatique - utilisateur non authentifié'
+        ' Arrêt rafraîchissement automatique - utilisateur non authentifié'
       );
       return;
     }
 
-    console.log('⏱️ Démarrage rafraîchissement automatique (5 minutes)');
+    console.log(' Démarrage rafraîchissement automatique (5 minutes)');
     const refreshInterval = setInterval(() => {
-      console.log('🔄 Rafraîchissement automatique des données');
+      console.log(' Rafraîchissement automatique des données');
       fetchDashboardData();
-    }, 300000); // ✅ Rafraîchir toutes les 5 minutes
+    }, 300000); //  Rafraîchir toutes les 5 minutes
 
     return () => {
-      console.log('🧹 Nettoyage intervalle rafraîchissement');
+      console.log(' Nettoyage intervalle rafraîchissement');
       clearInterval(refreshInterval);
     };
   }, [isAuthenticated, fetchDashboardData]);
 
   const refresh = React.useCallback(() => {
-    console.log('🔄 Rafraîchissement manuel demandé');
+    console.log(' Rafraîchissement manuel demandé');
     fetchDashboardData();
   }, [fetchDashboardData]);
 
   const forceRefresh = React.useCallback(() => {
-    console.log('💥 Force refresh demandé');
+    console.log(' Force refresh demandé');
     fetchCountRef.current = 0;
     lastFetchRef.current = 0;
     fetchDashboardData();
@@ -728,6 +791,7 @@ export const useQuickStats = () => {
     activeUsers: 0,
     totalProcedures: 0,
     totalRendezvous: 0,
+    unreadContacts: 0,
   });
   const [loading, setLoading] = React.useState(false);
 
@@ -743,9 +807,10 @@ export const useQuickStats = () => {
           activeUsers: stats.activeUsers,
           totalProcedures: stats.totalProcedures,
           totalRendezvous: stats.totalRendezvous,
+          unreadContacts: stats.unreadContacts,
         });
       } catch (error) {
-        console.error('❌ Erreur chargement quick stats:', error);
+        console.error(' Erreur chargement quick stats:', error);
       } finally {
         setLoading(false);
       }

@@ -36,6 +36,7 @@ interface DashboardStats {
     confirmed: number;
     completed: number;
     cancelled: number;
+    expired: number;
   };
   totalContacts?: number;
   unreadContacts?: number;
@@ -68,7 +69,7 @@ const ActivityIcon = ({ type }: { type: string }) => {
 
 const AdminDashboard = () => {
   const { user, isAuthenticated } = useAuth();
-  const { stats, activities, error, refresh } = useDashboardData();
+  const { stats, activities, error, refresh, loading } = useDashboardData();
 
   // États locaux
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -160,6 +161,45 @@ const AdminDashboard = () => {
     return item ? item.count : 0;
   };
 
+  // Fonction pour normaliser les noms de statut (pour la compatibilité avec différentes casse)
+  const normalizeStatusName = (status: string): string => {
+    return status.toLowerCase().trim();
+  };
+
+  // Calculer les pourcentages des rendez-vous
+  const getRendezvousPercentage = (value: number): number => {
+    const total = stats?.totalRendezvous || 0;
+    return total > 0 ? Math.round((value / total) * 100) : 0;
+  };
+
+  // Calculer les pourcentages des procédures
+  const getProcedurePercentage = (value: number): number => {
+    const total = stats?.totalProcedures || 0;
+    return total > 0 ? Math.round((value / total) * 100) : 0;
+  };
+
+  // Formater les dates pour l'affichage
+  const formatActivityDate = (timestamp: Date): string => {
+    return new Date(timestamp).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // Masquer l'email pour la confidentialité
+  const maskEmail = (email?: string): string => {
+    if (!email) return 'Système';
+    const [localPart, domain] = email.split('@');
+    if (!localPart || !domain) return '***';
+    
+    if (localPart.length <= 3) {
+      return `${localPart}***@${domain}`;
+    }
+    return `${localPart.substring(0, 3)}...@${domain}`;
+  };
+
   // Vérification des permissions
   if (!isAuthenticated) {
     return null;
@@ -237,7 +277,7 @@ const AdminDashboard = () => {
       iconColor: 'text-emerald-600',
       description: `${stats?.rendezvousStats?.confirmed || 0} confirmés`,
       trend: 'neutral',
-      detail: `${stats?.rendezvousStats?.pending || 0} en attente`,
+      detail: `${stats?.rendezvousStats?.pending || 0} en attente, ${stats?.rendezvousStats?.expired || 0} expirés`,
     },
     {
       title: 'Procédures',
@@ -248,7 +288,7 @@ const AdminDashboard = () => {
       iconColor: 'text-violet-600',
       description: 'En cours et terminées',
       trend: 'neutral',
-      detail: `${stats?.proceduresByStatus?.length || 0} statuts`,
+      detail: `${stats?.proceduresByStatus?.length || 0} statuts distincts`,
     },
     {
       title: 'Administrateurs',
@@ -286,13 +326,15 @@ const AdminDashboard = () => {
     },
   ];
 
-  // Statistiques des procédures
+  // Statistiques des procédures - avec compatibilité de casse
   const procedureStatusStats = [
     {
       status: 'En cours',
-      value:
+      value: 
         safeFind(stats?.proceduresByStatus, 'En cours') ||
-        safeFind(stats?.proceduresByStatus, 'en cours'),
+        safeFind(stats?.proceduresByStatus, 'en cours') ||
+        safeFind(stats?.proceduresByStatus, 'En Cours') ||
+        0,
       icon: Clock,
       color: 'text-yellow-600',
       bgColor: 'bg-yellow-50',
@@ -300,9 +342,11 @@ const AdminDashboard = () => {
     },
     {
       status: 'Terminées',
-      value:
+      value: 
         safeFind(stats?.proceduresByStatus, 'Terminée') ||
-        safeFind(stats?.proceduresByStatus, 'terminée'),
+        safeFind(stats?.proceduresByStatus, 'terminée') ||
+        safeFind(stats?.proceduresByStatus, 'Terminee') ||
+        0,
       icon: CheckCircle,
       color: 'text-emerald-600',
       bgColor: 'bg-emerald-50',
@@ -310,23 +354,30 @@ const AdminDashboard = () => {
     },
     {
       status: 'Refusées',
-      value:
+      value: 
         safeFind(stats?.proceduresByStatus, 'Refusée') ||
-        safeFind(stats?.proceduresByStatus, 'refusée'),
+        safeFind(stats?.proceduresByStatus, 'refusée') ||
+        safeFind(stats?.proceduresByStatus, 'Refusee') ||
+        safeFind(stats?.proceduresByStatus, 'Rejetée') ||
+        safeFind(stats?.proceduresByStatus, 'rejetée') ||
+        0,
       icon: AlertTriangle,
       color: 'text-red-600',
       bgColor: 'bg-red-50',
       borderColor: 'border-red-200',
     },
     {
-      status: 'En attente',
-      value:
-        safeFind(stats?.proceduresByStatus, 'En attente') ||
-        safeFind(stats?.proceduresByStatus, 'en attente'),
-      icon: Clock,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-      borderColor: 'border-blue-200',
+      status: 'Annulées',
+      value: 
+        safeFind(stats?.proceduresByStatus, 'Annulée') ||
+        safeFind(stats?.proceduresByStatus, 'annulée') ||
+        safeFind(stats?.proceduresByStatus, 'Annulee') ||
+        safeFind(stats?.proceduresByStatus, 'Canceled') ||
+        0,
+      icon: AlertTriangle,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-50',
+      borderColor: 'border-orange-200',
     },
   ];
 
@@ -336,11 +387,37 @@ const AdminDashboard = () => {
     .map(dest => ({
       name: dest._id,
       count: dest.count,
-      percentage:
-        (stats?.totalProcedures || 0) > 0
-          ? Math.round((dest.count / (stats?.totalProcedures || 1)) * 100)
-          : 0,
+      percentage: getProcedurePercentage(dest.count),
     }));
+
+  // Statut des rendez-vous
+  const rendezvousStatuses = [
+    {
+      status: 'En attente',
+      value: stats?.rendezvousStats?.pending || 0,
+      color: 'yellow',
+    },
+    {
+      status: 'Confirmés',
+      value: stats?.rendezvousStats?.confirmed || 0,
+      color: 'blue',
+    },
+    {
+      status: 'Terminés',
+      value: stats?.rendezvousStats?.completed || 0,
+      color: 'emerald',
+    },
+    {
+      status: 'Annulés',
+      value: stats?.rendezvousStats?.cancelled || 0,
+      color: 'red',
+    },
+    {
+      status: 'Expirés',
+      value: stats?.rendezvousStats?.expired || 0,
+      color: 'gray',
+    },
+  ];
 
   return (
     <>
@@ -403,13 +480,19 @@ const AdminDashboard = () => {
                       <span>Dernière mise à jour: {lastRefreshTime}</span>
                     </div>
                   )}
+                  {loading && (
+                    <div className='flex items-center gap-2 text-sm text-blue-600'>
+                      <RefreshCw size={14} className='animate-spin' />
+                      <span>Chargement des données...</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className='flex flex-wrap items-center gap-3'>
                 <button
                   onClick={handleRefresh}
-                  disabled={isRefreshing}
+                  disabled={isRefreshing || loading}
                   className='flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-all shadow-sm hover:shadow-md'
                 >
                   <RefreshCw
@@ -449,7 +532,7 @@ const AdminDashboard = () => {
                       </div>
                     )}
                     {card.trend === 'attention' && (
-                      <div className='flex items-center text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full animate-pulse'>
+                      <div className='flex items-center text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full'>
                         <AlertTriangle size={12} />
                       </div>
                     )}
@@ -501,13 +584,10 @@ const AdminDashboard = () => {
               </div>
               <div className='space-y-3'>
                 {procedureStatusStats.map((stat, index) => {
+                  if (stat.value === 0) return null;
+                  
                   const Icon = stat.icon;
-                  const percentage =
-                    (stats?.totalProcedures || 0) > 0
-                      ? Math.round(
-                          (stat.value / (stats?.totalProcedures || 1)) * 100
-                        )
-                      : 0;
+                  const percentage = getProcedurePercentage(stat.value);
 
                   return (
                     <div
@@ -541,6 +621,11 @@ const AdminDashboard = () => {
                     </div>
                   );
                 })}
+                {procedureStatusStats.every(stat => stat.value === 0) && (
+                  <div className='text-center py-4 text-gray-500'>
+                    Aucune donnée de procédure disponible
+                  </div>
+                )}
               </div>
             </div>
 
@@ -564,34 +649,8 @@ const AdminDashboard = () => {
                 </div>
               </div>
               <div className='space-y-3'>
-                {[
-                  {
-                    status: 'En attente',
-                    value: stats?.rendezvousStats?.pending || 0,
-                    color: 'yellow',
-                  },
-                  {
-                    status: 'Confirmés',
-                    value: stats?.rendezvousStats?.confirmed || 0,
-                    color: 'blue',
-                  },
-                  {
-                    status: 'Terminés',
-                    value: stats?.rendezvousStats?.completed || 0,
-                    color: 'emerald',
-                  },
-                  {
-                    status: 'Annulés',
-                    value: stats?.rendezvousStats?.cancelled || 0,
-                    color: 'red',
-                  },
-                ].map((stat, index) => {
-                  const percentage =
-                    (stats?.totalRendezvous || 0) > 0
-                      ? Math.round(
-                          (stat.value / (stats?.totalRendezvous || 1)) * 100
-                        )
-                      : 0;
+                {rendezvousStatuses.map((stat, index) => {
+                  const percentage = getRendezvousPercentage(stat.value);
 
                   return (
                     <div key={index} className='space-y-2'>
@@ -611,7 +670,9 @@ const AdminDashboard = () => {
                                   ? 'bg-blue-50 text-blue-700 border-blue-200'
                                   : stat.color === 'emerald'
                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    : 'bg-red-50 text-red-700 border-red-200'
+                                    : stat.color === 'red'
+                                      ? 'bg-red-50 text-red-700 border-red-200'
+                                      : 'bg-gray-50 text-gray-700 border-gray-200'
                             }`}
                           >
                             {stat.value.toLocaleString('fr-FR')}
@@ -627,7 +688,9 @@ const AdminDashboard = () => {
                                 ? 'bg-blue-500'
                                 : stat.color === 'emerald'
                                   ? 'bg-emerald-500'
-                                  : 'bg-red-500'
+                                  : stat.color === 'red'
+                                    ? 'bg-red-500'
+                                    : 'bg-gray-500'
                           }`}
                           style={{ width: `${percentage}%` }}
                         />
@@ -738,21 +801,11 @@ const AdminDashboard = () => {
                               {activity.type}
                             </div>
                             <span className='text-xs text-gray-500'>
-                              {activity.userEmail
-                                ? `${activity.userEmail.substring(0, 3)}...@...`
-                                : 'Système'}
+                              {maskEmail(activity.userEmail)}
                             </span>
                           </div>
                           <span className='text-xs text-gray-500 shrink-0'>
-                            {new Date(activity.timestamp).toLocaleDateString(
-                              'fr-FR',
-                              {
-                                day: '2-digit',
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              }
-                            )}
+                            {formatActivityDate(activity.timestamp)}
                           </span>
                         </div>
                       </div>
@@ -786,7 +839,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
               <div className='flex items-center gap-2'>
-                <div className='w-2 h-2 bg-emerald-500 rounded-full animate-pulse'></div>
+                <div className='w-2 h-2 bg-emerald-500 rounded-full'></div>
                 <span>Système opérationnel</span>
               </div>
             </div>

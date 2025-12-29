@@ -43,13 +43,13 @@ class DestinationService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = `${API_URL}/api/destinations`;
+    this.baseUrl = `${API_URL}/destinations`;
   }
 
   /**
    * Headers communs pour les requêtes authentifiées
    */
-  private getAuthHeaders(token: string) {
+  private getAuthHeaders(token: string): Record<string, string> {
     return {
       Authorization: `Bearer ${token}`,
     };
@@ -59,9 +59,8 @@ class DestinationService {
    * Gestion centralisée des erreurs
    */
   private handleError(error: any, defaultMessage: string): never {
-    // Gestion d'erreur silencieuse en développement uniquement
     if (import.meta.env.DEV) {
-      globalThis.console.error('❌ Erreur DestinationService:', error);
+      console.error('Erreur DestinationService:', error);
     }
 
     if (error.name === 'AbortError') {
@@ -78,6 +77,14 @@ class DestinationService {
 
     if (error.message?.includes('403')) {
       throw new Error('Droits administrateur requis.');
+    }
+
+    if (error.message?.includes('404')) {
+      throw new Error('Ressource non trouvée.');
+    }
+
+    if (error.message?.includes('409')) {
+      throw new Error('Conflit: cette ressource existe déjà.');
     }
 
     if (error.message) {
@@ -102,7 +109,7 @@ class DestinationService {
         ...(search && { search }),
       });
 
-      const response = await globalThis.fetch(`${this.baseUrl}?${params}`, {
+      const response = await fetch(`${this.baseUrl}?${params}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -125,7 +132,7 @@ class DestinationService {
    */
   async getAllDestinationsWithoutPagination(): Promise<Destination[]> {
     try {
-      const response = await globalThis.fetch(`${this.baseUrl}/all`, {
+      const response = await fetch(`${this.baseUrl}/all`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -148,11 +155,11 @@ class DestinationService {
    */
   async getDestinationById(id: string): Promise<Destination> {
     try {
-      if (!id) {
-        throw new Error('ID de destination requis');
+      if (!id || id.length !== 24) {
+        throw new Error('ID de destination invalide');
       }
 
-      const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
+      const response = await fetch(`${this.baseUrl}/${id}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -203,13 +210,19 @@ class DestinationService {
         );
       }
 
+      // Validation de l'image
+      const imageValidation = this.validateImageFile(data.imageFile);
+      if (!imageValidation.isValid) {
+        throw new Error(imageValidation.error);
+      }
+
       // Préparation FormData
       const formData = new FormData();
       formData.append('country', data.country.trim());
       formData.append('text', data.text.trim());
       formData.append('image', data.imageFile);
 
-      const response = await globalThis.fetch(this.baseUrl, {
+      const response = await fetch(this.baseUrl, {
         method: 'POST',
         headers: this.getAuthHeaders(token),
         body: formData,
@@ -251,8 +264,8 @@ class DestinationService {
     token: string
   ): Promise<Destination> {
     try {
-      if (!id) {
-        throw new Error('ID de destination requis');
+      if (!id || id.length !== 24) {
+        throw new Error('ID de destination invalide');
       }
 
       // Validation des données
@@ -264,6 +277,19 @@ class DestinationService {
         throw new Error(
           'La description doit contenir entre 10 et 2000 caractères'
         );
+      }
+
+      if (data.imageFile) {
+        const imageValidation = this.validateImageFile(data.imageFile);
+        if (!imageValidation.isValid) {
+          throw new Error(imageValidation.error);
+        }
+      }
+
+      // Vérifier qu'il y a au moins une donnée à mettre à jour
+      const hasData = data.country || data.text || data.imageFile;
+      if (!hasData) {
+        throw new Error('Aucune donnée à mettre à jour fournie');
       }
 
       // Préparation FormData
@@ -281,7 +307,7 @@ class DestinationService {
         formData.append('image', data.imageFile);
       }
 
-      const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
+      const response = await fetch(`${this.baseUrl}/${id}`, {
         method: 'PUT',
         headers: this.getAuthHeaders(token),
         body: formData,
@@ -306,6 +332,10 @@ class DestinationService {
           throw new Error('Droits administrateur requis');
         }
 
+        if (response.status === 400) {
+          throw new Error(errorData.message || 'Données de mise à jour invalides');
+        }
+
         throw new Error(errorData.message || `Erreur ${response.status}`);
       }
 
@@ -326,11 +356,11 @@ class DestinationService {
    */
   async deleteDestination(id: string, token: string): Promise<void> {
     try {
-      if (!id) {
-        throw new Error('ID de destination requis');
+      if (!id || id.length !== 24) {
+        throw new Error('ID de destination invalide');
       }
 
-      const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
+      const response = await fetch(`${this.baseUrl}/${id}`, {
         method: 'DELETE',
         headers: {
           ...this.getAuthHeaders(token),
@@ -371,8 +401,6 @@ class DestinationService {
    */
   async getStatistics(): Promise<Statistics> {
     try {
-      // Pour l'instant, on utilise la liste complète pour calculer les stats
-      // Vous pourriez ajouter un endpoint spécifique /api/destinations/stats dans le backend
       const destinations = await this.getAllDestinationsWithoutPagination();
 
       const uniqueCountries = new Set(
@@ -386,9 +414,7 @@ class DestinationService {
           .map(dest => new Date(dest.updatedAt!).getTime());
 
         if (dates.length > 0) {
-          lastUpdated = new Date(Math.max(...dates)).toLocaleDateString(
-            'fr-FR'
-          );
+          lastUpdated = new Date(Math.max(...dates)).toLocaleDateString('fr-FR');
         }
       }
 
@@ -442,6 +468,7 @@ class DestinationService {
       'image/webp',
       'image/svg+xml',
     ];
+    
     if (!allowedTypes.includes(file.type)) {
       return {
         isValid: false,
@@ -455,8 +482,7 @@ class DestinationService {
   /**
    * Générer l'URL complète d'une image
    */
- 
-  getFullImageUrl = (imagePath: string) => {
+  getFullImageUrl(imagePath: string): string {
     if (!imagePath) return '/paname-consulting.jpg';
 
     // URLs déjà complètes
@@ -469,8 +495,6 @@ class DestinationService {
       return imagePath;
     }
 
-    const baseUrl = (import.meta as any).env.VITE_API_URL;
-
     // Images uploadées
     let cleanPath = imagePath;
     if (!cleanPath.startsWith('uploads/')) {
@@ -478,8 +502,8 @@ class DestinationService {
     }
     cleanPath = cleanPath.replace(/\/\//g, '/');
 
-    return `${baseUrl}/${cleanPath}`;
-  };
+    return `${API_URL}/${cleanPath}`;
+  }
 }
 
 // Export singleton
