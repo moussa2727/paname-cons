@@ -278,7 +278,7 @@ class UserProfileService {
    */
   static async forgotPassword(email: string): Promise<void> {
     try {
-      const VITE_API_URL = import.meta.env.VITE_API_URL || 'https://panameconsulting.up.railway.app';
+      const VITE_API_URL = import.meta.env.VITE_API_URL;
       
       // Validation de l'email
       if (!email || email.trim() === '') {
@@ -347,7 +347,7 @@ class UserProfileService {
         throw new Error('Mot de passe invalide');
       }
 
-      const VITE_API_URL = import.meta.env.VITE_API_URL || 'https://panameconsulting.up.railway.app';
+      const VITE_API_URL = import.meta.env.VITE_API_URL ;
       const response = await window.fetch(
         `${VITE_API_URL}${API_ENDPOINTS.RESET_PASSWORD}`,
         {

@@ -20,8 +20,9 @@ const ADMIN_OPINION = {
 const CANCELLATION_THRESHOLD_HOURS = 2;
 const AUTO_EXPIRE_MINUTES = 10;
 
+// Interface Rendezvous 
 export interface Rendezvous {
-  _id: string;
+  _id: string;          
   userId: string;
   firstName: string;
   lastName: string;
@@ -154,46 +155,71 @@ export class UserRendezvousService {
   /**
    * Récupère les rendez-vous de l'utilisateur avec validation des statuts
    */
+  // 📊 MODIFIER le fetchUserRendezvous pour réduire les requêtes inutiles
   async fetchUserRendezvous(params: FetchRendezvousParams): Promise<ApiResponse> {
     return this.addToQueue(async () => {
       try {
+        // ✅ VALIDATION AVANT REQUÊTE - Éviter les requêtes inutiles
+        if (params.status && !UserRendezvousService.isValidStatus(params.status)) {
+          console.warn(`Statut filtré invalide côté frontend: ${params.status}`);
+          // Retourner une réponse vide plutôt que d'envoyer une requête
+          return {
+            data: [],
+            total: 0,
+            page: params.page,
+            limit: params.limit,
+            totalPages: 0
+          };
+        }
+
+        // ✅ VÉRIFICATION PAGINATION - Éviter les pages hors limites
+        if (params.page < 1) {
+          console.warn('Numéro de page invalide côté frontend');
+          return {
+            data: [],
+            total: 0,
+            page: 1,
+            limit: params.limit,
+            totalPages: 0
+          };
+        }
+
         const urlParams = new URLSearchParams({
           page: params.page.toString(),
           limit: params.limit.toString(),
         });
 
-        // Validation du statut si spécifié (cohérent avec le backend)
+        // ✅ FILTRE STATUT - Uniquement si valide
         if (params.status) {
-          if (!UserRendezvousService.isValidStatus(params.status)) {
-            throw new Error(`Statut invalide: ${params.status}`);
-          }
           urlParams.append('status', params.status);
         }
 
         const endpoint = `/api/rendezvous/user?${urlParams.toString()}`;
         
-        // if (import.meta.env.DEV) {
-        //   console.log('Envoi requête rendez-vous avec paramètres:', Object.fromEntries(urlParams));
-        // }
-
         const response = await this.auth.fetchWithAuth(endpoint);
 
         if (!response.ok) {
+          // ✅ GESTION DES ERREURS SPÉCIFIQUES DU BACKEND
           const errorData = await response.json().catch(() => ({}));
           
-          // Gestion spécifique des erreurs backend
           if (response.status === 400 && errorData.message?.includes('Statut invalide')) {
-            throw new Error(`STATUT_INVALIDE:${errorData.message}`);
+            console.warn('Backend a rejeté le filtre de statut');
+            // Retourner une réponse vide pour éviter les erreurs UI
+            return {
+              data: [],
+              total: 0,
+              page: params.page,
+              limit: params.limit,
+              totalPages: 0
+            };
           }
           
           if (response.status === 429) {
-            const retryAfter = response.headers.get('Retry-After');
-            const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 10000;
-            throw new Error(`RATE_LIMIT:${waitTime}`);
-          }
-          
-          if (response.status === 403 && errorData.message?.includes('compte')) {
-            throw new Error('NO_ACCOUNT_FOR_EMAIL');
+            // Rate limit - attendre et retenter automatiquement
+            const waitTime = 5000; // 5 secondes par défaut
+            console.log(`Rate limit détecté, attente de ${waitTime}ms`);
+            await this.wait(waitTime);
+            return this.fetchUserRendezvous(params);
           }
           
           throw new Error(errorData.message || `Erreur ${response.status}`);
@@ -201,51 +227,44 @@ export class UserRendezvousService {
 
         const data = await response.json();
         
-        // Validation des données reçues
+        // ✅ NORMALISATION DES DONNÉES - S'assurer que 'id' existe
         if (data.data && Array.isArray(data.data)) {
           data.data.forEach((rdv: Rendezvous) => {
-            if (!UserRendezvousService.isValidStatus(rdv.status)) {
-              console.warn(`⚠️ Statut invalide reçu du backend: ${rdv.status}`);
+            if (!rdv._id) {
+              rdv._id ;
             }
             
-            if (rdv.avisAdmin && !UserRendezvousService.isValidAdminOpinion(rdv.avisAdmin)) {
-              console.warn(`⚠️ Avis admin invalide reçu: ${rdv.avisAdmin}`);
+            // Validation du statut pour le frontend
+            if (!UserRendezvousService.isValidStatus(rdv.status)) {
+              console.warn(`Statut invalide reçu: ${rdv.status}`);
             }
           });
         }
         
         return data;
+        
       } catch (error: any) {
+        // ✅ GESTION DES ERREURS SANS TOAST INUTILES
         if (error.message.startsWith('RATE_LIMIT:')) {
           const waitTime = parseInt(error.message.split(':')[1]);
-          
-          // if (import.meta.env.DEV) {
-          //   console.log(`⏳ Rate limit détecté, attente de ${waitTime}ms`);
-          // }
-          
           await this.wait(waitTime);
           return this.fetchUserRendezvous(params);
         }
         
-        if (error.message.startsWith('STATUT_INVALIDE:')) {
-          const errorMsg = error.message.split(':')[1];
-          toast.error(`Filtre invalide: ${errorMsg}`);
-          throw new Error('INVALID_STATUS_FILTER');
-        }
-        
-        if (error.message === 'NO_ACCOUNT_FOR_EMAIL') {
-          toast.error('Aucun compte trouvé pour cet email. Veuillez d\'abord créer un compte.');
-          throw error;
-        }
-        
-        if (import.meta.env.DEV) {
-          console.error('❌ Erreur fetchUserRendezvous:', error.message);
-        }
-
+        // Seulement afficher les erreurs importantes
         if (error.message !== 'SESSION_EXPIRED' && 
             error.message !== 'SESSION_CHECK_IN_PROGRESS' &&
-            error.message !== 'INVALID_STATUS_FILTER') {
-          toast.error('Impossible de charger vos rendez-vous');
+            !error.message.includes('STATUT_INVALIDE')) {
+          console.error('Erreur fetchUserRendezvous:', error.message);
+          
+          // Retourner une réponse vide pour éviter les crashes UI
+          return {
+            data: [],
+            total: 0,
+            page: params.page,
+            limit: params.limit,
+            totalPages: 0
+          };
         }
         
         throw error;
@@ -256,82 +275,54 @@ export class UserRendezvousService {
   /**
    * Annule un rendez-vous avec validation stricte
    */
-  async cancelRendezvous(rdvId: string): Promise<Rendezvous> {
-    return this.addToQueue(async () => {
-      try {
-        const response = await this.auth.fetchWithAuth(
-          `/api/rendezvous/${rdvId}`,
-          { method: 'DELETE' }
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          
-          // Gestion spécifique des erreurs backend
-          if (response.status === 400) {
-            if (errorData.message.includes('à moins de 2 heures')) {
-              throw new Error('CANCELLATION_TOO_LATE');
-            }
-            if (errorData.message.includes('non confirmé')) {
-              throw new Error('NOT_CONFIRMED_RENDEZVOUS');
-            }
-            if (errorData.message.includes('terminé ou expiré')) {
-              throw new Error('COMPLETED_OR_EXPIRED');
-            }
-          }
-          
-          if (response.status === 403) {
-            if (errorData.message.includes('vos propres rendez-vous')) {
-              throw new Error('NOT_YOUR_RENDEZVOUS');
-            }
-          }
-          
-          if (response.status === 429) {
-            const retryAfter = response.headers.get('Retry-After');
-            const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 10000;
-            throw new Error(`RATE_LIMIT:${waitTime}`);
-          }
-          
-          throw new Error(errorData.message || 'Erreur lors de l\'annulation');
-        }
-
-        const result = await response.json();
-        
-        // Vérification que le statut est bien "Annulé"
-        if (result.status !== RENDEZVOUS_STATUS.CANCELLED) {
-          console.warn(`⚠️ Rendez-vous annulé mais statut différent: ${result.status}`);
-        }
-        
-        toast.success('Rendez-vous annulé avec succès');
-        return result;
-      } catch (error: any) {
-        if (error.message.startsWith('RATE_LIMIT:')) {
-          const waitTime = parseInt(error.message.split(':')[1]);
-          await this.wait(waitTime);
-          return this.cancelRendezvous(rdvId);
-        }
-        
-        if (import.meta.env.DEV) {
-          console.error('❌ Erreur cancelRendezvous:', error.message);
-        }
-
-        if (error.message === 'CANCELLATION_TOO_LATE') {
-          toast.error('Impossible d\'annuler à moins de 2 heures du rendez-vous');
-        } else if (error.message === 'NOT_CONFIRMED_RENDEZVOUS') {
-          toast.error('Vous ne pouvez annuler que les rendez-vous confirmés');
-        } else if (error.message === 'COMPLETED_OR_EXPIRED') {
-          toast.error('Impossible d\'annuler un rendez-vous terminé ou expiré');
-        } else if (error.message === 'NOT_YOUR_RENDEZVOUS') {
-          toast.error('Vous ne pouvez annuler que vos propres rendez-vous');
-        } else if (error.message !== 'SESSION_EXPIRED' && 
-                   error.message !== 'SESSION_CHECK_IN_PROGRESS') {
-          toast.error(error.message || 'Erreur lors de l\'annulation');
-        }
-        
-        throw error;
-      }
-    });
+async cancelRendezvous(rdvId: string): Promise<Rendezvous> {
+  console.log('cancelRendezvous called with id:', rdvId); // Debug
+  
+  if (!rdvId || rdvId === 'undefined') {
+    throw new Error('ID de rendez-vous invalide');
   }
+
+  try {
+    const response = await this.auth.fetchWithAuth(
+      `/api/rendezvous/${rdvId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      // Lire le body une seule fois
+      let errorData: { message?: any; error?: any; };
+      try {
+        const responseText = await response.text();
+        errorData = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        errorData = {};
+      }
+      
+      if (response.status === 401) {
+        throw new Error('SESSION_EXPIRED');
+      }
+      
+      const errorMessage = errorData.message || errorData.error || 'Erreur lors de l\'annulation';
+      throw new Error(errorMessage);
+    }
+
+    // Lire le body une seule fois
+    const responseText = await response.text();
+    if (!responseText) {
+      throw new Error('Réponse serveur vide');
+    }
+    
+    return JSON.parse(responseText);
+  } catch (error: any) {
+    console.error('❌ Erreur cancelRendezvous:', error.message);
+    throw error;
+  }
+}
 
   /**
    * Formate une date en français
