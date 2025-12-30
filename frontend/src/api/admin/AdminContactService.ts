@@ -40,20 +40,16 @@ export interface CreateContactDto {
   message: string;
 }
 
-export interface ContactFilters {
-  page: number;
-  limit: number;
+interface ContactFilters {
+  page?: number;  // Rendre optionnel
+  limit?: number; // Rendre optionnel
   isRead?: boolean;
   search?: string;
 }
 
-export interface ReplyDto {
-  reply: string;
-}
-
 // ===== HOOK PERSONNALISÉ =====
 export const useContactService = () => {
-  const { fetchWithAuth, user, isAuthenticated } = useAuth();
+  const { access_token, isAuthenticated, user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,178 +61,304 @@ export const useContactService = () => {
   };
 
   // Fonction de requête sécurisée avec gestion d'erreur
-  const secureFetch = useCallback(
-    async (
-      endpoint: string,
-      options: RequestInit = {},
-      requireAdmin = false
-    ): Promise<any> => {
-      if (requireAdmin && (!isAuthenticated || !isUserAdmin(user))) {
-        throw new Error('Accès refusé : droits administrateur requis');
+ const secureFetch = useCallback(
+  async (
+    endpoint: string,
+    options: RequestInit = {},
+    requireAdmin = false
+  ) => {
+    // Vérification des droits admin
+    if (requireAdmin && (!isAuthenticated || !isUserAdmin(user))) {
+      throw new Error('Accès refusé : droits administrateur requis');
+    }
+
+    if (requireAdmin && !access_token) {
+      throw new Error("Token d'authentification manquant");
+    }
+
+    // Vérifier l'URL de l'API
+    if (!API_URL || typeof API_URL !== 'string') {
+      throw new Error('Configuration API invalide');
+    }
+
+    // Vérifier si on est dans un environnement navigateur
+    if (typeof globalThis === 'undefined' || !globalThis.setTimeout) {
+      throw new Error('Environnement non supporté pour les requêtes HTTP');
+    }
+
+    const controller = new AbortController();
+    const timeoutId = globalThis.setTimeout(() => controller.abort(), 15000);
+
+    try {
+      // Construction de l'URL complète
+      const fullUrl = `${API_URL}${endpoint}`;
+      
+      // Validation de l'URL
+      try {
+        new URL(fullUrl);
+      } catch {
+        throw new Error(`URL invalide : ${fullUrl}`);
       }
 
+      const response = await globalThis.fetch(fullUrl, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(requireAdmin && access_token
+            ? { Authorization: `Bearer ${access_token}` }
+            : {}),
+          ...options.headers,
+        },
+        credentials: 'include',
+      });
+
+      globalThis.clearTimeout(timeoutId);
+
+      // Gestion des erreurs réseau
+      if (response.status === 0 || response.type === 'error') {
+        throw new Error('Erreur de connexion au serveur. Vérifiez votre connexion réseau.');
+      }
+
+      // Gestion des erreurs HTTP spécifiques
+      if (response.status === 401) {
+        throw new Error('Session expirée, veuillez vous reconnecter');
+      }
+
+      if (response.status === 403) {
+        throw new Error('Accès refusé : droits insuffisants');
+      }
+
+      if (response.status === 404) {
+        throw new Error('Ressource non trouvée');
+      }
+
+      if (response.status === 429) {
+        throw new Error('Trop de requêtes, veuillez patienter quelques instants');
+      }
+
+      if (response.status >= 500) {
+        throw new Error('Erreur serveur, veuillez réessayer ultérieurement');
+      }
+
+      if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData?.message || `Erreur ${response.status} - ${response.statusText}`);
+        } catch {
+          throw new Error(`Erreur ${response.status} - ${response.statusText}`);
+        }
+      }
+
+      // Parse la réponse
       try {
-        const response = requireAdmin 
-          ? await fetchWithAuth(endpoint, options)
-          : await fetch(endpoint, options);
-
-        // Gestion des erreurs HTTP
-        if (response.status === 401) {
-          throw new Error('Session expirée, veuillez vous reconnecter');
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return await response.json();
+        } else if (contentType && contentType.includes('text/')) {
+          return await response.text();
+        } else {
+          return await response.blob();
         }
-
-        if (response.status === 403) {
-          throw new Error('Accès refusé : droits insuffisants');
-        }
-
-        if (response.status === 404) {
-          throw new Error('Ressource non trouvée');
-        }
-
-        if (response.status === 429) {
-          throw new Error('Trop de requêtes, veuillez patienter');
-        }
-
-        if (response.status === 409) {
-          throw new Error('Conflit : cette ressource existe déjà');
-        }
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null);
-          throw new Error(errorData?.message || `Erreur ${response.status}`);
-        }
-
-        return await response.json();
-      } catch (err: any) {
-        if (err.message === 'SESSION_EXPIRED') {
-          throw new Error('Session expirée, veuillez vous reconnecter');
-        }
+      } catch (parseError) {
+        throw new Error('Erreur lors de la lecture de la réponse');
+      }
+    } catch (err: any) {
+      globalThis.clearTimeout(timeoutId);
+      
+      // Gestion des erreurs spécifiques
+      if (err.name === 'AbortError') {
+        throw new Error('La requête a expiré (timeout de 15s)');
+      }
+      
+      if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+        throw new Error('Impossible de joindre le serveur. Vérifiez votre connexion internet.');
+      }
+      
+      if (err.message.includes('URL invalide')) {
         throw err;
       }
-    },
-    [fetchWithAuth, isAuthenticated, user]
-  );
-
-  // Validation des données de contact
-  const validateContactData = (data: CreateContactDto): void => {
-    if (!data.email || !data.email.trim()) {
-      throw new Error('L\'email est obligatoire');
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(data.email)) {
-      throw new Error('Format d\'email invalide');
-    }
-
-    if (!data.message || !data.message.trim()) {
-      throw new Error('Le message est obligatoire');
-    }
-
-    if (data.message.trim().length < 10) {
-      throw new Error('Le message doit contenir au moins 10 caractères');
-    }
-
-    if (data.message.trim().length > 2000) {
-      throw new Error('Le message ne doit pas dépasser 2000 caractères');
-    }
-
-    if (data.firstName && data.firstName.trim().length > 50) {
-      throw new Error('Le prénom ne doit pas dépasser 50 caractères');
-    }
-
-    if (data.lastName && data.lastName.trim().length > 50) {
-      throw new Error('Le nom ne doit pas dépasser 50 caractères');
-    }
-  };
-
-  // Récupérer tous les messages avec pagination et filtres
-  const getAllContacts = useCallback(
-    async (filters: ContactFilters = { page: 1, limit: 20 }): Promise<ContactResponse> => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const { page = 1, limit = 20, isRead, search } = filters;
-
-        // Validation des paramètres
-        if (page < 1) {
-          throw new Error('Le numéro de page doit être supérieur à 0');
-        }
-
-        if (limit < 1 || limit > 100) {
-          throw new Error('La limite doit être entre 1 et 100');
-        }
-
-        const params = new URLSearchParams({
-          page: page.toString(),
-          limit: limit.toString(),
-        });
-
-        if (isRead !== undefined) params.append('isRead', isRead.toString());
-        if (search) params.append('search', search.trim());
-
-        const response = await secureFetch(
-          `${API_URL}/contact?${params}`,
-          { method: 'GET' },
-          true
-        );
-
-        return response as ContactResponse;
-      } catch (err: any) {
-        const errorMessage = err.message || 'Erreur lors de la récupération des messages';
-        setError(errorMessage);
-        toast.error(errorMessage);
+      
+      // Si l'erreur a déjà un message, la propager
+      if (err.message && err.message !== 'FetchError') {
         throw err;
-      } finally {
-        setIsLoading(false);
       }
-    },
-    [secureFetch, API_URL]
-  );
+      
+      throw new Error('Une erreur inattendue est survenue');
+    }
+  },
+  [API_URL, access_token, isAuthenticated, user]
+);
 
-  // Obtenir les statistiques des messages
+  // 📋 Récupérer tous les messages avec pagination et filtres
+ const getAllContacts = useCallback(
+  async (filters: ContactFilters = {}): Promise<ContactResponse> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Paramètres avec valeurs par défaut
+      const { 
+        page = 1, 
+        limit = 10, 
+        isRead, 
+        search 
+      } = filters;
+
+      // Validation des paramètres
+      if (page < 1) {
+        throw new Error('Le numéro de page doit être supérieur à 0');
+      }
+      
+      if (limit < 1 || limit > 100) {
+        throw new Error('La limite doit être comprise entre 1 et 100');
+      }
+
+      // Construction des paramètres de requête
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+
+      if (isRead !== undefined) {
+        params.append('isRead', isRead.toString());
+      }
+      
+      if (search && search.trim().length > 0) {
+        params.append('search', search.trim());
+        
+        // Validation de la longueur de recherche
+        if (search.trim().length > 100) {
+          throw new Error('La recherche ne peut pas dépasser 100 caractères');
+        }
+      }
+
+      // Appel API
+      const response = await secureFetch(
+        `/api/contact?${params}`,
+        {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+        },
+        true
+      );
+
+      // Validation de la réponse
+      if (!response || typeof response !== 'object') {
+        throw new Error('Réponse du serveur invalide');
+      }
+
+      // Vérification de la structure de la réponse
+      const requiredFields = ['data', 'total', 'page', 'limit'];
+      for (const field of requiredFields) {
+        if (!(field in response)) {
+          throw new Error(`Réponse incomplète : champ ${field} manquant`);
+        }
+      }
+
+      // Conversion et validation des données
+      const processedData = Array.isArray(response.data) 
+        ? response.data.map((contact: any) => {
+            // Validation des champs requis
+            if (!contact._id || !contact.email || !contact.message) {
+              console.warn('Contact avec des champs manquants:', contact);
+            }
+
+            return {
+              _id: String(contact._id || ''),
+              firstName: contact.firstName || undefined,
+              lastName: contact.lastName || undefined,
+              email: String(contact.email || ''),
+              message: String(contact.message || ''),
+              isRead: Boolean(contact.isRead || false),
+              adminResponse: contact.adminResponse || undefined,
+              respondedAt: contact.respondedAt ? new Date(contact.respondedAt) : undefined,
+              respondedBy: contact.respondedBy ? String(contact.respondedBy) : undefined,
+              createdAt: contact.createdAt ? new Date(contact.createdAt) : new Date(),
+              updatedAt: contact.updatedAt ? new Date(contact.updatedAt) : new Date(),
+            };
+          })
+        : [];
+
+      return {
+        data: processedData,
+        total: Number(response.total) || 0,
+        page: Number(response.page) || 1,
+        limit: Number(response.limit) || 10,
+      };
+    } catch (err: any) {
+      const errorMessage = err.message || 'Erreur lors de la récupération des messages';
+      setError(errorMessage);
+      
+      // Toast avec options améliorées
+      toast.error(errorMessage, {
+        position: "top-center",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
+      
+      // Log en console pour le débogage
+      console.error('Erreur getAllContacts:', {
+        filters,
+        error: err.message,
+        stack: err.stack,
+      });
+      
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  },
+  [secureFetch]
+);
+
+  // 📊 Obtenir les statistiques des messages
   const getContactStats = useCallback(async (): Promise<ContactStats> => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const stats = await secureFetch(
-        `${API_URL}/contact/stats`,
-        { method: 'GET' },
+      return await secureFetch(
+        '/api/contact/stats',
+        {
+          method: 'GET',
+        },
         true
       );
-
-      return stats as ContactStats;
     } catch (err: any) {
-      const errorMessage = err.message || 'Erreur lors de la récupération des statistiques';
+      const errorMessage =
+        err.message || 'Erreur lors de la récupération des statistiques';
       setError(errorMessage);
       toast.error(errorMessage);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [secureFetch, API_URL]);
+  }, [secureFetch]);
 
-  // Récupérer un message spécifique
+  // 👁️ Récupérer un message spécifique
   const getContact = useCallback(
     async (id: string): Promise<Contact> => {
       setIsLoading(true);
       setError(null);
 
       try {
-        if (!id || id.length !== 24) {
-          throw new Error('ID de message invalide');
-        }
-
-        const contact = await secureFetch(
-          `${API_URL}/contact/${id}`,
-          { method: 'GET' },
+        return await secureFetch(
+          `/api/contact/${id}`,
+          {
+            method: 'GET',
+          },
           true
         );
-
-        return contact as Contact;
       } catch (err: any) {
-        const errorMessage = err.message || 'Erreur lors de la récupération du message';
+        const errorMessage =
+          err.message || 'Erreur lors de la récupération du message';
         setError(errorMessage);
         toast.error(errorMessage);
         throw err;
@@ -244,36 +366,29 @@ export const useContactService = () => {
         setIsLoading(false);
       }
     },
-    [secureFetch, API_URL]
+    [secureFetch]
   );
 
-  // Marquer un message comme lu
+  // ✅ Marquer un message comme lu
   const markAsRead = useCallback(
     async (id: string): Promise<Contact> => {
       setIsLoading(true);
       setError(null);
 
       try {
-        if (!id || id.length !== 24) {
-          throw new Error('ID de message invalide');
-        }
-
         const result = await secureFetch(
-          `${API_URL}/contact/${id}/read`,
+          `/api/contact/${id}/read`,
           {
             method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-            },
           },
           true
         );
 
-        const contact = result.contact;
         toast.success('Message marqué comme lu');
-        return contact;
+        return result.contact;
       } catch (err: any) {
-        const errorMessage = err.message || 'Erreur lors du marquage du message';
+        const errorMessage =
+          err.message || 'Erreur lors du marquage du message';
         setError(errorMessage);
         toast.error(errorMessage);
         throw err;
@@ -281,41 +396,34 @@ export const useContactService = () => {
         setIsLoading(false);
       }
     },
-    [secureFetch, API_URL]
+    [secureFetch]
   );
 
-  // Répondre à un message
+  // 📩 Répondre à un message
   const replyToMessage = useCallback(
     async (id: string, reply: string): Promise<Contact> => {
+      if (!reply || reply.trim().length < 1) {
+        throw new Error('La réponse ne peut pas être vide');
+      }
+
       setIsLoading(true);
       setError(null);
 
       try {
-        if (!id || id.length !== 24) {
-          throw new Error('ID de message invalide');
-        }
-
-        if (!reply || reply.trim().length < 1) {
-          throw new Error('La réponse ne peut pas être vide');
-        }
-
         const result = await secureFetch(
-          `${API_URL}/contact/${id}/reply`,
+          `/api/contact/${id}/reply`,
           {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
             body: JSON.stringify({ reply: reply.trim() }),
           },
           true
         );
 
-        const contact = result.contact;
         toast.success('Réponse envoyée avec succès');
-        return contact;
+        return result.contact;
       } catch (err: any) {
-        const errorMessage = err.message || 'Erreur lors de l\'envoi de la réponse';
+        const errorMessage =
+          err.message || "Erreur lors de l'envoi de la réponse";
         setError(errorMessage);
         toast.error(errorMessage);
         throw err;
@@ -323,34 +431,28 @@ export const useContactService = () => {
         setIsLoading(false);
       }
     },
-    [secureFetch, API_URL]
+    [secureFetch]
   );
 
-  // Supprimer un message
+  // 🗑️ Supprimer un message
   const deleteContact = useCallback(
     async (id: string): Promise<void> => {
       setIsLoading(true);
       setError(null);
 
       try {
-        if (!id || id.length !== 24) {
-          throw new Error('ID de message invalide');
-        }
-
         await secureFetch(
-          `${API_URL}/contact/${id}`,
+          `/api/contact/${id}`,
           {
             method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json',
-            },
           },
           true
         );
 
         toast.success('Message supprimé avec succès');
       } catch (err: any) {
-        const errorMessage = err.message || 'Erreur lors de la suppression du message';
+        const errorMessage =
+          err.message || 'Erreur lors de la suppression du message';
         setError(errorMessage);
         toast.error(errorMessage);
         throw err;
@@ -358,39 +460,29 @@ export const useContactService = () => {
         setIsLoading(false);
       }
     },
-    [secureFetch, API_URL]
+    [secureFetch]
   );
 
-  // Envoyer un message de contact (public)
+  // 📧 Envoyer un message de contact (public)
   const createContact = useCallback(
-    async (contactData: CreateContactDto): Promise<{ message: string; contact: Contact }> => {
+    async (contactData: CreateContactDto): Promise<Contact> => {
       setIsLoading(true);
       setError(null);
 
       try {
-        validateContactData(contactData);
+        const result = await secureFetch(
+          '/api/contact',
+          {
+            method: 'POST',
+            body: JSON.stringify(contactData),
+          },
+          false
+        );
 
-        const response = await fetch(`${API_URL}/contact`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            firstName: contactData.firstName?.trim() || undefined,
-            lastName: contactData.lastName?.trim() || undefined,
-            email: contactData.email.trim(),
-            message: contactData.message.trim(),
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null);
-          throw new Error(errorData?.message || `Erreur ${response.status}`);
-        }
-
-        const result = await response.json();
         toast.success('Message envoyé avec succès');
-        return result;
+        return result.contact;
       } catch (err: any) {
-        const errorMessage = err.message || 'Erreur lors de l\'envoi du message';
+        const errorMessage = err.message || "Erreur lors de l'envoi du message";
         setError(errorMessage);
         toast.error(errorMessage);
         throw err;
@@ -398,19 +490,7 @@ export const useContactService = () => {
         setIsLoading(false);
       }
     },
-    [API_URL]
-  );
-
-  // Rechercher des messages
-  const searchContacts = useCallback(
-    async (query: string, page = 1, limit = 20): Promise<ContactResponse> => {
-      return getAllContacts({
-        page,
-        limit,
-        search: query.trim(),
-      });
-    },
-    [getAllContacts]
+    [secureFetch]
   );
 
   const clearError = useCallback(() => {
@@ -418,7 +498,7 @@ export const useContactService = () => {
   }, []);
 
   return {
-    // État
+    // Données
     isLoading,
     error,
 
@@ -429,14 +509,12 @@ export const useContactService = () => {
     markAsRead,
     replyToMessage,
     deleteContact,
-    searchContacts,
 
     // Fonction publique
     createContact,
 
     // Utilitaires
     clearError,
-    validateContactData,
 
     // Métadonnées
     isAdmin: isUserAdmin(user),
@@ -457,72 +535,10 @@ export const useAdminContactService = () => {
     markAsRead: contactService.markAsRead,
     replyToMessage: contactService.replyToMessage,
     deleteContact: contactService.deleteContact,
-    searchContacts: contactService.searchContacts,
     clearError: contactService.clearError,
     isAdmin: contactService.isAdmin,
     canAccessAdmin: contactService.canAccessAdmin,
   };
 };
 
-// Service autonome (non-hook) pour les composants non-React
-export class ContactAPIService {
-  private API_URL: string;
-
-  constructor() {
-    this.API_URL = import.meta.env.VITE_API_URL;
-  }
-
-  async createContact(contactData: CreateContactDto): Promise<{ message: string; contact: Contact }> {
-    const response = await fetch(`${this.API_URL}/contact`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        firstName: contactData.firstName?.trim() || undefined,
-        lastName: contactData.lastName?.trim() || undefined,
-        email: contactData.email.trim(),
-        message: contactData.message.trim(),
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.message || `Erreur ${response.status}`);
-    }
-
-    return await response.json();
-  }
-
-  validateContactData(data: CreateContactDto): void {
-    if (!data.email || !data.email.trim()) {
-      throw new Error('L\'email est obligatoire');
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(data.email)) {
-      throw new Error('Format d\'email invalide');
-    }
-
-    if (!data.message || !data.message.trim()) {
-      throw new Error('Le message est obligatoire');
-    }
-
-    if (data.message.trim().length < 10) {
-      throw new Error('Le message doit contenir au moins 10 caractères');
-    }
-
-    if (data.message.trim().length > 2000) {
-      throw new Error('Le message ne doit pas dépasser 2000 caractères');
-    }
-
-    if (data.firstName && data.firstName.trim().length > 50) {
-      throw new Error('Le prénom ne doit pas dépasser 50 caractères');
-    }
-
-    if (data.lastName && data.lastName.trim().length > 50) {
-      throw new Error('Le nom ne doit pas dépasser 50 caractères');
-    }
-  }
-}
-
-export const contactAPIService = new ContactAPIService();
 export default useContactService;

@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Users,
@@ -14,6 +15,7 @@ import {
   TrendingUp,
   UserCheck,
   MessageSquare,
+  MoreHorizontal,
 } from 'lucide-react';
 import { useDashboardData } from '../../api/admin/AdminDashboardService';
 import { Helmet } from 'react-helmet-async';
@@ -74,9 +76,25 @@ const AdminDashboard = () => {
   // États locaux
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<string>('');
+  const [isMobile, setIsMobile] = useState(false);
 
   // Références
   const isMountedRef = useRef(true);
+  const activitiesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Détection du mode mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
 
   // Initialisation
   useEffect(() => {
@@ -161,11 +179,6 @@ const AdminDashboard = () => {
     return item ? item.count : 0;
   };
 
-  // Fonction pour normaliser les noms de statut (pour la compatibilité avec différentes casse)
-  const normalizeStatusName = (status: string): string => {
-    return status.toLowerCase().trim();
-  };
-
   // Calculer les pourcentages des rendez-vous
   const getRendezvousPercentage = (value: number): number => {
     const total = stats?.totalRendezvous || 0;
@@ -180,12 +193,31 @@ const AdminDashboard = () => {
 
   // Formater les dates pour l'affichage
   const formatActivityDate = (timestamp: Date): string => {
-    return new Date(timestamp).toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const now = new Date();
+    const activityDate = new Date(timestamp);
+    const diffInHours = (now.getTime() - activityDate.getTime()) / (1000 * 60 * 60);
+
+    if (diffInHours < 24) {
+      // Aujourd'hui
+      return `Aujourd'hui ${activityDate.toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`;
+    } else if (diffInHours < 48) {
+      // Hier
+      return `Hier ${activityDate.toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`;
+    } else {
+      // Date complète
+      return activityDate.toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
   };
 
   // Masquer l'email pour la confidentialité
@@ -207,8 +239,8 @@ const AdminDashboard = () => {
 
   if (user?.role !== 'admin') {
     return (
-      <div className='min-h-screen flex items-center justify-center'>
-        <div className='text-center max-w-md p-8'>
+      <div className='min-h-screen flex items-center justify-center p-4'>
+        <div className='text-center max-w-md p-8 bg-white rounded-2xl shadow-lg border border-gray-200'>
           <div className='inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4'>
             <AlertTriangle className='w-8 h-8 text-red-600' />
           </div>
@@ -230,8 +262,8 @@ const AdminDashboard = () => {
   // Gestion des erreurs
   if (error) {
     return (
-      <div className='min-h-screen flex items-center justify-center'>
-        <div className='text-center max-w-md p-8'>
+      <div className='min-h-screen flex items-center justify-center p-4'>
+        <div className='text-center max-w-md p-8 bg-white rounded-2xl shadow-lg border border-gray-200'>
           <div className='inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4'>
             <AlertTriangle className='w-8 h-8 text-red-600' />
           </div>
@@ -242,7 +274,7 @@ const AdminDashboard = () => {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className='bg-linear-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2 mx-auto'
+            className='bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2 mx-auto'
           >
             <RefreshCw
               size={18}
@@ -419,6 +451,17 @@ const AdminDashboard = () => {
     },
   ];
 
+  // Fonction pour faire défiler les activités horizontalement
+  const scrollActivities = (direction: 'left' | 'right') => {
+    if (activitiesContainerRef.current) {
+      const scrollAmount = isMobile ? 250 : 350;
+      activitiesContainerRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+      });
+    }
+  };
+
   return (
     <>
       <Helmet>
@@ -438,27 +481,27 @@ const AdminDashboard = () => {
       </Helmet>
 
       {/* Interface principale */}
-      <div className='min-h-screen'>
+      <div className='min-h-screen bg-gray-50'>
         <div className='p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto'>
           {/* En-tête amélioré */}
-          <div className='bg-white rounded-2xl shadow-lg p-6 md:p-8 border border-gray-200'>
-            <div className='flex flex-col md:flex-row md:items-center justify-between gap-6'>
+          <div className='bg-white rounded-2xl shadow-lg p-4 md:p-6 lg:p-8 border border-gray-200'>
+            <div className='flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6'>
               <div className='space-y-3'>
                 <div className='flex items-center gap-3'>
-                  <div className='p-2 bg-linear-to-br from-blue-500 to-blue-600 rounded-xl shadow-md'>
-                    <Shield className='w-6 h-6 text-white' />
+                  <div className='p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-md'>
+                    <Shield className='w-5 h-5 md:w-6 md:h-6 text-white' />
                   </div>
                   <div>
-                    <h1 className='text-2xl md:text-3xl font-bold text-gray-900'>
-                      Tableau de Bord Administrateur
+                    <h1 className='text-xl md:text-2xl lg:text-3xl font-bold text-gray-900'>
+                      Tableau de Bord
                     </h1>
-                    <div className='flex items-center gap-2 mt-1'>
+                    <div className='flex flex-wrap items-center gap-2 mt-1'>
                       <div className='flex items-center gap-1 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-xs font-medium'>
                         <Shield size={12} />
-                        <span>Session sécurisée</span>
+                        <span>Admin</span>
                       </div>
-                      <div className='h-1 w-1 bg-gray-300 rounded-full'></div>
-                      <div className='text-xs text-gray-500'>
+                      <div className='h-1 w-1 bg-gray-300 rounded-full hidden sm:block'></div>
+                      <div className='text-xs text-gray-500 truncate'>
                         ID: {user?.id?.substring(0, 8)}...
                       </div>
                     </div>
@@ -466,13 +509,13 @@ const AdminDashboard = () => {
                 </div>
 
                 <div className='space-y-1'>
-                  <p className='text-gray-700'>
+                  <p className='text-gray-700 text-sm md:text-base'>
                     Bonjour{' '}
                     <span className='font-semibold text-gray-900'>
                       {user?.firstName}
                     </span>
-                    <span className='text-gray-500 mx-1'>•</span>
-                    <span className='text-gray-600'>Rôle: Administrateur</span>
+                    <span className='text-gray-500 mx-1 hidden sm:inline'>•</span>
+                    <span className='text-gray-600 block sm:inline'>Rôle: Administrateur</span>
                   </p>
                   {lastRefreshTime && (
                     <div className='flex items-center gap-2 text-sm text-gray-500'>
@@ -493,7 +536,7 @@ const AdminDashboard = () => {
                 <button
                   onClick={handleRefresh}
                   disabled={isRefreshing || loading}
-                  className='flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-all shadow-sm hover:shadow-md'
+                  className='flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-all shadow-sm hover:shadow-md w-full md:w-auto justify-center'
                 >
                   <RefreshCw
                     size={18}
@@ -507,28 +550,23 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Cartes de statistiques */}
-          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4'>
+          {/* Cartes de statistiques - Mobile first */}
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4'>
             {statCards.map((card, index) => {
               const Icon = card.icon;
               return (
                 <div
                   key={index}
-                  className={`bg-white rounded-2xl shadow-sm border p-5 hover:shadow-md transition-all duration-200 group border-gray-200 hover:border-gray-300`}
+                  className={`bg-white rounded-2xl shadow-sm border p-4 md:p-5 hover:shadow-md transition-all duration-200 group border-gray-200 hover:border-gray-300`}
                 >
                   <div className='flex items-start justify-between mb-3'>
-                    <div className={`p-2.5 rounded-xl ${card.iconBg}`}>
-                      <Icon className={`w-5 h-5 ${card.iconColor}`} />
+                    <div className={`p-2 md:p-2.5 rounded-xl ${card.iconBg}`}>
+                      <Icon className={`w-4 h-4 md:w-5 md:h-5 ${card.iconColor}`} />
                     </div>
                     {card.trend === 'positive' && (
                       <div className='flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full'>
                         <TrendingUp size={12} />
-                        <span className='ml-1'>+</span>
-                      </div>
-                    )}
-                    {card.trend === 'warning' && (
-                      <div className='flex items-center text-xs font-medium text-yellow-600 bg-yellow-50 px-2 py-1 rounded-full'>
-                        <AlertTriangle size={12} />
+                        <span className='ml-1 hidden sm:inline'>+</span>
                       </div>
                     )}
                     {card.trend === 'attention' && (
@@ -539,11 +577,11 @@ const AdminDashboard = () => {
                   </div>
 
                   <div className='space-y-1'>
-                    <p className='text-sm font-medium text-gray-600 truncate'>
+                    <p className='text-xs md:text-sm font-medium text-gray-600 truncate'>
                       {card.title}
                     </p>
                     <div
-                      className={`text-2xl font-bold bg-linear-to-r ${card.color} bg-clip-text text-transparent`}
+                      className={`text-xl md:text-2xl font-bold bg-gradient-to-r ${card.color} bg-clip-text text-transparent`}
                     >
                       {typeof card.value === 'string'
                         ? card.value
@@ -553,7 +591,7 @@ const AdminDashboard = () => {
                       {card.description}
                     </p>
                     {card.detail && (
-                      <p className='text-xs text-gray-400'>{card.detail}</p>
+                      <p className='text-xs text-gray-400 truncate'>{card.detail}</p>
                     )}
                   </div>
                 </div>
@@ -562,24 +600,23 @@ const AdminDashboard = () => {
           </div>
 
           {/* Deuxième ligne : Statistiques détaillées */}
-          <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+          <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6'>
             {/* Procédures */}
-            <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-6'>
-              <div className='flex items-center justify-between mb-6'>
+            <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-4 md:p-6'>
+              <div className='flex items-center justify-between mb-4 md:mb-6'>
                 <div className='flex items-center space-x-2'>
                   <div className='p-2 bg-blue-50 rounded-lg'>
-                    <FileText className='w-5 h-5 text-blue-600' />
+                    <FileText className='w-4 h-4 md:w-5 md:h-5 text-blue-600' />
                   </div>
-                  <h2 className='text-lg font-semibold text-gray-900'>
+                  <h2 className='text-base md:text-lg font-semibold text-gray-900'>
                     Statut des Procédures
                   </h2>
                 </div>
                 <div className='flex items-center gap-2'>
-                  <span className='text-sm text-gray-500'>
-                    Total:{' '}
-                    {(stats?.totalProcedures || 0).toLocaleString('fr-FR')}
+                  <span className='text-xs md:text-sm text-gray-500'>
+                    Total: {(stats?.totalProcedures || 0).toLocaleString('fr-FR')}
                   </span>
-                  <BarChart3 size={16} className='text-gray-400' />
+                  <BarChart3 size={14} className='text-gray-400 hidden sm:block' />
                 </div>
               </div>
               <div className='space-y-3'>
@@ -602,7 +639,7 @@ const AdminDashboard = () => {
                           <span className='text-sm font-medium text-gray-800'>
                             {stat.status}
                           </span>
-                          <div className='h-1 w-16 bg-gray-200 rounded-full overflow-hidden mt-1'>
+                          <div className='h-1 w-12 md:w-16 bg-gray-200 rounded-full overflow-hidden mt-1'>
                             <div
                               className={`h-full ${stat.color.replace('text-', 'bg-')}`}
                               style={{ width: `${percentage}%` }}
@@ -610,11 +647,11 @@ const AdminDashboard = () => {
                           </div>
                         </div>
                       </div>
-                      <div className='flex items-center space-x-4'>
-                        <span className='text-sm text-gray-500'>
+                      <div className='flex items-center space-x-2 md:space-x-4'>
+                        <span className='text-xs md:text-sm text-gray-500'>
                           {percentage}%
                         </span>
-                        <span className='text-lg font-bold text-gray-900 min-w-15 text-right'>
+                        <span className='text-base md:text-lg font-bold text-gray-900 min-w-10 md:min-w-15 text-right'>
                           {stat.value.toLocaleString('fr-FR')}
                         </span>
                       </div>
@@ -630,22 +667,21 @@ const AdminDashboard = () => {
             </div>
 
             {/* Rendez-vous */}
-            <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-6'>
-              <div className='flex items-center justify-between mb-6'>
+            <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-4 md:p-6'>
+              <div className='flex items-center justify-between mb-4 md:mb-6'>
                 <div className='flex items-center space-x-2'>
                   <div className='p-2 bg-emerald-50 rounded-lg'>
-                    <Calendar className='w-5 h-5 text-emerald-600' />
+                    <Calendar className='w-4 h-4 md:w-5 md:h-5 text-emerald-600' />
                   </div>
-                  <h2 className='text-lg font-semibold text-gray-900'>
+                  <h2 className='text-base md:text-lg font-semibold text-gray-900'>
                     Rendez-vous
                   </h2>
                 </div>
                 <div className='flex items-center gap-2'>
-                  <span className='text-sm text-gray-500'>
-                    Total:{' '}
-                    {(stats?.totalRendezvous || 0).toLocaleString('fr-FR')}
+                  <span className='text-xs md:text-sm text-gray-500'>
+                    Total: {(stats?.totalRendezvous || 0).toLocaleString('fr-FR')}
                   </span>
-                  <UserCheck size={16} className='text-gray-400' />
+                  <UserCheck size={14} className='text-gray-400 hidden sm:block' />
                 </div>
               </div>
               <div className='space-y-3'>
@@ -655,24 +691,24 @@ const AdminDashboard = () => {
                   return (
                     <div key={index} className='space-y-2'>
                       <div className='flex items-center justify-between'>
-                        <span className='text-sm font-medium text-gray-700'>
+                        <span className='text-sm font-medium text-gray-700 truncate'>
                           {stat.status}
                         </span>
-                        <div className='flex items-center space-x-3'>
-                          <span className='text-sm text-gray-500'>
+                        <div className='flex items-center space-x-2 md:space-x-3'>
+                          <span className='text-xs md:text-sm text-gray-500'>
                             {percentage}%
                           </span>
                           <span
-                            className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            className={`px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-medium ${
                               stat.color === 'yellow'
-                                ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                                ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
                                 : stat.color === 'blue'
-                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
                                   : stat.color === 'emerald'
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                     : stat.color === 'red'
-                                      ? 'bg-red-50 text-red-700 border-red-200'
-                                      : 'bg-gray-50 text-gray-700 border-gray-200'
+                                      ? 'bg-red-50 text-red-700 border border-red-200'
+                                      : 'bg-gray-50 text-gray-700 border border-gray-200'
                             }`}
                           >
                             {stat.value.toLocaleString('fr-FR')}
@@ -702,21 +738,21 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Troisième ligne */}
-          <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+          {/* Troisième ligne - Adaptée pour mobile-first */}
+          <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6'>
             {/* Destinations */}
-            <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-6'>
-              <div className='flex items-center justify-between mb-6'>
+            <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-4 md:p-6'>
+              <div className='flex items-center justify-between mb-4 md:mb-6'>
                 <div className='flex items-center space-x-2'>
                   <div className='p-2 bg-violet-50 rounded-lg'>
-                    <Globe className='w-5 h-5 text-violet-600' />
+                    <Globe className='w-4 h-4 md:w-5 md:h-5 text-violet-600' />
                   </div>
-                  <h2 className='text-lg font-semibold text-gray-900'>
-                    Destinations populaires
+                  <h2 className='text-base md:text-lg font-semibold text-gray-900'>
+                    Destinations
                   </h2>
                 </div>
-                <span className='text-sm text-gray-500'>
-                  Top 5 • Procédures
+                <span className='text-xs md:text-sm text-gray-500'>
+                  Top 5
                 </span>
               </div>
               <div className='space-y-4'>
@@ -724,14 +760,14 @@ const AdminDashboard = () => {
                   popularDestinations.map((destination, index) => (
                     <div key={index} className='space-y-2'>
                       <div className='flex items-center justify-between'>
-                        <div className='flex items-center gap-2'>
-                          <div className='w-2 h-2 bg-violet-500 rounded-full'></div>
+                        <div className='flex items-center gap-2 flex-1 min-w-0'>
+                          <div className='w-2 h-2 bg-violet-500 rounded-full shrink-0'></div>
                           <span className='text-sm font-medium text-gray-800 truncate'>
                             {destination.name}
                           </span>
                         </div>
-                        <div className='flex items-center gap-3'>
-                          <span className='text-sm text-gray-500'>
+                        <div className='flex items-center gap-2 md:gap-3 shrink-0'>
+                          <span className='text-xs md:text-sm text-gray-500'>
                             {destination.percentage}%
                           </span>
                           <span className='text-sm font-semibold text-gray-900'>
@@ -741,19 +777,19 @@ const AdminDashboard = () => {
                       </div>
                       <div className='h-2 bg-gray-200 rounded-full overflow-hidden'>
                         <div
-                          className='h-full bg-linear-to-r from-violet-500 to-violet-600 rounded-full'
+                          className='h-full bg-lineart-to-r from-violet-500 to-violet-600 rounded-full'
                           style={{ width: `${destination.percentage}%` }}
                         />
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className='text-center py-8'>
-                    <Globe className='w-12 h-12 text-gray-300 mx-auto mb-3' />
-                    <p className='text-gray-500'>
+                  <div className='text-center py-6 md:py-8'>
+                    <Globe className='w-10 h-10 md:w-12 md:h-12 text-gray-300 mx-auto mb-3' />
+                    <p className='text-gray-500 text-sm md:text-base'>
                       Aucune donnée de destination
                     </p>
-                    <p className='text-sm text-gray-400 mt-1'>
+                    <p className='text-xs md:text-sm text-gray-400 mt-1'>
                       Les procédures apparaîtront ici
                     </p>
                   </div>
@@ -761,50 +797,89 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Activités */}
-            <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-6'>
-              <div className='flex items-center justify-between mb-6'>
+            {/* Activités - DISPOSITION HORIZONTALE POUR MOBILE */}
+            <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-4 md:p-6'>
+              <div className='flex items-center justify-between mb-4 md:mb-6'>
                 <div className='flex items-center space-x-2'>
                   <div className='p-2 bg-amber-50 rounded-lg'>
-                    <Clock className='w-5 h-5 text-amber-600' />
+                    <Clock className='w-4 h-4 md:w-5 md:h-5 text-amber-600' />
                   </div>
-                  <h2 className='text-lg font-semibold text-gray-900'>
+                  <h2 className='text-base md:text-lg font-semibold text-gray-900'>
                     Activités récentes
                   </h2>
                 </div>
                 <div className='flex items-center gap-2'>
-                  <span className='text-sm text-gray-500'>
-                    {activities.length} activité
-                    {activities.length !== 1 ? 's' : ''}
+                  <span className='text-xs md:text-sm text-gray-500'>
+                    {activities.length} activité{activities.length !== 1 ? 's' : ''}
                   </span>
+                  {activities.length > 0 && (
+                    <div className='flex items-center gap-1'>
+                      <button
+                        onClick={() => scrollActivities('left')}
+                        className='p-1.5 rounded-lg hover:bg-gray-100 transition-colors'
+                        aria-label='Faire défiler vers la gauche'
+                      >
+                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => scrollActivities('right')}
+                        className='p-1.5 rounded-lg hover:bg-gray-100 transition-colors'
+                        aria-label='Faire défiler vers la droite'
+                      >
+                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className='space-y-4 max-h-75 overflow-y-auto pr-2'>
+              
+              {/* Conteneur d'activités avec défilement horizontal sur mobile */}
+              <div 
+                ref={activitiesContainerRef}
+                className={`${
+                  isMobile 
+                    ? 'flex overflow-x-auto gap-4 pb-4 -mx-1 px-1 snap-x snap-mandatory' 
+                    : 'space-y-4 max-h-75 overflow-y-auto pr-2'
+                }`}
+                style={{
+                  scrollbarWidth: 'thin',
+                  msOverflowStyle: 'none',
+                }}
+              >
                 {activities.length > 0 ? (
                   activities.map((activity, index) => (
                     <div
                       key={index}
-                      className='flex items-start space-x-3 pb-4 border-b border-gray-100 last:border-0 group'
+                      className={`
+                        ${isMobile 
+                          ? 'min-w-70 max-w-70 bg-gray-50 rounded-xl p-4 border border-gray-200 snap-start shrink-0' 
+                          : 'flex items-start space-x-3 pb-4 border-b border-gray-100 last:border-0 group'
+                        }
+                      `}
                     >
-                      <div className='shrink-0 mt-0.5'>
-                        <div className='p-1.5 rounded-lg bg-gray-50 group-hover:bg-gray-100 transition-colors'>
+                      <div className={`${isMobile ? 'mb-3' : 'shrink-0 mt-0.5'}`}>
+                        <div className={`${isMobile ? 'p-2 rounded-lg bg-white shadow-sm' : 'p-1.5 rounded-lg bg-gray-50 group-hover:bg-gray-100 transition-colors'}`}>
                           <ActivityIcon type={activity.type} />
                         </div>
                       </div>
-                      <div className='flex-1 min-w-0 space-y-1'>
-                        <p className='text-sm font-medium text-gray-900 line-clamp-2'>
+                      <div className={`${isMobile ? 'space-y-2' : 'flex-1 min-w-0 space-y-1'}`}>
+                        <p className={`text-sm font-medium text-gray-900 ${isMobile ? 'line-clamp-2' : 'line-clamp-2'}`}>
                           {activity.description}
                         </p>
-                        <div className='flex items-center justify-between'>
-                          <div className='flex items-center gap-2'>
-                            <div className='text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded'>
+                        <div className={`${isMobile ? 'space-y-2' : 'flex items-center justify-between'}`}>
+                          <div className={`flex items-center ${isMobile ? 'gap-2 flex-wrap' : 'gap-2'}`}>
+                            <div className={`text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded ${isMobile ? 'mb-1' : ''}`}>
                               {activity.type}
                             </div>
-                            <span className='text-xs text-gray-500'>
+                            <span className='text-xs text-gray-500 truncate'>
                               {maskEmail(activity.userEmail)}
                             </span>
                           </div>
-                          <span className='text-xs text-gray-500 shrink-0'>
+                          <span className={`text-xs text-gray-500 ${isMobile ? 'block mt-2' : 'shrink-0'}`}>
                             {formatActivityDate(activity.timestamp)}
                           </span>
                         </div>
@@ -812,33 +887,45 @@ const AdminDashboard = () => {
                     </div>
                   ))
                 ) : (
-                  <div className='text-center py-8'>
-                    <Clock className='w-12 h-12 text-gray-300 mx-auto mb-3' />
-                    <p className='text-gray-500'>Aucune activité récente</p>
-                    <p className='text-sm text-gray-400 mt-1'>
+                  <div className={`${isMobile ? 'min-w-full text-center py-8' : 'text-center py-8'}`}>
+                    <Clock className='w-10 h-10 md:w-12 md:h-12 text-gray-300 mx-auto mb-3' />
+                    <p className='text-gray-500 text-sm md:text-base'>
+                      Aucune activité récente
+                    </p>
+                    <p className='text-xs md:text-sm text-gray-400 mt-1'>
                       Les actions apparaîtront ici
                     </p>
                   </div>
                 )}
               </div>
+
+              {/* Indicateur de défilement pour mobile */}
+              {isMobile && activities.length > 0 && (
+                <div className='flex justify-center items-center gap-1 mt-4 pt-4 border-t border-gray-100'>
+                  <div className='w-2 h-2 bg-gray-300 rounded-full'></div>
+                  <div className='w-2 h-2 bg-gray-400 rounded-full'></div>
+                  <div className='w-2 h-2 bg-gray-300 rounded-full'></div>
+                  <MoreHorizontal className='w-4 h-4 text-gray-400 ml-1' />
+                </div>
+              )}
             </div>
           </div>
 
           {/* Pied de page sécurisé */}
-          <div className='pt-6 border-t border-gray-200'>
-            <div className='flex flex-col md:flex-row md:items-center justify-between gap-4 text-sm text-gray-500'>
-              <div className='flex items-center gap-4'>
+          <div className='pt-4 md:pt-6 border-t border-gray-200'>
+            <div className='flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 text-xs md:text-sm text-gray-500'>
+              <div className='flex flex-wrap items-center gap-3 md:gap-4'>
                 <div className='flex items-center gap-2'>
-                  <Shield size={14} className='text-gray-400' />
-                  <span>Session sécurisée • Chiffrement TLS</span>
+                  <Shield size={12} className='text-gray-400' />
+                  <span>Session sécurisée</span>
                 </div>
-                <div className='h-4 w-px bg-gray-300'></div>
+                <div className='h-4 w-px bg-gray-300 hidden md:block'></div>
                 <div className='flex items-center gap-2'>
-                  <Clock size={14} className='text-gray-400' />
-                  <span>Dernière activité: maintenant</span>
+                  <Clock size={12} className='text-gray-400' />
+                  <span>Activité: maintenant</span>
                 </div>
               </div>
-              <div className='flex items-center gap-2'>
+              <div className='flex items-center gap-2 mt-2 md:mt-0'>
                 <div className='w-2 h-2 bg-emerald-500 rounded-full'></div>
                 <span>Système opérationnel</span>
               </div>

@@ -19,7 +19,6 @@ import {
   CheckCircle,
   GraduationCap,
   Book,
-  RegexIcon,
   Dock,
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
@@ -406,7 +405,7 @@ const RendezVous = () => {
         return fetch(`${API_URL}/api/rendezvous`, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${currentToken}`,
+            Authorization: `Bearer ${currentToken}`, // ← Vérifiez que currentToken n'est pas null
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },

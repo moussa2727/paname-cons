@@ -46,7 +46,15 @@ class AdminDashboardService {
   private activeRequests = new Map<string, Promise<any>>();
 
   private constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL;
+    this.baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    
+    // Validation en production
+    if (!this.baseUrl) {
+      throw new Error('VITE_API_URL est requis en production');
+    }
+    
+    // Nettoyage de l'URL
+    this.baseUrl = this.baseUrl.replace(/\/$/, '');
   }
 
   static getInstance(): AdminDashboardService {
@@ -70,14 +78,16 @@ class AdminDashboardService {
     const requestKey = `${endpoint}:${JSON.stringify(options)}`;
 
     if (useRequestDeduplication && this.activeRequests.has(requestKey)) {
-      console.log(` Utilisation de la requête en cours pour ${endpoint}`);
       return await this.activeRequests.get(requestKey)!;
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    const url = `${this.baseUrl}/api${endpoint}`;
+    // CORRECTION IMPORTANTE : Vos contrôleurs montrent des routes directes
+    // Ex: @Controller("contact") -> /contact, pas /api/contact
+    const url = `${this.baseUrl}${endpoint}`;
+    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
@@ -100,8 +110,6 @@ class AdminDashboardService {
 
     const requestPromise = (async () => {
       try {
-        console.log(` Envoi requête ${endpoint}`);
-
         const response = await fetch(url, {
           ...options,
           headers: finalHeaders,
@@ -142,13 +150,11 @@ class AdminDashboardService {
         }
 
         const data = await response.json();
-        console.log(` Réponse reçue de ${endpoint}`);
         return data;
       } catch (error: any) {
         clearTimeout(timeoutId);
 
         if (error.name === 'AbortError') {
-          console.error(` Timeout sur l'endpoint ${endpoint}`);
           const timeoutError = new Error(
             'Le serveur met trop de temps à répondre'
           ) as ApiError;
@@ -156,7 +162,11 @@ class AdminDashboardService {
           throw timeoutError;
         }
 
-        console.error(` API Error ${endpoint}:`, error);
+        // Ne pas loguer les erreurs en production
+        if (import.meta.env.DEV) {
+          console.error(`API Error ${endpoint}:`, error);
+        }
+        
         throw error;
       } finally {
         if (useRequestDeduplication) {
@@ -184,7 +194,6 @@ class AdminDashboardService {
     if (useCache) {
       const cached = this.cache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-        console.log(` Utilisation du cache pour ${endpoint}`);
         return cached.data;
       }
     }
@@ -203,7 +212,6 @@ class AdminDashboardService {
         )[0]?.[0];
         if (oldestKey) {
           this.cache.delete(oldestKey);
-          console.log(` Cache nettoyé - clé supprimée: ${oldestKey}`);
         }
       }
     }
@@ -242,34 +250,32 @@ class AdminDashboardService {
    */
   async getDashboardStats(accessToken: string): Promise<DashboardStats> {
     try {
-      console.log(' Récupération des statistiques du dashboard');
-
       // Récupérer TOUTES les stats en parallèle avec les endpoints officiels
-       const [userStats, procedureStats, contactStats, rendezvousStats] =
-      await Promise.allSettled([
-        // ✅ Endpoint: GET /users/stats 
-        this.requestWithCache('/users/stats', accessToken, {}, true).catch(
-          () => null
-        ),
-        
-        // ✅ Endpoint: GET /procedures/admin/stats 
-        this.requestWithCache(
-          '/procedures/admin/stats',
-          accessToken,
-          {},
-          true
-        ).catch(() => null),
-        
-        // ✅ Endpoint: GET /contact/stats 
-        this.requestWithCache('/contact/stats', accessToken, {}, true).catch(
-          () => null
-        ),
-        
-        // ✅ CORRIGÉ: Utiliser '/rendezvous/stats/overview' au lieu de '/rendezvous/stats'
-        this.requestWithCache('/rendezvous/stats/overview', accessToken, {}, true).catch(
-          () => null
-        ),
-      ])
+      const [userStats, procedureStats, contactStats, rendezvousStats] =
+        await Promise.allSettled([
+          // ✅ Endpoint: GET /users/stats (users.controller.ts ligne 40)
+          this.requestWithCache('/api/users/stats', accessToken, {}, true).catch(
+            () => null
+          ),
+          
+          // ✅ Endpoint: GET /procedures/admin/stats (procedure.controller.ts ligne 78)
+          this.requestWithCache(
+            '/api/procedures/admin/stats',
+            accessToken,
+            {},
+            true
+          ).catch(() => null),
+          
+          // ✅ Endpoint: GET /contact/stats (contact.controller.ts ligne 39)
+          this.requestWithCache('/api/contact/stats', accessToken, {}, true).catch(
+            () => null
+          ),
+          
+          // ✅ CORRIGÉ: Utiliser '/rendezvous/stats/overview' (rendez-vous.controller.ts ligne 456)
+          this.requestWithCache('/api/rendezvous/stats/overview', accessToken, {}, true).catch(
+            () => null
+          ),
+        ]);
 
       // Initialiser avec les valeurs par défaut
       const stats: DashboardStats = this.getDefaultStats();
@@ -332,11 +338,13 @@ class AdminDashboardService {
         }
       }
 
-      console.log(' Statistiques récupérées avec succès');
       return stats;
     } catch (error: any) {
-      console.error(' Erreur récupération stats dashboard:', error);
-
+      // En production, ne pas exposer les détails d'erreur
+      if (import.meta.env.DEV) {
+        console.error('Erreur récupération stats dashboard:', error);
+      }
+      
       // Retourner des valeurs par défaut en cas d'erreur
       return this.getDefaultStats();
     }
@@ -356,25 +364,25 @@ class AdminDashboardService {
       // Récupérer les activités en parallèle avec les endpoints officiels
       const [proceduresResponse, rendezvousResponse, contactsResponse] =
         await Promise.allSettled([
-          //  Endpoint: GET /procedures/admin/all?page=1&limit={limit} (procedure.controller.ts ligne 46)
+          // ✅ Endpoint: GET /procedures/admin/all?page=1&limit={limit} (procedure.controller.ts ligne 46)
           this.requestWithCache(
-            `/procedures/admin/all?page=1&limit=${limit}`,
+            `/api/procedures/admin/all?page=1&limit=${limit}`,
             accessToken,
             {},
             false
           ),
           
-          //  Endpoint: GET /rendezvous?page=1&limit={limit} (rendez-vous.controller.ts ligne 138)
+          // ✅ Endpoint: GET /rendezvous?page=1&limit={limit} (rendez-vous.controller.ts ligne 138)
           this.requestWithCache(
-            `/rendezvous?page=1&limit=${limit}`,
+            `/api/rendezvous?page=1&limit=${limit}`,
             accessToken,
             {},
             false
           ),
           
-          //  Endpoint: GET /contact?page=1&limit={limit} (contact.controller.ts ligne 27)
+          // ✅ Endpoint: GET /contact?page=1&limit={limit} (contact.controller.ts ligne 27)
           this.requestWithCache(
-            `/contact?page=1&limit=${limit}`,
+            `/api/contact?page=1&limit=${limit}`,
             accessToken,
             {},
             false
@@ -388,13 +396,16 @@ class AdminDashboardService {
       ) {
         const procedures = proceduresResponse.value.data || [];
         procedures.forEach((procedure: any) => {
+          // Masquer les données sensibles
+          const maskedEmail = this.maskEmail(procedure.email);
+          
           activities.push({
             _id: procedure._id,
             type: 'procedure',
             action: procedure.statut,
-            description: `Procédure ${procedure.statut} pour ${procedure.prenom} ${procedure.nom}`,
+            description: `Procédure ${procedure.statut}`,
             timestamp: new Date(procedure.createdAt || procedure.updatedAt),
-            userEmail: procedure.email,
+            userEmail: maskedEmail,
           });
         });
       }
@@ -406,13 +417,16 @@ class AdminDashboardService {
       ) {
         const rendezvous = rendezvousResponse.value.data || [];
         rendezvous.forEach((rdv: any) => {
+          // Masquer les données sensibles
+          const maskedEmail = this.maskEmail(rdv.email);
+          
           activities.push({
             _id: rdv._id,
             type: 'rendezvous',
             action: rdv.status,
-            description: `Rendez-vous ${rdv.status} pour ${rdv.firstName} ${rdv.lastName}`,
+            description: `Rendez-vous ${rdv.status}`,
             timestamp: new Date(rdv.createdAt || rdv.updatedAt),
-            userEmail: rdv.email,
+            userEmail: maskedEmail,
           });
         });
       }
@@ -421,13 +435,16 @@ class AdminDashboardService {
       if (contactsResponse.status === 'fulfilled' && contactsResponse.value) {
         const contacts = contactsResponse.value.data || [];
         contacts.forEach((contact: any) => {
+          // Masquer les données sensibles
+          const maskedEmail = this.maskEmail(contact.email);
+          
           activities.push({
             _id: contact._id,
             type: 'contact',
             action: contact.isRead ? 'lu' : 'non lu',
-            description: `Message de ${contact.email}: ${contact.message?.substring(0, 50)}...`,
+            description: `Message reçu`,
             timestamp: new Date(contact.createdAt),
-            userEmail: contact.email,
+            userEmail: maskedEmail,
           });
         });
       }
@@ -437,25 +454,29 @@ class AdminDashboardService {
         .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
         .slice(0, limit);
     } catch (error) {
-      console.error(' Erreur récupération activités récentes:', error);
+      if (import.meta.env.DEV) {
+        console.error('Erreur récupération activités récentes:', error);
+      }
       return [];
     }
   }
 
   /**
    * Récupère les statistiques détaillées des procédures
-   *  Endpoint: GET /procedures/admin/stats (procedure.controller.ts ligne 78)
+   * ✅ Endpoint: GET /procedures/admin/stats (procedure.controller.ts ligne 78)
    */
   async getDetailedProcedureStats(accessToken: string): Promise<any> {
     try {
       return await this.requestWithCache(
-        '/procedures/admin/stats',
+        '/api/procedures/admin/stats',
         accessToken,
         {},
         true
       );
     } catch (error) {
-      console.error(' Erreur récupération stats procédures:', error);
+      if (import.meta.env.DEV) {
+        console.error('Erreur récupération stats procédures:', error);
+      }
       return {
         total: 0,
         pending: 0,
@@ -470,37 +491,41 @@ class AdminDashboardService {
 
   /**
    * Récupère les messages de contact non lus
-   *  Endpoint: GET /contact?isRead=false&limit=5 (contact.controller.ts ligne 27)
+   * ✅ Endpoint: GET /contact?isRead=false&limit=5 (contact.controller.ts ligne 27)
    */
   async getUnreadContacts(accessToken: string): Promise<any[]> {
     try {
       const response = await this.requestWithCache(
-        '/contact?isRead=false&limit=5',
+        '/api/contact?isRead=false&limit=5',
         accessToken,
         {},
         true
       );
       return response.data || [];
     } catch (error) {
-      console.error(' Erreur récupération contacts non lus:', error);
+      if (import.meta.env.DEV) {
+        console.error('Erreur récupération contacts non lus:', error);
+      }
       return [];
     }
   }
 
   /**
    * Récupère les statistiques détaillées des rendez-vous
-   *  NOUVEL Endpoint: GET /rendezvous/stats (ajouté dans le backend)
+   * ✅ Endpoint: GET /rendezvous/stats/overview (rendez-vous.controller.ts ligne 456)
    */
   async getDetailedRendezvousStats(accessToken: string): Promise<any> {
     try {
       return await this.requestWithCache(
-        '/rendezvous/stats',
+        '/api/rendezvous/stats/overview',
         accessToken,
         {},
         true
       );
     } catch (error) {
-      console.error(' Erreur récupération stats rendez-vous:', error);
+      if (import.meta.env.DEV) {
+        console.error('Erreur récupération stats rendez-vous:', error);
+      }
       return {
         total: 0,
         byStatus: [],
@@ -511,12 +536,29 @@ class AdminDashboardService {
   }
 
   /**
+   * Masque les emails dans les logs
+   */
+  private maskEmail(email: string): string {
+    if (!email) return '***';
+    const [name, domain] = email.split('@');
+    if (!name || !domain) return '***';
+    
+    const maskedName = name.length > 2 
+      ? name.substring(0, 2) + '*'.repeat(Math.max(name.length - 2, 1))
+      : '*'.repeat(name.length);
+    
+    return `${maskedName}@${domain}`;
+  }
+
+  /**
    * Nettoyer le cache
    */
   clearCache(): void {
     const cacheSize = this.cache.size;
     this.cache.clear();
-    console.log(` Cache vidé - ${cacheSize} entrées supprimées`);
+    if (import.meta.env.DEV) {
+      console.log(`Cache vidé - ${cacheSize} entrées supprimées`);
+    }
   }
 
   /**
@@ -525,7 +567,9 @@ class AdminDashboardService {
   cancelAllRequests(): void {
     const requestCount = this.activeRequests.size;
     this.activeRequests.clear();
-    console.log(` ${requestCount} requêtes annulées`);
+    if (import.meta.env.DEV) {
+      console.log(`${requestCount} requêtes annulées`);
+    }
   }
 
   /**
@@ -542,13 +586,13 @@ class AdminDashboardService {
       activeRequests: this.activeRequests.size,
       baseUrl: this.baseUrl,
       endpoints: [
-        '/users/stats',
-        '/procedures/admin/stats',
-        '/contact/stats',
-        '/rendezvous/stats',
-        '/procedures/admin/all',
-        '/rendezvous',
-        '/contact'
+        '/API/users/stats',
+        '/API/procedures/admin/stats',
+        '/API/contact/stats',
+        '/API/rendezvous/stats/overview', // ✅ Corrigé
+        '/API/procedures/admin/all',
+        '/API/rendezvous',
+        '/API/contact'
       ],
     };
   }
@@ -575,11 +619,9 @@ export const useAdminDashboard = () => {
     } catch (error: any) {
       // Si le token a expiré, essayer de le rafraîchir
       if (error.message === 'UNAUTHORIZED' && refreshToken) {
-        console.log(' Tentative de rafraîchissement du token...');
         const refreshed = await refreshToken();
         if (refreshed && access_token) {
           // Réessayer avec le nouveau token
-          console.log(' Token rafraîchi, nouvelle tentative...');
           return await fn(access_token);
         }
       }
@@ -633,8 +675,8 @@ export const useDashboardData = () => {
   const lastFetchRef = React.useRef<number>(0);
   const isFetchingRef = React.useRef<boolean>(false);
   const fetchCountRef = React.useRef<number>(0);
-  const maxFetches = 3; //  Limite de tentatives
-  const minInterval = 30000; //  30 secondes minimum entre les requêtes
+  const maxFetches = 3; // Limite de tentatives
+  const minInterval = 30000; // 30 secondes minimum entre les requêtes
 
   const fetchDashboardData = React.useCallback(async () => {
     // Éviter les appels multiples
@@ -643,7 +685,6 @@ export const useDashboardData = () => {
       !isAuthenticated ||
       fetchCountRef.current >= maxFetches
     ) {
-      console.log(' Appel ignoré - en cours ou limite atteinte');
       return;
     }
 
@@ -652,9 +693,6 @@ export const useDashboardData = () => {
     const timeSinceLastFetch = now - lastFetchRef.current;
 
     if (timeSinceLastFetch < minInterval) {
-      console.log(
-        ` Trop tôt pour une nouvelle requête (${Math.round(timeSinceLastFetch / 1000)}s)`
-      );
       return;
     }
 
@@ -663,7 +701,6 @@ export const useDashboardData = () => {
     lastFetchRef.current = now;
 
     try {
-      console.log(' Chargement des données du dashboard...');
       setLoading(true);
       setError(null);
 
@@ -676,29 +713,23 @@ export const useDashboardData = () => {
       if (statsData.status === 'fulfilled') {
         setStats(statsData.value);
       } else {
-        console.error(' Erreur stats:', statsData.reason);
         setError('Erreur lors du chargement des statistiques');
       }
 
       if (activitiesData.status === 'fulfilled') {
         setActivities(activitiesData.value);
-      } else {
-        console.error(' Erreur activités:', activitiesData.reason);
       }
 
       fetchCountRef.current = 0; // Réinitialiser en cas de succès
-      console.log(' Données du dashboard chargées');
     } catch (err: any) {
-      console.error('❌ Erreur chargement dashboard:', err);
-      setError(err.message || 'Erreur lors du chargement des données');
-
-      // Si c'est une erreur 429 (trop de requêtes), attendre plus longtemps
-      if (
-        err.message?.includes('429') ||
-        err.message?.includes('TOO_MANY_REQUESTS')
-      ) {
-        console.warn(' Trop de requêtes, attente augmentée');
+      // Messages d'erreur génériques en production
+      if (err.message?.includes('429') || err.message?.includes('TOO_MANY_REQUESTS')) {
+        setError('Trop de requêtes, veuillez patienter');
         lastFetchRef.current = now + 60000; // Attendre 1 minute supplémentaire
+      } else if (err.message === 'UNAUTHORIZED') {
+        setError('Session expirée');
+      } else {
+        setError('Erreur lors du chargement des données');
       }
     } finally {
       setLoading(false);
@@ -713,59 +744,50 @@ export const useDashboardData = () => {
   ]);
 
   React.useEffect(() => {
-    if (isAuthenticated) {
-      console.log(
-        ' Utilisateur authentifié, préparation chargement dashboard'
-      );
+    let isMounted = true;
 
+    if (isAuthenticated) {
       // Attendre un peu avant la première requête
       const timer = setTimeout(() => {
-        fetchDashboardData();
+        if (isMounted) {
+          fetchDashboardData();
+        }
       }, 1000);
 
       return () => {
+        isMounted = false;
         clearTimeout(timer);
-        console.log('🧹 Nettoyage timer chargement dashboard');
       };
     } else {
-      console.log(
-        '👤 Utilisateur non authentifié, pas de chargement dashboard'
-      );
       setStats(null);
       setActivities([]);
       setLoading(false);
       setError(null);
     }
+    
+    return () => {
+      isMounted = false;
+    };
   }, [fetchDashboardData, isAuthenticated]);
 
-  // Ajouter un intervalle de rafraîchissement contrôlé
+  // Rafraîchissement automatique contrôlé
   React.useEffect(() => {
-    if (!isAuthenticated) {
-      console.log(
-        ' Arrêt rafraîchissement automatique - utilisateur non authentifié'
-      );
-      return;
-    }
+    if (!isAuthenticated) return;
 
-    console.log(' Démarrage rafraîchissement automatique (5 minutes)');
     const refreshInterval = setInterval(() => {
-      console.log(' Rafraîchissement automatique des données');
       fetchDashboardData();
-    }, 300000); //  Rafraîchir toutes les 5 minutes
+    }, 300000); // Rafraîchir toutes les 5 minutes
 
     return () => {
-      console.log(' Nettoyage intervalle rafraîchissement');
       clearInterval(refreshInterval);
     };
   }, [isAuthenticated, fetchDashboardData]);
 
   const refresh = React.useCallback(() => {
-    console.log(' Rafraîchissement manuel demandé');
     fetchDashboardData();
   }, [fetchDashboardData]);
 
   const forceRefresh = React.useCallback(() => {
-    console.log(' Force refresh demandé');
     fetchCountRef.current = 0;
     lastFetchRef.current = 0;
     fetchDashboardData();
@@ -810,7 +832,10 @@ export const useQuickStats = () => {
           unreadContacts: stats.unreadContacts,
         });
       } catch (error) {
-        console.error(' Erreur chargement quick stats:', error);
+        // Ne pas loguer en production
+        if (import.meta.env.DEV) {
+          console.error('Erreur chargement quick stats:', error);
+        }
       } finally {
         setLoading(false);
       }

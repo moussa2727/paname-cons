@@ -7,36 +7,12 @@ import {
   type Destination,
   type CreateDestinationData,
   type UpdateDestinationData,
+  
 } from '../../api/admin/AdminDestionService';
 import { Helmet } from 'react-helmet-async';
 import RequireAdmin from '../../context/RequireAdmin';
 
-const VITE_API_URL = (import.meta as any).env.VITE_API_URL;
 
-const getFullImageUrl = (imagePath: string) => {
-  if (!imagePath) return '/paname-consulting.jpg';
-
-  // URLs déjà complètes
-  if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
-    return imagePath;
-  }
-
-  // Images dans public (par défaut)
-  if (imagePath.startsWith('/')) {
-    return imagePath;
-  }
-
-  const baseUrl = VITE_API_URL;
-
-  // Images uploadées
-  let cleanPath = imagePath;
-  if (!cleanPath.startsWith('uploads/')) {
-    cleanPath = `uploads/${cleanPath}`;
-  }
-  cleanPath = cleanPath.replace(/\/\//g, '/');
-
-  return `${baseUrl}/${cleanPath}`;
-};
 
 interface DataSourceInfo {
   count: number;
@@ -49,6 +25,7 @@ const initialForm = {
 };
 
 const AdminDestinations: React.FC = (): React.JSX.Element => {
+  const { getFullImageUrl } = destinationService;
   const { access_token, user, isAuthenticated } = useAuth();
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [form, setForm] = useState(initialForm);
@@ -84,21 +61,14 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
         await destinationService.getAllDestinationsWithoutPagination();
       
       // Transformer les données pour inclure les URLs complètes des images
-      const transformedData = data.map((dest: Destination) => ({
-        ...dest,
-        imagePath: getFullImageUrl(dest.imagePath),
-      }));
+     const transformedData = data.map((dest: Destination) => ({
+      ...dest,
+      imagePath: destinationService.getFullImageUrl(dest.imagePath),  // ← Utiliser le service
+    }));
       
       setDestinations(transformedData);
 
-      // Pour déboguer - seulement en développement
-      // if (import.meta.env.DEV) {
-      //   console.log('Destinations loaded:', data);
-      //   console.log('Transformed destinations:', transformedData);
-      //   if (transformedData.length > 0) {
-      //     console.log('First destination image URL:', transformedData[0]?.imagePath);
-      //   }
-      // }
+
 
       // Mettre à jour les informations de source de données
       const stats = await destinationService.getStatistics();
@@ -135,26 +105,14 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
   // Vérifier les droits admin - CORRIGÉ
   const hasAdminRights = (): boolean => {
     if (!isAuthenticated || !user || !access_token) {
-      // if (import.meta.env.DEV) {
-      //   console.log(
-      //     'hasAdminRights: false - not authenticated/no user/no token'
-      //   );
-      // }
+    
       return false;
     }
 
     // Vérifier le rôle admin
     const isAdminUser = user.role === 'admin';
 
-    // if (import.meta.env.DEV) {
-    //   console.log('hasAdminRights check:', {
-    //     isAuthenticated,
-    //     user,
-    //     role: user?.role,
-    //     hasToken: !!access_token,
-    //     isAdminUser,
-    //   });
-    // }
+   
 
     return isAdminUser;
   };
@@ -299,16 +257,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
   };
 
   useEffect(() => {
-    // Log d'état d'authentification pour déboguer
-    // if (import.meta.env.DEV) {
-    //   console.log('AdminDestinations Auth State:', {
-    //     access_token,
-    //     user,
-    //     isAuthenticated,
-    //     isAdmin: user?.role === 'admin',
-    //     userObject: user,
-    //   });
-    // }
+  
 
     fetchDestinations();
     return () => {

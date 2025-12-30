@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
@@ -97,65 +96,59 @@ const AdminProcedure: React.FC = () => {
     loadStats();
   }, [pagination.page, filters.email]); // Seul email déclenche un rechargement backend
 
-  // Chargement des procédures
+
   const loadProcedures = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  try {
+    setLoading(true);
+    setError(null);
 
-      const response = await procedureService.fetchAdminProcedures(
-        pagination.page,
-        pagination.limit,
-        { email: filters.email } // Seul email est envoyé au backend
-      );
+    // Préparer les filtres avec gestion propre du statut
+    const cleanFilters: ProcedureFilters = {};
+    
+    if (filters.email) cleanFilters.email = filters.email;
+    
+    const getFilterValue = (value: ProcedureStatus | ''): string | undefined => {
+      return value !== '' ? value : undefined;
+    };
+    
+    if (filters.destination) cleanFilters.destination = filters.destination;
+    if (filters.filiere) cleanFilters.filiere = filters.filiere;
+    if (filterInput) cleanFilters.search = filterInput;
 
-      // Filtrage côté client pour les autres filtres
-      let filteredData = response.data;
-      
-      if (filters.statut) {
-        filteredData = filteredData.filter(p => p.statut === filters.statut);
-      }
-      
-      if (filters.destination) {
-        filteredData = filteredData.filter(p => 
-          p.destination.toLowerCase().includes(filters.destination!.toLowerCase())
-        );
-      }
-      
-      if (filters.filiere) {
-        filteredData = filteredData.filter(p => 
-          p.filiere.toLowerCase().includes(filters.filiere!.toLowerCase())
-        );
-      }
-      
-      if (filterInput) {
-        filteredData = filteredData.filter(p => 
-          p.email.toLowerCase().includes(filterInput.toLowerCase()) ||
-          p.prenom.toLowerCase().includes(filterInput.toLowerCase()) ||
-          p.nom.toLowerCase().includes(filterInput.toLowerCase())
-        );
-      }
+    const response = await procedureService.fetchAdminProcedures(
+      pagination.page,
+      pagination.limit,
+      cleanFilters
+    );
 
-      setProcedures(filteredData);
-      setPagination({
-        page: response.page,
-        limit: response.limit,
-        total: filteredData.length, // Total filtré côté client
-        totalPages: Math.ceil(filteredData.length / pagination.limit),
-      });
-    } catch (err: any) {
-      console.error('Erreur chargement procédures:', err);
-      setError(err.message || 'Erreur lors du chargement des procédures');
-      toast.error(err.message || 'Erreur lors du chargement des procédures');
-    } finally {
-      setLoading(false);
-    }
-  }, [pagination.page, pagination.limit, filters, filterInput, procedureService]);
+    setProcedures(response.data); 
+    setPagination({
+      page: response.page,
+      limit: response.limit,
+      total: response.total,
+      totalPages: response.totalPages,
+    });
+  } catch (err: any) {
+    console.error('Erreur chargement procédures:', err);
+    setError(err.message || 'Erreur lors du chargement des procédures');
+    toast.error(err.message || 'Erreur lors du chargement des procédures');
+  } finally {
+    setLoading(false);
+  }
+}, [pagination.page, pagination.limit, filters, filterInput, procedureService]);
+
+// Helper pour convertir Date en string si nécessaire
+const normalizeDate = (date: any): string | undefined => {
+  if (!date) return undefined;
+  if (date instanceof Date) return date.toISOString();
+  if (typeof date === 'string') return date;
+  return undefined;
+};
 
   // Chargement des statistiques
   const loadStats = useCallback(async () => {
     try {
-      const statsData = await procedureService.getProceduresOverview();
+      const statsData = await procedureService.getAdminProceduresOverview();
       setStats(statsData);
     } catch (err) {
       console.error('Erreur chargement stats:', err);
@@ -211,7 +204,7 @@ const AdminProcedure: React.FC = () => {
     }
 
     const result = await handleAction(
-      () => procedureService.updateStep(
+      () => procedureService.updateAdminStep(
         selectedProcedure._id,
         stepName,
         {
@@ -253,7 +246,7 @@ const AdminProcedure: React.FC = () => {
     }
 
     const result = await handleAction(
-      () => procedureService.updateStep(
+      () => procedureService.updateAdminStep(
         selectedProcedure._id,
         selectedStep,
         {
@@ -284,7 +277,7 @@ const AdminProcedure: React.FC = () => {
     if (!selectedProcedure) return;
 
     const result = await handleAction(
-      () => procedureService.deleteProcedure(
+      () => procedureService.softDeleteProcedure(
         selectedProcedure._id,
         actionReason || undefined
       ),
@@ -317,7 +310,7 @@ const AdminProcedure: React.FC = () => {
     }
 
     const result = await handleAction(
-      () => procedureService.rejectProcedure(
+      () => procedureService.rejectAdminProcedure(
         selectedProcedure._id,
         actionReason
       ),
@@ -362,10 +355,16 @@ const AdminProcedure: React.FC = () => {
   // Filtres
   const handleFilterChange = useCallback(
     (key: keyof ProcedureFilters, value: string) => {
-      setFilters(prev => ({ ...prev, [key]: value }));
-      if (key === 'email') {
-        setPagination(prev => ({ ...prev, page: 1 }));
+      let typedValue: string | ProcedureStatus | '' = value;
+      
+      // Pour le statut, convertir en type correct
+      if (key === 'statut') {
+        // Si valeur vide, laisser vide, sinon c'est un ProcedureStatus
+        typedValue = value === '' ? '' : value as ProcedureStatus;
       }
+      
+      setFilters(prev => ({ ...prev, [key]: typedValue }));
+      setPagination(prev => ({ ...prev, page: 1 }));
     },
     []
   );
@@ -751,7 +750,6 @@ const AdminProcedure: React.FC = () => {
                         </div>
                         <div className='text-sm font-medium text-gray-900'>
                           {procedure.destination}
-                          {procedure.destinationAutre && ` (${procedure.destinationAutre})`}
                         </div>
                       </div>
                     </div>
@@ -763,7 +761,6 @@ const AdminProcedure: React.FC = () => {
                         </div>
                         <div className='text-sm font-medium text-gray-900'>
                           {procedure.filiere}
-                          {procedure.filiereAutre && ` (${procedure.filiereAutre})`}
                         </div>
                       </div>
                     </div>
@@ -1021,7 +1018,6 @@ const AdminProcedure: React.FC = () => {
                             </div>
                             <div className='text-sm font-medium'>
                               {selectedProcedure.destination}
-                              {selectedProcedure.destinationAutre && ` (${selectedProcedure.destinationAutre})`}
                             </div>
                           </div>
                         </div>
@@ -1031,7 +1027,6 @@ const AdminProcedure: React.FC = () => {
                             <div className='text-xs text-gray-500'>Filière</div>
                             <div className='text-sm font-medium'>
                               {selectedProcedure.filiere}
-                              {selectedProcedure.filiereAutre && ` (${selectedProcedure.filiereAutre})`}
                             </div>
                           </div>
                         </div>
@@ -1113,16 +1108,6 @@ const AdminProcedure: React.FC = () => {
                             <span className='font-medium'>
                               {ProcedureService.formatDate(
                                 selectedProcedure.dateCompletion
-                              )}
-                            </span>
-                          </div>
-                        )}
-                        {selectedProcedure.dateDerniereModification && (
-                          <div className='flex justify-between text-sm'>
-                            <span className='text-gray-500'>Dernière modif</span>
-                            <span className='font-medium'>
-                              {ProcedureService.formatDate(
-                                selectedProcedure.dateDerniereModification
                               )}
                             </span>
                           </div>
