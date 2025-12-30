@@ -212,7 +212,10 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
           <div className='p-4 border-b border-slate-200 bg-linear-to-r from-sky-500 to-sky-600'>
             <div className='flex items-center justify-between'>
               <div className='flex items-center space-x-3'>
-                <Link to='/' className='w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm'>
+                <Link
+                  to='/'
+                  className='w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm'
+                >
                   <Settings2Icon className='w-6 h-6 text-white' />
                 </Link>
                 <div>
@@ -329,7 +332,10 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
           <div className='px-4'>
             <div className='flex justify-between items-center h-16'>
               <div className='flex items-center space-x-3'>
-                <Link to='/' className='w-10 h-10 bg-linear-to-r from-sky-500 to-sky-600 rounded-xl flex items-center justify-center shadow-md'>
+                <Link
+                  to='/'
+                  className='w-10 h-10 bg-linear-to-r from-sky-500 to-sky-600 rounded-xl flex items-center justify-center shadow-md'
+                >
                   <Settings2Icon className='w-6 h-6 text-white' />
                 </Link>
                 <div>
@@ -503,7 +509,10 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
               ) : (
                 <>
                   <div className='text-center mb-6'>
-                    <Link to='/' className='w-20 h-20 mx-auto bg-linear-to-br from-sky-100 to-blue-100 rounded-full flex items-center justify-center mb-4'>
+                    <Link
+                      to='/'
+                      className='w-20 h-20 mx-auto bg-linear-to-br from-sky-100 to-blue-100 rounded-full flex items-center justify-center mb-4'
+                    >
                       <Settings2Icon className='w-10 h-10 text-sky-600' />
                     </Link>
                     <h3 className='text-lg font-semibold text-slate-800 mb-2'>

@@ -39,7 +39,6 @@ import {
   StepStatus,
   StepName,
   ProcedureFilters,
-  PaginatedResponse,
   StatsResponse,
 } from '../../api/admin/AdminProcedureService';
 
@@ -47,7 +46,7 @@ import {
 const AdminProcedure: React.FC = () => {
   // Utilisation du hook personnalisé
   const procedureService = useProcedureService();
-  
+
   // États
   const [procedures, setProcedures] = useState<Procedure[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,54 +95,61 @@ const AdminProcedure: React.FC = () => {
     loadStats();
   }, [pagination.page, filters.email]); // Seul email déclenche un rechargement backend
 
-
   const loadProcedures = useCallback(async () => {
-  try {
-    setLoading(true);
-    setError(null);
+    try {
+      setLoading(true);
+      setError(null);
 
-    // Préparer les filtres avec gestion propre du statut
-    const cleanFilters: ProcedureFilters = {};
-    
-    if (filters.email) cleanFilters.email = filters.email;
-    
-    const getFilterValue = (value: ProcedureStatus | ''): string | undefined => {
-      return value !== '' ? value : undefined;
-    };
-    
-    if (filters.destination) cleanFilters.destination = filters.destination;
-    if (filters.filiere) cleanFilters.filiere = filters.filiere;
-    if (filterInput) cleanFilters.search = filterInput;
+      // Préparer les filtres avec gestion propre du statut
+      const cleanFilters: ProcedureFilters = {};
 
-    const response = await procedureService.fetchAdminProcedures(
-      pagination.page,
-      pagination.limit,
-      cleanFilters
-    );
+      if (filters.email) cleanFilters.email = filters.email;
 
-    setProcedures(response.data); 
-    setPagination({
-      page: response.page,
-      limit: response.limit,
-      total: response.total,
-      totalPages: response.totalPages,
-    });
-  } catch (err: any) {
-    console.error('Erreur chargement procédures:', err);
-    setError(err.message || 'Erreur lors du chargement des procédures');
-    toast.error(err.message || 'Erreur lors du chargement des procédures');
-  } finally {
-    setLoading(false);
-  }
-}, [pagination.page, pagination.limit, filters, filterInput, procedureService]);
+      const getFilterValue = (
+        value: ProcedureStatus | ''
+      ): string | undefined => {
+        return value !== '' ? value : undefined;
+      };
 
-// Helper pour convertir Date en string si nécessaire
-const normalizeDate = (date: any): string | undefined => {
-  if (!date) return undefined;
-  if (date instanceof Date) return date.toISOString();
-  if (typeof date === 'string') return date;
-  return undefined;
-};
+      if (filters.destination) cleanFilters.destination = filters.destination;
+      if (filters.filiere) cleanFilters.filiere = filters.filiere;
+      if (filterInput) cleanFilters.search = filterInput;
+
+      const response = await procedureService.fetchAdminProcedures(
+        pagination.page,
+        pagination.limit,
+        cleanFilters
+      );
+
+      setProcedures(response.data);
+      setPagination({
+        page: response.page,
+        limit: response.limit,
+        total: response.total,
+        totalPages: response.totalPages,
+      });
+    } catch (err: any) {
+      console.error('Erreur chargement procédures:', err);
+      setError(err.message || 'Erreur lors du chargement des procédures');
+      toast.error(err.message || 'Erreur lors du chargement des procédures');
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    pagination.page,
+    pagination.limit,
+    filters,
+    filterInput,
+    procedureService,
+  ]);
+
+  // Helper pour convertir Date en string si nécessaire
+  const normalizeDate = (date: any): string | undefined => {
+    if (!date) return undefined;
+    if (date instanceof Date) return date.toISOString();
+    if (typeof date === 'string') return date;
+    return undefined;
+  };
 
   // Chargement des statistiques
   const loadStats = useCallback(async () => {
@@ -197,34 +203,31 @@ const normalizeDate = (date: any): string | undefined => {
       stepName,
       StepStatus.COMPLETED
     );
-    
+
     if (!validation.canModify) {
       toast.error(validation.reason as string);
       return;
     }
 
     const result = await handleAction(
-      () => procedureService.updateAdminStep(
-        selectedProcedure._id,
-        stepName,
-        {
+      () =>
+        procedureService.updateAdminStep(selectedProcedure._id, stepName, {
           statut: StepStatus.COMPLETED,
           dateMaj: new Date().toISOString(),
-        }
-      ),
+        }),
       'Étape terminée avec succès',
-      'Erreur lors de la complétion de l\'étape'
+      "Erreur lors de la complétion de l'étape"
     );
 
     if (result) {
       setProcedures(prev =>
         prev.map(p => (p._id === selectedProcedure._id ? result : p))
       );
-      
+
       if (selectedProcedure._id === expandedProcedure) {
         setSelectedProcedure(result);
       }
-      
+
       closeModal();
     }
   };
@@ -246,17 +249,14 @@ const normalizeDate = (date: any): string | undefined => {
     }
 
     const result = await handleAction(
-      () => procedureService.updateAdminStep(
-        selectedProcedure._id,
-        selectedStep,
-        {
+      () =>
+        procedureService.updateAdminStep(selectedProcedure._id, selectedStep, {
           statut: StepStatus.REJECTED,
           raisonRefus: actionReason,
           dateMaj: new Date().toISOString(),
-        }
-      ),
+        }),
       'Étape rejetée avec succès',
-      'Erreur lors du rejet de l\'étape'
+      "Erreur lors du rejet de l'étape"
     );
 
     if (result) {
@@ -277,10 +277,11 @@ const normalizeDate = (date: any): string | undefined => {
     if (!selectedProcedure) return;
 
     const result = await handleAction(
-      () => procedureService.softDeleteProcedure(
-        selectedProcedure._id,
-        actionReason || undefined
-      ),
+      () =>
+        procedureService.softDeleteProcedure(
+          selectedProcedure._id,
+          actionReason || undefined
+        ),
       'Procédure supprimée avec succès',
       'Erreur lors de la suppression de la procédure'
     );
@@ -310,10 +311,11 @@ const normalizeDate = (date: any): string | undefined => {
     }
 
     const result = await handleAction(
-      () => procedureService.rejectAdminProcedure(
-        selectedProcedure._id,
-        actionReason
-      ),
+      () =>
+        procedureService.rejectAdminProcedure(
+          selectedProcedure._id,
+          actionReason
+        ),
       'Procédure rejetée avec succès',
       'Erreur lors du rejet de la procédure'
     );
@@ -356,13 +358,13 @@ const normalizeDate = (date: any): string | undefined => {
   const handleFilterChange = useCallback(
     (key: keyof ProcedureFilters, value: string) => {
       let typedValue: string | ProcedureStatus | '' = value;
-      
+
       // Pour le statut, convertir en type correct
       if (key === 'statut') {
         // Si valeur vide, laisser vide, sinon c'est un ProcedureStatus
-        typedValue = value === '' ? '' : value as ProcedureStatus;
+        typedValue = value === '' ? '' : (value as ProcedureStatus);
       }
-      
+
       setFilters(prev => ({ ...prev, [key]: typedValue }));
       setPagination(prev => ({ ...prev, page: 1 }));
     },
@@ -505,8 +507,8 @@ const normalizeDate = (date: any): string | undefined => {
                 Gestion des Procédures
               </h1>
               <p className='text-gray-600 text-sm md:text-base mt-1'>
-                {localStats.total} procédures affichées •{' '}
-                {stats?.total || 0} procédures totales
+                {localStats.total} procédures affichées • {stats?.total || 0}{' '}
+                procédures totales
               </p>
             </div>
             <div className='flex items-center space-x-3'>
@@ -546,7 +548,10 @@ const normalizeDate = (date: any): string | undefined => {
               Filtres avancés
             </button>
 
-            {(filters.email || filters.statut || filters.destination || filters.filiere) && (
+            {(filters.email ||
+              filters.statut ||
+              filters.destination ||
+              filters.filiere) && (
               <button
                 onClick={resetFilters}
                 className='flex items-center text-sm text-blue-600 hover:text-blue-800 transition-colors'
@@ -610,14 +615,17 @@ const normalizeDate = (date: any): string | undefined => {
                   <input
                     type='text'
                     value={filters.filiere || ''}
-                    onChange={e => handleFilterChange('filiere', e.target.value)}
+                    onChange={e =>
+                      handleFilterChange('filiere', e.target.value)
+                    }
                     className='w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors'
                     placeholder='Filtrer par filière...'
                   />
                 </div>
               </div>
               <p className='text-xs text-gray-500 mt-2'>
-                Note: Seul le filtre par email est envoyé au serveur. Les autres filtres sont appliqués localement.
+                Note: Seul le filtre par email est envoyé au serveur. Les autres
+                filtres sont appliqués localement.
               </p>
             </div>
           )}
@@ -676,7 +684,9 @@ const normalizeDate = (date: any): string | undefined => {
           <div className='bg-linear-to-br from-gray-50 to-white p-5 rounded-2xl border border-gray-100'>
             <div className='flex items-center justify-between'>
               <div>
-                <div className='text-gray-500 text-sm font-medium'>Affichées</div>
+                <div className='text-gray-500 text-sm font-medium'>
+                  Affichées
+                </div>
                 <div className='text-2xl font-bold text-gray-900 mt-1'>
                   {localStats.total}
                 </div>
@@ -814,7 +824,8 @@ const normalizeDate = (date: any): string | undefined => {
                             <div className='text-xs text-gray-500'>
                               Dernière mise à jour:{' '}
                               {ProcedureService.formatDate(step.dateMaj)}
-                              {step.dateCompletion && ` • Terminée: ${ProcedureService.formatDate(step.dateCompletion)}`}
+                              {step.dateCompletion &&
+                                ` • Terminée: ${ProcedureService.formatDate(step.dateCompletion)}`}
                             </div>
                             {step.raisonRefus && (
                               <div className='text-xs text-red-600 mt-2 p-2 bg-red-50 rounded-lg'>
@@ -828,11 +839,12 @@ const normalizeDate = (date: any): string | undefined => {
                               <button
                                 onClick={e => {
                                   e.stopPropagation();
-                                  const validation = ProcedureService.canModifyStep(
-                                    procedure,
-                                    step.nom,
-                                    StepStatus.COMPLETED
-                                  );
+                                  const validation =
+                                    ProcedureService.canModifyStep(
+                                      procedure,
+                                      step.nom,
+                                      StepStatus.COMPLETED
+                                    );
                                   if (validation.canModify) {
                                     openActionModal(
                                       procedure,
@@ -885,8 +897,10 @@ const normalizeDate = (date: any): string | undefined => {
                     </button>
                     <button
                       onClick={() => {
-                        if (procedure.statut === ProcedureStatus.REJECTED || 
-                            procedure.statut === ProcedureStatus.CANCELLED) {
+                        if (
+                          procedure.statut === ProcedureStatus.REJECTED ||
+                          procedure.statut === ProcedureStatus.CANCELLED
+                        ) {
                           toast.error('Cette procédure est déjà finalisée');
                           return;
                         }
@@ -921,7 +935,11 @@ const normalizeDate = (date: any): string | undefined => {
               <p className='text-gray-600 mt-4 text-lg'>
                 Aucune procédure trouvée
               </p>
-              {(filters.email || filters.statut || filters.destination || filters.filiere || filterInput) && (
+              {(filters.email ||
+                filters.statut ||
+                filters.destination ||
+                filters.filiere ||
+                filterInput) && (
                 <button
                   onClick={resetFilters}
                   className='mt-4 px-4 py-2 text-blue-600 hover:text-blue-800 text-sm font-medium'
@@ -1006,7 +1024,9 @@ const normalizeDate = (date: any): string | undefined => {
                           <div>
                             <div className='text-xs text-gray-500'>Email</div>
                             <div className='text-sm font-medium'>
-                              {ProcedureService.maskEmail(selectedProcedure.email)}
+                              {ProcedureService.maskEmail(
+                                selectedProcedure.email
+                              )}
                             </div>
                           </div>
                         </div>

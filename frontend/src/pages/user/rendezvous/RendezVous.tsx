@@ -1,4 +1,10 @@
-import { useState, useEffect, useCallback, FormEvent, ChangeEvent } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  FormEvent,
+  ChangeEvent,
+} from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
@@ -47,7 +53,8 @@ interface FormData {
 const API_URL = import.meta.env.VITE_API_URL;
 
 const RendezVous = () => {
-  const { isAuthenticated, access_token, refreshToken, logout, user } = useAuth();
+  const { isAuthenticated, access_token, refreshToken, logout, user } =
+    useAuth();
   const navigate = useNavigate();
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -83,7 +90,7 @@ const RendezVous = () => {
     'Master II',
     'Doctorat',
   ];
-  
+
   const filieres = [
     'Informatique',
     'Médecine',
@@ -123,7 +130,9 @@ const RendezVous = () => {
   }, []);
 
   // Gestion des changements de formulaire
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
 
     if (name === 'destination') {
@@ -155,9 +164,9 @@ const RendezVous = () => {
 
   // Validation téléphone identique au backend
   const validatePhone = (phone: string): boolean => {
-  const cleanedPhone = phone.replace(/[\s\-()]/g, '');
-  return /^\+?[1-9]\d{1,14}$/.test(cleanedPhone);
-};
+    const cleanedPhone = phone.replace(/[\s\-()]/g, '');
+    return /^\+?[1-9]\d{1,14}$/.test(cleanedPhone);
+  };
 
   // Formatage date pour affichage
   const formatDateDisplay = (dateStr: string): string => {
@@ -205,10 +214,15 @@ const RendezVous = () => {
         );
       case 2:
         if (!formData.destination) return false;
-        if (formData.destination === 'Autre' && !formData.destinationAutre?.trim()) return false;
+        if (
+          formData.destination === 'Autre' &&
+          !formData.destinationAutre?.trim()
+        )
+          return false;
         if (!formData.niveauEtude) return false;
         if (!formData.filiere) return false;
-        if (formData.filiere === 'Autre' && !formData.filiereAutre?.trim()) return false;
+        if (formData.filiere === 'Autre' && !formData.filiereAutre?.trim())
+          return false;
         return true;
       case 3:
         return !!(formData.date && formData.time);
@@ -228,19 +242,28 @@ const RendezVous = () => {
           toast.error('Prénom et nom sont obligatoires');
         } else if (!formData.email?.trim()) {
           toast.error('Email est obligatoire');
-        } else if (!formData.telephone?.trim() || !validatePhone(formData.telephone)) {
+        } else if (
+          !formData.telephone?.trim() ||
+          !validatePhone(formData.telephone)
+        ) {
           toast.error('Numéro de téléphone invalide');
         }
       } else if (currentStep === 2) {
         if (!formData.destination) {
           toast.error('La destination est obligatoire');
-        } else if (formData.destination === 'Autre' && !formData.destinationAutre?.trim()) {
+        } else if (
+          formData.destination === 'Autre' &&
+          !formData.destinationAutre?.trim()
+        ) {
           toast.error('La destination "Autre" nécessite une précision');
         } else if (!formData.niveauEtude) {
           toast.error("Le niveau d'étude est obligatoire");
         } else if (!formData.filiere) {
           toast.error('La filière est obligatoire');
-        } else if (formData.filiere === 'Autre' && !formData.filiereAutre?.trim()) {
+        } else if (
+          formData.filiere === 'Autre' &&
+          !formData.filiereAutre?.trim()
+        ) {
           toast.error('La filière "Autre" nécessite une précision');
         }
       }
@@ -264,7 +287,10 @@ const RendezVous = () => {
       const dates: string[] = await response.json();
       const filteredDates = dates
         .filter((date: string) => !isDatePassed(date))
-        .sort((a: string, b: string) => new Date(a).getTime() - new Date(b).getTime());
+        .sort(
+          (a: string, b: string) =>
+            new Date(a).getTime() - new Date(b).getTime()
+        );
 
       setAvailableDates(filteredDates);
     } catch (error) {
@@ -276,30 +302,35 @@ const RendezVous = () => {
   }, []);
 
   // Charger les créneaux disponibles pour une date
-  const fetchAvailableSlots = useCallback(async (date: string): Promise<void> => {
-    if (!date) return;
+  const fetchAvailableSlots = useCallback(
+    async (date: string): Promise<void> => {
+      if (!date) return;
 
-    setLoadingSlots(true);
-    setAvailableSlots([]);
-    try {
-      const response = await fetch(`${API_URL}/api/rendezvous/available-slots?date=${date}`);
-      if (!response.ok) {
-        throw new Error(`Erreur ${response.status}`);
+      setLoadingSlots(true);
+      setAvailableSlots([]);
+      try {
+        const response = await fetch(
+          `${API_URL}/api/rendezvous/available-slots?date=${date}`
+        );
+        if (!response.ok) {
+          throw new Error(`Erreur ${response.status}`);
+        }
+
+        let slots: string[] = await response.json();
+        if (date === new Date().toISOString().split('T')[0]) {
+          slots = slots.filter((slot: string) => !isTimePassed(slot, date));
+        }
+
+        setAvailableSlots(slots);
+      } catch (error) {
+        console.error('Erreur créneaux:', error);
+        toast.error('Impossible de charger les créneaux');
+      } finally {
+        setLoadingSlots(false);
       }
-
-      let slots: string[] = await response.json();
-      if (date === new Date().toISOString().split('T')[0]) {
-        slots = slots.filter((slot: string) => !isTimePassed(slot, date));
-      }
-
-      setAvailableSlots(slots);
-    } catch (error) {
-      console.error('Erreur créneaux:', error);
-      toast.error('Impossible de charger les créneaux');
-    } finally {
-      setLoadingSlots(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   // Effets pour le chargement initial
   useEffect(() => {
@@ -339,7 +370,10 @@ const RendezVous = () => {
       return;
     }
 
-    if (formData.destination === 'Autre' && !formData.destinationAutre?.trim()) {
+    if (
+      formData.destination === 'Autre' &&
+      !formData.destinationAutre?.trim()
+    ) {
       toast.error('La destination "Autre" nécessite une précision');
       return;
     }
@@ -352,7 +386,7 @@ const RendezVous = () => {
     // Validation email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email.trim())) {
-      toast.error('Format d\'email invalide');
+      toast.error("Format d'email invalide");
       return;
     }
 
@@ -363,7 +397,10 @@ const RendezVous = () => {
     }
 
     // Validation créneau (pas dans le passé si aujourd'hui)
-    if (formData.date === new Date().toISOString().split('T')[0] && formData.time) {
+    if (
+      formData.date === new Date().toISOString().split('T')[0] &&
+      formData.time
+    ) {
       if (isTimePassed(formData.time, formData.date)) {
         toast.error('Vous ne pouvez pas réserver un créneau passé');
         return;
@@ -446,9 +483,12 @@ const RendezVous = () => {
 
           // Erreurs spécifiques du backend
           if (errorMessage.includes('Vous avez déjà un rendez-vous confirmé')) {
-            toast.error('Vous avez déjà un rendez-vous confirmé. Annulez-le avant d\'en créer un nouveau.', {
-              autoClose: 5000,
-            });
+            toast.error(
+              "Vous avez déjà un rendez-vous confirmé. Annulez-le avant d'en créer un nouveau.",
+              {
+                autoClose: 5000,
+              }
+            );
             setTimeout(() => {
               navigate('/mes-rendez-vous');
             }, 2000);
@@ -456,18 +496,29 @@ const RendezVous = () => {
           }
 
           if (errorMessage.includes('Email ne correspond pas')) {
-            toast.error('L\'email doit correspondre à votre compte. Veuillez utiliser votre email de connexion.');
+            toast.error(
+              "L'email doit correspondre à votre compte. Veuillez utiliser votre email de connexion."
+            );
             return;
           }
 
-          if (errorMessage.includes('créneau') || errorMessage.includes('disponible') || errorMessage.includes('complets')) {
-            toast.error('Ce créneau n\'est plus disponible. Veuillez choisir un autre horaire.');
+          if (
+            errorMessage.includes('créneau') ||
+            errorMessage.includes('disponible') ||
+            errorMessage.includes('complets')
+          ) {
+            toast.error(
+              "Ce créneau n'est plus disponible. Veuillez choisir un autre horaire."
+            );
             if (formData.date) fetchAvailableSlots(formData.date);
             setFormData(prev => ({ ...prev, time: '' }));
             return;
           }
 
-          if (errorMessage.includes('weekend') || errorMessage.includes('week-end')) {
+          if (
+            errorMessage.includes('weekend') ||
+            errorMessage.includes('week-end')
+          ) {
             toast.error('Les réservations sont fermées le week-end');
             fetchAvailableDates();
             setFormData(prev => ({ ...prev, date: '', time: '' }));
@@ -514,9 +565,13 @@ const RendezVous = () => {
         navigate('/mes-rendez-vous');
       }, 2000);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erreur inconnue';
 
-      if (errorMessage.includes('Session expirée') || errorMessage.includes('Token')) {
+      if (
+        errorMessage.includes('Session expirée') ||
+        errorMessage.includes('Token')
+      ) {
         toast.error('Session expirée. Redirection vers la connexion...');
         setTimeout(() => {
           logout();
@@ -544,10 +599,10 @@ const RendezVous = () => {
 
       <div className='grid gap-3 sm:grid-cols-2'>
         <div>
-           <span className='flex items-center gap-1'>
-              <Dock className='text-sky-500 h-3 w-3' />
-              Prénom *
-            </span>
+          <span className='flex items-center gap-1'>
+            <Dock className='text-sky-500 h-3 w-3' />
+            Prénom *
+          </span>
           <input
             type='text'
             id='firstName'
@@ -563,8 +618,11 @@ const RendezVous = () => {
         </div>
 
         <div>
-          <label htmlFor='lastName' className='mb-1 block text-xs font-medium text-gray-700'>
-           <span className='flex items-center gap-1'>
+          <label
+            htmlFor='lastName'
+            className='mb-1 block text-xs font-medium text-gray-700'
+          >
+            <span className='flex items-center gap-1'>
               <Book className='text-sky-500 h-3 w-3' />
               Nom *
             </span>
@@ -586,7 +644,10 @@ const RendezVous = () => {
 
       <div className='grid gap-3 sm:grid-cols-2'>
         <div>
-          <label htmlFor='email' className='mb-1 block text-xs font-medium text-gray-700'>
+          <label
+            htmlFor='email'
+            className='mb-1 block text-xs font-medium text-gray-700'
+          >
             <span className='flex items-center gap-1'>
               <Mail className='text-sky-500 h-3 w-3' />
               Email *
@@ -607,7 +668,10 @@ const RendezVous = () => {
         </div>
 
         <div>
-          <label htmlFor='telephone' className='mb-1 block text-xs font-medium text-gray-700'>
+          <label
+            htmlFor='telephone'
+            className='mb-1 block text-xs font-medium text-gray-700'
+          >
             <span className='flex items-center gap-1'>
               <Phone className='text-sky-500 h-3 w-3' />
               Téléphone *
@@ -649,7 +713,10 @@ const RendezVous = () => {
       </h2>
 
       <div>
-        <label htmlFor='destination' className='mb-1 block text-xs font-medium text-gray-700'>
+        <label
+          htmlFor='destination'
+          className='mb-1 block text-xs font-medium text-gray-700'
+        >
           <span className='flex items-center gap-1'>
             <Globe className='text-sky-500 h-3 w-3' />
             Destination *
@@ -680,7 +747,10 @@ const RendezVous = () => {
 
             {showOtherDestination && (
               <div className='mt-3'>
-                <label htmlFor='destinationAutre' className='mb-1 block text-xs font-medium text-gray-700'>
+                <label
+                  htmlFor='destinationAutre'
+                  className='mb-1 block text-xs font-medium text-gray-700'
+                >
                   <span className='flex items-center gap-1'>
                     <Target className='text-sky-500 h-3 w-3' />
                     Précisez votre destination *
@@ -705,7 +775,10 @@ const RendezVous = () => {
 
       <div className='grid gap-3 sm:grid-cols-2'>
         <div>
-          <label htmlFor='niveauEtude' className='mb-1 block text-xs font-medium text-gray-700'>
+          <label
+            htmlFor='niveauEtude'
+            className='mb-1 block text-xs font-medium text-gray-700'
+          >
             <span className='flex items-center gap-1'>
               <Award className='text-sky-500 h-3 w-3' />
               Niveau d'étude *
@@ -729,7 +802,10 @@ const RendezVous = () => {
         </div>
 
         <div>
-          <label htmlFor='filiere' className='mb-1 block text-xs font-medium text-gray-700'>
+          <label
+            htmlFor='filiere'
+            className='mb-1 block text-xs font-medium text-gray-700'
+          >
             <span className='flex items-center gap-1'>
               <BookOpen className='text-sky-500 h-3 w-3' />
               Filière *
@@ -753,7 +829,10 @@ const RendezVous = () => {
 
           {showOtherFiliere && (
             <div className='mt-3'>
-              <label htmlFor='filiereAutre' className='mb-1 block text-xs font-medium text-gray-700'>
+              <label
+                htmlFor='filiereAutre'
+                className='mb-1 block text-xs font-medium text-gray-700'
+              >
                 Précisez votre filière *
               </label>
               <input
@@ -785,7 +864,10 @@ const RendezVous = () => {
       </h2>
 
       <div>
-        <label htmlFor='date' className='mb-1 block text-xs font-medium text-gray-700'>
+        <label
+          htmlFor='date'
+          className='mb-1 block text-xs font-medium text-gray-700'
+        >
           <span className='flex items-center gap-1'>
             <Calendar className='text-sky-500 h-3 w-3' />
             Date *
@@ -842,7 +924,10 @@ const RendezVous = () => {
                   <button
                     key={slot}
                     type='button'
-                    onClick={() => !isPassed && setFormData(prev => ({ ...prev, time: slot }))}
+                    onClick={() =>
+                      !isPassed &&
+                      setFormData(prev => ({ ...prev, time: slot }))
+                    }
                     disabled={isPassed}
                     className={`rounded px-2 py-1.5 text-xs transition-all duration-150 focus:outline-none focus:ring-none ${
                       isSelected
@@ -942,7 +1027,9 @@ const RendezVous = () => {
   return (
     <>
       <Helmet>
-        <title>Prenez Rendez-Vous avec nos consultant - Paname Consulting</title>
+        <title>
+          Prenez Rendez-Vous avec nos consultant - Paname Consulting
+        </title>
         <meta
           name='description'
           content='Prenez rendez-vous avec un conseiller Paname Consulting'
@@ -994,7 +1081,10 @@ const RendezVous = () => {
               </div>
             </div>
           ) : success ? (
-            <div data-aos='zoom-in' className='overflow-hidden rounded-lg bg-white p-8 shadow-lg'>
+            <div
+              data-aos='zoom-in'
+              className='overflow-hidden rounded-lg bg-white p-8 shadow-lg'
+            >
               {renderSuccessMessage()}
             </div>
           ) : (

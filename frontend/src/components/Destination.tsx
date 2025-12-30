@@ -50,8 +50,7 @@ const defaultDestinations: DestinationType[] = [
   },
 ];
 
-const VITE_API_URL =
-  (import.meta as any).env.VITE_API_URL;
+const VITE_API_URL = (import.meta as any).env.VITE_API_URL;
 
 const Destination = () => {
   const [destinations, setDestinations] =
@@ -143,7 +142,7 @@ const Destination = () => {
       <ToastContainer position='bottom-right' />
       <div className='max-w-7xl mx-auto'>
         <div className='text-center mb-16'>
-           <span className='inline-block bg-sky-100 text-sky-600 px-4 py-1.5 rounded-full text-sm font-medium mb-3'>
+          <span className='inline-block bg-sky-100 text-sky-600 px-4 py-1.5 rounded-full text-sm font-medium mb-3'>
             Nos Destinations Phares
           </span>
           <p className='text-lg text-gray-600 max-w-3xl mx-auto lg:text-xl'>

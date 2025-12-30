@@ -62,16 +62,16 @@ const ResetPassword: React.FC = () => {
   };
 
   // ✅ CORRECT: Validation synchronisée avec backend
-  const isPasswordValid = 
+  const isPasswordValid =
     passwordStrength.hasMinLength &&
     passwordStrength.hasUpperCase &&
     passwordStrength.hasLowerCase &&
     passwordStrength.hasNumber;
-    // ✅ SUPPRIMÉ: Pas de caractère spécial requis
-    // && passwordStrength.hasSpecialChar;
+  // ✅ SUPPRIMÉ: Pas de caractère spécial requis
+  // && passwordStrength.hasSpecialChar;
 
   const canSubmit =
-    isPasswordValid && 
+    isPasswordValid &&
     formData.newPassword === formData.confirmPassword &&
     formData.newPassword.length > 0;
 
@@ -116,24 +116,33 @@ const ResetPassword: React.FC = () => {
     } catch (error: any) {
       // ✅ Gestion des erreurs synchronisée avec backend
       let errorMessage = error.message || 'Erreur lors de la réinitialisation';
-      
+
       if (errorMessage.includes('Token invalide ou expiré')) {
-        errorMessage = 'Le lien de réinitialisation a expiré ou est invalide. Veuillez en demander un nouveau.';
+        errorMessage =
+          'Le lien de réinitialisation a expiré ou est invalide. Veuillez en demander un nouveau.';
       } else if (errorMessage.includes('Utilisateur non trouvé')) {
-        errorMessage = 'Le compte associé à ce lien n\'existe plus.';
-      } else if (errorMessage.includes('Le mot de passe doit contenir au moins 8 caractères')) {
-        errorMessage = 'Le mot de passe doit contenir au moins 8 caractères, avec au moins une majuscule, une minuscule et un chiffre.';
-      } else if (errorMessage.includes('Les mots de passe ne correspondent pas')) {
+        errorMessage = "Le compte associé à ce lien n'existe plus.";
+      } else if (
+        errorMessage.includes(
+          'Le mot de passe doit contenir au moins 8 caractères'
+        )
+      ) {
+        errorMessage =
+          'Le mot de passe doit contenir au moins 8 caractères, avec au moins une majuscule, une minuscule et un chiffre.';
+      } else if (
+        errorMessage.includes('Les mots de passe ne correspondent pas')
+      ) {
         errorMessage = 'Les mots de passe ne correspondent pas.';
       } else if (errorMessage.includes('minuscule, majuscule et chiffre')) {
-        errorMessage = 'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre.';
+        errorMessage =
+          'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre.';
       }
 
       setMessage({
         text: errorMessage,
         type: 'error',
       });
-      
+
       // Log seulement en développement
       if (import.meta.env.DEV) {
         console.error('Erreur réinitialisation:', error);
@@ -270,7 +279,8 @@ const ResetPassword: React.FC = () => {
                       text='Au moins un chiffre (0-9)'
                     />
                     <p className='text-xs text-gray-500 pt-2 border-t border-gray-200 mt-2'>
-                      Ces critères correspondent exactement à la validation du serveur.
+                      Ces critères correspondent exactement à la validation du
+                      serveur.
                     </p>
                   </div>
                 )}
@@ -336,7 +346,8 @@ const ResetPassword: React.FC = () => {
                   isPasswordValid && (
                     <p className='mt-2 text-sm text-green-600 flex items-center gap-1'>
                       <CheckCircle className='w-4 h-4' />
-                      Les mots de passe correspondent et respectent les critères de sécurité
+                      Les mots de passe correspondent et respectent les critères
+                      de sécurité
                     </p>
                   )}
               </div>
@@ -361,13 +372,16 @@ const ResetPassword: React.FC = () => {
                   </>
                 )}
               </button>
-              
+
               {/* Aide visuelle */}
               {!canSubmit && formData.newPassword && (
                 <div className='mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg'>
                   <p className='text-sm text-amber-800 flex items-center gap-2'>
                     <XCircle className='w-4 h-4' />
-                    <span>Le mot de passe doit respecter tous les critères ci-dessus.</span>
+                    <span>
+                      Le mot de passe doit respecter tous les critères
+                      ci-dessus.
+                    </span>
                   </p>
                 </div>
               )}

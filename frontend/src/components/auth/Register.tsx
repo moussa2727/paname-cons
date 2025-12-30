@@ -1,16 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import {
- 
-  FiMail,
-  FiPhone,
-  FiUser,
-  FiAlertCircle,
-} from 'react-icons/fi';
+import { FiMail, FiPhone, FiUser, FiAlertCircle } from 'react-icons/fi';
 
-import { Lock as  FiLock
-  
-  , Eye as  FiEye 
-  , EyeOff as FiEyeOff } from 'lucide-react';
+import { Lock as FiLock, Eye as FiEye, EyeOff as FiEyeOff } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -26,7 +17,13 @@ interface RegisterFormData {
 const Register: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { register, isLoading, error: authError, isAuthenticated, user } = useAuth();
+  const {
+    register,
+    isLoading,
+    error: authError,
+    isAuthenticated,
+    user,
+  } = useAuth();
 
   const [formData, setFormData] = useState<RegisterFormData>({
     firstName: '',
@@ -44,9 +41,8 @@ const Register: React.FC = () => {
   // Redirection si déjà connecté
   useEffect(() => {
     if (isAuthenticated && user) {
-      const redirectPath = user.role === 'admin'
-        ? '/gestionnaire/statistiques'
-        : '/';
+      const redirectPath =
+        user.role === 'admin' ? '/gestionnaire/statistiques' : '/';
       navigate(redirectPath);
     }
   }, [isAuthenticated, user, navigate]);
@@ -66,23 +62,22 @@ const Register: React.FC = () => {
     }
   }, [authError]);
 
- const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const { name, value } = e.target;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
 
-  if (name === 'telephone') {
-    
-    const cleanedValue = value
-      .replace(/\s/g, '') // Supprimer tous les espaces
-      .replace(/[^\d+]/g, '') // Garder uniquement les chiffres et le +
-      .replace(/(?<!^)\+/g, ''); // Supprimer les + qui ne sont pas au début
-    
-    setFormData(prev => ({ ...prev, [name]: cleanedValue }));
-  } else {
-    setFormData(prev => ({ ...prev, [name]: value }));
-  }
+    if (name === 'telephone') {
+      const cleanedValue = value
+        .replace(/\s/g, '') // Supprimer tous les espaces
+        .replace(/[^\d+]/g, '') // Garder uniquement les chiffres et le +
+        .replace(/(?<!^)\+/g, ''); // Supprimer les + qui ne sont pas au début
 
-  if (formError) setFormError('');
-};
+      setFormData(prev => ({ ...prev, [name]: cleanedValue }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+
+    if (formError) setFormError('');
+  };
 
   const validateForm = (): boolean => {
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
@@ -91,7 +86,9 @@ const Register: React.FC = () => {
     }
 
     if (formData.firstName.length < 2 || formData.lastName.length < 2) {
-      setFormError('Le prénom et le nom doivent contenir au moins 2 caractères');
+      setFormError(
+        'Le prénom et le nom doivent contenir au moins 2 caractères'
+      );
       return false;
     }
 
@@ -132,26 +129,24 @@ const Register: React.FC = () => {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setFormError('');
+    e.preventDefault();
+    setFormError('');
 
-      if (!validateForm()) {
-        return;
-      }
+    if (!validateForm()) {
+      return;
+    }
 
-      try {
-        
-        await register(formData);
-        
-      } catch (err: any) {
-        console.error('Erreur inscription frontend:', {
-          message: err.message,
-          data: formData
-        });
-        
-        setFormError(err.message || 'Erreur lors de la création du compte');
-      }
-    };
+    try {
+      await register(formData);
+    } catch (err: any) {
+      console.error('Erreur inscription frontend:', {
+        message: err.message,
+        data: formData,
+      });
+
+      setFormError(err.message || 'Erreur lors de la création du compte');
+    }
+  };
 
   return (
     <div className='flex items-center justify-center p-4 min-h-screen bg-sky-50'>
@@ -254,25 +249,24 @@ const Register: React.FC = () => {
                     <FiPhone className='text-gray-400' />
                   </div>
                   <input
-                      name='telephone'
-                      type='tel'
-                      value={formData.telephone}
-                      onChange={handleChange}
-                      className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition-colors'
-                      placeholder='Ex: +33123456789 ou 0123456789'
-                      required
-                      disabled={isLoading}
-                      autoComplete='tel'
-                      minLength={8} // Changé de 10 à 8
-                      maxLength={20}
-                    />
-                    <p className='text-xs text-gray-500 mt-1'>
-                    Format: +33123456789 ou 0123456789 (minimum 8 chiffres, + optionnel)
-                    </p>
+                    name='telephone'
+                    type='tel'
+                    value={formData.telephone}
+                    onChange={handleChange}
+                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition-colors'
+                    placeholder='Ex: +33123456789 ou 0123456789'
+                    required
+                    disabled={isLoading}
+                    autoComplete='tel'
+                    minLength={8} // Changé de 10 à 8
+                    maxLength={20}
+                  />
+                  <p className='text-xs text-gray-500 mt-1'>
+                    Format: +33123456789 ou 0123456789 (minimum 8 chiffres, +
+                    optionnel)
+                  </p>
                 </div>
               </div>
-
-
 
               {/* Mot de passe */}
               <div>

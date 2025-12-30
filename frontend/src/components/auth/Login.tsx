@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { FiAlertCircle, FiMail } from 'react-icons/fi';
-import { Eye as FiEye, EyeOff as FiEyeOff, Lock as FiLock, UserX as FiUserX } from 'lucide-react';
+import { Eye as FiEye, EyeOff as FiEyeOff, Lock as FiLock } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
@@ -48,7 +48,7 @@ const Login: React.FC = (): React.JSX.Element => {
         message.includes('MAINTENANCE MODE')
       ) {
         toast.error(
-          'Mode maintenance activé. L\'application est en cours de maintenance. Réessayez plus tard ou contactez l\'administrateur.',
+          "Mode maintenance activé. L'application est en cours de maintenance. Réessayez plus tard ou contactez l'administrateur.",
           {
             autoClose: 10000,
           }
@@ -60,7 +60,7 @@ const Login: React.FC = (): React.JSX.Element => {
         message.includes('Compte désactivé')
       ) {
         toast.error(
-          'Compte désactivé. Contactez l\'administrateur pour réactiver votre compte',
+          "Compte désactivé. Contactez l'administrateur pour réactiver votre compte",
           {
             autoClose: 8000,
           }
@@ -70,7 +70,8 @@ const Login: React.FC = (): React.JSX.Element => {
         message.includes('COMPTE TEMPORAIREMENT DECONNECTE') ||
         message.includes('Déconnecté temporairement')
       ) {
-        const match = message.match(/:(\d+)/) || message.match(/\(reste (\d+)h\)/);
+        const match =
+          message.match(/:(\d+)/) || message.match(/\(reste (\d+)h\)/);
         const hours = match ? match[1] : '24';
         toast.warning(
           `Déconnexion administrative. Votre compte est temporairement déconnecté. Réessayez dans ${hours} heures.`,
@@ -93,8 +94,8 @@ const Login: React.FC = (): React.JSX.Element => {
             autoClose: 8000,
           }
         );
-        navigate('/reset-password-required', { 
-          state: { email, reason: 'first_time_setup' } 
+        navigate('/reset-password-required', {
+          state: { email, reason: 'first_time_setup' },
         });
       } else if (
         message.includes('Email ou mot de passe incorrect') ||
@@ -120,7 +121,7 @@ const Login: React.FC = (): React.JSX.Element => {
     error.includes('désactivé');
 
   return (
-    <div 
+    <div
       className='flex items-center justify-center p-4 min-h-screen bg-sky-50'
       role='main'
     >
@@ -214,7 +215,7 @@ const Login: React.FC = (): React.JSX.Element => {
                   <button
                     type='button'
                     className='absolute inset-y-0 right-0 pr-3 flex items-center focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1 rounded'
-                    onClick={(e) => {
+                    onClick={e => {
                       e.preventDefault();
                       e.stopPropagation();
                       setShowPassword(prev => !prev);

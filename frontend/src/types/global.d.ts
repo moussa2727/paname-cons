@@ -3,12 +3,12 @@
 declare module 'react-helmet-async' {
   import { HelmetData } from 'react-helmet';
   import { ReactNode } from 'react';
-  
+
   export interface HelmetProviderProps {
     context?: {};
     children: ReactNode;
   }
-  
+
   export interface HelmetProps {
     children?: ReactNode;
     title?: string;
@@ -18,7 +18,7 @@ declare module 'react-helmet-async' {
     htmlAttributes?: any;
     bodyAttributes?: any;
   }
-  
+
   export class HelmetProvider extends React.Component<HelmetProviderProps> {}
   export class Helmet extends React.Component<HelmetProps> {}
   export function useHelmet(): HelmetData;
@@ -26,7 +26,7 @@ declare module 'react-helmet-async' {
 
 declare module 'react-toastify' {
   import { ReactNode } from 'react';
-  
+
   export interface ToastOptions {
     position?: string;
     autoClose?: number;
@@ -37,7 +37,7 @@ declare module 'react-toastify' {
     progress?: undefined;
     theme?: string;
   }
-  
+
   export const toast: {
     success: (message: string, options?: ToastOptions) => void;
     error: (message: string, options?: ToastOptions) => void;
@@ -45,7 +45,7 @@ declare module 'react-toastify' {
     warning: (message: string, options?: ToastOptions) => void;
     (message: string, options?: ToastOptions): void;
   };
-  
+
   export interface ToastContainerProps {
     position?: string;
     autoClose?: number;
@@ -58,7 +58,7 @@ declare module 'react-toastify' {
     pauseOnHover?: boolean;
     theme?: string;
   }
-  
+
   export const ToastContainer: React.ComponentType<ToastContainerProps>;
 }
 
@@ -72,7 +72,7 @@ declare module 'aos' {
     mirror?: boolean;
     anchorPlacement?: string;
   }
-  
+
   export function init(options?: AosOptions): void;
   export function refresh(): void;
   export function refreshHard(): void;
@@ -94,7 +94,6 @@ declare module 'react-icons/fi' {
   export const FiCheck: IconType;
   export const FiAlertCircle: IconType;
   // Ajoutez d'autres icônes au besoin
-  
 }
 
 declare module 'react-icons/fa' {

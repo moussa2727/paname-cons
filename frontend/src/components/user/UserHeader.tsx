@@ -18,19 +18,19 @@ const pageConfigs = {
     title: 'Mon Profil',
     subtitle: 'Gérez vos informations personnelles',
     pageTitle: 'Mon Profil - Paname Consulting',
-    description: 'Gérez vos informations personnelles avec Paname Consulting'
+    description: 'Gérez vos informations personnelles avec Paname Consulting',
   },
   '/mes-rendez-vous': {
     title: 'Mes Rendez-vous',
     subtitle: 'Consultez et gérez vos rendez-vous',
     pageTitle: 'Mes Rendez-vous - Paname Consulting',
-    description: 'Consultez et gérez vos rendez-vous avec Paname Consulting'
+    description: 'Consultez et gérez vos rendez-vous avec Paname Consulting',
   },
   '/ma-procedure': {
     title: 'Ma Procédure',
-    subtitle: 'Suivez l\'avancement de votre dossier',
+    subtitle: "Suivez l'avancement de votre dossier",
     pageTitle: 'Ma Procédure - Paname Consulting',
-    description: 'Suivez l\'avancement de votre dossier avec Paname Consulting'
+    description: "Suivez l'avancement de votre dossier avec Paname Consulting",
   },
 };
 
@@ -55,19 +55,19 @@ const navTabs = [
   },
 ];
 
-export const UserHeader = ({ 
-  title, 
-  subtitle, 
-  pageTitle, 
-  description, 
-  isLoading = false, 
+export const UserHeader = ({
+  title,
+  subtitle,
+  isLoading = false,
   onRefresh,
-  children 
+  children,
 }: UserHeaderProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  
-  const activeTabId = navTabs.find(tab => location.pathname.startsWith(tab.to))?.id || 'rendezvous';
+
+  const activeTabId =
+    navTabs.find(tab => location.pathname.startsWith(tab.to))?.id ||
+    'rendezvous';
 
   return (
     <header className='bg-white shadow-lg border-b border-gray-100 fixed top-0 left-0 right-0 z-50'>
@@ -87,21 +87,21 @@ export const UserHeader = ({
               <h1 className='text-base font-bold text-gray-900 leading-tight'>
                 {title}
               </h1>
-              <p className='text-xs text-gray-500'>
-                {subtitle}
-              </p>
+              <p className='text-xs text-gray-500'>{subtitle}</p>
             </div>
           </div>
-          
+
           {onRefresh && (
             <button
               onClick={onRefresh}
               disabled={isLoading}
               className='p-2 bg-sky-50 rounded-xl hover:bg-sky-100 active:scale-95 transition-all duration-200 disabled:opacity-50'
-              title="Actualiser"
-              aria-label="Actualiser"
+              title='Actualiser'
+              aria-label='Actualiser'
             >
-              <RefreshCw className={`w-4 h-4 text-sky-600 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-4 h-4 text-sky-600 ${isLoading ? 'animate-spin' : ''}`}
+              />
             </button>
           )}
         </div>
@@ -122,16 +122,20 @@ export const UserHeader = ({
                   }`}
                   aria-current={isActive ? 'page' : undefined}
                 >
-                  <tab.icon className={`w-3.5 h-3.5 ${
-                    isActive ? 'text-white' : 'text-gray-500'
-                  }`} />
-                  <span className={`text-xs font-medium whitespace-nowrap ${
-                    isActive ? 'text-white' : 'text-gray-700'
-                  }`}>
+                  <tab.icon
+                    className={`w-3.5 h-3.5 ${
+                      isActive ? 'text-white' : 'text-gray-500'
+                    }`}
+                  />
+                  <span
+                    className={`text-xs font-medium whitespace-nowrap ${
+                      isActive ? 'text-white' : 'text-gray-700'
+                    }`}
+                  >
                     {tab.label}
                   </span>
                   {isActive && (
-                    <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-4 h-0.5 bg-sky-400 rounded-full"></div>
+                    <div className='absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-4 h-0.5 bg-sky-400 rounded-full'></div>
                   )}
                 </Link>
               );
@@ -140,15 +144,11 @@ export const UserHeader = ({
         </div>
 
         {/* Contenu additionnel */}
-        {children && (
-          <div className='mt-3'>
-            {children}
-          </div>
-        )}
+        {children && <div className='mt-3'>{children}</div>}
       </div>
 
       {/* Effet de séparation */}
-      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-transparent via-sky-100 to-transparent"></div>
+      <div className='absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-transparent via-sky-100 to-transparent'></div>
     </header>
   );
 };
@@ -156,22 +156,22 @@ export const UserHeader = ({
 // Hook pour récupérer la configuration de page
 export const usePageConfig = () => {
   const location = useLocation();
-  
+
   const getCurrentPageConfig = () => {
     const currentPath = location.pathname;
-    
+
     // Vérifier l'égalité exacte
     if (currentPath in pageConfigs) {
       return pageConfigs[currentPath as keyof typeof pageConfigs];
     }
-    
+
     // Vérifier les chemins qui commencent par
     for (const [path, config] of Object.entries(pageConfigs)) {
       if (currentPath.startsWith(path)) {
         return config;
       }
     }
-    
+
     // Fallback par défaut
     return pageConfigs['/mes-rendez-vous'];
   };
@@ -184,12 +184,12 @@ export const getPageConfig = (pathname: string) => {
   if (pathname in pageConfigs) {
     return pageConfigs[pathname as keyof typeof pageConfigs];
   }
-  
+
   for (const [path, config] of Object.entries(pageConfigs)) {
     if (pathname.startsWith(path)) {
       return config;
     }
   }
-  
+
   return pageConfigs['/mes-rendez-vous'];
 };

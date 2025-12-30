@@ -7,7 +7,7 @@ export interface Destination {
   country: string;
   text: string;
   imagePath: string;
-  createdAt?: string | Date;  
+  createdAt?: string | Date;
   updatedAt?: string | Date;
 }
 
@@ -455,7 +455,7 @@ class DestinationService {
   /**
    * Générer l'URL complète d'une image
    */
- 
+
   getFullImageUrl = (imagePath: string) => {
     if (!imagePath) return '/paname-consulting.jpg';
 

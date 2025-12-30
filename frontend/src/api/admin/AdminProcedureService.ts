@@ -166,9 +166,10 @@ const maskSensitiveData = {
     if (!email) return '***';
     const [name, domain] = email.split('@');
     if (!name || !domain) return '***';
-    const maskedName = name.length > 2 
-      ? name.substring(0, 2) + '*'.repeat(Math.max(name.length - 2, 1))
-      : '*'.repeat(name.length);
+    const maskedName =
+      name.length > 2
+        ? name.substring(0, 2) + '*'.repeat(Math.max(name.length - 2, 1))
+        : '*'.repeat(name.length);
     return `${maskedName}@${domain}`;
   },
 
@@ -200,9 +201,8 @@ const showToast = {
   },
 
   error: (message: string, code?: string) => {
-    const userMessage = code && ERROR_MAPPING[code] 
-      ? ERROR_MAPPING[code] 
-      : message;
+    const userMessage =
+      code && ERROR_MAPPING[code] ? ERROR_MAPPING[code] : message;
     toast.error(userMessage, {
       position: 'top-right',
       autoClose: 5000,
@@ -224,7 +224,9 @@ const showToast = {
 // ==================== MAIN SERVICE CLASS ====================
 export class ProcedureService {
   private accessToken: string | null = null;
-  private logoutCallback: ((redirectPath?: string, silent?: boolean) => void) | null = null;
+  private logoutCallback:
+    | ((redirectPath?: string, silent?: boolean) => void)
+    | null = null;
 
   constructor(
     accessToken?: string | null,
@@ -238,7 +240,9 @@ export class ProcedureService {
     this.accessToken = token;
   }
 
-  setLogoutCallback(callback: (redirectPath?: string, silent?: boolean) => void) {
+  setLogoutCallback(
+    callback: (redirectPath?: string, silent?: boolean) => void
+  ) {
     this.logoutCallback = callback;
   }
 
@@ -249,16 +253,24 @@ export class ProcedureService {
     retryCount = 0
   ): Promise<T> {
     if (typeof globalThis === 'undefined' || !globalThis.setTimeout) {
-      throw new ProcedureError('Environnement non supporté', 'ENVIRONMENT_ERROR');
+      throw new ProcedureError(
+        'Environnement non supporté',
+        'ENVIRONMENT_ERROR'
+      );
     }
 
     const controller = new AbortController();
-    const timeoutId = globalThis.setTimeout(() => controller.abort(), API_TIMEOUT);
+    const timeoutId = globalThis.setTimeout(
+      () => controller.abort(),
+      API_TIMEOUT
+    );
 
     try {
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
-        ...(this.accessToken && { Authorization: `Bearer ${this.accessToken}` }),
+        ...(this.accessToken && {
+          Authorization: `Bearer ${this.accessToken}`,
+        }),
         ...options.headers,
       };
 
@@ -287,7 +299,10 @@ export class ProcedureService {
         // Gestion des erreurs spécifiques
         if (response.status === 401) {
           errorCode = 'UNAUTHORIZED';
-          showToast.error('Session expirée. Veuillez vous reconnecter.', 'UNAUTHORIZED');
+          showToast.error(
+            'Session expirée. Veuillez vous reconnecter.',
+            'UNAUTHORIZED'
+          );
           if (this.logoutCallback) {
             this.logoutCallback('/connexion', true);
           }
@@ -298,7 +313,10 @@ export class ProcedureService {
           errorCode = 'NOT_FOUND';
         } else if (response.status === 400) {
           Object.keys(ERROR_MAPPING).forEach(code => {
-            if (errorMessage.includes(code) || errorMessage.includes(ERROR_MAPPING[code])) {
+            if (
+              errorMessage.includes(code) ||
+              errorMessage.includes(ERROR_MAPPING[code])
+            ) {
               errorCode = code;
               errorMessage = ERROR_MAPPING[code];
             }
@@ -319,18 +337,27 @@ export class ProcedureService {
       globalThis.clearTimeout(timeoutId);
 
       if (error.name === 'AbortError') {
-        throw new ProcedureError('La requête a expiré. Veuillez réessayer.', 'TIMEOUT');
+        throw new ProcedureError(
+          'La requête a expiré. Veuillez réessayer.',
+          'TIMEOUT'
+        );
       }
 
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new ProcedureError('Erreur de connexion au serveur. Vérifiez votre connexion internet.', 'NETWORK_ERROR');
+        throw new ProcedureError(
+          'Erreur de connexion au serveur. Vérifiez votre connexion internet.',
+          'NETWORK_ERROR'
+        );
       }
 
       if (error instanceof ProcedureError) {
         throw error;
       }
 
-      throw new ProcedureError(error.message || 'Erreur inconnue', 'UNKNOWN_ERROR');
+      throw new ProcedureError(
+        error.message || 'Erreur inconnue',
+        'UNKNOWN_ERROR'
+      );
     }
   }
 
@@ -348,12 +375,12 @@ export class ProcedureService {
     params.append('limit', limit.toString());
 
     if (filters.email) params.append('email', filters.email);
-    
+
     // CORRECTION : Gérer le statut avec type safe
     if (filters.statut !== undefined && filters.statut !== '') {
       params.append('statut', filters.statut as string);
     }
-    
+
     if (filters.destination) params.append('destination', filters.destination);
     if (filters.filiere) params.append('filiere', filters.filiere);
     if (filters.search) params.append('search', filters.search);
@@ -380,14 +407,14 @@ export class ProcedureService {
           'VALIDATION_RAISON_REQUISE'
         );
       }
-      
+
       if (updates.raisonRefus.trim().length < 5) {
         throw new ProcedureError(
           'La raison doit contenir au moins 5 caractères',
           'VALIDATION_RAISON_TROP_COURTE'
         );
       }
-      
+
       if (updates.raisonRefus.length > 500) {
         throw new ProcedureError(
           'La raison ne doit pas dépasser 500 caractères',
@@ -395,7 +422,7 @@ export class ProcedureService {
         );
       }
     }
-    
+
     const encodedStepName = encodeURIComponent(stepName);
     const result = await this.makeRequest<Procedure>(
       `/api/procedures/admin/${procedureId}/steps/${encodedStepName}`,
@@ -428,23 +455,26 @@ export class ProcedureService {
   async rejectAdminProcedure(id: string, reason: string): Promise<Procedure> {
     // Validation frontend
     if (!reason || reason.trim() === '') {
-      throw new ProcedureError('La raison du rejet est obligatoire', 'VALIDATION_RAISON_REQUISE');
+      throw new ProcedureError(
+        'La raison du rejet est obligatoire',
+        'VALIDATION_RAISON_REQUISE'
+      );
     }
-    
+
     if (reason.trim().length < 5) {
       throw new ProcedureError(
         'La raison doit contenir au moins 5 caractères',
         'VALIDATION_RAISON_TROP_COURTE'
       );
     }
-    
+
     if (reason.length > 500) {
       throw new ProcedureError(
         'La raison ne doit pas dépasser 500 caractères',
         'VALIDATION_RAISON_TROP_LONGUE'
       );
     }
-    
+
     const result = await this.makeRequest<Procedure>(
       `/api/procedures/admin/${id}/reject`,
       {
@@ -563,7 +593,7 @@ export class ProcedureService {
           'VALIDATION_RAISON_TROP_COURTE'
         );
       }
-      
+
       if (reason.length > 500) {
         throw new ProcedureError(
           'La raison ne doit pas dépasser 500 caractères',
@@ -571,7 +601,7 @@ export class ProcedureService {
         );
       }
     }
-    
+
     const result = await this.makeRequest<Procedure>(
       `/api/procedures/admin/${id}`,
       {
@@ -609,13 +639,26 @@ export class ProcedureService {
       return { canModify: false, reason: 'Étape non trouvée' };
     }
 
-    if ([StepStatus.COMPLETED, StepStatus.REJECTED, StepStatus.CANCELLED].includes(step.statut)) {
+    if (
+      [
+        StepStatus.COMPLETED,
+        StepStatus.REJECTED,
+        StepStatus.CANCELLED,
+      ].includes(step.statut)
+    ) {
       return { canModify: false, reason: 'Étape déjà finalisée' };
     }
 
     if (stepName !== StepName.DEMANDE_ADMISSION) {
-      const admissionStep = procedure.steps.find(s => s.nom === StepName.DEMANDE_ADMISSION);
-      if (admissionStep && [StepStatus.REJECTED, StepStatus.CANCELLED].includes(admissionStep.statut)) {
+      const admissionStep = procedure.steps.find(
+        s => s.nom === StepName.DEMANDE_ADMISSION
+      );
+      if (
+        admissionStep &&
+        [StepStatus.REJECTED, StepStatus.CANCELLED].includes(
+          admissionStep.statut
+        )
+      ) {
         return {
           canModify: false,
           reason: `Impossible de modifier car l'admission est ${admissionStep.statut.toLowerCase()}`,
@@ -624,8 +667,13 @@ export class ProcedureService {
     }
 
     if (stepName === StepName.PREPARATIF_VOYAGE) {
-      const visaStep = procedure.steps.find(s => s.nom === StepName.DEMANDE_VISA);
-      if (visaStep && [StepStatus.REJECTED, StepStatus.CANCELLED].includes(visaStep.statut)) {
+      const visaStep = procedure.steps.find(
+        s => s.nom === StepName.DEMANDE_VISA
+      );
+      if (
+        visaStep &&
+        [StepStatus.REJECTED, StepStatus.CANCELLED].includes(visaStep.statut)
+      ) {
         return {
           canModify: false,
           reason: `Impossible de modifier car le visa est ${visaStep.statut.toLowerCase()}`,
@@ -633,8 +681,13 @@ export class ProcedureService {
       }
     }
 
-    if (stepName === StepName.DEMANDE_VISA && newStatus !== StepStatus.REJECTED) {
-      const admissionStep = procedure.steps.find(s => s.nom === StepName.DEMANDE_ADMISSION);
+    if (
+      stepName === StepName.DEMANDE_VISA &&
+      newStatus !== StepStatus.REJECTED
+    ) {
+      const admissionStep = procedure.steps.find(
+        s => s.nom === StepName.DEMANDE_ADMISSION
+      );
       if (admissionStep && admissionStep.statut !== StepStatus.COMPLETED) {
         return {
           canModify: false,
@@ -643,12 +696,18 @@ export class ProcedureService {
       }
     }
 
-    if (stepName === StepName.PREPARATIF_VOYAGE && newStatus !== StepStatus.REJECTED) {
-      const visaStep = procedure.steps.find(s => s.nom === StepName.DEMANDE_VISA);
+    if (
+      stepName === StepName.PREPARATIF_VOYAGE &&
+      newStatus !== StepStatus.REJECTED
+    ) {
+      const visaStep = procedure.steps.find(
+        s => s.nom === StepName.DEMANDE_VISA
+      );
       if (visaStep && visaStep.statut !== StepStatus.COMPLETED) {
         return {
           canModify: false,
-          reason: 'Le visa doit être terminé avant de démarrer les préparatifs de voyage',
+          reason:
+            'Le visa doit être terminé avant de démarrer les préparatifs de voyage',
         };
       }
     }
@@ -657,26 +716,35 @@ export class ProcedureService {
   }
 
   static getStatusColor(status: ProcedureStatus | StepStatus): string {
-    if (status === ProcedureStatus.IN_PROGRESS || status === StepStatus.IN_PROGRESS) {
+    if (
+      status === ProcedureStatus.IN_PROGRESS ||
+      status === StepStatus.IN_PROGRESS
+    ) {
       return 'blue';
     }
-    
-    if (status === ProcedureStatus.COMPLETED || status === StepStatus.COMPLETED) {
+
+    if (
+      status === ProcedureStatus.COMPLETED ||
+      status === StepStatus.COMPLETED
+    ) {
       return 'green';
     }
-    
+
     if (status === ProcedureStatus.REJECTED || status === StepStatus.REJECTED) {
       return 'red';
     }
-    
-    if (status === ProcedureStatus.CANCELLED || status === StepStatus.CANCELLED) {
+
+    if (
+      status === ProcedureStatus.CANCELLED ||
+      status === StepStatus.CANCELLED
+    ) {
       return 'gray';
     }
-    
+
     if (status === StepStatus.PENDING) {
       return 'yellow';
     }
-    
+
     return 'gray';
   }
 

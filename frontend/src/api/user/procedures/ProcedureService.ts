@@ -75,9 +75,17 @@ export interface PaginatedUserProcedures {
 
 // ==================== SERVICE API SIMPLIFIÉ ====================
 class ProcedureApiService {
-  private fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>;
+  private fetchWithAuth: (
+    endpoint: string,
+    options?: RequestInit
+  ) => Promise<Response>;
 
-  constructor(fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>) {
+  constructor(
+    fetchWithAuth: (
+      endpoint: string,
+      options?: RequestInit
+    ) => Promise<Response>
+  ) {
     this.fetchWithAuth = fetchWithAuth;
   }
 
@@ -97,16 +105,18 @@ class ProcedureApiService {
         if (response.status === 401) {
           throw new Error('SESSION_EXPIRED');
         }
-        
+
         const errorText = await response.text();
-        throw new Error(`Erreur ${response.status}: ${errorText || 'Erreur serveur'}`);
+        throw new Error(
+          `Erreur ${response.status}: ${errorText || 'Erreur serveur'}`
+        );
       }
 
       const data = await response.json();
       return data; // ✅ Le backend formate déjà correctement
     } catch (error: any) {
       console.error('Erreur fetchUserProcedures:', error.message);
-      
+
       // Messages utilisateur-friendly
       if (error.message === 'SESSION_EXPIRED') {
         throw error;
@@ -115,7 +125,7 @@ class ProcedureApiService {
       } else if (error.message.includes('500')) {
         throw new Error('Erreur serveur interne');
       }
-      
+
       throw new Error('Impossible de charger vos procédures');
     }
   }
@@ -129,7 +139,9 @@ class ProcedureApiService {
     }
 
     try {
-      const response = await this.fetchWithAuth(`/api/procedures/${procedureId}`);
+      const response = await this.fetchWithAuth(
+        `/api/procedures/${procedureId}`
+      );
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -141,11 +153,11 @@ class ProcedureApiService {
       return response.json();
     } catch (error: any) {
       console.error('Erreur fetchProcedureDetails:', error.message);
-      
+
       if (error.message === 'SESSION_EXPIRED') {
         throw error;
       }
-      
+
       toast.error(this.getUserFriendlyMessage(error.message));
       throw error;
     }
@@ -154,7 +166,10 @@ class ProcedureApiService {
   /**
    * Annuler une procédure
    */
-  async cancelProcedure(procedureId: string, reason?: string): Promise<UserProcedure> {
+  async cancelProcedure(
+    procedureId: string,
+    reason?: string
+  ): Promise<UserProcedure> {
     if (!procedureId) {
       throw new Error('ID de procédure manquant');
     }
@@ -174,24 +189,24 @@ class ProcedureApiService {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData.message || `Erreur ${response.status}`;
-        
+
         if (response.status === 403) {
           throw new Error('Action non autorisée');
         } else if (response.status === 400) {
           throw new Error('Procédure déjà finalisée');
         }
-        
+
         throw new Error(errorMessage);
       }
 
       return response.json();
     } catch (error: any) {
       console.error('Erreur cancelProcedure:', error.message);
-      
+
       if (error.message === 'SESSION_EXPIRED') {
         throw error;
       }
-      
+
       toast.error(this.getUserFriendlyMessage(error.message));
       throw error;
     }
@@ -202,10 +217,11 @@ class ProcedureApiService {
    */
   private getUserFriendlyMessage(errorCode: string): string {
     const messages: Record<string, string> = {
-      'SESSION_EXPIRED': 'Session expirée - Veuillez vous reconnecter',
-      'Action non autorisée': 'Vous ne pouvez annuler que vos propres procédures',
+      SESSION_EXPIRED: 'Session expirée - Veuillez vous reconnecter',
+      'Action non autorisée':
+        'Vous ne pouvez annuler que vos propres procédures',
       'Procédure déjà finalisée': 'Cette procédure est déjà finalisée',
-      'Procédure non trouvée': 'Cette procédure n\'existe plus',
+      'Procédure non trouvée': "Cette procédure n'existe plus",
       'Erreur 404': 'Procédure non trouvée',
       'Erreur 403': 'Accès refusé',
       'Erreur 500': 'Erreur serveur',
@@ -222,7 +238,9 @@ class ProcedureApiService {
  */
 export const useUserProcedures = (page: number = 1, limit: number = 10) => {
   const { fetchWithAuth } = useAuth();
-  const [procedures, setProcedures] = useState<PaginatedUserProcedures | null>(null);
+  const [procedures, setProcedures] = useState<PaginatedUserProcedures | null>(
+    null
+  );
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -236,7 +254,7 @@ export const useUserProcedures = (page: number = 1, limit: number = 10) => {
       setProcedures(data);
     } catch (err: any) {
       setError(err.message);
-      
+
       // Ne pas afficher toast pour SESSION_EXPIRED (géré par le contexte)
       if (err.message !== 'SESSION_EXPIRED') {
         toast.error(err.message || 'Erreur lors du chargement des procédures');
@@ -283,7 +301,7 @@ export const useProcedureDetails = (procedureId: string | null) => {
       setProcedure(data);
     } catch (err: any) {
       setError(err.message);
-      
+
       if (err.message !== 'SESSION_EXPIRED') {
         toast.error(err.message || 'Erreur lors du chargement des détails');
       }
@@ -312,7 +330,10 @@ export const useCancelProcedure = () => {
   const [loading, setLoading] = useState<boolean>(false);
 
   const cancelProcedure = useCallback(
-    async (procedureId: string, reason?: string): Promise<UserProcedure | null> => {
+    async (
+      procedureId: string,
+      reason?: string
+    ): Promise<UserProcedure | null> => {
       if (!procedureId) {
         throw new Error('ID de procédure manquant');
       }
@@ -359,7 +380,7 @@ export const canCancelProcedure = (procedure: UserProcedure): boolean => {
 
   // Vérifier si des étapes sont déjà terminées
   const hasCompletedSteps = procedure.steps.some(
-    (step) => step.statut === StepStatus.COMPLETED
+    step => step.statut === StepStatus.COMPLETED
   );
 
   // Peut annuler si aucune étape n'est terminée
@@ -377,14 +398,15 @@ export const getProgressStatus = (
   total: number;
 } => {
   const totalSteps = procedure.steps.length;
-  
+
   // Compter les étapes terminées
   const completedSteps = procedure.steps.filter(
-    (step) => step.statut === StepStatus.COMPLETED
+    step => step.statut === StepStatus.COMPLETED
   ).length;
 
   return {
-    percentage: totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0,
+    percentage:
+      totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0,
     completed: completedSteps,
     total: totalSteps,
   };
@@ -395,7 +417,8 @@ export const getProgressStatus = (
  */
 export const formatProcedureDate = (dateString: string | Date): string => {
   try {
-    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    const date =
+      typeof dateString === 'string' ? new Date(dateString) : dateString;
 
     if (isNaN(date.getTime())) {
       return 'Date invalide';
@@ -416,7 +439,8 @@ export const formatProcedureDate = (dateString: string | Date): string => {
  */
 export const formatProcedureDateTime = (dateString: string | Date): string => {
   try {
-    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    const date =
+      typeof dateString === 'string' ? new Date(dateString) : dateString;
 
     if (isNaN(date.getTime())) {
       return 'Date invalide';

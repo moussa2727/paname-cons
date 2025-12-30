@@ -22,37 +22,6 @@ import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 
-// Types
-interface DashboardStats {
-  totalUsers: number;
-  activeUsers: number;
-  inactiveUsers: number;
-  adminUsers: number;
-  regularUsers: number;
-  totalProcedures: number;
-  proceduresByStatus: { _id: string; count: number }[];
-  proceduresByDestination: { _id: string; count: number }[];
-  totalRendezvous: number;
-  rendezvousStats: {
-    pending: number;
-    confirmed: number;
-    completed: number;
-    cancelled: number;
-    expired: number;
-  };
-  totalContacts?: number;
-  unreadContacts?: number;
-}
-
-interface RecentActivity {
-  _id: string;
-  type: 'procedure' | 'rendezvous' | 'user' | 'contact';
-  action: string;
-  description: string;
-  timestamp: Date;
-  userEmail?: string;
-}
-
 // Composant d'icône pour les activités
 const ActivityIcon = ({ type }: { type: string }) => {
   switch (type) {
@@ -87,10 +56,10 @@ const AdminDashboard = () => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    
+
     return () => {
       window.removeEventListener('resize', checkMobile);
     };
@@ -195,7 +164,8 @@ const AdminDashboard = () => {
   const formatActivityDate = (timestamp: Date): string => {
     const now = new Date();
     const activityDate = new Date(timestamp);
-    const diffInHours = (now.getTime() - activityDate.getTime()) / (1000 * 60 * 60);
+    const diffInHours =
+      (now.getTime() - activityDate.getTime()) / (1000 * 60 * 60);
 
     if (diffInHours < 24) {
       // Aujourd'hui
@@ -225,7 +195,7 @@ const AdminDashboard = () => {
     if (!email) return 'Système';
     const [localPart, domain] = email.split('@');
     if (!localPart || !domain) return '***';
-    
+
     if (localPart.length <= 3) {
       return `${localPart}***@${domain}`;
     }
@@ -274,7 +244,7 @@ const AdminDashboard = () => {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className='bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2 mx-auto'
+            className='bg-linear-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2 mx-auto'
           >
             <RefreshCw
               size={18}
@@ -362,7 +332,7 @@ const AdminDashboard = () => {
   const procedureStatusStats = [
     {
       status: 'En cours',
-      value: 
+      value:
         safeFind(stats?.proceduresByStatus, 'En cours') ||
         safeFind(stats?.proceduresByStatus, 'en cours') ||
         safeFind(stats?.proceduresByStatus, 'En Cours') ||
@@ -374,7 +344,7 @@ const AdminDashboard = () => {
     },
     {
       status: 'Terminées',
-      value: 
+      value:
         safeFind(stats?.proceduresByStatus, 'Terminée') ||
         safeFind(stats?.proceduresByStatus, 'terminée') ||
         safeFind(stats?.proceduresByStatus, 'Terminee') ||
@@ -386,7 +356,7 @@ const AdminDashboard = () => {
     },
     {
       status: 'Refusées',
-      value: 
+      value:
         safeFind(stats?.proceduresByStatus, 'Refusée') ||
         safeFind(stats?.proceduresByStatus, 'refusée') ||
         safeFind(stats?.proceduresByStatus, 'Refusee') ||
@@ -400,7 +370,7 @@ const AdminDashboard = () => {
     },
     {
       status: 'Annulées',
-      value: 
+      value:
         safeFind(stats?.proceduresByStatus, 'Annulée') ||
         safeFind(stats?.proceduresByStatus, 'annulée') ||
         safeFind(stats?.proceduresByStatus, 'Annulee') ||
@@ -488,7 +458,7 @@ const AdminDashboard = () => {
             <div className='flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6'>
               <div className='space-y-3'>
                 <div className='flex items-center gap-3'>
-                  <div className='p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-md'>
+                  <div className='p-2 bg-linear-to-br from-blue-500 to-blue-600 rounded-xl shadow-md'>
                     <Shield className='w-5 h-5 md:w-6 md:h-6 text-white' />
                   </div>
                   <div>
@@ -514,8 +484,12 @@ const AdminDashboard = () => {
                     <span className='font-semibold text-gray-900'>
                       {user?.firstName}
                     </span>
-                    <span className='text-gray-500 mx-1 hidden sm:inline'>•</span>
-                    <span className='text-gray-600 block sm:inline'>Rôle: Administrateur</span>
+                    <span className='text-gray-500 mx-1 hidden sm:inline'>
+                      •
+                    </span>
+                    <span className='text-gray-600 block sm:inline'>
+                      Rôle: Administrateur
+                    </span>
                   </p>
                   {lastRefreshTime && (
                     <div className='flex items-center gap-2 text-sm text-gray-500'>
@@ -561,7 +535,9 @@ const AdminDashboard = () => {
                 >
                   <div className='flex items-start justify-between mb-3'>
                     <div className={`p-2 md:p-2.5 rounded-xl ${card.iconBg}`}>
-                      <Icon className={`w-4 h-4 md:w-5 md:h-5 ${card.iconColor}`} />
+                      <Icon
+                        className={`w-4 h-4 md:w-5 md:h-5 ${card.iconColor}`}
+                      />
                     </div>
                     {card.trend === 'positive' && (
                       <div className='flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full'>
@@ -581,7 +557,7 @@ const AdminDashboard = () => {
                       {card.title}
                     </p>
                     <div
-                      className={`text-xl md:text-2xl font-bold bg-gradient-to-r ${card.color} bg-clip-text text-transparent`}
+                      className={`text-xl md:text-2xl font-bold bg-linear-to-r ${card.color} bg-clip-text text-transparent`}
                     >
                       {typeof card.value === 'string'
                         ? card.value
@@ -591,7 +567,9 @@ const AdminDashboard = () => {
                       {card.description}
                     </p>
                     {card.detail && (
-                      <p className='text-xs text-gray-400 truncate'>{card.detail}</p>
+                      <p className='text-xs text-gray-400 truncate'>
+                        {card.detail}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -614,15 +592,19 @@ const AdminDashboard = () => {
                 </div>
                 <div className='flex items-center gap-2'>
                   <span className='text-xs md:text-sm text-gray-500'>
-                    Total: {(stats?.totalProcedures || 0).toLocaleString('fr-FR')}
+                    Total:{' '}
+                    {(stats?.totalProcedures || 0).toLocaleString('fr-FR')}
                   </span>
-                  <BarChart3 size={14} className='text-gray-400 hidden sm:block' />
+                  <BarChart3
+                    size={14}
+                    className='text-gray-400 hidden sm:block'
+                  />
                 </div>
               </div>
               <div className='space-y-3'>
                 {procedureStatusStats.map((stat, index) => {
                   if (stat.value === 0) return null;
-                  
+
                   const Icon = stat.icon;
                   const percentage = getProcedurePercentage(stat.value);
 
@@ -679,9 +661,13 @@ const AdminDashboard = () => {
                 </div>
                 <div className='flex items-center gap-2'>
                   <span className='text-xs md:text-sm text-gray-500'>
-                    Total: {(stats?.totalRendezvous || 0).toLocaleString('fr-FR')}
+                    Total:{' '}
+                    {(stats?.totalRendezvous || 0).toLocaleString('fr-FR')}
                   </span>
-                  <UserCheck size={14} className='text-gray-400 hidden sm:block' />
+                  <UserCheck
+                    size={14}
+                    className='text-gray-400 hidden sm:block'
+                  />
                 </div>
               </div>
               <div className='space-y-3'>
@@ -751,9 +737,7 @@ const AdminDashboard = () => {
                     Destinations
                   </h2>
                 </div>
-                <span className='text-xs md:text-sm text-gray-500'>
-                  Top 5
-                </span>
+                <span className='text-xs md:text-sm text-gray-500'>Top 5</span>
               </div>
               <div className='space-y-4'>
                 {popularDestinations.length > 0 ? (
@@ -810,7 +794,8 @@ const AdminDashboard = () => {
                 </div>
                 <div className='flex items-center gap-2'>
                   <span className='text-xs md:text-sm text-gray-500'>
-                    {activities.length} activité{activities.length !== 1 ? 's' : ''}
+                    {activities.length} activité
+                    {activities.length !== 1 ? 's' : ''}
                   </span>
                   {activities.length > 0 && (
                     <div className='flex items-center gap-1'>
@@ -819,8 +804,18 @@ const AdminDashboard = () => {
                         className='p-1.5 rounded-lg hover:bg-gray-100 transition-colors'
                         aria-label='Faire défiler vers la gauche'
                       >
-                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        <svg
+                          className='w-4 h-4 text-gray-500'
+                          fill='none'
+                          stroke='currentColor'
+                          viewBox='0 0 24 24'
+                        >
+                          <path
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth={2}
+                            d='M15 19l-7-7 7-7'
+                          />
                         </svg>
                       </button>
                       <button
@@ -828,21 +823,31 @@ const AdminDashboard = () => {
                         className='p-1.5 rounded-lg hover:bg-gray-100 transition-colors'
                         aria-label='Faire défiler vers la droite'
                       >
-                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        <svg
+                          className='w-4 h-4 text-gray-500'
+                          fill='none'
+                          stroke='currentColor'
+                          viewBox='0 0 24 24'
+                        >
+                          <path
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth={2}
+                            d='M9 5l7 7-7 7'
+                          />
                         </svg>
                       </button>
                     </div>
                   )}
                 </div>
               </div>
-              
+
               {/* Conteneur d'activités avec défilement horizontal sur mobile */}
-              <div 
+              <div
                 ref={activitiesContainerRef}
                 className={`${
-                  isMobile 
-                    ? 'flex overflow-x-auto gap-4 pb-4 -mx-1 px-1 snap-x snap-mandatory' 
+                  isMobile
+                    ? 'flex overflow-x-auto gap-4 pb-4 -mx-1 px-1 snap-x snap-mandatory'
                     : 'space-y-4 max-h-75 overflow-y-auto pr-2'
                 }`}
                 style={{
@@ -855,31 +860,48 @@ const AdminDashboard = () => {
                     <div
                       key={index}
                       className={`
-                        ${isMobile 
-                          ? 'min-w-70 max-w-70 bg-gray-50 rounded-xl p-4 border border-gray-200 snap-start shrink-0' 
-                          : 'flex items-start space-x-3 pb-4 border-b border-gray-100 last:border-0 group'
+                        ${
+                          isMobile
+                            ? 'min-w-70 max-w-70 bg-gray-50 rounded-xl p-4 border border-gray-200 snap-start shrink-0'
+                            : 'flex items-start space-x-3 pb-4 border-b border-gray-100 last:border-0 group'
                         }
                       `}
                     >
-                      <div className={`${isMobile ? 'mb-3' : 'shrink-0 mt-0.5'}`}>
-                        <div className={`${isMobile ? 'p-2 rounded-lg bg-white shadow-sm' : 'p-1.5 rounded-lg bg-gray-50 group-hover:bg-gray-100 transition-colors'}`}>
+                      <div
+                        className={`${isMobile ? 'mb-3' : 'shrink-0 mt-0.5'}`}
+                      >
+                        <div
+                          className={`${isMobile ? 'p-2 rounded-lg bg-white shadow-sm' : 'p-1.5 rounded-lg bg-gray-50 group-hover:bg-gray-100 transition-colors'}`}
+                        >
                           <ActivityIcon type={activity.type} />
                         </div>
                       </div>
-                      <div className={`${isMobile ? 'space-y-2' : 'flex-1 min-w-0 space-y-1'}`}>
-                        <p className={`text-sm font-medium text-gray-900 ${isMobile ? 'line-clamp-2' : 'line-clamp-2'}`}>
+                      <div
+                        className={`${isMobile ? 'space-y-2' : 'flex-1 min-w-0 space-y-1'}`}
+                      >
+                        <p
+                          className={`text-sm font-medium text-gray-900 ${isMobile ? 'line-clamp-2' : 'line-clamp-2'}`}
+                        >
                           {activity.description}
                         </p>
-                        <div className={`${isMobile ? 'space-y-2' : 'flex items-center justify-between'}`}>
-                          <div className={`flex items-center ${isMobile ? 'gap-2 flex-wrap' : 'gap-2'}`}>
-                            <div className={`text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded ${isMobile ? 'mb-1' : ''}`}>
+                        <div
+                          className={`${isMobile ? 'space-y-2' : 'flex items-center justify-between'}`}
+                        >
+                          <div
+                            className={`flex items-center ${isMobile ? 'gap-2 flex-wrap' : 'gap-2'}`}
+                          >
+                            <div
+                              className={`text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded ${isMobile ? 'mb-1' : ''}`}
+                            >
                               {activity.type}
                             </div>
                             <span className='text-xs text-gray-500 truncate'>
                               {maskEmail(activity.userEmail)}
                             </span>
                           </div>
-                          <span className={`text-xs text-gray-500 ${isMobile ? 'block mt-2' : 'shrink-0'}`}>
+                          <span
+                            className={`text-xs text-gray-500 ${isMobile ? 'block mt-2' : 'shrink-0'}`}
+                          >
                             {formatActivityDate(activity.timestamp)}
                           </span>
                         </div>
@@ -887,7 +909,9 @@ const AdminDashboard = () => {
                     </div>
                   ))
                 ) : (
-                  <div className={`${isMobile ? 'min-w-full text-center py-8' : 'text-center py-8'}`}>
+                  <div
+                    className={`${isMobile ? 'min-w-full text-center py-8' : 'text-center py-8'}`}
+                  >
                     <Clock className='w-10 h-10 md:w-12 md:h-12 text-gray-300 mx-auto mb-3' />
                     <p className='text-gray-500 text-sm md:text-base'>
                       Aucune activité récente

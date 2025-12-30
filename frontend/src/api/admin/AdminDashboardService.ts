@@ -47,12 +47,12 @@ class AdminDashboardService {
 
   private constructor() {
     this.baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-    
+
     // Validation en production
     if (!this.baseUrl) {
       throw new Error('VITE_API_URL est requis en production');
     }
-    
+
     // Nettoyage de l'URL
     this.baseUrl = this.baseUrl.replace(/\/$/, '');
   }
@@ -87,7 +87,7 @@ class AdminDashboardService {
     // CORRECTION IMPORTANTE : Vos contrôleurs montrent des routes directes
     // Ex: @Controller("contact") -> /contact, pas /api/contact
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
@@ -166,7 +166,7 @@ class AdminDashboardService {
         if (import.meta.env.DEV) {
           console.error(`API Error ${endpoint}:`, error);
         }
-        
+
         throw error;
       } finally {
         if (useRequestDeduplication) {
@@ -254,10 +254,13 @@ class AdminDashboardService {
       const [userStats, procedureStats, contactStats, rendezvousStats] =
         await Promise.allSettled([
           // ✅ Endpoint: GET /users/stats (users.controller.ts ligne 40)
-          this.requestWithCache('/api/users/stats', accessToken, {}, true).catch(
-            () => null
-          ),
-          
+          this.requestWithCache(
+            '/api/users/stats',
+            accessToken,
+            {},
+            true
+          ).catch(() => null),
+
           // ✅ Endpoint: GET /procedures/admin/stats (procedure.controller.ts ligne 78)
           this.requestWithCache(
             '/api/procedures/admin/stats',
@@ -265,16 +268,22 @@ class AdminDashboardService {
             {},
             true
           ).catch(() => null),
-          
+
           // ✅ Endpoint: GET /contact/stats (contact.controller.ts ligne 39)
-          this.requestWithCache('/api/contact/stats', accessToken, {}, true).catch(
-            () => null
-          ),
-          
+          this.requestWithCache(
+            '/api/contact/stats',
+            accessToken,
+            {},
+            true
+          ).catch(() => null),
+
           // ✅ CORRIGÉ: Utiliser '/rendezvous/stats/overview' (rendez-vous.controller.ts ligne 456)
-          this.requestWithCache('/api/rendezvous/stats/overview', accessToken, {}, true).catch(
-            () => null
-          ),
+          this.requestWithCache(
+            '/api/rendezvous/stats/overview',
+            accessToken,
+            {},
+            true
+          ).catch(() => null),
         ]);
 
       // Initialiser avec les valeurs par défaut
@@ -308,17 +317,17 @@ class AdminDashboardService {
       // Traiter les statistiques des rendez-vous
       if (rendezvousStats.status === 'fulfilled' && rendezvousStats.value) {
         const rdvData = rendezvousStats.value;
-        
+
         // Format attendu depuis le backend
         stats.totalRendezvous = rdvData.total || 0;
-        
+
         // Si le backend retourne un tableau byStatus, le convertir en objet
         if (rdvData.byStatus && Array.isArray(rdvData.byStatus)) {
           const statusMap: Record<string, number> = {};
           rdvData.byStatus.forEach((item: { _id: string; count: number }) => {
             statusMap[item._id] = item.count;
           });
-          
+
           stats.rendezvousStats = {
             pending: statusMap['En attente'] || 0,
             confirmed: statusMap['Confirmé'] || 0,
@@ -344,7 +353,7 @@ class AdminDashboardService {
       if (import.meta.env.DEV) {
         console.error('Erreur récupération stats dashboard:', error);
       }
-      
+
       // Retourner des valeurs par défaut en cas d'erreur
       return this.getDefaultStats();
     }
@@ -371,7 +380,7 @@ class AdminDashboardService {
             {},
             false
           ),
-          
+
           // ✅ Endpoint: GET /rendezvous?page=1&limit={limit} (rendez-vous.controller.ts ligne 138)
           this.requestWithCache(
             `/api/rendezvous?page=1&limit=${limit}`,
@@ -379,7 +388,7 @@ class AdminDashboardService {
             {},
             false
           ),
-          
+
           // ✅ Endpoint: GET /contact?page=1&limit={limit} (contact.controller.ts ligne 27)
           this.requestWithCache(
             `/api/contact?page=1&limit=${limit}`,
@@ -398,7 +407,7 @@ class AdminDashboardService {
         procedures.forEach((procedure: any) => {
           // Masquer les données sensibles
           const maskedEmail = this.maskEmail(procedure.email);
-          
+
           activities.push({
             _id: procedure._id,
             type: 'procedure',
@@ -419,7 +428,7 @@ class AdminDashboardService {
         rendezvous.forEach((rdv: any) => {
           // Masquer les données sensibles
           const maskedEmail = this.maskEmail(rdv.email);
-          
+
           activities.push({
             _id: rdv._id,
             type: 'rendezvous',
@@ -437,7 +446,7 @@ class AdminDashboardService {
         contacts.forEach((contact: any) => {
           // Masquer les données sensibles
           const maskedEmail = this.maskEmail(contact.email);
-          
+
           activities.push({
             _id: contact._id,
             type: 'contact',
@@ -542,11 +551,12 @@ class AdminDashboardService {
     if (!email) return '***';
     const [name, domain] = email.split('@');
     if (!name || !domain) return '***';
-    
-    const maskedName = name.length > 2 
-      ? name.substring(0, 2) + '*'.repeat(Math.max(name.length - 2, 1))
-      : '*'.repeat(name.length);
-    
+
+    const maskedName =
+      name.length > 2
+        ? name.substring(0, 2) + '*'.repeat(Math.max(name.length - 2, 1))
+        : '*'.repeat(name.length);
+
     return `${maskedName}@${domain}`;
   }
 
@@ -592,7 +602,7 @@ class AdminDashboardService {
         '/API/rendezvous/stats/overview', // ✅ Corrigé
         '/API/procedures/admin/all',
         '/API/rendezvous',
-        '/API/contact'
+        '/API/contact',
       ],
     };
   }
@@ -723,7 +733,10 @@ export const useDashboardData = () => {
       fetchCountRef.current = 0; // Réinitialiser en cas de succès
     } catch (err: any) {
       // Messages d'erreur génériques en production
-      if (err.message?.includes('429') || err.message?.includes('TOO_MANY_REQUESTS')) {
+      if (
+        err.message?.includes('429') ||
+        err.message?.includes('TOO_MANY_REQUESTS')
+      ) {
         setError('Trop de requêtes, veuillez patienter');
         lastFetchRef.current = now + 60000; // Attendre 1 minute supplémentaire
       } else if (err.message === 'UNAUTHORIZED') {
@@ -764,7 +777,7 @@ export const useDashboardData = () => {
       setLoading(false);
       setError(null);
     }
-    
+
     return () => {
       isMounted = false;
     };

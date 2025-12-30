@@ -117,14 +117,17 @@ function Header(): React.JSX.Element {
     }
   };
 
-  const handleProtectedNavigation = (path: string, isMobile: boolean = false): void => {
+  const handleProtectedNavigation = (
+    path: string,
+    isMobile: boolean = false
+  ): void => {
     if (!isAuthenticated) {
       window.sessionStorage?.setItem('redirect_after_login', path);
       navigate('/connexion', {
         state: {
           message: 'Veuillez vous connecter pour accéder à cette page',
           from: path,
-        }
+        },
       });
     } else {
       navigate(path);
@@ -153,58 +156,14 @@ function Header(): React.JSX.Element {
     },
   ];
 
-  const userMenuItems = [
-    {
-      name: 'Tableau de bord',
-      path: '/gestionnaire/statistiques',
-      icon: <LayoutDashboard className='w-4 h-4' />,
-      visible: user?.role === 'admin' || user?.isAdmin === true,
-      requiresAuth: true,
-      section: 'admin',
-    },
-    {
-      name: 'Ma Procédure',
-      path: '/ma-procedure',
-      icon: <FileText className='w-4 h-4' />,
-      visible: user?.role === 'user',
-      requiresAuth: true,
-      section: 'user',
-    },
-    {
-      name: 'Mes Rendez-Vous',
-      path: '/mes-rendez-vous',
-      icon: <Calendar className='w-4 h-4' />,
-      visible: user?.role === 'user',
-      requiresAuth: true,
-      section: 'user',
-    },
-    {
-      name: 'Mon Profil',
-      path: '/mon-profil',
-      icon: <UserIcon className='w-4 h-4' />,
-      visible: true,
-      requiresAuth: true,
-      section: 'profile',
-    },
-    {
-      name: 'Déconnexion',
-      action: handleLogout,
-      icon: isLoggingOut ? (
-        <div className='w-4 h-4 border-2 border-gray-700 border-t-transparent rounded-full animate-spin'></div>
-      ) : (
-        <LogOut className='w-4 h-4' />
-      ),
-      visible: isAuthenticated,
-      disabled: isLoggingOut,
-      requiresAuth: true,
-      section: 'logout',
-    },
-  ];
-
   const getUserInitials = (): string => {
     if (!user) return '';
-    const firstNameInitial = user.firstName ? user.firstName.charAt(0).toUpperCase() : '';
-    const lastNameInitial = user.lastName ? user.lastName.charAt(0).toUpperCase() : '';
+    const firstNameInitial = user.firstName
+      ? user.firstName.charAt(0).toUpperCase()
+      : '';
+    const lastNameInitial = user.lastName
+      ? user.lastName.charAt(0).toUpperCase()
+      : '';
     return `${firstNameInitial}${lastNameInitial}`;
   };
 
@@ -432,7 +391,9 @@ function Header(): React.JSX.Element {
                             item.path ? (
                               <button
                                 key={index}
-                                onClick={() => handleProtectedNavigation(item.path)}
+                                onClick={() =>
+                                  handleProtectedNavigation(item.path)
+                                }
                                 className='flex w-full items-center px-3 md:px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-sky-600 transition-all duration-150 font-medium'
                                 role='menuitem'
                                 disabled={item.disabled}
@@ -441,12 +402,15 @@ function Header(): React.JSX.Element {
                                 <span className='shrink-0 text-gray-400'>
                                   {item.icon}
                                 </span>
-                                <span className='ml-3 truncate'>{item.name}</span>
-                                {user?.role === 'admin' && item.name === 'Tableau de bord' && (
-                                  <span className='ml-auto text-xs text-sky-500 font-semibold'>
-                                    ADMIN
-                                  </span>
-                                )}
+                                <span className='ml-3 truncate'>
+                                  {item.name}
+                                </span>
+                                {user?.role === 'admin' &&
+                                  item.name === 'Tableau de bord' && (
+                                    <span className='ml-auto text-xs text-sky-500 font-semibold'>
+                                      ADMIN
+                                    </span>
+                                  )}
                               </button>
                             ) : (
                               <button
@@ -459,10 +423,10 @@ function Header(): React.JSX.Element {
                                 disabled={item.disabled}
                                 aria-disabled={item.disabled}
                               >
-                                <span className='shrink-0'>
-                                  {item.icon}
+                                <span className='shrink-0'>{item.icon}</span>
+                                <span className='ml-3 truncate'>
+                                  {item.name}
                                 </span>
-                                <span className='ml-3 truncate'>{item.name}</span>
                               </button>
                             )
                           )}
@@ -525,7 +489,7 @@ function Header(): React.JSX.Element {
                 className='absolute right-0 top-0 w-4/5 max-w-sm h-full bg-white shadow-lg overflow-y-auto'
                 role='menu'
                 aria-label='Navigation mobile'
-                onClick={(e) => e.stopPropagation()}
+                onClick={e => e.stopPropagation()}
               >
                 {/* En-tête mobile */}
                 <div className='sticky top-0 bg-white border-b z-10'>
@@ -581,7 +545,9 @@ function Header(): React.JSX.Element {
                           <div key={index}>
                             {item.path ? (
                               <button
-                                onClick={() => handleProtectedNavigation(item.path, true)}
+                                onClick={() =>
+                                  handleProtectedNavigation(item.path, true)
+                                }
                                 className='flex w-full items-center px-3 py-3 text-gray-800 hover:bg-gray-50 hover:text-sky-600 rounded-lg transition-all duration-150 font-medium'
                                 role='menuitem'
                                 disabled={item.disabled}
@@ -590,15 +556,16 @@ function Header(): React.JSX.Element {
                                 <span className='shrink-0 text-sky-500'>
                                   {item.icon}
                                 </span>
-                                <span className='ml-3 flex-1 text-left font-semibold'>{item.name}</span>
-                                {user?.role === 'admin' && item.name === 'Tableau de bord' && (
-                                  <span className='ml-2 text-xs font-bold text-white bg-sky-500 px-2 py-0.5 rounded'>
-                                    ADMIN
-                                  </span>
-                                )}
-                                <span className='ml-2 text-gray-400'>
-                                  →
+                                <span className='ml-3 flex-1 text-left font-semibold'>
+                                  {item.name}
                                 </span>
+                                {user?.role === 'admin' &&
+                                  item.name === 'Tableau de bord' && (
+                                    <span className='ml-2 text-xs font-bold text-white bg-sky-500 px-2 py-0.5 rounded'>
+                                      ADMIN
+                                    </span>
+                                  )}
+                                <span className='ml-2 text-gray-400'>→</span>
                               </button>
                             ) : null}
                           </div>
@@ -607,7 +574,9 @@ function Header(): React.JSX.Element {
                   )}
 
                   {/* SECTION 2: NAVIGATION PRINCIPALE */}
-                  <div className={`${isAuthenticated ? 'border-t border-gray-200 pt-4' : ''}`}>
+                  <div
+                    className={`${isAuthenticated ? 'border-t border-gray-200 pt-4' : ''}`}
+                  >
                     <div className='space-y-2'>
                       <h3 className='text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 px-2'>
                         Navigation
@@ -619,7 +588,9 @@ function Header(): React.JSX.Element {
                             onClick={() => setNav(false)}
                             role='menuitem'
                             aria-current={
-                              location.pathname === item.path ? 'page' : undefined
+                              location.pathname === item.path
+                                ? 'page'
+                                : undefined
                             }
                             className={`flex items-center px-3 py-3 rounded-lg transition-all duration-150 font-medium ${
                               location.pathname === item.path
@@ -627,12 +598,18 @@ function Header(): React.JSX.Element {
                                 : 'text-gray-600 hover:bg-gray-50 hover:text-sky-500'
                             }`}
                           >
-                            <span className={`shrink-0 ${
-                              location.pathname === item.path ? 'text-sky-500' : 'text-gray-400'
-                            }`}>
+                            <span
+                              className={`shrink-0 ${
+                                location.pathname === item.path
+                                  ? 'text-sky-500'
+                                  : 'text-gray-400'
+                              }`}
+                            >
                               {item.icon}
                             </span>
-                            <span className='ml-3 flex-1 font-medium'>{item.name}</span>
+                            <span className='ml-3 flex-1 font-medium'>
+                              {item.name}
+                            </span>
                             {location.pathname === item.path && (
                               <span className='text-xs font-semibold text-sky-500 bg-sky-100 px-2 py-0.5 rounded'>
                                 Actif
@@ -662,9 +639,7 @@ function Header(): React.JSX.Element {
                             <LogIn className='w-5 h-5 mr-2 text-sky-500' />
                             <span className='font-semibold'>Connexion</span>
                           </div>
-                          <span className='text-xs text-gray-500'>
-                            →
-                          </span>
+                          <span className='text-xs text-gray-500'>→</span>
                         </Link>
                         <Link
                           to='/inscription'
@@ -676,9 +651,7 @@ function Header(): React.JSX.Element {
                             <UserPlus className='w-5 h-5 mr-2' />
                             <span className='font-semibold'>Inscription</span>
                           </div>
-                          <span className='text-xs text-white/90'>
-                            →
-                          </span>
+                          <span className='text-xs text-white/90'>→</span>
                         </Link>
                       </div>
                     </div>
@@ -705,9 +678,7 @@ function Header(): React.JSX.Element {
                               {isLoggingOut ? 'Déconnexion...' : 'Déconnexion'}
                             </span>
                           </div>
-                          <span className='text-xs text-white/80'>
-                            →
-                          </span>
+                          <span className='text-xs text-white/80'>→</span>
                         </button>
                       </div>
                     </div>

@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 const AdminProfile: React.FC = () => {
   // ✅ Generate unique ID for this component instance
   const uniqueId = useId();
-  
+
   const { user, access_token, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -88,8 +88,7 @@ const AdminProfile: React.FC = () => {
     setMessage(null);
 
     try {
-      const VITE_API_URL =
-        import.meta.env.VITE_API_URL;
+      const VITE_API_URL = import.meta.env.VITE_API_URL;
 
       // Vérifie que le token est disponible
       if (!access_token) {

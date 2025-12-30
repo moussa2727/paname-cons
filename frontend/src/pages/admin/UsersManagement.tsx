@@ -48,7 +48,7 @@ interface LocalCreateUserDto {
 
 const UsersManagement: React.FC = () => {
   const { user: currentUser } = useAuth();
-  
+
   // Utiliser le hook de service - CORRECTION
   const {
     getAllUsers,
@@ -59,7 +59,7 @@ const UsersManagement: React.FC = () => {
     deleteUser: deleteUserService,
     toggleUserStatus: toggleUserStatusService,
     canAccessAdmin,
-    isUserAdmin
+    isUserAdmin,
   } = useAdminUserService();
 
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -91,8 +91,12 @@ const UsersManagement: React.FC = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
-  const [profileTouched, setProfileTouched] = useState<Record<string, boolean>>({});
+  const [profileErrors, setProfileErrors] = useState<Record<string, string>>(
+    {}
+  );
+  const [profileTouched, setProfileTouched] = useState<Record<string, boolean>>(
+    {}
+  );
 
   // Vérifier l'accès admin
   useEffect(() => {
@@ -120,7 +124,9 @@ const UsersManagement: React.FC = () => {
       const statsData = await getUserStats();
       setStats(statsData);
     } catch (error: any) {
-      toast.error(`${error.message || 'Erreur lors du chargement des statistiques'}`);
+      toast.error(
+        `${error.message || 'Erreur lors du chargement des statistiques'}`
+      );
     }
   };
 
@@ -216,7 +222,7 @@ const UsersManagement: React.FC = () => {
         email: newUser.email.toLowerCase().trim(),
         telephone: newUser.telephone.trim(),
         password: newUser.password,
-        role: newUser.role
+        role: newUser.role,
       };
 
       const createdUser = await createUserService(createUserDto);
@@ -262,11 +268,11 @@ const UsersManagement: React.FC = () => {
       }
 
       const updateData: UpdateUserDto = {};
-      
+
       if (editUser.email && editUser.email !== selectedUser.email) {
         updateData.email = editUser.email.toLowerCase().trim();
       }
-      
+
       if (editUser.telephone && editUser.telephone !== selectedUser.telephone) {
         updateData.telephone = editUser.telephone.trim();
       }
@@ -468,14 +474,13 @@ const UsersManagement: React.FC = () => {
 
   if (!canAccessAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-800 mb-2">
-            Accès refusé
-          </h2>
-          <p className="text-gray-600">
-            Vous n'avez pas les droits administrateur requis pour accéder à cette page.
+      <div className='min-h-screen flex items-center justify-center'>
+        <div className='text-center'>
+          <Shield className='w-16 h-16 text-red-500 mx-auto mb-4' />
+          <h2 className='text-xl font-bold text-gray-800 mb-2'>Accès refusé</h2>
+          <p className='text-gray-600'>
+            Vous n'avez pas les droits administrateur requis pour accéder à
+            cette page.
           </p>
         </div>
       </div>
@@ -648,9 +653,7 @@ const UsersManagement: React.FC = () => {
             {isLoading ? (
               <div className='p-4 text-center'>
                 <div className='animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto'></div>
-                <p className='text-slate-600 mt-2 text-sm'>
-                  Chargement...
-                </p>
+                <p className='text-slate-600 mt-2 text-sm'>Chargement...</p>
               </div>
             ) : filteredUsers.length === 0 ? (
               <div className='p-6 text-center text-slate-500'>

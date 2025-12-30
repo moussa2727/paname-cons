@@ -57,19 +57,20 @@ interface ContactFilters {
 
 const AdminMessages: React.FC = () => {
   const contactService = useAdminContactService();
-  const { user } = useAuth();
 
   // État pour les contacts avec typage strict
   const [contacts, setContacts] = useState<ContactItem[]>([]);
   const [stats, setStats] = useState<ContactStats | null>(null);
-  const [selectedContact, setSelectedContact] = useState<ContactItem | null>(null);
-  
+  const [selectedContact, setSelectedContact] = useState<ContactItem | null>(
+    null
+  );
+
   // États pour les modales
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isReplyModalOpen, setIsReplyModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [replyMessage, setReplyMessage] = useState('');
-  
+
   // États pour le chargement
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -95,18 +96,21 @@ const AdminMessages: React.FC = () => {
         ...contact,
         createdAt: new Date(contact.createdAt),
         updatedAt: new Date(contact.updatedAt),
-        respondedAt: contact.respondedAt ? new Date(contact.respondedAt) : undefined,
+        respondedAt: contact.respondedAt
+          ? new Date(contact.respondedAt)
+          : undefined,
       }));
       setContacts(contactsData);
       setTotalContacts(response.total);
     } catch (error: any) {
-      const errorMessage = error.message || 'Erreur lors du chargement des messages';
-      
+      const errorMessage =
+        error.message || 'Erreur lors du chargement des messages';
+
       // Ne pas afficher de toast pour les erreurs d'accès - géré par RequireAdmin
       if (!errorMessage.includes('Accès refusé')) {
         toast.error(errorMessage);
       }
-      
+
       // Réinitialiser les données en cas d'erreur
       setContacts([]);
       setTotalContacts(0);
@@ -121,8 +125,9 @@ const AdminMessages: React.FC = () => {
       const statsData = await contactService.getContactStats();
       setStats(statsData);
     } catch (error: any) {
-      const errorMessage = error.message || 'Erreur lors du chargement des statistiques';
-      
+      const errorMessage =
+        error.message || 'Erreur lors du chargement des statistiques';
+
       // Ne pas afficher de toast pour les erreurs d'accès
       if (!errorMessage.includes('Accès refusé')) {
         toast.error(errorMessage);
@@ -135,7 +140,7 @@ const AdminMessages: React.FC = () => {
     const fetchData = async () => {
       await Promise.all([loadContacts(), loadStats()]);
     };
-    
+
     fetchData();
   }, [filters]);
 
@@ -147,8 +152,9 @@ const AdminMessages: React.FC = () => {
       await Promise.all([loadContacts(), loadStats()]);
       toast.success('Message marqué comme lu');
     } catch (error: any) {
-      const errorMessage = error.message || 'Erreur lors du marquage du message';
-      
+      const errorMessage =
+        error.message || 'Erreur lors du marquage du message';
+
       if (!errorMessage.includes('Accès refusé')) {
         toast.error(errorMessage);
       }
@@ -171,8 +177,9 @@ const AdminMessages: React.FC = () => {
       setReplyMessage('');
       toast.success('Réponse envoyée avec succès');
     } catch (error: any) {
-      const errorMessage = error.message || "Erreur lors de l'envoi de la réponse";
-      
+      const errorMessage =
+        error.message || "Erreur lors de l'envoi de la réponse";
+
       if (!errorMessage.includes('Accès refusé')) {
         toast.error(errorMessage);
       }
@@ -190,8 +197,9 @@ const AdminMessages: React.FC = () => {
       setSelectedContact(null);
       toast.success('Message supprimé avec succès');
     } catch (error: any) {
-      const errorMessage = error.message || 'Erreur lors de la suppression du message';
-      
+      const errorMessage =
+        error.message || 'Erreur lors de la suppression du message';
+
       if (!errorMessage.includes('Accès refusé')) {
         toast.error(errorMessage);
       }
@@ -215,8 +223,9 @@ const AdminMessages: React.FC = () => {
         await handleMarkAsRead(contact._id);
       }
     } catch (error: any) {
-      const errorMessage = error.message || 'Erreur lors de la récupération des détails';
-      
+      const errorMessage =
+        error.message || 'Erreur lors de la récupération des détails';
+
       if (!errorMessage.includes('Accès refusé')) {
         toast.error(errorMessage);
       }
@@ -281,7 +290,9 @@ const AdminMessages: React.FC = () => {
             isRead ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
           }`}
         >
-          <Check className={`w-3 h-3 mr-1 ${isRead ? 'text-green-600' : 'text-red-600'}`} />
+          <Check
+            className={`w-3 h-3 mr-1 ${isRead ? 'text-green-600' : 'text-red-600'}`}
+          />
           {isRead ? 'Lu' : 'Non lu'}
         </span>
         {hasResponse && (
@@ -507,7 +518,7 @@ const AdminMessages: React.FC = () => {
           </div>
 
           <div className='divide-y divide-slate-200'>
-            {contacts.map((contact) => (
+            {contacts.map(contact => (
               <div
                 key={contact._id}
                 className={`p-3 hover:bg-slate-50 transition-colors ${
@@ -803,7 +814,8 @@ const AdminMessages: React.FC = () => {
                   </div>
                 </div>
                 <p className='text-slate-500 text-xs mt-2'>
-                  Cette action est irréversible. Le message et toute réponse associée seront définitivement supprimés.
+                  Cette action est irréversible. Le message et toute réponse
+                  associée seront définitivement supprimés.
                 </p>
               </div>
 

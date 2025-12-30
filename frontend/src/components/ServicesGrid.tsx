@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  Key,
-  Edit3,
-  BookOpen,
-  FileText,
-  Users,
-  Briefcase,
-} from 'lucide-react';
+import { Key, Edit3, BookOpen, FileText, Users, Briefcase } from 'lucide-react';
 
 const services = [
   {
@@ -61,10 +54,7 @@ const ServicesGrid = () => {
             Nos Services
           </span>
           <h2 className='text-2xl sm:text-3xl font-bold text-gray-900 mb-3'>
-            Un accompagnement{' '}
-            <span className='text-sky-600'>
-              complet
-            </span>
+            Un accompagnement <span className='text-sky-600'>complet</span>
           </h2>
           <p className='text-gray-600 text-sm sm:text-base max-w-2xl mx-auto'>
             De la création de votre compte jusqu'à l'obtention de votre visa,

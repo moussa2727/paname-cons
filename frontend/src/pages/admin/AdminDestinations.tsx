@@ -7,12 +7,9 @@ import {
   type Destination,
   type CreateDestinationData,
   type UpdateDestinationData,
-  
 } from '../../api/admin/AdminDestionService';
 import { Helmet } from 'react-helmet-async';
 import RequireAdmin from '../../context/RequireAdmin';
-
-
 
 interface DataSourceInfo {
   count: number;
@@ -25,7 +22,6 @@ const initialForm = {
 };
 
 const AdminDestinations: React.FC = (): React.JSX.Element => {
-  const { getFullImageUrl } = destinationService;
   const { access_token, user, isAuthenticated } = useAuth();
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [form, setForm] = useState(initialForm);
@@ -59,16 +55,14 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     try {
       const data =
         await destinationService.getAllDestinationsWithoutPagination();
-      
+
       // Transformer les données pour inclure les URLs complètes des images
-     const transformedData = data.map((dest: Destination) => ({
-      ...dest,
-      imagePath: destinationService.getFullImageUrl(dest.imagePath),  // ← Utiliser le service
-    }));
-      
+      const transformedData = data.map((dest: Destination) => ({
+        ...dest,
+        imagePath: destinationService.getFullImageUrl(dest.imagePath), // ← Utiliser le service
+      }));
+
       setDestinations(transformedData);
-
-
 
       // Mettre à jour les informations de source de données
       const stats = await destinationService.getStatistics();
@@ -105,14 +99,11 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
   // Vérifier les droits admin - CORRIGÉ
   const hasAdminRights = (): boolean => {
     if (!isAuthenticated || !user || !access_token) {
-    
       return false;
     }
 
     // Vérifier le rôle admin
     const isAdminUser = user.role === 'admin';
-
-   
 
     return isAdminUser;
   };
@@ -257,8 +248,6 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
   };
 
   useEffect(() => {
-  
-
     fetchDestinations();
     return () => {
       if (popoverTimeout.current) clearTimeout(popoverTimeout.current);

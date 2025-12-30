@@ -24,7 +24,6 @@ const CtaSection: React.FC<CtaSectionProps> = ({ className }) => {
             backgroundSize: '10px 10px',
           }}
         />
-         
 
         {/* Light overlay gradient */}
         <div className='absolute inset-0 bg-linear-to-r from-sky-600/30 to-transparent' />

@@ -62,7 +62,6 @@ export interface MaintenanceResponse {
 // ===== HOOK PERSONNALISÉ =====
 export const useAdminUserService = () => {
   const { fetchWithAuth, user, isAuthenticated } = useAuth();
-  const API_URL = import.meta.env.VITE_API_URL;
 
   // Fonction utilitaire pour vérifier les droits admin
   const isUserAdmin = (currentUser: any): boolean => {
@@ -76,14 +75,14 @@ export const useAdminUserService = () => {
       const backendMessages = [
         'Cet email est déjà utilisé',
         'Ce numéro de téléphone est déjà utilisé',
-        'Cet email est réservé à l\'administrateur principal',
-        'Impossible de supprimer l\'administrateur unique',
-        'Impossible de désactiver l\'administrateur unique',
-        'Seul l\'administrateur principal peut réinitialiser son mot de passe',
+        "Cet email est réservé à l'administrateur principal",
+        "Impossible de supprimer l'administrateur unique",
+        "Impossible de désactiver l'administrateur unique",
+        "Seul l'administrateur principal peut réinitialiser son mot de passe",
         'Le mot de passe doit contenir au moins 8 caractères',
         'Les mots de passe ne correspondent pas',
         'Au moins un champ (email ou téléphone) doit être fourni',
-        'Format d\'email invalide',
+        "Format d'email invalide",
         'Le téléphone doit contenir au moins 5 caractères',
         'Aucune donnée valide à mettre à jour',
         'Mode maintenance activé',
@@ -91,7 +90,7 @@ export const useAdminUserService = () => {
         'Utilisateur non trouvé',
         'Déconnecté temporairement',
       ];
-      
+
       for (const msg of backendMessages) {
         if (error.message.includes(msg)) {
           return msg;
@@ -113,7 +112,7 @@ export const useAdminUserService = () => {
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
-    
+
     const headers = {
       'Content-Type': 'application/json',
       ...options.headers,
@@ -150,15 +149,18 @@ export const useAdminUserService = () => {
       return await response.json();
     } catch (err: any) {
       clearTimeout(timeoutId);
-      
+
       if (err.name === 'AbortError') {
         throw new Error('La requête a expiré. Veuillez réessayer.');
       }
-      
-      if (err.message === 'SESSION_EXPIRED' || err.message.includes('Session expirée')) {
+
+      if (
+        err.message === 'SESSION_EXPIRED' ||
+        err.message.includes('Session expirée')
+      ) {
         throw new Error('Session expirée, veuillez vous reconnecter');
       }
-      
+
       // Extraire le message d'erreur spécifique du backend
       const userMessage = extractBackendErrorMessage(err);
       throw new Error(userMessage);
@@ -168,7 +170,9 @@ export const useAdminUserService = () => {
   // Nettoyer les données pour ne pas envoyer de champs undefined/null
   const cleanData = (data: any): any => {
     return Object.fromEntries(
-      Object.entries(data).filter(([_, value]) => value !== undefined && value !== null && value !== '')
+      Object.entries(data).filter(
+        ([_, value]) => value !== undefined && value !== null && value !== ''
+      )
     );
   };
 
@@ -183,7 +187,9 @@ export const useAdminUserService = () => {
 
       return users as User[];
     } catch (err: any) {
-      throw new Error(err.message || "Erreur lors de la récupération des utilisateurs");
+      throw new Error(
+        err.message || 'Erreur lors de la récupération des utilisateurs'
+      );
     }
   };
 
@@ -196,7 +202,9 @@ export const useAdminUserService = () => {
 
       return stats as UserStats;
     } catch (err: any) {
-      throw new Error(err.message || 'Erreur lors de la récupération des statistiques');
+      throw new Error(
+        err.message || 'Erreur lors de la récupération des statistiques'
+      );
     }
   };
 
@@ -205,7 +213,7 @@ export const useAdminUserService = () => {
     try {
       // Validation frontend supplémentaire
       if (!userData.email || !userData.email.includes('@')) {
-        throw new Error('Format d\'email invalide');
+        throw new Error("Format d'email invalide");
       }
 
       if (userData.password.length < 8) {
@@ -223,16 +231,21 @@ export const useAdminUserService = () => {
 
       return result as User;
     } catch (err: any) {
-      throw new Error(err.message || "Erreur lors de la création de l'utilisateur");
+      throw new Error(
+        err.message || "Erreur lors de la création de l'utilisateur"
+      );
     }
   };
 
   // Mettre à jour un utilisateur
-  const updateUser = async (userId: string, userData: UpdateUserDto): Promise<User> => {
+  const updateUser = async (
+    userId: string,
+    userData: UpdateUserDto
+  ): Promise<User> => {
     try {
       // Validation frontend
       if (userData.email && !userData.email.includes('@')) {
-        throw new Error('Format d\'email invalide');
+        throw new Error("Format d'email invalide");
       }
 
       if (userData.telephone && userData.telephone.trim().length < 5) {
@@ -277,7 +290,9 @@ export const useAdminUserService = () => {
         body: JSON.stringify(passwordData),
       });
     } catch (err: any) {
-      throw new Error(err.message || 'Erreur lors de la réinitialisation du mot de passe');
+      throw new Error(
+        err.message || 'Erreur lors de la réinitialisation du mot de passe'
+      );
     }
   };
 
@@ -295,9 +310,12 @@ export const useAdminUserService = () => {
   // Activer/désactiver un utilisateur
   const toggleUserStatus = async (userId: string): Promise<User> => {
     try {
-      const result = await secureAdminFetch(`/api/users/${userId}/toggle-status`, {
-        method: 'PATCH',
-      });
+      const result = await secureAdminFetch(
+        `/api/users/${userId}/toggle-status`,
+        {
+          method: 'PATCH',
+        }
+      );
 
       return result as User;
     } catch (err: any) {
@@ -306,11 +324,16 @@ export const useAdminUserService = () => {
   };
 
   // Vérifier l'accès d'un utilisateur
-  const checkUserAccess = async (userId: string): Promise<AccessCheckResponse> => {
+  const checkUserAccess = async (
+    userId: string
+  ): Promise<AccessCheckResponse> => {
     try {
-      const accessCheck = await secureAdminFetch(`/api/users/check-access/${userId}`, {
-        method: 'GET',
-      });
+      const accessCheck = await secureAdminFetch(
+        `/api/users/check-access/${userId}`,
+        {
+          method: 'GET',
+        }
+      );
 
       return accessCheck as AccessCheckResponse;
     } catch (err: any) {
@@ -331,7 +354,9 @@ export const useAdminUserService = () => {
     }
   };
 
-  const setMaintenanceMode = async (enabled: boolean): Promise<MaintenanceResponse> => {
+  const setMaintenanceMode = async (
+    enabled: boolean
+  ): Promise<MaintenanceResponse> => {
     try {
       const response = await secureAdminFetch('/api/users/maintenance-mode', {
         method: 'POST',
@@ -349,7 +374,7 @@ export const useAdminUserService = () => {
     try {
       // Validation frontend
       if (userData.email && !userData.email.includes('@')) {
-        throw new Error('Format d\'email invalide');
+        throw new Error("Format d'email invalide");
       }
 
       if (userData.telephone && userData.telephone.trim().length < 5) {
@@ -404,7 +429,7 @@ export const useAdminUserService = () => {
     // Utilitaires
     isUserAdmin: isUserAdmin(user),
     canAccessAdmin: isAuthenticated && isUserAdmin(user),
-    
+
     // Pour débogage
     currentUser: user,
   };

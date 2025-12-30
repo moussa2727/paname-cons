@@ -23,7 +23,6 @@ import {
   CheckCircle,
   XCircle,
   Edit,
-  Save,
   Briefcase,
   GraduationCap,
   Globe,
@@ -32,10 +31,15 @@ import {
   Shield,
   Check,
   X as XIcon,
-  ExternalLink,
 } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
-import { AdminRendezVousService, createAdminRendezVousService, RendezvousStatus, AdminOpinion, Rendezvous } from '../../api/admin/AdminRendezVousService';
+import {
+  AdminRendezVousService,
+  createAdminRendezVousService,
+  RendezvousStatus,
+  AdminOpinion,
+  Rendezvous,
+} from '../../api/admin/AdminRendezVousService';
 import { destinationService } from '../../api/admin/AdminDestionService';
 
 // Interface pour les destinations de l'API
@@ -89,8 +93,23 @@ interface CreateRendezVousData {
 }
 
 // Constantes
-const EDUCATION_LEVELS = ['Bac', 'Bac+1', 'Bac+2', 'Licence', 'Master I', 'Master II', 'Doctorat'] as const;
-const FILIERES = ['Informatique', 'Médecine', 'Ingénierie', 'Droit', 'Commerce', 'Autre'] as const;
+const EDUCATION_LEVELS = [
+  'Bac',
+  'Bac+1',
+  'Bac+2',
+  'Licence',
+  'Master I',
+  'Master II',
+  'Doctorat',
+] as const;
+const FILIERES = [
+  'Informatique',
+  'Médecine',
+  'Ingénierie',
+  'Droit',
+  'Commerce',
+  'Autre',
+] as const;
 const STATUTS = ['En attente', 'Confirmé', 'Terminé', 'Annulé'] as const;
 const ADMIN_AVIS = ['Favorable', 'Défavorable'] as const;
 
@@ -116,8 +135,12 @@ const AdminRendezVous = (): React.JSX.Element => {
     status: RendezvousStatus;
   } | null>(null);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [showMobileActions, setShowMobileActions] = useState<string | null>(null);
-  const [editingRendezvous, setEditingRendezvous] = useState<string | null>(null);
+  const [showMobileActions, setShowMobileActions] = useState<string | null>(
+    null
+  );
+  const [editingRendezvous, setEditingRendezvous] = useState<string | null>(
+    null
+  );
   const [editingForm, setEditingForm] = useState<Partial<LocalRendezvous>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -141,16 +164,22 @@ const AdminRendezVous = (): React.JSX.Element => {
 
   // Fonction pour basculer les actions mobiles
   const toggleMobileActions = useCallback((id: string) => {
-    setShowMobileActions(prev => prev === id ? null : id);
+    setShowMobileActions(prev => (prev === id ? null : id));
   }, []);
 
   // Fermer les menus au clic extérieur
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (actionsRef.current && !actionsRef.current.contains(event.target as Node)) {
+      if (
+        actionsRef.current &&
+        !actionsRef.current.contains(event.target as Node)
+      ) {
         setShowMobileActions(null);
       }
-      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+      if (
+        modalRef.current &&
+        !modalRef.current.contains(event.target as Node)
+      ) {
         setShowCreateModal(false);
         setShowDeleteModal(null);
         setShowAvisModal(false);
@@ -170,13 +199,13 @@ const AdminRendezVous = (): React.JSX.Element => {
           ...options,
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${access_token}`,
+            Authorization: `Bearer ${access_token}`,
             ...options?.headers,
           },
         });
         return response;
       };
-      
+
       setService(createAdminRendezVousService(fetchWithAuth));
     }
   }, [access_token]);
@@ -185,7 +214,8 @@ const AdminRendezVous = (): React.JSX.Element => {
   const fetchDestinations = async () => {
     setIsLoadingDestinations(true);
     try {
-      const dests = await destinationService.getAllDestinationsWithoutPagination();
+      const dests =
+        await destinationService.getAllDestinationsWithoutPagination();
       const compatibleDestinations: Destination[] = dests.map(dest => ({
         _id: dest._id,
         country: dest.country,
@@ -196,7 +226,10 @@ const AdminRendezVous = (): React.JSX.Element => {
       }));
       setDestinations(compatibleDestinations);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erreur lors du chargement des destinations';
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Erreur lors du chargement des destinations';
       toast.error(errorMessage);
     } finally {
       setIsLoadingDestinations(false);
@@ -229,63 +262,78 @@ const AdminRendezVous = (): React.JSX.Element => {
   });
 
   // Vérifier si un rendez-vous peut être supprimé
-  const canDeleteRendezvous = useCallback((rdv: LocalRendezvous): { canDelete: boolean; message?: string } => {
-    const isAdmin = user?.role === 'admin';
-    
-    if (isAdmin) {
-      return { canDelete: true };
-    }
-    
-    if (rdv.status === 'Annulé') {
-      return { canDelete: false, message: 'Rendez-vous déjà annulé' };
-    }
-    
-    if (rdv.status === 'Terminé') {
-      return { canDelete: false, message: 'Impossible de supprimer un rendez-vous terminé' };
-    }
-    
-    if (rdv.canBeCancelledByUser !== undefined) {
-      return { 
-        canDelete: rdv.canBeCancelledByUser,
-        message: rdv.canBeCancelledByUser ? undefined : "Vous ne pouvez plus annuler votre rendez-vous à moins de 2 heures de l'heure prévue"
-      };
-    }
-    
-    // Calcul manuel si la propriété n'est pas disponible
-    if (rdv.date && rdv.time) {
-      const rdvDateTime = new Date(`${rdv.date}T${rdv.time}:00`);
-      const now = new Date();
-      const diffMs = rdvDateTime.getTime() - now.getTime();
-      const twoHoursMs = 2 * 60 * 60 * 1000;
-      
-      if (diffMs <= twoHoursMs) {
+  const canDeleteRendezvous = useCallback(
+    (rdv: LocalRendezvous): { canDelete: boolean; message?: string } => {
+      const isAdmin = user?.role === 'admin';
+
+      if (isAdmin) {
+        return { canDelete: true };
+      }
+
+      if (rdv.status === 'Annulé') {
+        return { canDelete: false, message: 'Rendez-vous déjà annulé' };
+      }
+
+      if (rdv.status === 'Terminé') {
         return {
           canDelete: false,
-          message: "Vous ne pouvez plus annuler votre rendez-vous à moins de 2 heures de l'heure prévue",
+          message: 'Impossible de supprimer un rendez-vous terminé',
         };
       }
-    }
-    
-    return { canDelete: true };
-  }, [user?.role]);
+
+      if (rdv.canBeCancelledByUser !== undefined) {
+        return {
+          canDelete: rdv.canBeCancelledByUser,
+          message: rdv.canBeCancelledByUser
+            ? undefined
+            : "Vous ne pouvez plus annuler votre rendez-vous à moins de 2 heures de l'heure prévue",
+        };
+      }
+
+      // Calcul manuel si la propriété n'est pas disponible
+      if (rdv.date && rdv.time) {
+        const rdvDateTime = new Date(`${rdv.date}T${rdv.time}:00`);
+        const now = new Date();
+        const diffMs = rdvDateTime.getTime() - now.getTime();
+        const twoHoursMs = 2 * 60 * 60 * 1000;
+
+        if (diffMs <= twoHoursMs) {
+          return {
+            canDelete: false,
+            message:
+              "Vous ne pouvez plus annuler votre rendez-vous à moins de 2 heures de l'heure prévue",
+          };
+        }
+      }
+
+      return { canDelete: true };
+    },
+    [user?.role]
+  );
 
   // Récupération des rendez-vous
   const loadRendezvous = async () => {
     if (!service) return;
-    
+
     setIsLoading(true);
     try {
       const result = await service.fetchAllRendezvous(page, limit, {
-        status: selectedStatus === 'tous' ? undefined : (selectedStatus as RendezvousStatus),
+        status:
+          selectedStatus === 'tous'
+            ? undefined
+            : (selectedStatus as RendezvousStatus),
         search: searchTerm.trim() || undefined,
       });
-      
+
       const normalizedRendezvous = (result.data || []).map(normalizeRendezvous);
-      
+
       setRendezvous(normalizedRendezvous);
       setTotalPages(result.totalPages || 1);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue lors du chargement';
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Une erreur est survenue lors du chargement';
       if (!errorMessage.includes('Session expirée')) {
         toast.error(errorMessage);
       }
@@ -300,7 +348,11 @@ const AdminRendezVous = (): React.JSX.Element => {
   };
 
   // Mise à jour du statut
-  const handleUpdateStatus = async (id: string, status: RendezvousStatus, avisAdmin?: AdminOpinion) => {
+  const handleUpdateStatus = async (
+    id: string,
+    status: RendezvousStatus,
+    avisAdmin?: AdminOpinion
+  ) => {
     if (!service || !id) {
       toast.error('Service non disponible ou ID invalide');
       return;
@@ -308,12 +360,25 @@ const AdminRendezVous = (): React.JSX.Element => {
 
     setIsSubmitting(true);
     try {
-      const updatedRdv = await service.updateRendezvousStatus(id, status, avisAdmin, user?.email);
+      const updatedRdv = await service.updateRendezvousStatus(
+        id,
+        status,
+        avisAdmin,
+        user?.email
+      );
       const normalizedRdv = normalizeRendezvous(updatedRdv);
 
-      setRendezvous(prev => prev.map(rdv => 
-        rdv.id === id ? { ...rdv, status: normalizedRdv.status, avisAdmin: normalizedRdv.avisAdmin } : rdv
-      ));
+      setRendezvous(prev =>
+        prev.map(rdv =>
+          rdv.id === id
+            ? {
+                ...rdv,
+                status: normalizedRdv.status,
+                avisAdmin: normalizedRdv.avisAdmin,
+              }
+            : rdv
+        )
+      );
 
       setShowAvisModal(false);
       setPendingStatusUpdate(null);
@@ -338,9 +403,11 @@ const AdminRendezVous = (): React.JSX.Element => {
         } else if (errorMessage.includes('404')) {
           errorMessage = 'Rendez-vous non trouvé.';
         } else if (errorMessage.includes('avis admin')) {
-          errorMessage = "L'avis administratif est obligatoire pour terminer un rendez-vous.";
+          errorMessage =
+            "L'avis administratif est obligatoire pour terminer un rendez-vous.";
         } else if (errorMessage.includes('futur')) {
-          errorMessage = "Impossible de marquer comme terminé un rendez-vous futur.";
+          errorMessage =
+            'Impossible de marquer comme terminé un rendez-vous futur.';
         }
       }
 
@@ -351,137 +418,183 @@ const AdminRendezVous = (): React.JSX.Element => {
   };
 
   // Mise à jour complète d'un rendez-vous
-// Mise à jour complète d'un rendez-vous
-const handleUpdateRendezvous = async (id: string) => {
-  if (!service || !id) {
-    toast.error('Service non disponible ou ID invalide');
-    return;
-  }
-
-  setIsSubmitting(true);
-  try {
-    // Validation des champs "Autre"
-    if (editingForm.destination === 'Autre' && (!editingForm.destinationAutre || editingForm.destinationAutre.trim() === '')) {
-      toast.error('La destination "Autre" nécessite une précision');
-      return;
-    }
-    
-    if (editingForm.filiere === 'Autre' && (!editingForm.filiereAutre || editingForm.filiereAutre.trim() === '')) {
-      toast.error('La filière "Autre" nécessite une précision');
+  // Mise à jour complète d'un rendez-vous
+  const handleUpdateRendezvous = async (id: string) => {
+    if (!service || !id) {
+      toast.error('Service non disponible ou ID invalide');
       return;
     }
 
-    // Récupérer le rendez-vous original pour les champs non modifiés
-    const originalRdv = rendezvous.find(rdv => rdv.id === id);
-    if (!originalRdv) {
-      toast.error('Rendez-vous non trouvé');
-      return;
-    }
-
-    // CORRECTION ICI : Inclure tous les champs requis pour le DTO backend
-    const updateData = {
-      firstName: editingForm.firstName || originalRdv.firstName,
-      lastName: editingForm.lastName || originalRdv.lastName,
-      email: editingForm.email || originalRdv.email,
-      telephone: editingForm.telephone || originalRdv.telephone,
-      destination: editingForm.destination || originalRdv.destination,
-      destinationAutre: editingForm.destination === 'Autre' ? (editingForm.destinationAutre || originalRdv.destinationAutre) : undefined,
-      niveauEtude: editingForm.niveauEtude || originalRdv.niveauEtude,
-      filiere: editingForm.filiere || originalRdv.filiere,
-      filiereAutre: editingForm.filiere === 'Autre' ? (editingForm.filiereAutre || originalRdv.filiereAutre) : undefined,
-      // Inclure date et time si nécessaire
-      date: originalRdv.date,  // Conserver la date originale
-      time: originalRdv.time,  // Conserver l'heure originale
-    };
-
-    // Nettoyer les données : supprimer les champs undefined
-    Object.keys(updateData).forEach(key => {
-      if (updateData[key as keyof typeof updateData] === undefined) {
-        delete updateData[key as keyof typeof updateData];
+    setIsSubmitting(true);
+    try {
+      // Validation des champs "Autre"
+      if (
+        editingForm.destination === 'Autre' &&
+        (!editingForm.destinationAutre ||
+          editingForm.destinationAutre.trim() === '')
+      ) {
+        toast.error('La destination "Autre" nécessite une précision');
+        return;
       }
-    });
 
-    // Valider que tous les champs requis sont présents
-    const requiredFields = ['firstName', 'lastName', 'email', 'telephone', 'destination', 'niveauEtude', 'filiere'];
-    const missingFields = requiredFields.filter(field => !updateData[field as keyof typeof updateData]);
-    
-    if (missingFields.length > 0) {
-      toast.error(`Champs requis manquants: ${missingFields.join(', ')}`);
-      return;
+      if (
+        editingForm.filiere === 'Autre' &&
+        (!editingForm.filiereAutre || editingForm.filiereAutre.trim() === '')
+      ) {
+        toast.error('La filière "Autre" nécessite une précision');
+        return;
+      }
+
+      // Récupérer le rendez-vous original pour les champs non modifiés
+      const originalRdv = rendezvous.find(rdv => rdv.id === id);
+      if (!originalRdv) {
+        toast.error('Rendez-vous non trouvé');
+        return;
+      }
+
+      // CORRECTION ICI : Inclure tous les champs requis pour le DTO backend
+      const updateData = {
+        firstName: editingForm.firstName || originalRdv.firstName,
+        lastName: editingForm.lastName || originalRdv.lastName,
+        email: editingForm.email || originalRdv.email,
+        telephone: editingForm.telephone || originalRdv.telephone,
+        destination: editingForm.destination || originalRdv.destination,
+        destinationAutre:
+          editingForm.destination === 'Autre'
+            ? editingForm.destinationAutre || originalRdv.destinationAutre
+            : undefined,
+        niveauEtude: editingForm.niveauEtude || originalRdv.niveauEtude,
+        filiere: editingForm.filiere || originalRdv.filiere,
+        filiereAutre:
+          editingForm.filiere === 'Autre'
+            ? editingForm.filiereAutre || originalRdv.filiereAutre
+            : undefined,
+        // Inclure date et time si nécessaire
+        date: originalRdv.date, // Conserver la date originale
+        time: originalRdv.time, // Conserver l'heure originale
+      };
+
+      // Nettoyer les données : supprimer les champs undefined
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key as keyof typeof updateData] === undefined) {
+          delete updateData[key as keyof typeof updateData];
+        }
+      });
+
+      // Valider que tous les champs requis sont présents
+      const requiredFields = [
+        'firstName',
+        'lastName',
+        'email',
+        'telephone',
+        'destination',
+        'niveauEtude',
+        'filiere',
+      ];
+      const missingFields = requiredFields.filter(
+        field => !updateData[field as keyof typeof updateData]
+      );
+
+      if (missingFields.length > 0) {
+        toast.error(`Champs requis manquants: ${missingFields.join(', ')}`);
+        return;
+      }
+
+      // Validation supplémentaire pour les champs "Autre"
+      if (
+        updateData.destination === 'Autre' &&
+        (!updateData.destinationAutre ||
+          updateData.destinationAutre.trim() === '')
+      ) {
+        toast.error('La destination "Autre" nécessite une précision');
+        return;
+      }
+
+      if (
+        updateData.filiere === 'Autre' &&
+        (!updateData.filiereAutre || updateData.filiereAutre.trim() === '')
+      ) {
+        toast.error('La filière "Autre" nécessite une précision');
+        return;
+      }
+
+      // CORRECTION ICI : Valider les données avant l'envoi
+      const validationErrors = service.validateRendezvousData(updateData);
+      if (validationErrors.length > 0) {
+        validationErrors.forEach(error => toast.error(error));
+        return;
+      }
+
+      const updatedRdv = await service.updateRendezvous(
+        id,
+        updateData,
+        user?.email || '',
+        true
+      );
+      const normalizedRdv = normalizeRendezvous(updatedRdv);
+
+      setRendezvous(prev =>
+        prev.map(rdv => (rdv.id === id ? normalizedRdv : rdv))
+      );
+      setEditingRendezvous(null);
+      setEditingForm({});
+
+      toast.success('Rendez-vous mis à jour avec succès');
+    } catch (error: any) {
+      console.error('Erreur détaillée:', error);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Une erreur est survenue';
+
+      // Message plus détaillé pour les erreurs de validation
+      if (
+        errorMessage.includes('Validation failed') ||
+        errorMessage.includes('Données invalides')
+      ) {
+        toast.error(
+          'Erreur de validation des données. Veuillez vérifier tous les champs.'
+        );
+      } else {
+        toast.error(errorMessage);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Validation supplémentaire pour les champs "Autre"
-    if (updateData.destination === 'Autre' && (!updateData.destinationAutre || updateData.destinationAutre.trim() === '')) {
-      toast.error('La destination "Autre" nécessite une précision');
-      return;
-    }
-    
-    if (updateData.filiere === 'Autre' && (!updateData.filiereAutre || updateData.filiereAutre.trim() === '')) {
-      toast.error('La filière "Autre" nécessite une précision');
-      return;
-    }
-
-    // CORRECTION ICI : Valider les données avant l'envoi
-    const validationErrors = service.validateRendezvousData(updateData);
-    if (validationErrors.length > 0) {
-      validationErrors.forEach(error => toast.error(error));
-      return;
-    }
-
-    const updatedRdv = await service.updateRendezvous(id, updateData, user?.email || '', true);
-    const normalizedRdv = normalizeRendezvous(updatedRdv);
-
-    setRendezvous(prev => prev.map(rdv => rdv.id === id ? normalizedRdv : rdv));
-    setEditingRendezvous(null);
-    setEditingForm({});
-
-    toast.success('Rendez-vous mis à jour avec succès');
-  } catch (error: any) {
-    console.error('Erreur détaillée:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
-    
-    // Message plus détaillé pour les erreurs de validation
-    if (errorMessage.includes('Validation failed') || errorMessage.includes('Données invalides')) {
-      toast.error('Erreur de validation des données. Veuillez vérifier tous les champs.');
-    } else {
-      toast.error(errorMessage);
-    }
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   // Gestion du changement de statut via select
-  const handleStatusChange = useCallback((id: string, newStatus: string) => {
-    if (!id) {
-      toast.error('Erreur: ID du rendez-vous manquant');
-      return;
-    }
+  const handleStatusChange = useCallback(
+    (id: string, newStatus: string) => {
+      if (!id) {
+        toast.error('Erreur: ID du rendez-vous manquant');
+        return;
+      }
 
-    const rdvExists = rendezvous.find(rdv => rdv.id === id);
-    if (!rdvExists) {
-      toast.error('Erreur: Rendez-vous non trouvé');
-      return;
-    }
+      const rdvExists = rendezvous.find(rdv => rdv.id === id);
+      if (!rdvExists) {
+        toast.error('Erreur: Rendez-vous non trouvé');
+        return;
+      }
 
-    // Règles spéciales pour admin
-    const isAdmin = user?.role === 'admin';
-    
-    if (newStatus === 'Terminé') {
-      // Pour "Terminé", toujours demander l'avis admin
-      setPendingStatusUpdate({ id, status: newStatus as RendezvousStatus });
-      setShowAvisModal(true);
-    } else if (newStatus === 'En attente' && isAdmin) {
-      // Pour "En attente", pas besoin d'avis
-      handleUpdateStatus(id, newStatus as RendezvousStatus);
-    } else if (newStatus === 'Annulé') {
-      // Pour "Annulé", demander confirmation
-      setShowDeleteModal(id);
-    } else {
-      // Pour les autres statuts (Confirmé)
-      handleUpdateStatus(id, newStatus as RendezvousStatus);
-    }
-  }, [rendezvous, user?.role]);
+      // Règles spéciales pour admin
+      const isAdmin = user?.role === 'admin';
+
+      if (newStatus === 'Terminé') {
+        // Pour "Terminé", toujours demander l'avis admin
+        setPendingStatusUpdate({ id, status: newStatus as RendezvousStatus });
+        setShowAvisModal(true);
+      } else if (newStatus === 'En attente' && isAdmin) {
+        // Pour "En attente", pas besoin d'avis
+        handleUpdateStatus(id, newStatus as RendezvousStatus);
+      } else if (newStatus === 'Annulé') {
+        // Pour "Annulé", demander confirmation
+        setShowDeleteModal(id);
+      } else {
+        // Pour les autres statuts (Confirmé)
+        handleUpdateStatus(id, newStatus as RendezvousStatus);
+      }
+    },
+    [rendezvous, user?.role]
+  );
 
   // Gestion de la sélection d'avis
   const handleAvisSelection = (avis: AdminOpinion) => {
@@ -495,7 +608,11 @@ const handleUpdateRendezvous = async (id: string) => {
       return;
     }
 
-    handleUpdateStatus(pendingStatusUpdate.id, pendingStatusUpdate.status, avis);
+    handleUpdateStatus(
+      pendingStatusUpdate.id,
+      pendingStatusUpdate.status,
+      avis
+    );
   };
 
   // Suppression
@@ -519,7 +636,8 @@ const handleUpdateRendezvous = async (id: string) => {
       setShowMobileActions(null);
       toast.success('Rendez-vous annulé avec succès');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Une erreur est survenue';
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -543,7 +661,11 @@ const handleUpdateRendezvous = async (id: string) => {
         return;
       }
 
-      const createdRdv = await service.createRendezvous(newRendezVous, user?.email || '', true);
+      const createdRdv = await service.createRendezvous(
+        newRendezVous,
+        user?.email || '',
+        true
+      );
       const normalizedRdv = normalizeRendezvous(createdRdv);
 
       setRendezvous(prev => [normalizedRdv, ...prev]);
@@ -561,14 +683,15 @@ const handleUpdateRendezvous = async (id: string) => {
         filiereAutre: '',
       });
       setShowCreateModal(false);
-      
+
       // Rafraîchir les dates disponibles
       const dates = await service.fetchAvailableDates();
       setAvailableDates(dates);
-      
+
       toast.success('Rendez-vous créé avec succès');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Une erreur est survenue';
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -578,13 +701,13 @@ const handleUpdateRendezvous = async (id: string) => {
   // Gestion du changement de date pour charger les créneaux disponibles
   const handleDateChange = async (date: string) => {
     if (!service) return;
-    
+
     setNewRendezVous(prev => ({
       ...prev,
       date,
       time: '',
     }));
-    
+
     if (date) {
       try {
         const slots = await service.fetchAvailableSlots(date);
@@ -601,7 +724,7 @@ const handleUpdateRendezvous = async (id: string) => {
   useEffect(() => {
     const initialize = async () => {
       if (!service) return;
-      
+
       try {
         await Promise.all([
           loadRendezvous(),
@@ -619,7 +742,7 @@ const handleUpdateRendezvous = async (id: string) => {
         console.error('Erreur initialisation:', error);
       }
     };
-    
+
     if (service) {
       initialize();
     }
@@ -661,12 +784,15 @@ const handleUpdateRendezvous = async (id: string) => {
       weekday: 'short',
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
     });
   };
 
   // Options de destination depuis l'API + "Autre"
-  const destinationOptions = [...destinations.map(dest => dest.country), 'Autre'];
+  const destinationOptions = [
+    ...destinations.map(dest => dest.country),
+    'Autre',
+  ];
 
   // Fonction pour démarrer l'édition d'un rendez-vous
   const startEditing = (rdv: LocalRendezvous) => {
@@ -678,7 +804,7 @@ const handleUpdateRendezvous = async (id: string) => {
       telephone: rdv.telephone,
       destination: rdv.destination,
       destinationAutre: rdv.destinationAutre,
-      niveauEtude: rdv.niveauEtude, 
+      niveauEtude: rdv.niveauEtude,
       filiere: rdv.filiere,
       filiereAutre: rdv.filiereAutre,
     });
@@ -703,26 +829,26 @@ const handleUpdateRendezvous = async (id: string) => {
   // Fonction pour obtenir les transitions de statut autorisées
   const getAvailableStatusTransitions = (currentStatus: string): string[] => {
     const isAdmin = user?.role === 'admin';
-    
+
     // Transitions complètes pour admin
     const adminTransitions: Record<string, string[]> = {
       'En attente': ['Confirmé', 'Annulé', 'Terminé'],
-      'Confirmé': ['En attente', 'Terminé', 'Annulé'],
-      'Terminé': ['En attente', 'Confirmé', 'Annulé'],
-      'Annulé': ['En attente', 'Confirmé', 'Terminé'],
+      Confirmé: ['En attente', 'Terminé', 'Annulé'],
+      Terminé: ['En attente', 'Confirmé', 'Annulé'],
+      Annulé: ['En attente', 'Confirmé', 'Terminé'],
     };
-    
+
     // Transitions limitées pour utilisateur
     const userTransitions: Record<string, string[]> = {
       'En attente': [],
-      'Confirmé': ['Annulé'],
-      'Terminé': [],
-      'Annulé': [],
+      Confirmé: ['Annulé'],
+      Terminé: [],
+      Annulé: [],
     };
-    
+
     const transitions = isAdmin ? adminTransitions : userTransitions;
     const availableTransitions = transitions[currentStatus] || [];
-    
+
     // Toujours inclure le statut actuel + transitions autorisées
     return [currentStatus, ...availableTransitions];
   };
@@ -738,10 +864,10 @@ const handleUpdateRendezvous = async (id: string) => {
 
   if (!service) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-slate-50 to-blue-50/30 flex items-center justify-center p-4">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-sky-500 mx-auto mb-4" />
-          <p className="text-slate-600">Initialisation du service...</p>
+      <div className='min-h-screen bg-linear-to-br from-slate-50 to-blue-50/30 flex items-center justify-center p-4'>
+        <div className='text-center'>
+          <Loader2 className='w-12 h-12 animate-spin text-sky-500 mx-auto mb-4' />
+          <p className='text-slate-600'>Initialisation du service...</p>
         </div>
       </div>
     );
@@ -757,11 +883,13 @@ const handleUpdateRendezvous = async (id: string) => {
         />
         <meta name='robots' content='noindex, nofollow' />
       </Helmet>
-      
-      <div className='min-h-screen bg-linear-to-br from-slate-50 to-blue-50/30' onClick={closeAllMenus}>
+
+      <div
+        className='min-h-screen bg-linear-to-br from-slate-50 to-blue-50/30'
+        onClick={closeAllMenus}
+      >
         {/* Container principal */}
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8'>
-          
           {/* En-tête mobile-first */}
           <div className='mb-6'>
             <div className='flex flex-col gap-4'>
@@ -773,11 +901,12 @@ const handleUpdateRendezvous = async (id: string) => {
                       Gestion des Rendez-vous
                     </h1>
                     <p className='text-sm text-slate-600 mt-1 hidden sm:block'>
-                      {stats.total} rendez-vous • {stats.confirmed} confirmés • {stats.pending} en attente
+                      {stats.total} rendez-vous • {stats.confirmed} confirmés •{' '}
+                      {stats.pending} en attente
                     </p>
                   </div>
                 </div>
-                
+
                 <button
                   onClick={() => setShowCreateModal(true)}
                   disabled={isSubmitting}
@@ -792,15 +921,19 @@ const handleUpdateRendezvous = async (id: string) => {
                   <span className='sm:hidden'>Nouveau</span>
                 </button>
               </div>
-              
+
               <p className='text-sm sm:text-base text-slate-600 sm:hidden'>
-                {stats.total} rendez-vous • {stats.confirmed} confirmés • {stats.pending} en attente
+                {stats.total} rendez-vous • {stats.confirmed} confirmés •{' '}
+                {stats.pending} en attente
               </p>
             </div>
           </div>
 
           {/* Barre de recherche et filtres - Mobile First */}
-          <div className='bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6' ref={modalRef}>
+          <div
+            className='bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6'
+            ref={modalRef}
+          >
             <div className='flex flex-col gap-4'>
               {/* Barre de recherche */}
               <div className='relative'>
@@ -813,7 +946,7 @@ const handleUpdateRendezvous = async (id: string) => {
                   className='w-full pl-10 pr-4 py-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent hover:border-sky-400 transition-all duration-200 text-sm sm:text-base'
                 />
               </div>
-              
+
               {/* Filtres - Layout responsive */}
               <div className='flex flex-col sm:flex-row gap-3'>
                 {/* Bouton filtre mobile */}
@@ -829,9 +962,11 @@ const handleUpdateRendezvous = async (id: string) => {
                     <ChevronDown className='w-4 h-4' />
                   )}
                 </button>
-                
+
                 {/* Filtre de statut */}
-                <div className={`${showMobileFilters ? 'block' : 'hidden'} sm:block sm:flex-1 sm:max-w-xs`}>
+                <div
+                  className={`${showMobileFilters ? 'block' : 'hidden'} sm:block sm:flex-1 sm:max-w-xs`}
+                >
                   <div className='relative'>
                     <Filter className='absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400' />
                     <select
@@ -844,7 +979,9 @@ const handleUpdateRendezvous = async (id: string) => {
                     >
                       <option value='tous'>Tous les statuts</option>
                       {STATUTS.map(statut => (
-                        <option key={statut} value={statut}>{statut}</option>
+                        <option key={statut} value={statut}>
+                          {statut}
+                        </option>
                       ))}
                     </select>
                     <ChevronDown className='absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none' />
@@ -859,14 +996,20 @@ const handleUpdateRendezvous = async (id: string) => {
             {isLoading ? (
               <div className='bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center'>
                 <Loader2 className='w-8 h-8 animate-spin text-sky-500 mx-auto' />
-                <p className='text-slate-600 mt-3 text-sm'>Chargement des rendez-vous...</p>
+                <p className='text-slate-600 mt-3 text-sm'>
+                  Chargement des rendez-vous...
+                </p>
               </div>
             ) : rendezvous.length === 0 ? (
               <div className='bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center'>
                 <Calendar className='w-12 h-12 mx-auto mb-4 text-slate-400' />
-                <p className='text-slate-600 font-medium'>Aucun rendez-vous trouvé</p>
+                <p className='text-slate-600 font-medium'>
+                  Aucun rendez-vous trouvé
+                </p>
                 <p className='text-sm text-slate-500 mt-1'>
-                  {searchTerm || selectedStatus !== 'tous' ? 'Essayez de modifier vos critères de recherche' : 'Créez votre premier rendez-vous'}
+                  {searchTerm || selectedStatus !== 'tous'
+                    ? 'Essayez de modifier vos critères de recherche'
+                    : 'Créez votre premier rendez-vous'}
                 </p>
               </div>
             ) : (
@@ -875,10 +1018,12 @@ const handleUpdateRendezvous = async (id: string) => {
                   const { canDelete } = canDeleteRendezvous(rdv);
                   const isEditing = editingRendezvous === rdv.id;
                   const isAdmin = user?.role === 'admin';
-                  const statusOptions = getAvailableStatusTransitions(rdv.status);
-                  
+                  const statusOptions = getAvailableStatusTransitions(
+                    rdv.status
+                  );
+
                   return (
-                    <div 
+                    <div
                       key={`rdv-${rdv.id || index}-${index}`}
                       className='bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-200'
                     >
@@ -893,7 +1038,12 @@ const handleUpdateRendezvous = async (id: string) => {
                                     <input
                                       type='text'
                                       value={editingForm.firstName || ''}
-                                      onChange={(e) => setEditingForm(prev => ({ ...prev, firstName: e.target.value }))}
+                                      onChange={e =>
+                                        setEditingForm(prev => ({
+                                          ...prev,
+                                          firstName: e.target.value,
+                                        }))
+                                      }
                                       className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                       placeholder='Prénom'
                                       required
@@ -903,7 +1053,12 @@ const handleUpdateRendezvous = async (id: string) => {
                                     <input
                                       type='text'
                                       value={editingForm.lastName || ''}
-                                      onChange={(e) => setEditingForm(prev => ({ ...prev, lastName: e.target.value }))}
+                                      onChange={e =>
+                                        setEditingForm(prev => ({
+                                          ...prev,
+                                          lastName: e.target.value,
+                                        }))
+                                      }
                                       className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                       placeholder='Nom'
                                       required
@@ -913,7 +1068,12 @@ const handleUpdateRendezvous = async (id: string) => {
                                 <input
                                   type='email'
                                   value={editingForm.email || ''}
-                                  onChange={(e) => setEditingForm(prev => ({ ...prev, email: e.target.value }))}
+                                  onChange={e =>
+                                    setEditingForm(prev => ({
+                                      ...prev,
+                                      email: e.target.value,
+                                    }))
+                                  }
                                   className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                   placeholder='Email'
                                   required
@@ -933,13 +1093,18 @@ const handleUpdateRendezvous = async (id: string) => {
                                 </div>
                                 <div className='flex items-center gap-2 text-xs text-slate-600 truncate'>
                                   <Phone className='w-3 h-3 text-slate-400 shrink-0' />
-                                  <span className='truncate'>{rdv.telephone}</span>
+                                  <span className='truncate'>
+                                    {rdv.telephone}
+                                  </span>
                                 </div>
                               </>
                             )}
                           </div>
-                          
-                          <div className='relative shrink-0 ml-2' ref={actionsRef}>
+
+                          <div
+                            className='relative shrink-0 ml-2'
+                            ref={actionsRef}
+                          >
                             {isEditing ? (
                               <div className='flex gap-1'>
                                 <button
@@ -964,7 +1129,7 @@ const handleUpdateRendezvous = async (id: string) => {
                               <>
                                 {isAdmin && (
                                   <button
-                                    onClick={(e) => {
+                                    onClick={e => {
                                       e.stopPropagation();
                                       startEditing(rdv);
                                     }}
@@ -974,7 +1139,7 @@ const handleUpdateRendezvous = async (id: string) => {
                                   </button>
                                 )}
                                 <button
-                                  onClick={(e) => {
+                                  onClick={e => {
                                     e.stopPropagation();
                                     toggleMobileActions(rdv.id);
                                   }}
@@ -984,28 +1149,37 @@ const handleUpdateRendezvous = async (id: string) => {
                                 </button>
                               </>
                             )}
-                            
+
                             {showMobileActions === rdv.id && (
                               <div className='absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 w-48 animate-in fade-in slide-in-from-top-2 duration-200'>
                                 <div className='p-2'>
-                                  <div className='text-xs font-medium text-slate-500 mb-1 px-2'>Changer le statut</div>
+                                  <div className='text-xs font-medium text-slate-500 mb-1 px-2'>
+                                    Changer le statut
+                                  </div>
                                   <select
                                     value={rdv.status}
                                     onChange={e => {
                                       e.stopPropagation();
-                                      handleStatusChange(rdv.id, e.target.value);
+                                      handleStatusChange(
+                                        rdv.id,
+                                        e.target.value
+                                      );
                                     }}
                                     className={`w-full px-3 py-2 rounded-lg text-sm font-medium border focus:outline-none focus:ring-2 focus:ring-sky-500 hover:border-sky-400 transition-all duration-200 ${getStatusColor(rdv.status)}`}
                                   >
-                                    {getAvailableStatusTransitions(rdv.status).map(status => (
+                                    {getAvailableStatusTransitions(
+                                      rdv.status
+                                    ).map(status => (
                                       <option key={status} value={status}>
                                         {status}
-                                        {status === 'En attente' && user?.role === 'admin' && ' (Admin seulement)'}
+                                        {status === 'En attente' &&
+                                          user?.role === 'admin' &&
+                                          ' (Admin seulement)'}
                                       </option>
                                     ))}
                                   </select>
                                 </div>
-                                
+
                                 <div className='border-t border-slate-200'>
                                   <button
                                     onClick={() => {
@@ -1033,48 +1207,78 @@ const handleUpdateRendezvous = async (id: string) => {
                           <div className='space-y-3 mb-4'>
                             <div className='grid grid-cols-2 gap-2'>
                               <div>
-                                <label className='text-xs text-slate-500 mb-1 block'>Téléphone</label>
+                                <label className='text-xs text-slate-500 mb-1 block'>
+                                  Téléphone
+                                </label>
                                 <input
                                   type='tel'
                                   value={editingForm.telephone || ''}
-                                  onChange={(e) => setEditingForm(prev => ({ ...prev, telephone: e.target.value }))}
+                                  onChange={e =>
+                                    setEditingForm(prev => ({
+                                      ...prev,
+                                      telephone: e.target.value,
+                                    }))
+                                  }
                                   className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                   required
                                 />
                               </div>
                               <div>
-                                <label className='text-xs text-slate-500 mb-1 block'>Niveau</label>
+                                <label className='text-xs text-slate-500 mb-1 block'>
+                                  Niveau
+                                </label>
                                 <select
                                   value={editingForm.niveauEtude || ''}
-                                  onChange={(e) => setEditingForm(prev => ({ ...prev, niveauEtude: e.target.value }))}
+                                  onChange={e =>
+                                    setEditingForm(prev => ({
+                                      ...prev,
+                                      niveauEtude: e.target.value,
+                                    }))
+                                  }
                                   className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                   required
                                 >
                                   <option value=''>Sélectionner</option>
                                   {EDUCATION_LEVELS.map(niveau => (
-                                    <option key={niveau} value={niveau}>{niveau}</option>
+                                    <option key={niveau} value={niveau}>
+                                      {niveau}
+                                    </option>
                                   ))}
                                 </select>
                               </div>
                             </div>
                             <div>
-                              <label className='text-xs text-slate-500 mb-1 block'>Destination</label>
+                              <label className='text-xs text-slate-500 mb-1 block'>
+                                Destination
+                              </label>
                               <select
                                 value={editingForm.destination || ''}
-                                onChange={(e) => setEditingForm(prev => ({ ...prev, destination: e.target.value }))}
+                                onChange={e =>
+                                  setEditingForm(prev => ({
+                                    ...prev,
+                                    destination: e.target.value,
+                                  }))
+                                }
                                 className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500 mb-2'
                                 required
                               >
                                 <option value=''>Sélectionner</option>
                                 {destinationOptions.map(dest => (
-                                  <option key={dest} value={dest}>{dest}</option>
+                                  <option key={dest} value={dest}>
+                                    {dest}
+                                  </option>
                                 ))}
                               </select>
                               {editingForm.destination === 'Autre' && (
                                 <input
                                   type='text'
                                   value={editingForm.destinationAutre || ''}
-                                  onChange={(e) => setEditingForm(prev => ({ ...prev, destinationAutre: e.target.value }))}
+                                  onChange={e =>
+                                    setEditingForm(prev => ({
+                                      ...prev,
+                                      destinationAutre: e.target.value,
+                                    }))
+                                  }
                                   className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                   placeholder='Précisez la destination'
                                   required
@@ -1082,23 +1286,37 @@ const handleUpdateRendezvous = async (id: string) => {
                               )}
                             </div>
                             <div>
-                              <label className='text-xs text-slate-500 mb-1 block'>Filière</label>
+                              <label className='text-xs text-slate-500 mb-1 block'>
+                                Filière
+                              </label>
                               <select
                                 value={editingForm.filiere || ''}
-                                onChange={(e) => setEditingForm(prev => ({ ...prev, filiere: e.target.value }))}
+                                onChange={e =>
+                                  setEditingForm(prev => ({
+                                    ...prev,
+                                    filiere: e.target.value,
+                                  }))
+                                }
                                 className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500 mb-2'
                                 required
                               >
                                 <option value=''>Sélectionner</option>
                                 {FILIERES.map(filiere => (
-                                  <option key={filiere} value={filiere}>{filiere}</option>
+                                  <option key={filiere} value={filiere}>
+                                    {filiere}
+                                  </option>
                                 ))}
                               </select>
                               {editingForm.filiere === 'Autre' && (
                                 <input
                                   type='text'
                                   value={editingForm.filiereAutre || ''}
-                                  onChange={(e) => setEditingForm(prev => ({ ...prev, filiereAutre: e.target.value }))}
+                                  onChange={e =>
+                                    setEditingForm(prev => ({
+                                      ...prev,
+                                      filiereAutre: e.target.value,
+                                    }))
+                                  }
                                   className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                   placeholder='Précisez la filière'
                                   required
@@ -1126,7 +1344,8 @@ const handleUpdateRendezvous = async (id: string) => {
                               <div className='flex items-center gap-2'>
                                 <MapPin className='w-3 h-3 text-slate-400 shrink-0' />
                                 <span className='text-slate-700 truncate'>
-                                  {rdv.destination === 'Autre' && rdv.destinationAutre
+                                  {rdv.destination === 'Autre' &&
+                                  rdv.destinationAutre
                                     ? rdv.destinationAutre
                                     : rdv.destination}
                                 </span>
@@ -1219,7 +1438,9 @@ const handleUpdateRendezvous = async (id: string) => {
                           Aucun rendez-vous trouvé
                         </p>
                         <p className='text-sm text-slate-500 mt-1'>
-                          {searchTerm || selectedStatus !== 'tous' ? 'Essayez de modifier vos critères de recherche' : 'Créez votre premier rendez-vous'}
+                          {searchTerm || selectedStatus !== 'tous'
+                            ? 'Essayez de modifier vos critères de recherche'
+                            : 'Créez votre premier rendez-vous'}
                         </p>
                       </td>
                     </tr>
@@ -1228,10 +1449,12 @@ const handleUpdateRendezvous = async (id: string) => {
                       const { canDelete } = canDeleteRendezvous(rdv);
                       const isEditing = editingRendezvous === rdv.id;
                       const isAdmin = user?.role === 'admin';
-                      const statusOptions = getAvailableStatusTransitions(rdv.status);
-                      
+                      const statusOptions = getAvailableStatusTransitions(
+                        rdv.status
+                      );
+
                       return (
-                        <tr 
+                        <tr
                           key={`rdv-${rdv.id || index}-${index}`}
                           className='hover:bg-slate-50/50 transition-colors duration-150'
                         >
@@ -1242,7 +1465,12 @@ const handleUpdateRendezvous = async (id: string) => {
                                   <input
                                     type='text'
                                     value={editingForm.firstName || ''}
-                                    onChange={(e) => setEditingForm(prev => ({ ...prev, firstName: e.target.value }))}
+                                    onChange={e =>
+                                      setEditingForm(prev => ({
+                                        ...prev,
+                                        firstName: e.target.value,
+                                      }))
+                                    }
                                     className='flex-1 px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                     placeholder='Prénom'
                                     required
@@ -1250,7 +1478,12 @@ const handleUpdateRendezvous = async (id: string) => {
                                   <input
                                     type='text'
                                     value={editingForm.lastName || ''}
-                                    onChange={(e) => setEditingForm(prev => ({ ...prev, lastName: e.target.value }))}
+                                    onChange={e =>
+                                      setEditingForm(prev => ({
+                                        ...prev,
+                                        lastName: e.target.value,
+                                      }))
+                                    }
                                     className='flex-1 px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                     placeholder='Nom'
                                     required
@@ -1259,7 +1492,12 @@ const handleUpdateRendezvous = async (id: string) => {
                                 <input
                                   type='email'
                                   value={editingForm.email || ''}
-                                  onChange={(e) => setEditingForm(prev => ({ ...prev, email: e.target.value }))}
+                                  onChange={e =>
+                                    setEditingForm(prev => ({
+                                      ...prev,
+                                      email: e.target.value,
+                                    }))
+                                  }
                                   className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                   placeholder='Email'
                                   required
@@ -1267,7 +1505,12 @@ const handleUpdateRendezvous = async (id: string) => {
                                 <input
                                   type='tel'
                                   value={editingForm.telephone || ''}
-                                  onChange={(e) => setEditingForm(prev => ({ ...prev, telephone: e.target.value }))}
+                                  onChange={e =>
+                                    setEditingForm(prev => ({
+                                      ...prev,
+                                      telephone: e.target.value,
+                                    }))
+                                  }
                                   className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                   placeholder='Téléphone'
                                   required
@@ -1283,16 +1526,20 @@ const handleUpdateRendezvous = async (id: string) => {
                                 </div>
                                 <div className='flex items-center gap-2 text-sm'>
                                   <Mail className='w-3 h-3 text-slate-400 shrink-0' />
-                                  <span className='text-slate-700 truncate'>{rdv.email}</span>
+                                  <span className='text-slate-700 truncate'>
+                                    {rdv.email}
+                                  </span>
                                 </div>
                                 <div className='flex items-center gap-2 text-sm'>
                                   <Phone className='w-3 h-3 text-slate-400 shrink-0' />
-                                  <span className='text-slate-700'>{rdv.telephone}</span>
+                                  <span className='text-slate-700'>
+                                    {rdv.telephone}
+                                  </span>
                                 </div>
                               </div>
                             )}
                           </td>
-                          
+
                           <td className='px-6 py-4'>
                             <div className='space-y-2'>
                               <div className='flex items-center gap-2'>
@@ -1309,28 +1556,42 @@ const handleUpdateRendezvous = async (id: string) => {
                               </div>
                             </div>
                           </td>
-                          
+
                           <td className='px-6 py-4'>
                             {isEditing ? (
                               <div className='space-y-2'>
                                 <div>
-                                  <label className='text-xs text-slate-500 mb-1 block'>Destination</label>
+                                  <label className='text-xs text-slate-500 mb-1 block'>
+                                    Destination
+                                  </label>
                                   <select
                                     value={editingForm.destination || ''}
-                                    onChange={(e) => setEditingForm(prev => ({ ...prev, destination: e.target.value }))}
+                                    onChange={e =>
+                                      setEditingForm(prev => ({
+                                        ...prev,
+                                        destination: e.target.value,
+                                      }))
+                                    }
                                     className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500 mb-2'
                                     required
                                   >
                                     <option value=''>Sélectionner</option>
                                     {destinationOptions.map(dest => (
-                                      <option key={dest} value={dest}>{dest}</option>
+                                      <option key={dest} value={dest}>
+                                        {dest}
+                                      </option>
                                     ))}
                                   </select>
                                   {editingForm.destination === 'Autre' && (
                                     <input
                                       type='text'
                                       value={editingForm.destinationAutre || ''}
-                                      onChange={(e) => setEditingForm(prev => ({ ...prev, destinationAutre: e.target.value }))}
+                                      onChange={e =>
+                                        setEditingForm(prev => ({
+                                          ...prev,
+                                          destinationAutre: e.target.value,
+                                        }))
+                                      }
                                       className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                       placeholder='Précisez la destination'
                                       required
@@ -1338,23 +1599,37 @@ const handleUpdateRendezvous = async (id: string) => {
                                   )}
                                 </div>
                                 <div>
-                                  <label className='text-xs text-slate-500 mb-1 block'>Filière</label>
+                                  <label className='text-xs text-slate-500 mb-1 block'>
+                                    Filière
+                                  </label>
                                   <select
                                     value={editingForm.filiere || ''}
-                                    onChange={(e) => setEditingForm(prev => ({ ...prev, filiere: e.target.value }))}
+                                    onChange={e =>
+                                      setEditingForm(prev => ({
+                                        ...prev,
+                                        filiere: e.target.value,
+                                      }))
+                                    }
                                     className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500 mb-2'
                                     required
                                   >
                                     <option value=''>Sélectionner</option>
                                     {FILIERES.map(filiere => (
-                                      <option key={filiere} value={filiere}>{filiere}</option>
+                                      <option key={filiere} value={filiere}>
+                                        {filiere}
+                                      </option>
                                     ))}
                                   </select>
                                   {editingForm.filiere === 'Autre' && (
                                     <input
                                       type='text'
                                       value={editingForm.filiereAutre || ''}
-                                      onChange={(e) => setEditingForm(prev => ({ ...prev, filiereAutre: e.target.value }))}
+                                      onChange={e =>
+                                        setEditingForm(prev => ({
+                                          ...prev,
+                                          filiereAutre: e.target.value,
+                                        }))
+                                      }
                                       className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                       placeholder='Précisez la filière'
                                       required
@@ -1362,16 +1637,25 @@ const handleUpdateRendezvous = async (id: string) => {
                                   )}
                                 </div>
                                 <div>
-                                  <label className='text-xs text-slate-500 mb-1 block'>Niveau d'étude</label>
+                                  <label className='text-xs text-slate-500 mb-1 block'>
+                                    Niveau d'étude
+                                  </label>
                                   <select
                                     value={editingForm.niveauEtude || ''}
-                                    onChange={(e) => setEditingForm(prev => ({ ...prev, niveauEtude: e.target.value }))}
+                                    onChange={e =>
+                                      setEditingForm(prev => ({
+                                        ...prev,
+                                        niveauEtude: e.target.value,
+                                      }))
+                                    }
                                     className='w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-sky-500'
                                     required
                                   >
                                     <option value=''>Sélectionner</option>
                                     {EDUCATION_LEVELS.map(niveau => (
-                                      <option key={niveau} value={niveau}>{niveau}</option>
+                                      <option key={niveau} value={niveau}>
+                                        {niveau}
+                                      </option>
                                     ))}
                                   </select>
                                 </div>
@@ -1381,9 +1665,12 @@ const handleUpdateRendezvous = async (id: string) => {
                                 <div className='flex items-start gap-2'>
                                   <MapPin className='w-4 h-4 text-slate-400 mt-0.5 shrink-0' />
                                   <div className='min-w-0'>
-                                    <div className='font-medium text-slate-800'>Destination</div>
+                                    <div className='font-medium text-slate-800'>
+                                      Destination
+                                    </div>
                                     <div className='text-sm text-slate-600 truncate'>
-                                      {rdv.destination === 'Autre' && rdv.destinationAutre
+                                      {rdv.destination === 'Autre' &&
+                                      rdv.destinationAutre
                                         ? rdv.destinationAutre
                                         : rdv.destination}
                                     </div>
@@ -1392,9 +1679,12 @@ const handleUpdateRendezvous = async (id: string) => {
                                 <div className='flex items-start gap-2'>
                                   <BookOpen className='w-4 h-4 text-slate-400 mt-0.5 shrink-0' />
                                   <div className='min-w-0'>
-                                    <div className='font-medium text-slate-800'>Filière</div>
+                                    <div className='font-medium text-slate-800'>
+                                      Filière
+                                    </div>
                                     <div className='text-sm text-slate-600 truncate'>
-                                      {rdv.filiere === 'Autre' && rdv.filiereAutre
+                                      {rdv.filiere === 'Autre' &&
+                                      rdv.filiereAutre
                                         ? rdv.filiereAutre
                                         : rdv.filiere}
                                     </div>
@@ -1403,14 +1693,18 @@ const handleUpdateRendezvous = async (id: string) => {
                                 <div className='flex items-start gap-2'>
                                   <GraduationCap className='w-4 h-4 text-slate-400 mt-0.5 shrink-0' />
                                   <div className='min-w-0'>
-                                    <div className='font-medium text-slate-800'>Niveau</div>
-                                    <div className='text-sm text-slate-600 truncate'>{rdv.niveauEtude}</div>
+                                    <div className='font-medium text-slate-800'>
+                                      Niveau
+                                    </div>
+                                    <div className='text-sm text-slate-600 truncate'>
+                                      {rdv.niveauEtude}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
                             )}
                           </td>
-                          
+
                           <td className='px-6 py-4'>
                             <div className='space-y-2'>
                               <select
@@ -1419,15 +1713,21 @@ const handleUpdateRendezvous = async (id: string) => {
                                   e.stopPropagation();
                                   handleStatusChange(rdv.id, e.target.value);
                                 }}
-                                disabled={statusOptions.length <= 1 || isSubmitting}
+                                disabled={
+                                  statusOptions.length <= 1 || isSubmitting
+                                }
                                 className={`px-3 py-2 rounded-lg text-sm font-medium border focus:outline-none focus:ring-2 focus:ring-sky-500 hover:border-sky-400 transition-all duration-200 ${getStatusColor(rdv.status)} ${statusOptions.length <= 1 || isSubmitting ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
                               >
                                 {statusOptions.map(status => (
-                                  <option key={status} value={status}>{status}</option>
+                                  <option key={status} value={status}>
+                                    {status}
+                                  </option>
                                 ))}
                               </select>
                               {rdv.status === 'Terminé' && rdv.avisAdmin && (
-                                <div className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-2 ${getAvisColor(rdv.avisAdmin)}`}>
+                                <div
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-2 ${getAvisColor(rdv.avisAdmin)}`}
+                                >
                                   {rdv.avisAdmin === 'Favorable' ? (
                                     <CheckCircle className='w-3 h-3 shrink-0' />
                                   ) : (
@@ -1443,13 +1743,15 @@ const handleUpdateRendezvous = async (id: string) => {
                               )}
                             </div>
                           </td>
-                          
+
                           <td className='px-6 py-4'>
                             <div className='flex items-center gap-2'>
                               {isEditing ? (
                                 <div className='flex gap-1'>
                                   <button
-                                    onClick={() => handleUpdateRendezvous(rdv.id)}
+                                    onClick={() =>
+                                      handleUpdateRendezvous(rdv.id)
+                                    }
                                     disabled={isSubmitting}
                                     className='p-2 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50'
                                   >
@@ -1470,7 +1772,7 @@ const handleUpdateRendezvous = async (id: string) => {
                                 <>
                                   {isAdmin && (
                                     <button
-                                      onClick={(e) => {
+                                      onClick={e => {
                                         e.stopPropagation();
                                         startEditing(rdv);
                                       }}
@@ -1479,10 +1781,10 @@ const handleUpdateRendezvous = async (id: string) => {
                                       <Edit className='w-4 h-4 text-slate-400' />
                                     </button>
                                   )}
-                                  
+
                                   <div className='relative' ref={actionsRef}>
                                     <button
-                                      onClick={(e) => {
+                                      onClick={e => {
                                         e.stopPropagation();
                                         toggleMobileActions(rdv.id);
                                       }}
@@ -1490,11 +1792,13 @@ const handleUpdateRendezvous = async (id: string) => {
                                     >
                                       <MoreVertical className='w-4 h-4 text-slate-400' />
                                     </button>
-                                    
+
                                     {showMobileActions === rdv.id && (
                                       <div className='absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 w-48 animate-in fade-in slide-in-from-top-2 duration-200'>
                                         <div className='p-2'>
-                                          <div className='text-xs font-medium text-slate-500 mb-2 px-2'>Actions</div>
+                                          <div className='text-xs font-medium text-slate-500 mb-2 px-2'>
+                                            Actions
+                                          </div>
                                           <div className='space-y-1'>
                                             <button
                                               onClick={() => {
@@ -1509,7 +1813,9 @@ const handleUpdateRendezvous = async (id: string) => {
                                               }`}
                                             >
                                               <Trash2 className='w-4 h-4' />
-                                              {isAdmin ? 'Supprimer' : 'Annuler'}
+                                              {isAdmin
+                                                ? 'Supprimer'
+                                                : 'Annuler'}
                                             </button>
                                           </div>
                                         </div>
@@ -1533,7 +1839,13 @@ const handleUpdateRendezvous = async (id: string) => {
           {totalPages > 1 && (
             <div className='flex flex-col sm:flex-row justify-between items-center gap-4 mt-6'>
               <div className='text-sm text-slate-600'>
-                Affichage de <span className='font-medium'>{(page - 1) * limit + 1}</span> à <span className='font-medium'>{Math.min(page * limit, stats.total)}</span> sur <span className='font-medium'>{stats.total}</span> rendez-vous
+                Affichage de{' '}
+                <span className='font-medium'>{(page - 1) * limit + 1}</span> à{' '}
+                <span className='font-medium'>
+                  {Math.min(page * limit, stats.total)}
+                </span>{' '}
+                sur <span className='font-medium'>{stats.total}</span>{' '}
+                rendez-vous
               </div>
               <div className='flex items-center gap-2'>
                 <button
@@ -1556,7 +1868,7 @@ const handleUpdateRendezvous = async (id: string) => {
                     } else {
                       pageNum = page - 2 + i;
                     }
-                    
+
                     return (
                       <button
                         key={pageNum}
@@ -1573,7 +1885,9 @@ const handleUpdateRendezvous = async (id: string) => {
                   })}
                 </div>
                 <button
-                  onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+                  onClick={() =>
+                    setPage(prev => Math.min(totalPages, prev + 1))
+                  }
                   disabled={page === totalPages || isLoading}
                   className='px-4 py-2 rounded-lg border border-slate-300 hover:border-sky-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 flex items-center gap-2'
                 >
@@ -1588,8 +1902,14 @@ const handleUpdateRendezvous = async (id: string) => {
 
       {/* Modal de confirmation de suppression */}
       {showDeleteModal && (
-        <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4' onClick={(e) => e.stopPropagation()}>
-          <div className='bg-white rounded-2xl shadow-xl max-w-sm w-full mx-auto animate-in fade-in zoom-in-95 duration-200' ref={modalRef}>
+        <div
+          className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'
+          onClick={e => e.stopPropagation()}
+        >
+          <div
+            className='bg-white rounded-2xl shadow-xl max-w-sm w-full mx-auto animate-in fade-in zoom-in-95 duration-200'
+            ref={modalRef}
+          >
             <div className='p-5 border-b border-slate-200'>
               <div className='flex items-center gap-3'>
                 <AlertCircle className='w-6 h-6 text-rose-500 shrink-0' />
@@ -1598,7 +1918,8 @@ const handleUpdateRendezvous = async (id: string) => {
                 </h2>
               </div>
               <p className='text-sm text-slate-600 mt-2'>
-                Êtes-vous sûr de vouloir supprimer ce rendez-vous ? Cette action est irréversible.
+                Êtes-vous sûr de vouloir supprimer ce rendez-vous ? Cette action
+                est irréversible.
               </p>
             </div>
             <div className='p-5 flex justify-end gap-3'>
@@ -1629,8 +1950,14 @@ const handleUpdateRendezvous = async (id: string) => {
 
       {/* Modal de sélection d'avis pour le statut "Terminé" */}
       {showAvisModal && (
-        <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4' onClick={(e) => e.stopPropagation()}>
-          <div className='bg-white rounded-2xl shadow-xl max-w-xs w-full mx-auto animate-in fade-in zoom-in-95 duration-200' ref={modalRef}>
+        <div
+          className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'
+          onClick={e => e.stopPropagation()}
+        >
+          <div
+            className='bg-white rounded-2xl shadow-xl max-w-xs w-full mx-auto animate-in fade-in zoom-in-95 duration-200'
+            ref={modalRef}
+          >
             <div className='p-5 border-b border-slate-200'>
               <div className='flex items-center gap-2'>
                 <Shield className='w-5 h-5 text-sky-500 shrink-0' />
@@ -1691,8 +2018,14 @@ const handleUpdateRendezvous = async (id: string) => {
 
       {/* Modal de création de rendez-vous */}
       {showCreateModal && (
-        <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto' onClick={(e) => e.stopPropagation()}>
-          <div className='bg-white rounded-2xl shadow-xl w-full max-w-md mx-auto my-8 animate-in fade-in zoom-in-95 duration-200' ref={modalRef}>
+        <div
+          className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto'
+          onClick={e => e.stopPropagation()}
+        >
+          <div
+            className='bg-white rounded-2xl shadow-xl w-full max-w-md mx-auto my-8 animate-in fade-in zoom-in-95 duration-200'
+            ref={modalRef}
+          >
             {/* Formulaire */}
             <form onSubmit={handleCreateRendezVous} className='p-4 md:p-6'>
               <div className='space-y-6 md:space-y-8 max-h-[65vh] md:max-h-[70vh] overflow-y-auto pr-1 md:pr-3 pb-4'>
@@ -1706,7 +2039,7 @@ const handleUpdateRendezvous = async (id: string) => {
                       Informations personnelles
                     </h3>
                   </div>
-                  
+
                   <div className='space-y-4 md:space-y-5'>
                     {/* Prénom et Nom - Empilés sur mobile */}
                     <div className='flex flex-col sm:flex-row gap-4 md:gap-5'>
@@ -1721,14 +2054,19 @@ const handleUpdateRendezvous = async (id: string) => {
                           <input
                             type='text'
                             value={newRendezVous.firstName}
-                            onChange={e => setNewRendezVous(prev => ({ ...prev, firstName: e.target.value }))}
+                            onChange={e =>
+                              setNewRendezVous(prev => ({
+                                ...prev,
+                                firstName: e.target.value,
+                              }))
+                            }
                             className='w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base placeholder:text-slate-400 bg-white transition-all duration-200'
                             required
                             placeholder='Jean'
                           />
                         </div>
                       </div>
-                      
+
                       <div className='flex-1'>
                         <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
                           Nom <span className='text-rose-500'>*</span>
@@ -1740,7 +2078,12 @@ const handleUpdateRendezvous = async (id: string) => {
                           <input
                             type='text'
                             value={newRendezVous.lastName}
-                            onChange={e => setNewRendezVous(prev => ({ ...prev, lastName: e.target.value }))}
+                            onChange={e =>
+                              setNewRendezVous(prev => ({
+                                ...prev,
+                                lastName: e.target.value,
+                              }))
+                            }
                             className='w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base placeholder:text-slate-400 bg-white transition-all duration-200'
                             required
                             placeholder='Dupont'
@@ -1761,7 +2104,12 @@ const handleUpdateRendezvous = async (id: string) => {
                         <input
                           type='email'
                           value={newRendezVous.email}
-                          onChange={e => setNewRendezVous(prev => ({ ...prev, email: e.target.value }))}
+                          onChange={e =>
+                            setNewRendezVous(prev => ({
+                              ...prev,
+                              email: e.target.value,
+                            }))
+                          }
                           className='w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base placeholder:text-slate-400 bg-white transition-all duration-200'
                           required
                           placeholder='jean.dupont@email.com'
@@ -1781,7 +2129,12 @@ const handleUpdateRendezvous = async (id: string) => {
                         <input
                           type='tel'
                           value={newRendezVous.telephone}
-                          onChange={e => setNewRendezVous(prev => ({ ...prev, telephone: e.target.value }))}
+                          onChange={e =>
+                            setNewRendezVous(prev => ({
+                              ...prev,
+                              telephone: e.target.value,
+                            }))
+                          }
                           className='w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base placeholder:text-slate-400 bg-white transition-all duration-200'
                           required
                           placeholder='+228 XX XX XX XX'
@@ -1804,7 +2157,7 @@ const handleUpdateRendezvous = async (id: string) => {
                       Informations académiques
                     </h3>
                   </div>
-                  
+
                   <div className='space-y-4 md:space-y-5'>
                     {/* Niveau d'étude */}
                     <div>
@@ -1817,13 +2170,26 @@ const handleUpdateRendezvous = async (id: string) => {
                         </div>
                         <select
                           value={newRendezVous.niveauEtude}
-                          onChange={e => setNewRendezVous(prev => ({ ...prev, niveauEtude: e.target.value }))}
+                          onChange={e =>
+                            setNewRendezVous(prev => ({
+                              ...prev,
+                              niveauEtude: e.target.value,
+                            }))
+                          }
                           className='w-full pl-10 pr-10 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base appearance-none bg-white cursor-pointer transition-all duration-200'
                           required
                         >
-                          <option value='' className='text-slate-400'>Sélectionner un niveau</option>
+                          <option value='' className='text-slate-400'>
+                            Sélectionner un niveau
+                          </option>
                           {EDUCATION_LEVELS.map(niveau => (
-                            <option key={niveau} value={niveau} className='text-slate-700'>{niveau}</option>
+                            <option
+                              key={niveau}
+                              value={niveau}
+                              className='text-slate-700'
+                            >
+                              {niveau}
+                            </option>
                           ))}
                         </select>
                         <ChevronDown className='absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none' />
@@ -1841,26 +2207,37 @@ const handleUpdateRendezvous = async (id: string) => {
                         </div>
                         <select
                           value={newRendezVous.filiere}
-                          onChange={e => setNewRendezVous(prev => ({ 
-                            ...prev, 
-                            filiere: e.target.value, 
-                            filiereAutre: '' 
-                          }))}
+                          onChange={e =>
+                            setNewRendezVous(prev => ({
+                              ...prev,
+                              filiere: e.target.value,
+                              filiereAutre: '',
+                            }))
+                          }
                           className='w-full pl-10 pr-10 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base appearance-none bg-white cursor-pointer transition-all duration-200'
                           required
                         >
-                          <option value='' className='text-slate-400'>Sélectionner une filière</option>
+                          <option value='' className='text-slate-400'>
+                            Sélectionner une filière
+                          </option>
                           {FILIERES.map(filiere => (
-                            <option key={filiere} value={filiere} className='text-slate-700'>{filiere}</option>
+                            <option
+                              key={filiere}
+                              value={filiere}
+                              className='text-slate-700'
+                            >
+                              {filiere}
+                            </option>
                           ))}
                         </select>
                         <ChevronDown className='absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none' />
                       </div>
-                      
+
                       {newRendezVous.filiere === 'Autre' && (
                         <div className='mt-3 animate-fadeIn'>
                           <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
-                            Précisez votre filière <span className='text-rose-500'>*</span>
+                            Précisez votre filière{' '}
+                            <span className='text-rose-500'>*</span>
                           </label>
                           <div className='relative group'>
                             <div className='absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center'>
@@ -1869,7 +2246,12 @@ const handleUpdateRendezvous = async (id: string) => {
                             <input
                               type='text'
                               value={newRendezVous.filiereAutre}
-                              onChange={e => setNewRendezVous(prev => ({ ...prev, filiereAutre: e.target.value }))}
+                              onChange={e =>
+                                setNewRendezVous(prev => ({
+                                  ...prev,
+                                  filiereAutre: e.target.value,
+                                }))
+                              }
                               className='w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base placeholder:text-slate-400 bg-white transition-all duration-200'
                               placeholder='Ex: Génie Civil, Design Graphique...'
                               required
@@ -1891,7 +2273,7 @@ const handleUpdateRendezvous = async (id: string) => {
                       Destination
                     </h3>
                   </div>
-                  
+
                   <div>
                     <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
                       Pays souhaité <span className='text-rose-500'>*</span>
@@ -1902,26 +2284,37 @@ const handleUpdateRendezvous = async (id: string) => {
                       </div>
                       <select
                         value={newRendezVous.destination}
-                        onChange={e => setNewRendezVous(prev => ({ 
-                          ...prev, 
-                          destination: e.target.value, 
-                          destinationAutre: '' 
-                        }))}
+                        onChange={e =>
+                          setNewRendezVous(prev => ({
+                            ...prev,
+                            destination: e.target.value,
+                            destinationAutre: '',
+                          }))
+                        }
                         className='w-full pl-10 pr-10 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base appearance-none bg-white cursor-pointer transition-all duration-200'
                         required
                       >
-                        <option value='' className='text-slate-400'>Sélectionner une destination</option>
+                        <option value='' className='text-slate-400'>
+                          Sélectionner une destination
+                        </option>
                         {destinationOptions.map(dest => (
-                          <option key={dest} value={dest} className='text-slate-700'>{dest}</option>
+                          <option
+                            key={dest}
+                            value={dest}
+                            className='text-slate-700'
+                          >
+                            {dest}
+                          </option>
                         ))}
                       </select>
                       <ChevronDown className='absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none' />
                     </div>
-                    
+
                     {newRendezVous.destination === 'Autre' && (
                       <div className='mt-3 animate-fadeIn'>
                         <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
-                          Précisez la destination <span className='text-rose-500'>*</span>
+                          Précisez la destination{' '}
+                          <span className='text-rose-500'>*</span>
                         </label>
                         <div className='relative group'>
                           <div className='absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center'>
@@ -1930,7 +2323,12 @@ const handleUpdateRendezvous = async (id: string) => {
                           <input
                             type='text'
                             value={newRendezVous.destinationAutre}
-                            onChange={e => setNewRendezVous(prev => ({ ...prev, destinationAutre: e.target.value }))}
+                            onChange={e =>
+                              setNewRendezVous(prev => ({
+                                ...prev,
+                                destinationAutre: e.target.value,
+                              }))
+                            }
                             className='w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base placeholder:text-slate-400 bg-white transition-all duration-200'
                             placeholder='Ex: Canada, Japon, Australie...'
                             required
@@ -1951,7 +2349,7 @@ const handleUpdateRendezvous = async (id: string) => {
                       Date et heure
                     </h3>
                   </div>
-                  
+
                   <div className='space-y-4 md:space-y-5'>
                     {/* Date */}
                     <div>
@@ -1985,39 +2383,56 @@ const handleUpdateRendezvous = async (id: string) => {
                           </div>
                           <select
                             value={newRendezVous.time}
-                            onChange={e => setNewRendezVous(prev => ({ ...prev, time: e.target.value }))}
+                            onChange={e =>
+                              setNewRendezVous(prev => ({
+                                ...prev,
+                                time: e.target.value,
+                              }))
+                            }
                             className='w-full pl-10 pr-10 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base appearance-none bg-white cursor-pointer transition-all duration-200 disabled:bg-slate-50 disabled:cursor-not-allowed'
                             required
                             disabled={availableSlots.length === 0}
                           >
                             <option value='' className='text-slate-400'>
-                              {availableSlots.length === 0 ? 'Aucun créneau disponible' : 'Sélectionner un créneau'}
+                              {availableSlots.length === 0
+                                ? 'Aucun créneau disponible'
+                                : 'Sélectionner un créneau'}
                             </option>
                             {availableSlots.map(slot => (
-                              <option key={slot} value={slot} className='text-slate-700'>
+                              <option
+                                key={slot}
+                                value={slot}
+                                className='text-slate-700'
+                              >
                                 {slot.replace(':', 'h')}
                               </option>
                             ))}
                           </select>
                           <ChevronDown className='absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none' />
                         </div>
-                        
+
                         {availableSlots.length === 0 && (
                           <div className='mt-3 p-3 bg-amber-50 border border-amber-100 rounded-lg'>
                             <p className='text-xs text-amber-700 flex items-start gap-2'>
                               <span className='text-amber-600 mt-0.5'>ℹ️</span>
                               <span>
-                                Aucun créneau disponible pour cette date. Veuillez choisir une autre date.
+                                Aucun créneau disponible pour cette date.
+                                Veuillez choisir une autre date.
                               </span>
                             </p>
                           </div>
                         )}
-                        
+
                         {availableSlots.length > 0 && newRendezVous.time && (
                           <div className='mt-3 p-3 bg-emerald-50 border border-emerald-100 rounded-lg'>
                             <p className='text-xs text-emerald-700 flex items-center gap-2'>
                               <span>✓</span>
-                              <span>Créneau sélectionné : <strong>{newRendezVous.time.replace(':', 'h')}</strong></span>
+                              <span>
+                                Créneau sélectionné :{' '}
+                                <strong>
+                                  {newRendezVous.time.replace(':', 'h')}
+                                </strong>
+                              </span>
                             </p>
                           </div>
                         )}
@@ -2041,7 +2456,11 @@ const handleUpdateRendezvous = async (id: string) => {
                   </button>
                   <button
                     type='submit'
-                    disabled={!newRendezVous.time || availableSlots.length === 0 || isSubmitting}
+                    disabled={
+                      !newRendezVous.time ||
+                      availableSlots.length === 0 ||
+                      isSubmitting
+                    }
                     className='order-1 sm:order-2 px-6 py-3.5 bg-linear-to-r from-sky-500 to-sky-600 text-white rounded-xl hover:from-sky-600 hover:to-sky-700 active:scale-[0.98] transition-all duration-200 font-medium text-sm md:text-base shadow-sm shadow-sky-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2 flex-1'
                   >
                     {isSubmitting ? (
@@ -2057,12 +2476,12 @@ const handleUpdateRendezvous = async (id: string) => {
                     )}
                   </button>
                 </div>
-                
+
                 {/* Indicateur de progression (optionnel) */}
                 <div className='mt-4 text-center'>
                   <div className='flex justify-center items-center gap-2'>
-                    {[1, 2, 3, 4].map((step) => (
-                      <div 
+                    {[1, 2, 3, 4].map(step => (
+                      <div
                         key={step}
                         className={`w-1.5 h-1.5 rounded-full ${step <= 4 ? 'bg-sky-500' : 'bg-slate-200'}`}
                       />

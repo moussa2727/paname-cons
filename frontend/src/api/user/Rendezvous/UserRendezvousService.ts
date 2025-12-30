@@ -1,28 +1,24 @@
-
-import { toast } from 'react-toastify';
-
 // ==================== CONSTANTES IDENTIQUES AU BACKEND ====================
 const RENDEZVOUS_STATUS = {
   PENDING: 'En attente' as const,
   CONFIRMED: 'Confirmé' as const,
   COMPLETED: 'Terminé' as const,
   CANCELLED: 'Annulé' as const,
-  EXPIRED: 'Expiré' as const  
+  EXPIRED: 'Expiré' as const,
 } as const;
 
 const ADMIN_OPINION = {
   FAVORABLE: 'Favorable' as const,
-  UNFAVORABLE: 'Défavorable' as const
+  UNFAVORABLE: 'Défavorable' as const,
 } as const;
-
 
 // Constantes pour la cohérence avec le backend
 const CANCELLATION_THRESHOLD_HOURS = 2;
 const AUTO_EXPIRE_MINUTES = 10;
 
-// Interface Rendezvous 
+// Interface Rendezvous
 export interface Rendezvous {
-  _id: string;          
+  _id: string;
   userId: string;
   firstName: string;
   lastName: string;
@@ -82,9 +78,7 @@ export class UserRendezvousService {
   private lastRequestTime = 0;
   private readonly MIN_REQUEST_INTERVAL = 2000;
 
-  constructor(
-    private auth: AuthFunctions
-  ) {}
+  constructor(private auth: AuthFunctions) {}
 
   /**
    * Constantes statiques pour la cohérence
@@ -112,11 +106,11 @@ export class UserRendezvousService {
         try {
           const now = Date.now();
           const timeSinceLastRequest = now - this.lastRequestTime;
-          
+
           if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
             await this.wait(this.MIN_REQUEST_INTERVAL - timeSinceLastRequest);
           }
-          
+
           const result = await requestFn();
           this.lastRequestTime = Date.now();
           resolve(result);
@@ -124,7 +118,7 @@ export class UserRendezvousService {
           reject(error);
         }
       });
-      
+
       this.processQueue();
     });
   }
@@ -133,9 +127,9 @@ export class UserRendezvousService {
     if (this.isProcessingQueue || this.requestQueue.length === 0) {
       return;
     }
-    
+
     this.isProcessingQueue = true;
-    
+
     try {
       while (this.requestQueue.length > 0) {
         const requestFn = this.requestQueue.shift();
@@ -156,19 +150,26 @@ export class UserRendezvousService {
    * Récupère les rendez-vous de l'utilisateur avec validation des statuts
    */
   // 📊 MODIFIER le fetchUserRendezvous pour réduire les requêtes inutiles
-  async fetchUserRendezvous(params: FetchRendezvousParams): Promise<ApiResponse> {
+  async fetchUserRendezvous(
+    params: FetchRendezvousParams
+  ): Promise<ApiResponse> {
     return this.addToQueue(async () => {
       try {
         // ✅ VALIDATION AVANT REQUÊTE - Éviter les requêtes inutiles
-        if (params.status && !UserRendezvousService.isValidStatus(params.status)) {
-          console.warn(`Statut filtré invalide côté frontend: ${params.status}`);
+        if (
+          params.status &&
+          !UserRendezvousService.isValidStatus(params.status)
+        ) {
+          console.warn(
+            `Statut filtré invalide côté frontend: ${params.status}`
+          );
           // Retourner une réponse vide plutôt que d'envoyer une requête
           return {
             data: [],
             total: 0,
             page: params.page,
             limit: params.limit,
-            totalPages: 0
+            totalPages: 0,
           };
         }
 
@@ -180,7 +181,7 @@ export class UserRendezvousService {
             total: 0,
             page: 1,
             limit: params.limit,
-            totalPages: 0
+            totalPages: 0,
           };
         }
 
@@ -195,14 +196,17 @@ export class UserRendezvousService {
         }
 
         const endpoint = `/api/rendezvous/user?${urlParams.toString()}`;
-        
+
         const response = await this.auth.fetchWithAuth(endpoint);
 
         if (!response.ok) {
           // ✅ GESTION DES ERREURS SPÉCIFIQUES DU BACKEND
           const errorData = await response.json().catch(() => ({}));
-          
-          if (response.status === 400 && errorData.message?.includes('Statut invalide')) {
+
+          if (
+            response.status === 400 &&
+            errorData.message?.includes('Statut invalide')
+          ) {
             console.warn('Backend a rejeté le filtre de statut');
             // Retourner une réponse vide pour éviter les erreurs UI
             return {
@@ -210,10 +214,10 @@ export class UserRendezvousService {
               total: 0,
               page: params.page,
               limit: params.limit,
-              totalPages: 0
+              totalPages: 0,
             };
           }
-          
+
           if (response.status === 429) {
             // Rate limit - attendre et retenter automatiquement
             const waitTime = 5000; // 5 secondes par défaut
@@ -221,28 +225,27 @@ export class UserRendezvousService {
             await this.wait(waitTime);
             return this.fetchUserRendezvous(params);
           }
-          
+
           throw new Error(errorData.message || `Erreur ${response.status}`);
         }
 
         const data = await response.json();
-        
+
         // ✅ NORMALISATION DES DONNÉES - S'assurer que 'id' existe
         if (data.data && Array.isArray(data.data)) {
           data.data.forEach((rdv: Rendezvous) => {
             if (!rdv._id) {
-              rdv._id ;
+              rdv._id;
             }
-            
+
             // Validation du statut pour le frontend
             if (!UserRendezvousService.isValidStatus(rdv.status)) {
               console.warn(`Statut invalide reçu: ${rdv.status}`);
             }
           });
         }
-        
+
         return data;
-        
       } catch (error: any) {
         // ✅ GESTION DES ERREURS SANS TOAST INUTILES
         if (error.message.startsWith('RATE_LIMIT:')) {
@@ -250,23 +253,25 @@ export class UserRendezvousService {
           await this.wait(waitTime);
           return this.fetchUserRendezvous(params);
         }
-        
+
         // Seulement afficher les erreurs importantes
-        if (error.message !== 'SESSION_EXPIRED' && 
-            error.message !== 'SESSION_CHECK_IN_PROGRESS' &&
-            !error.message.includes('STATUT_INVALIDE')) {
+        if (
+          error.message !== 'SESSION_EXPIRED' &&
+          error.message !== 'SESSION_CHECK_IN_PROGRESS' &&
+          !error.message.includes('STATUT_INVALIDE')
+        ) {
           console.error('Erreur fetchUserRendezvous:', error.message);
-          
+
           // Retourner une réponse vide pour éviter les crashes UI
           return {
             data: [],
             total: 0,
             page: params.page,
             limit: params.limit,
-            totalPages: 0
+            totalPages: 0,
           };
         }
-        
+
         throw error;
       }
     });
@@ -275,54 +280,55 @@ export class UserRendezvousService {
   /**
    * Annule un rendez-vous avec validation stricte
    */
-async cancelRendezvous(rdvId: string): Promise<Rendezvous> {
-  console.log('cancelRendezvous called with id:', rdvId); // Debug
-  
-  if (!rdvId || rdvId === 'undefined') {
-    throw new Error('ID de rendez-vous invalide');
-  }
+  async cancelRendezvous(rdvId: string): Promise<Rendezvous> {
+    console.log('cancelRendezvous called with id:', rdvId); // Debug
 
-  try {
-    const response = await this.auth.fetchWithAuth(
-      `/api/rendezvous/${rdvId}`,
-      {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+    if (!rdvId || rdvId === 'undefined') {
+      throw new Error('ID de rendez-vous invalide');
+    }
+
+    try {
+      const response = await this.auth.fetchWithAuth(
+        `/api/rendezvous/${rdvId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        // Lire le body une seule fois
+        let errorData: { message?: any; error?: any };
+        try {
+          const responseText = await response.text();
+          errorData = responseText ? JSON.parse(responseText) : {};
+        } catch {
+          errorData = {};
+        }
+
+        if (response.status === 401) {
+          throw new Error('SESSION_EXPIRED');
+        }
+
+        const errorMessage =
+          errorData.message || errorData.error || "Erreur lors de l'annulation";
+        throw new Error(errorMessage);
       }
-    );
 
-    if (!response.ok) {
       // Lire le body une seule fois
-      let errorData: { message?: any; error?: any; };
-      try {
-        const responseText = await response.text();
-        errorData = responseText ? JSON.parse(responseText) : {};
-      } catch {
-        errorData = {};
+      const responseText = await response.text();
+      if (!responseText) {
+        throw new Error('Réponse serveur vide');
       }
-      
-      if (response.status === 401) {
-        throw new Error('SESSION_EXPIRED');
-      }
-      
-      const errorMessage = errorData.message || errorData.error || 'Erreur lors de l\'annulation';
-      throw new Error(errorMessage);
-    }
 
-    // Lire le body une seule fois
-    const responseText = await response.text();
-    if (!responseText) {
-      throw new Error('Réponse serveur vide');
+      return JSON.parse(responseText);
+    } catch (error: any) {
+      console.error('❌ Erreur cancelRendezvous:', error.message);
+      throw error;
     }
-    
-    return JSON.parse(responseText);
-  } catch (error: any) {
-    console.error('❌ Erreur cancelRendezvous:', error.message);
-    throw error;
   }
-}
 
   /**
    * Formate une date en français
@@ -365,27 +371,29 @@ async cancelRendezvous(rdvId: string): Promise<Rendezvous> {
   static canCancelRendezvous(rdv: Rendezvous): boolean {
     // Seuls les rendez-vous "Confirmé" peuvent être annulés par l'utilisateur
     if (rdv.status !== RENDEZVOUS_STATUS.CONFIRMED) return false;
-    
+
     // Vérifier si pas déjà passé de plus de 10 minutes (AUTO_EXPIRE_MINUTES)
     if (rdv.date && rdv.time) {
       const now = new Date();
       const rdvDateTime = new Date(`${rdv.date}T${rdv.time}:00`);
-      
+
       // Marge de 10 minutes comme dans le backend
-      const tenMinutesAgo = new Date(now.getTime() - AUTO_EXPIRE_MINUTES * 60 * 1000);
-      
+      const tenMinutesAgo = new Date(
+        now.getTime() - AUTO_EXPIRE_MINUTES * 60 * 1000
+      );
+
       // Si le rendez-vous est dans le passé de plus de 10 minutes
       if (rdvDateTime < tenMinutesAgo) {
         return false;
       }
-      
+
       // Vérifier la règle des 2 heures (CANCELLATION_THRESHOLD_HOURS)
       const twoHoursMs = CANCELLATION_THRESHOLD_HOURS * 60 * 60 * 1000;
       const timeUntilRdv = rdvDateTime.getTime() - now.getTime();
-      
+
       return timeUntilRdv > twoHoursMs;
     }
-    
+
     return rdv.canBeCancelledByUser !== false;
   }
 
@@ -396,12 +404,12 @@ async cancelRendezvous(rdvId: string): Promise<Rendezvous> {
     if (rdv.effectiveDestination) {
       return rdv.effectiveDestination;
     }
-    
+
     // Logique identique au backend : si destination = "Autre", utiliser destinationAutre
     if (rdv.destination === 'Autre' && rdv.destinationAutre) {
       return rdv.destinationAutre;
     }
-    
+
     return rdv.destination;
   }
 
@@ -412,12 +420,12 @@ async cancelRendezvous(rdvId: string): Promise<Rendezvous> {
     if (rdv.effectiveFiliere) {
       return rdv.effectiveFiliere;
     }
-    
+
     // Logique identique au backend : si filière = "Autre", utiliser filiereAutre
     if (rdv.filiere === 'Autre' && rdv.filiereAutre) {
       return rdv.filiereAutre;
     }
-    
+
     return rdv.filiere;
   }
 
@@ -426,14 +434,16 @@ async cancelRendezvous(rdvId: string): Promise<Rendezvous> {
    */
   static isRendezvousPast(rdv: Rendezvous): boolean {
     if (!rdv.date || !rdv.time) return false;
-    
+
     try {
       const rdvDateTime = new Date(`${rdv.date}T${rdv.time}:00`);
       const now = new Date();
-      
+
       // Marge de 10 minutes comme AUTO_EXPIRE_MINUTES dans le backend
-      const tenMinutesAgo = new Date(now.getTime() - AUTO_EXPIRE_MINUTES * 60 * 1000);
-      
+      const tenMinutesAgo = new Date(
+        now.getTime() - AUTO_EXPIRE_MINUTES * 60 * 1000
+      );
+
       return rdvDateTime < tenMinutesAgo;
     } catch {
       return false;

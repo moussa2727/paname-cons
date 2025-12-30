@@ -73,7 +73,7 @@ const MinimalLayout = ({ children }: { children: ReactNode }) => {
 const AccueilLayout = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
   const [showLoader, setShowLoader] = useState(true);
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const [_hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     // Timer pour montrer le loader sur la page d'accueil seulement
@@ -102,12 +102,18 @@ const AccueilLayout = ({ children }: { children: ReactNode }) => {
       <main className='flex-1 mt-20'>
         {/* Loader uniquement sur la page d'accueil */}
         {showLoader ? (
-          <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
+          <div className='fixed inset-0 flex items-center justify-center bg-white z-50'>
             <Loader />
           </div>
         ) : null}
         {/* Contenu avec transition */}
-        <div className={showLoader ? 'opacity-0' : 'opacity-100 transition-opacity duration-500'}>
+        <div
+          className={
+            showLoader
+              ? 'opacity-0'
+              : 'opacity-100 transition-opacity duration-500'
+          }
+        >
           {children}
         </div>
       </main>
@@ -178,16 +184,16 @@ function App() {
           name='description'
           content="Paname Consulting : expert en accompagnement étudiant à l'étranger, organisation de voyages d'affaires et demandes de visa. Conseil personnalisé pour votre réussite internationale."
         />
-        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-        <meta 
-          name="viewport" 
-          content="width=device-width, initial-scale=1, maximum-scale=5" 
+        <meta http-equiv='X-UA-Compatible' content='IE=edge' />
+        <meta
+          name='viewport'
+          content='width=device-width, initial-scale=1, maximum-scale=5'
         />
-        <link rel="icon" href="/paname-consulting.ico" sizes="any" />
-        <link rel="icon" href="/paname-consulting.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/paname-consulting.png" />
-        <link rel="manifest" href="/manifest.json" />
-        <meta property="og:url" content="https://panameconsulting.vercel.app" />
+        <link rel='icon' href='/paname-consulting.ico' sizes='any' />
+        <link rel='icon' href='/paname-consulting.svg' type='image/svg+xml' />
+        <link rel='apple-touch-icon' href='/paname-consulting.png' />
+        <link rel='manifest' href='/manifest.json' />
+        <meta property='og:url' content='https://panameconsulting.vercel.app' />
       </Helmet>
 
       <div key={navigationKey}>
@@ -314,9 +320,11 @@ function App() {
             element={
               isAuthenticated ? (
                 <Navigate
-                  to={user?.role === 'admin' || user?.isAdmin === true 
-                    ? '/'  // ← MODIFIÉ: Redirige vers la page d'accueil, pas vers /gestionnaire/statistiques
-                    : '/'}
+                  to={
+                    user?.role === 'admin' || user?.isAdmin === true
+                      ? '/' // ← MODIFIÉ: Redirige vers la page d'accueil, pas vers /gestionnaire/statistiques
+                      : '/'
+                  }
                   replace
                 />
               ) : (
@@ -332,9 +340,11 @@ function App() {
             element={
               isAuthenticated ? (
                 <Navigate
-                  to={user?.role === 'admin' || user?.isAdmin === true 
-                    ? '/'  // ← MODIFIÉ: Redirige vers la page d'accueil, pas vers /gestionnaire/statistiques
-                    : '/'}
+                  to={
+                    user?.role === 'admin' || user?.isAdmin === true
+                      ? '/' // ← MODIFIÉ: Redirige vers la page d'accueil, pas vers /gestionnaire/statistiques
+                      : '/'
+                  }
                   replace
                 />
               ) : (
@@ -350,9 +360,11 @@ function App() {
             element={
               isAuthenticated ? (
                 <Navigate
-                  to={user?.role === 'admin' || user?.isAdmin === true 
-                    ? '/'  // ← MODIFIÉ: Redirige vers la page d'accueil, pas vers /gestionnaire/statistiques
-                    : '/'}
+                  to={
+                    user?.role === 'admin' || user?.isAdmin === true
+                      ? '/' // ← MODIFIÉ: Redirige vers la page d'accueil, pas vers /gestionnaire/statistiques
+                      : '/'
+                  }
                   replace
                 />
               ) : (
@@ -365,7 +377,7 @@ function App() {
 
           {/* Routes admin - TOUTES LES ROUTES EXPLICITES */}
           {/* /gestionnaire seul → NotFound */}
-          <Route path="/gestionnaire" element={<NotFound />} />
+          <Route path='/gestionnaire' element={<NotFound />} />
 
           {/* Routes admin avec layout */}
           <Route
@@ -380,7 +392,7 @@ function App() {
               </RequireAdmin>
             }
           />
-          
+
           <Route
             path='/gestionnaire/utilisateurs'
             element={
@@ -393,7 +405,7 @@ function App() {
               </RequireAdmin>
             }
           />
-          
+
           <Route
             path='/gestionnaire/messages'
             element={
@@ -406,7 +418,7 @@ function App() {
               </RequireAdmin>
             }
           />
-          
+
           <Route
             path='/gestionnaire/procedures'
             element={
@@ -419,7 +431,7 @@ function App() {
               </RequireAdmin>
             }
           />
-          
+
           <Route
             path='/gestionnaire/profil'
             element={
@@ -432,7 +444,7 @@ function App() {
               </RequireAdmin>
             }
           />
-          
+
           <Route
             path='/gestionnaire/destinations'
             element={
@@ -445,7 +457,7 @@ function App() {
               </RequireAdmin>
             }
           />
-          
+
           <Route
             path='/gestionnaire/rendez-vous'
             element={
@@ -460,7 +472,7 @@ function App() {
           />
 
           {/* Autres routes sous /gestionnaire → NotFound */}
-          <Route path="/gestionnaire/*" element={<NotFound />} />
+          <Route path='/gestionnaire/*' element={<NotFound />} />
 
           {/* Route 404 pour toutes les autres routes */}
           <Route path='*' element={<NotFound />} />

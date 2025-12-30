@@ -12,7 +12,9 @@ const RequireAdmin = ({ children, fallbackPath = '/' }: RequireAdminProps) => {
   const location = useLocation();
 
   if (!isAuthenticated) {
-    return <Navigate to='/connexion' replace state={{ from: location.pathname }} />;
+    return (
+      <Navigate to='/connexion' replace state={{ from: location.pathname }} />
+    );
   }
 
   if (!user?.isAdmin && user?.role !== 'admin') {
