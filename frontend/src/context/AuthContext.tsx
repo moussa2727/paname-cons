@@ -90,6 +90,12 @@ interface LogoutAllResponse {
   };
 }
 
+interface MaintenanceStatus {
+  isActive: boolean;
+  enabledAt: string | null;
+  message: string;
+}
+
 interface AuthContextType {
   user: User | null;
   access_token: string | null;
@@ -105,6 +111,10 @@ interface AuthContextType {
   isLoading: boolean;
   error: string | null;
   fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>;
+  maintenanceStatus: MaintenanceStatus | null;
+  isMaintenanceMode: boolean;
+  checkMaintenanceStatus: () => Promise<void>;
+  toggleMaintenanceMode: (enabled: boolean) => Promise<boolean>;
 }
 
 // ==================== CONSTANTS ALIGNÉES AVEC BACKEND ====================
@@ -136,6 +146,7 @@ const STORAGE_KEYS = {
   USER_DATA: 'user_data',
   SESSION_START: 'session_start',
   LAST_REFRESH_TIME: 'last_refresh_time',
+  MAINTENANCE_STATUS: 'maintenance_status',
 } as const;
 
 const REDIRECT_PATHS = {
@@ -162,6 +173,8 @@ const TOAST_MESSAGES = {
   MAINTENANCE_MODE: 'MAINTENANCE MODE',
   PASSWORD_RESET_REQUIRED: 'PASSWORD RESET REQUIRED',
   NETWORK_ERROR: 'Erreur réseau. Vérifiez votre connexion.',
+  MAINTENANCE_ENABLED: 'Mode maintenance activé',
+  MAINTENANCE_DISABLED: 'Mode maintenance désactivé',
 } as const;
 
 const API_CONFIG = {
@@ -175,6 +188,8 @@ const API_CONFIG = {
     FORGOT_PASSWORD: '/api/auth/forgot-password',
     RESET_PASSWORD: '/api/auth/reset-password',
     ME: '/api/auth/me',
+    MAINTENANCE_STATUS: '/api/users/maintenance-status',
+    MAINTENANCE_TOGGLE: '/api/users/maintenance-mode',
   } as const,
 } as const;
 
@@ -199,10 +214,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [maintenanceStatus, setMaintenanceStatus] = useState<MaintenanceStatus | null>(() => {
+    const stored = window.localStorage?.getItem(STORAGE_KEYS.MAINTENANCE_STATUS);
+    try {
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const refreshTimeoutRef = useRef<number | null>(null);
   const sessionCheckIntervalRef = useRef<number | null>(null);
   const isRefreshingRef = useRef(false);
+  const maintenanceCheckRef = useRef<number | null>(null);
 
   // ==================== FONCTIONS ESSENTIELLES ====================
   const cleanupAuthData = useCallback((): void => {
@@ -213,6 +237,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setAccessToken(null);
     setUser(null);
     setError(null);
+    setMaintenanceStatus(null);
     isRefreshingRef.current = false;
 
     if (refreshTimeoutRef.current) {
@@ -223,6 +248,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (sessionCheckIntervalRef.current) {
       window.clearInterval(sessionCheckIntervalRef.current);
       sessionCheckIntervalRef.current = null;
+    }
+
+    if (maintenanceCheckRef.current) {
+      window.clearInterval(maintenanceCheckRef.current);
+      maintenanceCheckRef.current = null;
     }
   }, []);
 
@@ -328,6 +358,71 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [access_token, cleanupAuthData, navigate]
   );
 
+  // ==================== GESTION MAINTENANCE ====================
+  const checkMaintenanceStatus = useCallback(async (): Promise<void> => {
+    if (!access_token || !user || user.role !== UserRole.ADMIN) {
+      return;
+    }
+
+    try {
+      const response = await fetchWithAuth(API_CONFIG.ENDPOINTS.MAINTENANCE_STATUS);
+      
+      if (response.ok) {
+        const data = await response.json();
+        const status: MaintenanceStatus = {
+          isActive: data.isActive === true,
+          enabledAt: data.enabledAt,
+          message: data.message,
+        };
+        
+        setMaintenanceStatus(status);
+        window.localStorage?.setItem(
+          STORAGE_KEYS.MAINTENANCE_STATUS,
+          JSON.stringify(status)
+        );
+      }
+    } catch (error) {
+      console.warn('Erreur récupération statut maintenance:', error);
+    }
+  }, [access_token, user, fetchWithAuth]);
+
+  const toggleMaintenanceMode = useCallback(async (enabled: boolean): Promise<boolean> => {
+    if (!access_token || !user || user.role !== UserRole.ADMIN) {
+      toast.error('Accès non autorisé');
+      return false;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetchWithAuth(
+        API_CONFIG.ENDPOINTS.MAINTENANCE_TOGGLE,
+        {
+          method: 'POST',
+          body: JSON.stringify({ enabled }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Erreur lors du changement du mode maintenance');
+      }
+
+      await checkMaintenanceStatus();
+      
+      toast.success(
+        enabled 
+          ? TOAST_MESSAGES.MAINTENANCE_ENABLED 
+          : TOAST_MESSAGES.MAINTENANCE_DISABLED
+      );
+      
+      return true;
+    } catch (err: any) {
+      handleAuthError(err, 'toggleMaintenance');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [access_token, user, fetchWithAuth, checkMaintenanceStatus, handleAuthError]);
+
   const fetchUserData = useCallback(async (): Promise<void> => {
     const token =
       access_token || window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
@@ -365,13 +460,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           STORAGE_KEYS.USER_DATA,
           JSON.stringify(mappedUser)
         );
+
+        // Vérifier le statut maintenance après connexion admin
+        if (mappedUser.role === UserRole.ADMIN) {
+          await checkMaintenanceStatus();
+        }
       } else if (response.status === 401) {
         cleanupAuthData();
       }
     } catch (error) {
       console.warn('Erreur récupération utilisateur:', error);
     }
-  }, [access_token, cleanupAuthData]);
+  }, [access_token, cleanupAuthData, checkMaintenanceStatus]);
 
   // ==================== GESTION DU TEMPS D'AUTHENTIFICATION ====================
   const refreshToken = useCallback(async (): Promise<boolean> => {
@@ -583,6 +683,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         navigate(redirectPath, { replace: true });
         toast.success(TOAST_MESSAGES.LOGIN_SUCCESS);
+
+        // Vérifier le statut maintenance si admin
+        if (data.user.role === UserRole.ADMIN) {
+          await checkMaintenanceStatus();
+        }
       } catch (err: any) {
         handleAuthError(err, 'login');
         throw err;
@@ -590,7 +695,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(false);
       }
     },
-    [navigate, handleAuthError, setupTokenRefresh]
+    [navigate, handleAuthError, setupTokenRefresh, checkMaintenanceStatus]
   );
 
   const register = useCallback(
@@ -717,7 +822,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         );
       }
 
-      // ✅ CORRECTION : Afficher le message de succès avec les stats
       const successMessage = data.message || TOAST_MESSAGES.LOGOUT_ALL_SUCCESS;
       if (data.stats && data.stats.usersLoggedOut > 0) {
         toast.success(`${successMessage} (${data.stats.usersLoggedOut} utilisateurs déconnectés)`);
@@ -825,7 +929,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       await checkAuth();
 
-      if (isMounted) {
+      if (isMounted && user?.role === UserRole.ADMIN) {
+        // Vérifier l'état maintenance toutes les 30 secondes pour admin
+        maintenanceCheckRef.current = window.setInterval(() => {
+          checkMaintenanceStatus();
+        }, 30000);
+
         // Vérifier la session toutes les minutes (max 30 minutes)
         sessionCheckIntervalRef.current = window.setInterval(() => {
           const sessionStart = window.localStorage?.getItem(
@@ -852,8 +961,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (sessionCheckIntervalRef.current) {
         window.clearInterval(sessionCheckIntervalRef.current);
       }
+      if (maintenanceCheckRef.current) {
+        window.clearInterval(maintenanceCheckRef.current);
+      }
     };
-  }, [checkAuth, cleanupAuthData]);
+  }, [checkAuth, cleanupAuthData, user, checkMaintenanceStatus]);
 
   // ==================== VALEUR DU CONTEXT ====================
   const value: AuthContextType = {
@@ -862,6 +974,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isAuthenticated: !!user && !!access_token,
     isLoading,
     error,
+    maintenanceStatus,
+    isMaintenanceMode: maintenanceStatus?.isActive === true,
     login,
     logout,
     logoutAll,
@@ -871,6 +985,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     refreshToken,
     updateProfile: fetchUserData,
     fetchWithAuth,
+    checkMaintenanceStatus,
+    toggleMaintenanceMode,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
