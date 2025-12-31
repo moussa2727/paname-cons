@@ -14,16 +14,22 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  LogOutIcon,
-  Settings2Icon,
+  Settings2,
   AlertTriangle,
+  CheckCircle,
+  Shield,
+  UserCheck,
+  Clock,
+  BarChart3,
+  LogOut as LogOutIcon,
+  UserX,
+  Users as UsersIcon
 } from 'lucide-react';
+import { toast } from 'react-toastify';
 
 interface AdminSidebarProps {
   children: React.ReactNode;
 }
-
-/* global window, console, setTimeout */
 
 const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
   const { logout, logoutAll, user } = useAuth();
@@ -146,10 +152,12 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
     logout();
   };
 
-  // ✅ CORRECTION: Fonction logoutAll alignée avec AuthContext
   const handleLogoutAll = async () => {
     if (!user || user.role !== 'admin') {
-      console.error('Accès non autorisé - Admin seulement');
+      toast.error('Accès non autorisé - Admin seulement', {
+        position: 'top-right',
+        autoClose: 3000,
+      });
       return;
     }
 
@@ -157,7 +165,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
     setLogoutAllResult(null);
 
     try {
-      // Utilise la fonction logoutAll du AuthContext qui est déjà testée
       const result = await logoutAll();
 
       setLogoutAllResult({
@@ -166,20 +173,31 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
         stats: result.stats,
       });
 
-      // Attendre 2 secondes pour montrer le message de succès
-      setTimeout(() => {
+      setIsLogoutAllLoading(false);
+
+      const autoCloseTimer = setTimeout(() => {
         setIsLogoutAllOpen(false);
-        // La déconnexion sera gérée par le AuthContext si nécessaire
-      }, 2000);
+        setTimeout(() => setLogoutAllResult(null), 300);
+      }, 4000);
+
+      return () => clearTimeout(autoCloseTimer);
+
     } catch (error: any) {
       console.error('Erreur lors de la déconnexion globale:', error);
-
+      
+      const errorMessage = error.message || 'Erreur lors de la déconnexion globale';
+      
       setLogoutAllResult({
         success: false,
-        message: error.message || 'Erreur lors de la déconnexion globale',
+        message: `Échec: ${errorMessage}`,
       });
 
       setIsLogoutAllLoading(false);
+      
+      setTimeout(() => {
+        setIsLogoutAllOpen(false);
+        setTimeout(() => setLogoutAllResult(null), 300);
+      }, 3000);
     }
   };
 
@@ -191,6 +209,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
     setIsCollapsed(!isCollapsed);
   };
 
+  const formatLogoutDuration = (duration: string): string => {
+    if (duration.includes('heure')) return duration;
+    if (duration.includes('hour')) return duration.replace('hour', 'heure');
+    if (duration.includes('h')) return `${duration} heures`;
+    return duration;
+  };
+
   // Ne rien afficher si pas admin
   if (!user || user.role !== 'admin') {
     return null;
@@ -199,7 +224,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
   return (
     <>
       {/* Version Desktop et Tablet */}
-      <div className='hidden md:flex h-screen bg-linear-to-br from-slate-50 to-blue-50/30'>
+      <div className='hidden md:flex h-screen bg-gradient-to-br from-slate-50 to-blue-50/30'>
         {/* Sidebar */}
         <div
           className={`bg-white h-full fixed left-0 top-0 z-40 shadow-xl border-r border-slate-200 flex flex-col transition-all duration-300 ${
@@ -209,14 +234,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
           }`}
         >
           {/* En-tête */}
-          <div className='p-4 border-b border-slate-200 bg-linear-to-r from-sky-500 to-sky-600'>
+          <div className='p-4 border-b border-slate-200 bg-gradient-to-r from-sky-500 to-sky-600'>
             <div className='flex items-center justify-between'>
               <div className='flex items-center space-x-3'>
                 <Link
                   to='/'
                   className='w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm'
                 >
-                  <Settings2Icon className='w-6 h-6 text-white' />
+                  <Settings2 className='w-6 h-6 text-white' />
                 </Link>
                 <div>
                   <h1 className='text-lg font-bold text-white tracking-tight'>
@@ -268,7 +293,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
           {/* Section utilisateur et déconnexion */}
           <div className='p-4 border-t border-slate-200 space-y-3'>
             <div className='flex items-center space-x-3 px-3 py-2'>
-              <div className='w-10 h-10 bg-linear-to-br from-sky-500 to-sky-600 rounded-full flex items-center justify-center text-white text-sm font-semibold shadow-lg'>
+              <div className='w-10 h-10 bg-gradient-to-br from-sky-500 to-sky-600 rounded-full flex items-center justify-center text-white text-sm font-semibold shadow-lg'>
                 {getNameInitial()}
               </div>
               <div className='flex-1 min-w-0'>
@@ -276,7 +301,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                   {getDisplayName()}
                 </p>
                 <p className='text-xs text-slate-500 flex items-center gap-1'>
-                  <Settings2Icon className='w-3 h-3' />
+                  <Shield className='w-3 h-3' />
                   Administrateur
                 </p>
               </div>
@@ -284,12 +309,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
 
             {/* Boutons de déconnexion */}
             <div className='space-y-2'>
-              {/* ✅ CORRECTION: Bouton "Déconnecter tous" toujours visible */}
               <button
                 onClick={() => setIsLogoutAllOpen(true)}
-                className='w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-linear-to-r from-rose-500 to-pink-600 text-white rounded-lg hover:from-rose-600 hover:to-pink-700 transition-all duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-rose-500/30'
+                className='w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-lg hover:from-rose-600 hover:to-pink-700 transition-all duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-rose-500/30'
               >
-                <LogOutIcon className='w-4 h-4' />
+                <UserX className='w-4 h-4' />
                 <span className='font-medium text-sm'>Déconnecter tous</span>
               </button>
 
@@ -297,7 +321,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                 onClick={handleLogout}
                 className='w-full flex items-center justify-center space-x-2 px-4 py-2.5 border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-slate-500/30'
               >
-                <LogOut className='w-4 h-4' />
+                <LogOutIcon className='w-4 h-4' />
                 <span className='font-medium text-sm'>Déconnexion</span>
               </button>
             </div>
@@ -308,7 +332,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
         {isCollapsed && (
           <button
             onClick={toggleSidebar}
-            className='fixed left-4 top-4 z-50 p-2 bg-linear-to-r from-sky-500 to-sky-600 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50'
+            className='fixed left-4 top-4 z-50 p-2 bg-gradient-to-r from-sky-500 to-sky-600 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50'
             aria-label='Ouvrir le menu'
           >
             <ChevronRight className='w-5 h-5' />
@@ -326,7 +350,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
       </div>
 
       {/* Version Mobile - Mobile First Design */}
-      <div className='md:hidden flex flex-col h-screen bg-linear-to-b from-slate-50 to-blue-50/20'>
+      <div className='md:hidden flex flex-col h-screen bg-gradient-to-b from-slate-50 to-blue-50/20'>
         {/* Header Mobile */}
         <header className='sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm'>
           <div className='px-4'>
@@ -334,9 +358,9 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
               <div className='flex items-center space-x-3'>
                 <Link
                   to='/'
-                  className='w-10 h-10 bg-linear-to-r from-sky-500 to-sky-600 rounded-xl flex items-center justify-center shadow-md'
+                  className='w-10 h-10 bg-gradient-to-r from-sky-500 to-sky-600 rounded-xl flex items-center justify-center shadow-md'
                 >
-                  <Settings2Icon className='w-6 h-6 text-white' />
+                  <Settings2 className='w-6 h-6 text-white' />
                 </Link>
                 <div>
                   <h1 className='text-lg font-bold text-slate-800'>Admin</h1>
@@ -345,13 +369,12 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
               </div>
 
               <div className='flex items-center space-x-2'>
-                {/* ✅ Bouton "Déconnecter tous" visible sur mobile */}
                 <button
                   onClick={() => setIsLogoutAllOpen(true)}
-                  className='p-2 rounded-lg bg-linear-to-r from-rose-500 to-pink-600 text-white shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-rose-500/30'
+                  className='p-2 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-rose-500/30'
                   title='Déconnecter tous'
                 >
-                  <LogOutIcon className='w-5 h-5' />
+                  <UserX className='w-5 h-5' />
                 </button>
 
                 <button
@@ -399,7 +422,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                   onClick={handleLogout}
                   className='w-full flex items-center space-x-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors duration-200'
                 >
-                  <LogOut className='w-5 h-5' />
+                  <LogOutIcon className='w-5 h-5' />
                   <span className='font-medium'>Déconnexion</span>
                 </button>
               </div>
@@ -426,7 +449,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
         <footer className='sticky bottom-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3'>
           <div className='flex items-center justify-between'>
             <div className='flex items-center space-x-3'>
-              <div className='w-8 h-8 bg-linear-to-br from-sky-500 to-sky-600 rounded-full flex items-center justify-center text-white text-xs font-semibold'>
+              <div className='w-8 h-8 bg-gradient-to-br from-sky-500 to-sky-600 rounded-full flex items-center justify-center text-white text-xs font-semibold'>
                 {getNameInitial()}
               </div>
               <div>
@@ -438,7 +461,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
             </div>
             <button
               onClick={() => setIsLogoutAllOpen(true)}
-              className='px-4 py-2 bg-linear-to-r from-rose-500 to-pink-600 text-white text-sm font-medium rounded-lg shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-rose-500/30 transition-all duration-200'
+              className='px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-sm font-medium rounded-lg shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-rose-500/30 transition-all duration-200'
             >
               Déconnecter tous
             </button>
@@ -446,14 +469,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
         </footer>
       </div>
 
-      {/* ✅ Modal de confirmation amélioré */}
+      {/* Modal de confirmation amélioré */}
       {isLogoutAllOpen && (
-        <div className='fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm'>
+        <div className='fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm'>
           <div className='bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100'>
             {/* En-tête */}
             <div className='p-6 border-b border-slate-200'>
               <div className='flex items-center space-x-3'>
-                <div className='w-12 h-12 bg-linear-to-r from-rose-100 to-pink-100 rounded-xl flex items-center justify-center'>
+                <div className='w-12 h-12 bg-gradient-to-r from-rose-100 to-pink-100 rounded-xl flex items-center justify-center'>
                   <AlertTriangle className='w-6 h-6 text-rose-600' />
                 </div>
                 <div>
@@ -461,7 +484,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                     Déconnexion globale
                   </h2>
                   <p className='text-sm text-slate-500'>
-                    Action administrative
+                    Action administrative sécurisée
                   </p>
                 </div>
               </div>
@@ -479,30 +502,57 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                     }`}
                   >
                     {logoutAllResult.success ? (
-                      <svg
-                        className='w-8 h-8 text-green-600'
-                        fill='none'
-                        stroke='currentColor'
-                        viewBox='0 0 24 24'
-                      >
-                        <path
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
-                          strokeWidth='2'
-                          d='M5 13l4 4L19 7'
-                        ></path>
-                      </svg>
+                      <CheckCircle className='w-8 h-8 text-green-600' />
                     ) : (
                       <AlertTriangle className='w-8 h-8' />
                     )}
                   </div>
-                  <p className='font-medium'>{logoutAllResult.message}</p>
+                  
+                  <p className='font-medium text-lg mb-2'>{logoutAllResult.message}</p>
+                  
                   {logoutAllResult.success && logoutAllResult.stats && (
-                    <div className='mt-4 p-3 bg-slate-50 rounded-lg'>
-                      <p className='text-sm text-slate-600'>
-                        {logoutAllResult.stats.usersLoggedOut} utilisateurs
-                        déconnectés
-                      </p>
+                    <div className='mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200'>
+                      <div className='flex items-center justify-center space-x-2 mb-3'>
+                        <BarChart3 className='w-4 h-4 text-slate-700' />
+                        <p className='text-sm text-slate-700 font-medium'>
+                          Résumé de l'action
+                        </p>
+                      </div>
+                      <div className='grid grid-cols-2 gap-3 text-sm'>
+                        <div className='flex items-center space-x-2 text-slate-600'>
+                          <UsersIcon className='w-4 h-4' />
+                          <span>Utilisateurs déconnectés :</span>
+                        </div>
+                        <div className='font-semibold text-slate-800'>
+                          {logoutAllResult.stats.usersLoggedOut}
+                        </div>
+                        
+                        <div className='flex items-center space-x-2 text-slate-600'>
+                          <Clock className='w-4 h-4' />
+                          <span>Durée :</span>
+                        </div>
+                        <div className='font-semibold text-slate-800'>
+                          {formatLogoutDuration(logoutAllResult.stats.duration)}
+                        </div>
+                        
+                        <div className='flex items-center space-x-2 text-slate-600'>
+                          <Shield className='w-4 h-4' />
+                          <span>Admin préservé :</span>
+                        </div>
+                        <div className='font-semibold text-green-600'>
+                          {logoutAllResult.stats.adminPreserved ? (
+                            <span className='flex items-center'>
+                              <UserCheck className='w-4 h-4 mr-1' />
+                              Oui
+                            </span>
+                          ) : (
+                            <span className='flex items-center text-rose-600'>
+                              <UserX className='w-4 h-4 mr-1' />
+                              Non
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -511,9 +561,9 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                   <div className='text-center mb-6'>
                     <Link
                       to='/'
-                      className='w-20 h-20 mx-auto bg-linear-to-br from-sky-100 to-blue-100 rounded-full flex items-center justify-center mb-4'
+                      className='w-20 h-20 mx-auto bg-gradient-to-br from-sky-100 to-blue-100 rounded-full flex items-center justify-center mb-4'
                     >
-                      <Settings2Icon className='w-10 h-10 text-sky-600' />
+                      <Settings2 className='w-10 h-10 text-sky-600' />
                     </Link>
                     <h3 className='text-lg font-semibold text-slate-800 mb-2'>
                       Confirmer la déconnexion globale
@@ -524,17 +574,18 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                     </p>
                   </div>
 
-                  <div className='bg-linear-to-r from-sky-50 to-blue-50/50 rounded-xl p-4 border border-sky-100 mb-6'>
+                  <div className='bg-gradient-to-r from-sky-50 to-blue-50/50 rounded-xl p-4 border border-sky-100 mb-6'>
                     <div className='flex items-start space-x-3'>
                       <AlertTriangle className='w-5 h-5 text-sky-600 mt-0.5' />
                       <div>
                         <p className='text-sm font-medium text-sky-800 mb-1'>
-                          Action sécurisée
+                          Action sécurisée et confidentielle
                         </p>
                         <p className='text-xs text-sky-600'>
-                          Les administrateurs resteront connectés. Les
-                          utilisateurs non-admin ne pourront pas se reconnecter
-                          pendant 24 heures.
+                          • Les administrateurs resteront connectés<br/>
+                          • Seul le nombre d'utilisateurs déconnectés sera affiché<br/>
+                          • Les identités restent confidentielles<br/>
+                          • Blocage de 24 heures pour les utilisateurs non-admin
                         </p>
                       </div>
                     </div>
@@ -557,7 +608,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                   <button
                     onClick={handleLogoutAll}
                     disabled={isLogoutAllLoading}
-                    className='flex-1 px-4 py-3 bg-linear-to-r from-rose-500 to-pink-600 text-white rounded-xl hover:from-rose-600 hover:to-pink-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-rose-500/30'
+                    className='flex-1 px-4 py-3 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-xl hover:from-rose-600 hover:to-pink-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-rose-500/30'
                   >
                     {isLogoutAllLoading ? (
                       <div className='flex items-center justify-center space-x-2'>
@@ -576,11 +627,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                   onClick={() => {
                     setIsLogoutAllOpen(false);
                     setLogoutAllResult(null);
-                    if (logoutAllResult.success) {
-                      // La déconnexion est gérée par le AuthContext
-                    }
                   }}
-                  className='flex-1 px-4 py-3 bg-linear-to-r from-sky-500 to-sky-600 text-white rounded-xl hover:from-sky-600 hover:to-sky-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/30'
+                  className='flex-1 px-4 py-3 bg-gradient-to-r from-sky-500 to-sky-600 text-white rounded-xl hover:from-sky-600 hover:to-sky-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/30'
                 >
                   {logoutAllResult.success ? 'Fermer' : 'Compris'}
                 </button>

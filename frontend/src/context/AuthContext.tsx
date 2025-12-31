@@ -240,7 +240,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
         navigate(REDIRECT_PATHS.RESET_PASSWORD_REQUIRED, {
           state: {
-            email: error.email || '',
+            email: error.email,
             reason: 'password_reset_required',
           },
         });
@@ -717,7 +717,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         );
       }
 
-      toast.success(data.message || TOAST_MESSAGES.LOGOUT_ALL_SUCCESS);
+      // ✅ CORRECTION : Afficher le message de succès avec les stats
+      const successMessage = data.message || TOAST_MESSAGES.LOGOUT_ALL_SUCCESS;
+      if (data.stats && data.stats.usersLoggedOut > 0) {
+        toast.success(`${successMessage} (${data.stats.usersLoggedOut} utilisateurs déconnectés)`);
+      } else {
+        toast.success(successMessage);
+      }
+      
       return data;
     } catch (err: any) {
       handleAuthError(err, 'logoutAll');
