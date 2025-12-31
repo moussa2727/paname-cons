@@ -23,7 +23,8 @@ import {
   BarChart3,
   LogOut as LogOutIcon,
   UserX,
-  Users as UsersIcon
+  Users as UsersIcon,
+  Wrench
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
@@ -32,17 +33,19 @@ interface AdminSidebarProps {
 }
 
 const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
-  const { logout, logoutAll, user } = useAuth();
+  const { logout, logoutAll, user, isMaintenanceMode, toggleMaintenanceMode, checkMaintenanceStatus } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isLogoutAllOpen, setIsLogoutAllOpen] = useState(false);
   const [isLogoutAllLoading, setIsLogoutAllLoading] = useState(false);
+  const [isMaintenanceLoading, setIsMaintenanceLoading] = useState(false);
   const [logoutAllResult, setLogoutAllResult] = useState<{
     success: boolean;
     message: string;
     stats?: any;
   } | null>(null);
+  const [showMaintenanceToggle, setShowMaintenanceToggle] = useState(false);
 
   // Détection précise des tailles d'écran
   useEffect(() => {
@@ -65,6 +68,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
       window.removeEventListener('resize', checkScreenSize);
     };
   }, []);
+
+  // Vérifier le statut maintenance au montage
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      checkMaintenanceStatus();
+    }
+  }, [user, checkMaintenanceStatus]);
 
   const menuItems = [
     {
@@ -201,6 +211,30 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
     }
   };
 
+  const handleMaintenanceToggle = async () => {
+    if (!user || user.role !== 'admin') {
+      toast.error('Accès non autorisé', {
+        position: 'top-right',
+        autoClose: 3000,
+      });
+      return;
+    }
+
+    setIsMaintenanceLoading(true);
+    try {
+      const success = await toggleMaintenanceMode(!isMaintenanceMode);
+      if (success) {
+        // Rafraîchir le statut
+        await checkMaintenanceStatus();
+      }
+    } catch (error) {
+      console.error('Erreur lors du changement du mode maintenance:', error);
+    } finally {
+      setIsMaintenanceLoading(false);
+      setShowMaintenanceToggle(false);
+    }
+  };
+
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
@@ -309,12 +343,29 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
 
             {/* Boutons de déconnexion */}
             <div className='space-y-2'>
+              {/* Bouton Maintenance/Déconnexion tous */}
               <button
-                onClick={() => setIsLogoutAllOpen(true)}
-                className='w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-lg hover:from-rose-600 hover:to-pink-700 transition-all duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-rose-500/30'
+                onClick={() => setShowMaintenanceToggle(true)}
+                className={`w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 ${
+                  isMaintenanceMode
+                    ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-white hover:from-amber-600 hover:to-yellow-700 focus:ring-amber-500/30'
+                    : 'bg-gradient-to-r from-rose-500 to-pink-600 text-white hover:from-rose-600 hover:to-pink-700 focus:ring-rose-500/30'
+                }`}
+                disabled={isMaintenanceLoading}
               >
-                <UserX className='w-4 h-4' />
-                <span className='font-medium text-sm'>Déconnecter tous</span>
+                {isMaintenanceLoading ? (
+                  <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                ) : isMaintenanceMode ? (
+                  <>
+                    <Wrench className='w-4 h-4' />
+                    <span className='font-medium text-sm'>EN MAINTENANCE</span>
+                  </>
+                ) : (
+                  <>
+                    <UserX className='w-4 h-4' />
+                    <span className='font-medium text-sm'>Déconnecter tous</span>
+                  </>
+                )}
               </button>
 
               <button
@@ -370,11 +421,20 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
 
               <div className='flex items-center space-x-2'>
                 <button
-                  onClick={() => setIsLogoutAllOpen(true)}
-                  className='p-2 rounded-lg bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-rose-500/30'
-                  title='Déconnecter tous'
+                  onClick={() => setShowMaintenanceToggle(true)}
+                  className={`p-2 rounded-lg shadow-sm hover:shadow-md focus:outline-none focus:ring-2 transition-all duration-200 ${
+                    isMaintenanceMode
+                      ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-white focus:ring-amber-500/30'
+                      : 'bg-gradient-to-r from-rose-500 to-pink-600 text-white focus:ring-rose-500/30'
+                  }`}
+                  title={isMaintenanceMode ? 'Mode maintenance actif' : 'Déconnecter tous'}
+                  disabled={isMaintenanceLoading}
                 >
-                  <UserX className='w-5 h-5' />
+                  {isMaintenanceMode ? (
+                    <Wrench className='w-5 h-5' />
+                  ) : (
+                    <UserX className='w-5 h-5' />
+                  )}
                 </button>
 
                 <button
@@ -460,31 +520,44 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
               </div>
             </div>
             <button
-              onClick={() => setIsLogoutAllOpen(true)}
-              className='px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-sm font-medium rounded-lg shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-rose-500/30 transition-all duration-200'
+              onClick={() => setShowMaintenanceToggle(true)}
+              className={`px-4 py-2 text-sm font-medium rounded-lg shadow-sm hover:shadow-md focus:outline-none focus:ring-2 transition-all duration-200 ${
+                isMaintenanceMode
+                  ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-white focus:ring-amber-500/30'
+                  : 'bg-gradient-to-r from-rose-500 to-pink-600 text-white focus:ring-rose-500/30'
+              }`}
+              disabled={isMaintenanceLoading}
             >
-              Déconnecter tous
+              {isMaintenanceMode ? 'EN MAINTENANCE' : 'Déconnecter tous'}
             </button>
           </div>
         </footer>
       </div>
 
       {/* Modal de confirmation amélioré */}
-      {isLogoutAllOpen && (
+      {(isLogoutAllOpen || showMaintenanceToggle) && (
         <div className='fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm'>
           <div className='bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100'>
-            {/* En-tête */}
+            {/* En-tête avec condition pour mode maintenance */}
             <div className='p-6 border-b border-slate-200'>
               <div className='flex items-center space-x-3'>
-                <div className='w-12 h-12 bg-gradient-to-r from-rose-100 to-pink-100 rounded-xl flex items-center justify-center'>
-                  <AlertTriangle className='w-6 h-6 text-rose-600' />
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                  isMaintenanceMode 
+                    ? 'bg-gradient-to-r from-amber-100 to-yellow-100'
+                    : 'bg-gradient-to-r from-rose-100 to-pink-100'
+                }`}>
+                  {isMaintenanceMode ? (
+                    <Wrench className='w-6 h-6 text-amber-600' />
+                  ) : (
+                    <AlertTriangle className='w-6 h-6 text-rose-600' />
+                  )}
                 </div>
                 <div>
                   <h2 className='text-xl font-bold text-slate-800'>
-                    Déconnexion globale
+                    {isMaintenanceMode ? 'Désactiver le mode maintenance' : 'Déconnexion globale'}
                   </h2>
                   <p className='text-sm text-slate-500'>
-                    Action administrative sécurisée
+                    {isMaintenanceMode ? 'Rendre l\'application accessible aux utilisateurs' : 'Action administrative sécurisée'}
                   </p>
                 </div>
               </div>
@@ -559,33 +632,54 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
               ) : (
                 <>
                   <div className='text-center mb-6'>
-                    <Link
-                      to='/'
-                      className='w-20 h-20 mx-auto bg-gradient-to-br from-sky-100 to-blue-100 rounded-full flex items-center justify-center mb-4'
-                    >
-                      <Settings2 className='w-10 h-10 text-sky-600' />
-                    </Link>
+                    <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${
+                      isMaintenanceMode
+                        ? 'bg-gradient-to-br from-amber-100 to-yellow-100'
+                        : 'bg-gradient-to-br from-sky-100 to-blue-100'
+                    }`}>
+                      {isMaintenanceMode ? (
+                        <Wrench className='w-10 h-10 text-amber-600' />
+                      ) : (
+                        <Settings2 className='w-10 h-10 text-sky-600' />
+                      )}
+                    </div>
                     <h3 className='text-lg font-semibold text-slate-800 mb-2'>
-                      Confirmer la déconnexion globale
+                      {isMaintenanceMode
+                        ? 'Confirmer la désactivation du mode maintenance'
+                        : 'Confirmer la déconnexion globale'}
                     </h3>
                     <p className='text-slate-600'>
-                      Cette action déconnectera tous les utilisateurs
-                      non-administrateurs du système.
+                      {isMaintenanceMode
+                        ? 'Cette action rendra l\'application accessible à tous les utilisateurs.'
+                        : 'Cette action déconnectera tous les utilisateurs non-administrateurs du système.'}
                     </p>
                   </div>
 
-                  <div className='bg-gradient-to-r from-sky-50 to-blue-50/50 rounded-xl p-4 border border-sky-100 mb-6'>
+                  <div className={`rounded-xl p-4 border mb-6 ${
+                    isMaintenanceMode
+                      ? 'bg-gradient-to-r from-amber-50 to-yellow-50/50 border-amber-100'
+                      : 'bg-gradient-to-r from-sky-50 to-blue-50/50 border-sky-100'
+                  }`}>
                     <div className='flex items-start space-x-3'>
-                      <AlertTriangle className='w-5 h-5 text-sky-600 mt-0.5' />
+                      {isMaintenanceMode ? (
+                        <Wrench className='w-5 h-5 text-amber-600 mt-0.5' />
+                      ) : (
+                        <AlertTriangle className='w-5 h-5 text-sky-600 mt-0.5' />
+                      )}
                       <div>
-                        <p className='text-sm font-medium text-sky-800 mb-1'>
-                          Action sécurisée et confidentielle
+                        <p className={`text-sm font-medium mb-1 ${
+                          isMaintenanceMode ? 'text-amber-800' : 'text-sky-800'
+                        }`}>
+                          {isMaintenanceMode
+                            ? 'Conséquences de la désactivation'
+                            : 'Action sécurisée et confidentielle'}
                         </p>
-                        <p className='text-xs text-sky-600'>
-                          • Les administrateurs resteront connectés<br/>
-                          • Seuls les utilisateurs seront déconnectés <br/>
-                          • Les identités restent confidentielles<br/>
-                          • Blocage de 24 heures pour les utilisateurs non-admin
+                        <p className={`text-xs ${
+                          isMaintenanceMode ? 'text-amber-600' : 'text-sky-600'
+                        }`}>
+                          {isMaintenanceMode
+                            ? '• Les utilisateurs pourront se reconnecter<br/>• Les fonctionnalités seront accessibles<br/>• Les données restent sécurisées'
+                            : '• Les administrateurs resteront connectés<br/>• Seuls les utilisateurs seront déconnectés<br/>• Les identités restent confidentielles<br/>• Blocage de 24 heures pour les utilisateurs non-admin'}
                         </p>
                       </div>
                     </div>
@@ -599,24 +693,41 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
               {!logoutAllResult && (
                 <>
                   <button
-                    onClick={() => setIsLogoutAllOpen(false)}
-                    disabled={isLogoutAllLoading}
+                    onClick={() => {
+                      setIsLogoutAllOpen(false);
+                      setShowMaintenanceToggle(false);
+                    }}
+                    disabled={isLogoutAllLoading || isMaintenanceLoading}
                     className='flex-1 px-4 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-slate-500/30'
                   >
                     Annuler
                   </button>
                   <button
-                    onClick={handleLogoutAll}
-                    disabled={isLogoutAllLoading}
-                    className='flex-1 px-4 py-3 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-xl hover:from-rose-600 hover:to-pink-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-rose-500/30'
+                    onClick={async () => {
+                      if (isMaintenanceMode) {
+                        // Désactiver le mode maintenance
+                        await handleMaintenanceToggle();
+                      } else {
+                        // Déconnecter tous les utilisateurs
+                        await handleLogoutAll();
+                      }
+                    }}
+                    disabled={isLogoutAllLoading || isMaintenanceLoading}
+                    className={`flex-1 px-4 py-3 text-white rounded-xl hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 ${
+                      isMaintenanceMode
+                        ? 'bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 focus:ring-amber-500/30'
+                        : 'bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 focus:ring-rose-500/30'
+                    }`}
                   >
-                    {isLogoutAllLoading ? (
+                    {(isLogoutAllLoading || isMaintenanceLoading) ? (
                       <div className='flex items-center justify-center space-x-2'>
                         <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
                         <span>En cours...</span>
                       </div>
+                    ) : isMaintenanceMode ? (
+                      'Désactiver maintenance'
                     ) : (
-                      'Confirmer'
+                      'Confirmer déconnexion'
                     )}
                   </button>
                 </>
@@ -627,6 +738,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                   onClick={() => {
                     setIsLogoutAllOpen(false);
                     setLogoutAllResult(null);
+                    setShowMaintenanceToggle(false);
                   }}
                   className='flex-1 px-4 py-3 bg-gradient-to-r from-sky-500 to-sky-600 text-white rounded-xl hover:from-sky-600 hover:to-sky-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/30'
                 >
