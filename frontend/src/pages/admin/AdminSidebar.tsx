@@ -583,7 +583,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                         </p>
                         <p className='text-xs text-sky-600'>
                           • Les administrateurs resteront connectés<br/>
-                          • Seul le nombre d'utilisateurs déconnectés sera affiché<br/>
+                          • Seuls les utilisateurs seront déconnectés <br/>
                           • Les identités restent confidentielles<br/>
                           • Blocage de 24 heures pour les utilisateurs non-admin
                         </p>
