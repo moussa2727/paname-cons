@@ -414,7 +414,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                   <Settings2 className='w-6 h-6 text-white' />
                 </Link>
                 <div>
-                  <h1 className='text-lg font-bold text-slate-800'>Admin</h1>
+                  <h1 className='text-lg font-bold text-slate-800'>Gestionnaire</h1>
                   <p className='text-xs text-slate-500'>Paname Consulting</p>
                 </div>
               </div>
@@ -534,74 +534,74 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
         </footer>
       </div>
 
-      {/* Modal de confirmation amélioré */}
+      {/* Modal de confirmation */}
       {(isLogoutAllOpen || showMaintenanceToggle) && (
         <div className='fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm'>
-          <div className='bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100 opacity-100'>
+          <div className='bg-white rounded-2xl shadow-2xl w-full max-w-sm transform transition-all duration-300 scale-100 opacity-100'>
             {/* En-tête avec condition pour mode maintenance */}
-            <div className='p-6 border-b border-slate-200'>
+            <div className='p-5 border-b border-slate-200'>
               <div className='flex items-center space-x-3'>
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                   isMaintenanceMode 
                     ? 'bg-gradient-to-r from-amber-100 to-yellow-100'
                     : 'bg-gradient-to-r from-rose-100 to-pink-100'
                 }`}>
                   {isMaintenanceMode ? (
-                    <Wrench className='w-6 h-6 text-amber-600' />
+                    <Wrench className='w-5 h-5 text-amber-600' />
                   ) : (
-                    <AlertTriangle className='w-6 h-6 text-rose-600' />
+                    <AlertTriangle className='w-5 h-5 text-rose-600' />
                   )}
                 </div>
                 <div>
-                  <h2 className='text-xl font-bold text-slate-800'>
-                    {isMaintenanceMode ? 'Désactiver le mode maintenance' : 'Déconnexion globale'}
+                  <h2 className='text-lg font-bold text-slate-800'>
+                    {isMaintenanceMode ? 'Désactiver maintenance' : 'Déconnexion globale'}
                   </h2>
-                  <p className='text-sm text-slate-500'>
-                    {isMaintenanceMode ? 'Rendre l\'application accessible aux utilisateurs' : 'Action administrative sécurisée'}
+                  <p className='text-xs text-slate-500'>
+                    {isMaintenanceMode ? 'Rendre accessible aux utilisateurs' : 'Action administrative'}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Contenu */}
-            <div className='p-6'>
+            {/* Contenu*/}
+            <div className='p-5'>
               {logoutAllResult ? (
                 <div
-                  className={`text-center py-4 ${logoutAllResult.success ? 'text-green-600' : 'text-rose-600'}`}
+                  className={`text-center py-3 ${logoutAllResult.success ? 'text-green-600' : 'text-rose-600'}`}
                 >
                   <div
-                    className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${
+                    className={`w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-3 ${
                       logoutAllResult.success ? 'bg-green-100' : 'bg-rose-100'
                     }`}
                   >
                     {logoutAllResult.success ? (
-                      <CheckCircle className='w-8 h-8 text-green-600' />
+                      <CheckCircle className='w-7 h-7 text-green-600' />
                     ) : (
-                      <AlertTriangle className='w-8 h-8' />
+                      <AlertTriangle className='w-7 h-7' />
                     )}
                   </div>
                   
-                  <p className='font-medium text-lg mb-2'>{logoutAllResult.message}</p>
+                  <p className='font-medium text-base mb-2'>{logoutAllResult.message}</p>
                   
                   {logoutAllResult.success && logoutAllResult.stats && (
-                    <div className='mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200'>
-                      <div className='flex items-center justify-center space-x-2 mb-3'>
-                        <BarChart3 className='w-4 h-4 text-slate-700' />
-                        <p className='text-sm text-slate-700 font-medium'>
-                          Résumé de l'action
+                    <div className='mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200'>
+                      <div className='flex items-center justify-center space-x-2 mb-2'>
+                        <BarChart3 className='w-3.5 h-3.5 text-slate-700' />
+                        <p className='text-xs text-slate-700 font-medium'>
+                          Résumé
                         </p>
                       </div>
-                      <div className='grid grid-cols-2 gap-3 text-sm'>
+                      <div className='grid grid-cols-2 gap-2 text-xs'>
                         <div className='flex items-center space-x-2 text-slate-600'>
-                          <UsersIcon className='w-4 h-4' />
-                          <span>Utilisateurs déconnectés :</span>
+                          <UsersIcon className='w-3.5 h-3.5' />
+                          <span>Déconnectés :</span>
                         </div>
                         <div className='font-semibold text-slate-800'>
                           {logoutAllResult.stats.usersLoggedOut}
                         </div>
                         
                         <div className='flex items-center space-x-2 text-slate-600'>
-                          <Clock className='w-4 h-4' />
+                          <Clock className='w-3.5 h-3.5' />
                           <span>Durée :</span>
                         </div>
                         <div className='font-semibold text-slate-800'>
@@ -609,18 +609,18 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                         </div>
                         
                         <div className='flex items-center space-x-2 text-slate-600'>
-                          <Shield className='w-4 h-4' />
-                          <span>Admin préservé :</span>
+                          <Shield className='w-3.5 h-3.5' />
+                          <span>Admin :</span>
                         </div>
                         <div className='font-semibold text-green-600'>
                           {logoutAllResult.stats.adminPreserved ? (
-                            <span className='flex items-center'>
-                              <UserCheck className='w-4 h-4 mr-1' />
+                            <span className='flex items-center text-sm'>
+                              <UserCheck className='w-3.5 h-3.5 mr-1' />
                               Oui
                             </span>
                           ) : (
-                            <span className='flex items-center text-rose-600'>
-                              <UserX className='w-4 h-4 mr-1' />
+                            <span className='flex items-center text-rose-600 text-sm'>
+                              <UserX className='w-3.5 h-3.5 mr-1' />
                               Non
                             </span>
                           )}
@@ -631,55 +631,55 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                 </div>
               ) : (
                 <>
-                  <div className='text-center mb-6'>
-                    <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${
+                  <div className='text-center mb-4'>
+                    <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-3 ${
                       isMaintenanceMode
                         ? 'bg-gradient-to-br from-amber-100 to-yellow-100'
                         : 'bg-gradient-to-br from-sky-100 to-blue-100'
                     }`}>
                       {isMaintenanceMode ? (
-                        <Wrench className='w-10 h-10 text-amber-600' />
+                        <Wrench className='w-8 h-8 text-amber-600' />
                       ) : (
-                        <Settings2 className='w-10 h-10 text-sky-600' />
+                        <Settings2 className='w-8 h-8 text-sky-600' />
                       )}
                     </div>
-                    <h3 className='text-lg font-semibold text-slate-800 mb-2'>
+                    <h3 className='text-base font-semibold text-slate-800 mb-1.5'>
                       {isMaintenanceMode
-                        ? 'Confirmer la désactivation du mode maintenance'
-                        : 'Confirmer la déconnexion globale'}
+                        ? 'Désactiver le mode maintenance ?'
+                        : 'Déconnecter tous les utilisateurs ?'}
                     </h3>
-                    <p className='text-slate-600'>
+                    <p className='text-sm text-slate-600'>
                       {isMaintenanceMode
-                        ? 'Cette action rendra l\'application accessible à tous les utilisateurs.'
-                        : 'Cette action déconnectera tous les utilisateurs non-administrateurs du système.'}
+                        ? 'Les utilisateurs pourront à nouveau accéder à l\'application.'
+                        : 'Cette action est définitive et affectera tous les utilisateurs non-administrateurs.'}
                     </p>
                   </div>
 
-                  <div className={`rounded-xl p-4 border mb-6 ${
+                  <div className={`rounded-lg p-3 border mb-4 ${
                     isMaintenanceMode
                       ? 'bg-gradient-to-r from-amber-50 to-yellow-50/50 border-amber-100'
                       : 'bg-gradient-to-r from-sky-50 to-blue-50/50 border-sky-100'
                   }`}>
-                    <div className='flex items-start space-x-3'>
+                    <div className='flex items-start space-x-2'>
                       {isMaintenanceMode ? (
-                        <Wrench className='w-5 h-5 text-amber-600 mt-0.5' />
+                        <Wrench className='w-4 h-4 text-amber-600 mt-0.5' />
                       ) : (
-                        <AlertTriangle className='w-5 h-5 text-sky-600 mt-0.5' />
+                        <AlertTriangle className='w-4 h-4 text-sky-600 mt-0.5' />
                       )}
                       <div>
-                        <p className={`text-sm font-medium mb-1 ${
+                        <p className={`text-xs font-medium mb-1 ${
                           isMaintenanceMode ? 'text-amber-800' : 'text-sky-800'
                         }`}>
                           {isMaintenanceMode
-                            ? 'Conséquences de la désactivation'
-                            : 'Action sécurisée et confidentielle'}
+                            ? 'Conséquences'
+                            : 'Détails de l\'action'}
                         </p>
                         <p className={`text-xs ${
                           isMaintenanceMode ? 'text-amber-600' : 'text-sky-600'
                         }`}>
                           {isMaintenanceMode
-                            ? '• Les utilisateurs pourront se reconnecter<br/>• Les fonctionnalités seront accessibles<br/>• Les données restent sécurisées'
-                            : '• Les administrateurs resteront connectés<br/>• Seuls les utilisateurs seront déconnectés<br/>• Les identités restent confidentielles<br/>• Blocage de 24 heures pour les utilisateurs non-admin'}
+                            ? '• Accès restauré pour tous les utilisateurs<br/>• Fonctionnalités disponibles<br/>• Données sécurisées'
+                            : '• Les administrateurs restent connectés<br/>• Seuls les utilisateurs sont déconnectés<br/>• Blocage de 24 heures pour les non-admin<br/>• Identités confidentielles préservées'}
                         </p>
                       </div>
                     </div>
@@ -688,8 +688,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
               )}
             </div>
 
-            {/* Actions */}
-            <div className='flex space-x-3 p-6 border-t border-slate-200'>
+            {/* Actions - BOUTTONS PLUS PETITS */}
+            <div className='flex space-x-2 p-4 border-t border-slate-200'>
               {!logoutAllResult && (
                 <>
                   <button
@@ -698,7 +698,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                       setShowMaintenanceToggle(false);
                     }}
                     disabled={isLogoutAllLoading || isMaintenanceLoading}
-                    className='flex-1 px-4 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-slate-500/30'
+                    className='flex-1 px-3 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-slate-500/30 text-sm'
                   >
                     Annuler
                   </button>
@@ -713,21 +713,21 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                       }
                     }}
                     disabled={isLogoutAllLoading || isMaintenanceLoading}
-                    className={`flex-1 px-4 py-3 text-white rounded-xl hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 ${
+                    className={`flex-1 px-3 py-2 text-white rounded-lg hover:shadow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 text-sm ${
                       isMaintenanceMode
                         ? 'bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 focus:ring-amber-500/30'
                         : 'bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 focus:ring-rose-500/30'
                     }`}
                   >
                     {(isLogoutAllLoading || isMaintenanceLoading) ? (
-                      <div className='flex items-center justify-center space-x-2'>
-                        <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
-                        <span>En cours...</span>
+                      <div className='flex items-center justify-center space-x-1.5'>
+                        <div className='w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                        <span className='text-sm'>En cours...</span>
                       </div>
                     ) : isMaintenanceMode ? (
-                      'Désactiver maintenance'
+                      'Désactiver'
                     ) : (
-                      'Confirmer déconnexion'
+                      'Confirmer'
                     )}
                   </button>
                 </>
@@ -740,7 +740,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                     setLogoutAllResult(null);
                     setShowMaintenanceToggle(false);
                   }}
-                  className='flex-1 px-4 py-3 bg-gradient-to-r from-sky-500 to-sky-600 text-white rounded-xl hover:from-sky-600 hover:to-sky-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/30'
+                  className='flex-1 px-3 py-2 bg-gradient-to-r from-sky-500 to-sky-600 text-white rounded-lg hover:from-sky-600 hover:to-sky-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/30 text-sm'
                 >
                   {logoutAllResult.success ? 'Fermer' : 'Compris'}
                 </button>
