@@ -1,6 +1,5 @@
 // contact.schema.ts
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { IsOptional, IsString, MaxLength, Matches } from "class-validator";
 import { Document, Types } from "mongoose";
 
 export type ContactDocument = Contact & Document;
@@ -11,12 +10,7 @@ export type ContactDocument = Contact & Document;
   versionKey: false,
 })
 export class Contact {
-  @IsOptional()
-  @IsString({ message: "Le prénom doit être une chaîne de caractères" })
-  @MaxLength(50, { message: "Le prénom ne doit pas dépasser 50 caractères" })
-  @Matches(/^[a-zA-ZÀ-ÿ\s-]*$/, { 
-    message: "Le prénom ne doit contenir que des lettres, espaces et tirets" 
-  })
+  @Prop({ trim: true, maxlength: 50 })
   firstName?: string;
 
   @Prop({ trim: true, maxlength: 50 })
