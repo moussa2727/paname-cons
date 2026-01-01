@@ -9,10 +9,10 @@ import {
 
 // Types pour TypeScript
 interface FormData {
-  firstName?: string;
-  lastName?: string;
-  email: string;
-  message: string;
+  firstName: string;  // string, pas string | undefined
+  lastName: string;   // string, pas string | undefined
+  email: string;      // string, pas string | undefined
+  message: string;    // string, pas string | undefined
 }
 
 interface ValidationErrors {
