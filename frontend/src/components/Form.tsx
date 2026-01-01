@@ -7,12 +7,12 @@ import {
   FiUser,
 } from 'react-icons/fi';
 
-// Types pour TypeScript
+// Types pour TypeScript - Alignés avec le backend
 interface FormData {
-  firstName: string;  // string, pas string | undefined
-  lastName: string;   // string, pas string | undefined
-  email: string;      // string, pas string | undefined
-  message: string;    // string, pas string | undefined
+  firstName: string;
+  lastName: string;
+  email: string;
+  message: string;
 }
 
 interface ValidationErrors {
@@ -45,7 +45,7 @@ const Form = () => {
     }
   }, [submitStatus]);
 
-  // Validation mémoïsée pour la performance - Correspond au DTO backend
+  // Validation mémoïsée - Exactement comme le backend
   const validateField = useCallback((name: string, value: string): string => {
     const trimmedValue = value.trim();
 
@@ -56,11 +56,11 @@ const Form = () => {
     switch (name) {
       case 'email':
         if (!trimmedValue) return 'Email obligatoire';
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)
-          ? ''
-          : 'Email invalide';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue))
+          return 'Format d\'email invalide';
+        return '';
       case 'message':
-        if (!trimmedValue) return 'Message obligatoire';
+        if (!trimmedValue) return 'Le message est obligatoire';
         if (trimmedValue.length < 10)
           return 'Le message doit contenir au moins 10 caractères';
         if (trimmedValue.length > 2000)
@@ -70,8 +70,6 @@ const Form = () => {
       case 'lastName':
         if (trimmedValue && trimmedValue.length > 50)
           return 'Ce champ ne doit pas dépasser 50 caractères';
-        if (trimmedValue && !/^[a-zA-ZÀ-ÿ\s-]+$/.test(trimmedValue))
-          return 'Caractères invalides';
         return '';
       default:
         return '';
@@ -94,6 +92,7 @@ const Form = () => {
     if (!formRef.current) return;
 
     setIsSubmitting(true);
+    setSubmitStatus({}); // Reset status
 
     const formData = new FormData(formRef.current);
     const data: FormData = {
@@ -103,7 +102,7 @@ const Form = () => {
       message: (formData.get('message') as string)?.trim() || '',
     };
 
-    // Validation complète avant soumission - Correspond au backend
+    // Validation complète avant soumission - Exactement comme le backend
     const newErrors: ValidationErrors = {
       email: validateField('email', data.email),
       message: validateField('message', data.message),
@@ -139,10 +138,11 @@ const Form = () => {
       const controller = new AbortController();
       const timeoutId = globalThis.setTimeout(() => {
         controller.abort();
-      }, 10000); // Timeout de 10s
+      }, 7000); // Timeout de 7s
 
-      // Prépare les données selon le DTO backend
-      const requestData: any = {
+      // Préparation des données EXACTEMENT comme attendu par le backend
+      // firstName et lastName sont optionnels - seulement envoyés si non vides
+      const requestData: Record<string, string> = {
         email: data.email,
         message: data.message,
       };
@@ -151,7 +151,7 @@ const Form = () => {
       if (data.firstName) requestData.firstName = data.firstName;
       if (data.lastName) requestData.lastName = data.lastName;
 
-      const response = await globalThis.fetch(`${API_URL}/api/contact`, {
+      const response = await globalThis.fetch(`${API_URL}/contact`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -169,38 +169,27 @@ const Form = () => {
           const errorData = await response.json();
           errorMessage = errorData.message || errorMessage;
 
-          // Traite les erreurs de validation du backend
-          if (errorData.errors) {
-            // Le backend pourrait renvoyer un tableau d'erreurs
-            // ou un objet avec les messages d'erreur
+          // Gestion des erreurs de validation du backend (class-validator)
+          if (errorData.errors && Array.isArray(errorData.errors)) {
             const backendErrors: ValidationErrors = {};
             
-            // Si c'est un tableau
-            if (Array.isArray(errorData.errors)) {
-              errorData.errors.forEach((error: any) => {
-                if (error.property) {
-                  backendErrors[error.property as keyof ValidationErrors] = 
-                    Object.values(error.constraints || {}).join(', ');
-                }
-              });
-            } 
-            // Si c'est un objet simple
-            else if (typeof errorData.errors === 'object') {
-              Object.keys(errorData.errors).forEach(key => {
-                if (key in backendErrors) {
-                  backendErrors[key as keyof ValidationErrors] = 
-                    errorData.errors[key];
-                }
-              });
-            }
+            errorData.errors.forEach((error: any) => {
+              if (error.property && error.constraints) {
+                const fieldName = error.property as keyof ValidationErrors;
+                const firstConstraint = Object.values(error.constraints)[0];
+                backendErrors[fieldName] = firstConstraint as string;
+              }
+            });
             
             if (Object.keys(backendErrors).length > 0) {
               setErrors(backendErrors);
+              setIsSubmitting(false);
               return;
             }
           }
         } catch (parseError) {
           // Si on ne peut pas parser la réponse JSON
+          console.error('Erreur parsing réponse:', parseError);
         }
         throw new Error(errorMessage);
       }
@@ -209,13 +198,13 @@ const Form = () => {
 
       setSubmitStatus({
         success: true,
-        message: result.message || 'Message envoyé ! Vous recevrez une confirmation par email.',
+        message: result.message || 'Message envoyé avec succès',
       });
       
       // Réinitialisation COMPLÈTE du formulaire
       formRef.current.reset();
       setTouchedFields(new Set());
-      setErrors({}); // Réinitialise également les erreurs
+      setErrors({});
     } catch (error) {
       // Log only in development
       if (import.meta.env.DEV) {
@@ -435,7 +424,7 @@ const Form = () => {
                 </div>
                 <InputField
                   id='email'
-                  label='Email professionnel'
+                  label='Email'
                   name='email'
                   type='email'
                   onBlur={handleBlur}
