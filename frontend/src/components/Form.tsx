@@ -9,8 +9,8 @@ import {
 
 // Types pour TypeScript
 interface FormData {
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   message: string;
 }
@@ -45,12 +45,12 @@ const Form = () => {
     }
   }, [submitStatus]);
 
-  // Validation mémoïsée pour la performance
+  // Validation mémoïsée pour la performance - Correspond au DTO backend
   const validateField = useCallback((name: string, value: string): string => {
     const trimmedValue = value.trim();
 
-    if (!trimmedValue && (name === 'email' || name === 'message')) {
-      return 'Ce champ est obligatoire';
+    if (name === 'email' || name === 'message') {
+      if (!trimmedValue) return 'Ce champ est obligatoire';
     }
 
     switch (name) {
@@ -61,14 +61,18 @@ const Form = () => {
           : 'Email invalide';
       case 'message':
         if (!trimmedValue) return 'Message obligatoire';
-        return trimmedValue.length >= 10
-          ? ''
-          : 'Le message doit contenir au moins 10 caractères';
+        if (trimmedValue.length < 10)
+          return 'Le message doit contenir au moins 10 caractères';
+        if (trimmedValue.length > 2000)
+          return 'Le message ne doit pas dépasser 2000 caractères';
+        return '';
       case 'firstName':
       case 'lastName':
-        return trimmedValue && !/^[a-zA-ZÀ-ÿ\s-]+$/.test(trimmedValue)
-          ? 'Caractères invalides'
-          : '';
+        if (trimmedValue && trimmedValue.length > 50)
+          return 'Ce champ ne doit pas dépasser 50 caractères';
+        if (trimmedValue && !/^[a-zA-ZÀ-ÿ\s-]+$/.test(trimmedValue))
+          return 'Caractères invalides';
+        return '';
       default:
         return '';
     }
@@ -93,13 +97,13 @@ const Form = () => {
 
     const formData = new FormData(formRef.current);
     const data: FormData = {
-      firstName: (formData.get('firstName') as string) || '',
-      lastName: (formData.get('lastName') as string) || '',
-      email: (formData.get('email') as string) || '',
-      message: (formData.get('message') as string) || '',
+      firstName: (formData.get('firstName') as string)?.trim() || '',
+      lastName: (formData.get('lastName') as string)?.trim() || '',
+      email: (formData.get('email') as string)?.trim() || '',
+      message: (formData.get('message') as string)?.trim() || '',
     };
 
-    // Validation complète avant soumission
+    // Validation complète avant soumission - Correspond au backend
     const newErrors: ValidationErrors = {
       email: validateField('email', data.email),
       message: validateField('message', data.message),
@@ -137,40 +141,59 @@ const Form = () => {
         controller.abort();
       }, 10000); // Timeout de 10s
 
+      // Prépare les données selon le DTO backend
+      const requestData: any = {
+        email: data.email,
+        message: data.message,
+      };
+
+      // Ajoute firstName et lastName seulement s'ils ne sont pas vides
+      if (data.firstName) requestData.firstName = data.firstName;
+      if (data.lastName) requestData.lastName = data.lastName;
+
       const response = await globalThis.fetch(`${API_URL}/api/contact`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify({
-          firstName: data.firstName.trim(),
-          lastName: data.lastName.trim(),
-          email: data.email.trim(),
-          message: data.message.trim(),
-        }),
+        body: JSON.stringify(requestData),
         signal: controller.signal,
       });
 
       globalThis.clearTimeout(timeoutId);
 
       if (!response.ok) {
-        // Essayer de récupérer le message d'erreur du backend
         let errorMessage = `Erreur HTTP: ${response.status}`;
         try {
           const errorData = await response.json();
           errorMessage = errorData.message || errorMessage;
 
-          // Si le backend retourne des erreurs de validation détaillées
+          // Traite les erreurs de validation du backend
           if (errorData.errors) {
-            // Mettre à jour les erreurs du formulaire avec celles du backend
+            // Le backend pourrait renvoyer un tableau d'erreurs
+            // ou un objet avec les messages d'erreur
             const backendErrors: ValidationErrors = {};
-            Object.keys(errorData.errors).forEach(key => {
-              if (key in backendErrors) {
-                backendErrors[key as keyof ValidationErrors] =
-                  errorData.errors[key];
-              }
-            });
+            
+            // Si c'est un tableau
+            if (Array.isArray(errorData.errors)) {
+              errorData.errors.forEach((error: any) => {
+                if (error.property) {
+                  backendErrors[error.property as keyof ValidationErrors] = 
+                    Object.values(error.constraints || {}).join(', ');
+                }
+              });
+            } 
+            // Si c'est un objet simple
+            else if (typeof errorData.errors === 'object') {
+              Object.keys(errorData.errors).forEach(key => {
+                if (key in backendErrors) {
+                  backendErrors[key as keyof ValidationErrors] = 
+                    errorData.errors[key];
+                }
+              });
+            }
+            
             if (Object.keys(backendErrors).length > 0) {
               setErrors(backendErrors);
               return;
@@ -186,10 +209,13 @@ const Form = () => {
 
       setSubmitStatus({
         success: true,
-        message: 'Message envoyé ! Vous recevrez une confirmation par email.',
+        message: result.message || 'Message envoyé ! Vous recevrez une confirmation par email.',
       });
+      
+      // Réinitialisation COMPLÈTE du formulaire
       formRef.current.reset();
       setTouchedFields(new Set());
+      setErrors({}); // Réinitialise également les erreurs
     } catch (error) {
       // Log only in development
       if (import.meta.env.DEV) {
@@ -384,8 +410,9 @@ const Form = () => {
                     icon={
                       <FiUser className='text-gray-400' aria-hidden='true' />
                     }
-                    placeholder='Votre prénom'
+                    placeholder='Votre prénom (optionnel)'
                     disabled={isSubmitting}
+                    maxLength={50}
                   />
                   <InputField
                     id='lastName'
@@ -401,8 +428,9 @@ const Form = () => {
                     icon={
                       <FiUser className='text-gray-400' aria-hidden='true' />
                     }
-                    placeholder='Votre nom de famille'
+                    placeholder='Votre nom de famille (optionnel)'
                     disabled={isSubmitting}
+                    maxLength={50}
                   />
                 </div>
                 <InputField
@@ -433,8 +461,9 @@ const Form = () => {
                       aria-hidden='true'
                     />
                   }
-                  placeholder='Votre message, avis ou commentaire...'
+                  placeholder='Votre message, avis ou commentaire... (min. 10 caractères)'
                   disabled={isSubmitting}
+                  maxLength={2000}
                 />
                 <SubmitButton isSubmitting={isSubmitting} />
               </div>
@@ -481,6 +510,7 @@ interface InputFieldProps {
   placeholder: string;
   disabled?: boolean;
   autoComplete?: string;
+  maxLength?: number;
 }
 
 const InputField = ({
@@ -495,6 +525,7 @@ const InputField = ({
   placeholder,
   disabled,
   autoComplete,
+  maxLength,
 }: InputFieldProps) => (
   <div>
     <label
@@ -515,6 +546,7 @@ const InputField = ({
         placeholder={placeholder}
         disabled={disabled}
         autoComplete={autoComplete}
+        maxLength={maxLength}
         aria-invalid={error ? 'true' : 'false'}
         aria-describedby={error ? `${id}-error` : undefined}
         className={`w-full pl-10 pr-4 py-3 rounded border ${
@@ -540,6 +572,7 @@ interface TextAreaFieldProps {
   icon: React.ReactNode;
   placeholder: string;
   disabled?: boolean;
+  maxLength?: number;
 }
 
 const TextAreaField = ({
@@ -552,6 +585,7 @@ const TextAreaField = ({
   icon,
   placeholder,
   disabled,
+  maxLength,
 }: TextAreaFieldProps) => (
   <div>
     <label
@@ -569,6 +603,7 @@ const TextAreaField = ({
         onBlur={onBlur}
         placeholder={placeholder}
         disabled={disabled}
+        maxLength={maxLength}
         aria-invalid={error ? 'true' : 'false'}
         aria-describedby={error ? `${id}-error` : undefined}
         className={`w-full pl-10 pr-4 py-3 rounded border ${
