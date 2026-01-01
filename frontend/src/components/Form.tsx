@@ -140,7 +140,6 @@ const Form = () => {
         controller.abort();
       }, 7000); // Timeout de 7s
 
-      // Préparation des données EXACTEMENT comme attendu par le backend
       // firstName et lastName sont optionnels - seulement envoyés si non vides
       const requestData: Record<string, string> = {
         email: data.email,
@@ -151,7 +150,7 @@ const Form = () => {
       if (data.firstName) requestData.firstName = data.firstName;
       if (data.lastName) requestData.lastName = data.lastName;
 
-      const response = await globalThis.fetch(`${API_URL}/contact`, {
+      const response = await globalThis.fetch(`${API_URL}/api/contact`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
