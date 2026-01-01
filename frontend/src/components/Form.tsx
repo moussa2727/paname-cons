@@ -696,8 +696,8 @@ const TextAreaField = ({
           w-full pl-10 pr-4 py-3 rounded-xl border-2
           transition-all duration-200
           ${error 
-            ? 'border-red-300 bg-red-50 focus:border-red-500 focus:ring-2 focus:ring-red-200' 
-            : 'border-gray-200 bg-gray-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-200'
+            ? 'border-red-300 bg-red-50 focus:border-red-500 focus:ring-none focus:outline-none' 
+            : 'border-gray-200 bg-gray-50 focus:border-blue-500 focus:ring-none focu:soutline-none'
           }
           hover:border-blue-300
           focus:outline-none
