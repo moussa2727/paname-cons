@@ -90,7 +90,7 @@ const About = () => {
               <div className='text-center mb-6 md:mb-8 relative z-10'>
                 <div className='mx-auto bg-gray-200 rounded w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 lg:w-72 lg:h-72 xl:w-80 xl:h-80 flex items-center justify-center overflow-hidden'>
                   <img
-                    src='/damini.webp'
+                    src='/CEOPANAME.webp'
                     alt='Photo de Sangare Damini'
                     className='w-full h-full object-cover'
                     loading='lazy'
