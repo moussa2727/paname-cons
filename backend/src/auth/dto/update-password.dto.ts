@@ -1,4 +1,4 @@
-import { IsString, MinLength, Matches } from "class-validator";
+import { IsString, MinLength, Matches } from "@nestjs/class-validator";
 import { ApiProperty } from "@nestjs/swagger";
 import { Match } from "../../shared/decorators/match.decorator";
 

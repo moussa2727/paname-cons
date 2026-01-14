@@ -37,7 +37,7 @@ export class ResetToken extends Document {
     ref: "User",
     required: true,
   })
-  user: Types.ObjectId | User; // ✅ Union type
+  user: Types.ObjectId | User; 
 
   @Prop({
     type: Date,
@@ -64,7 +64,7 @@ export const ResetTokenSchema = SchemaFactory.createForClass(ResetToken);
 // Single index definition for expiration
 ResetTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-// ✅ Middleware asynchrone sans next
+//  Middleware asynchrone sans next
 ResetTokenSchema.pre("save", async function() {
   if (this.isModified("used") && this.used) {
     this.status = "used";

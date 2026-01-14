@@ -149,9 +149,6 @@ export class RendezvousService {
     return `${localPart.charAt(0)}***${localPart.charAt(localPart.length - 1)}@${domain}`;
   }
 
-  private getCurrentDateTime(): Date {
-    return new Date();
-  }
 
   private isToday(dateStr: string): boolean {
     const today = new Date().toISOString().split('T')[0];
@@ -179,11 +176,7 @@ export class RendezvousService {
             rendezvous.status === RENDEZVOUS_STATUS.CONFIRMED);
   }
 
-  private isPastRendezvous(rendezvous: Rendezvous): boolean {
-    const rdvDateTime = new Date(`${rendezvous.date}T${rendezvous.time}:00`);
-    const now = new Date();
-    return rdvDateTime < now;
-  }
+
 
   private isFutureRendezvous(rendezvous: Rendezvous): boolean {
     const rdvDateTime = new Date(`${rendezvous.date}T${rendezvous.time}:00`);

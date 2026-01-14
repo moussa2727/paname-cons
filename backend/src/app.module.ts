@@ -2,8 +2,9 @@ import { Module, Logger } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { MongooseModule } from "@nestjs/mongoose";
 import { ServeStaticModule } from "@nestjs/serve-static";
-import { join } from "path";
+import path, { join } from "path";
 import configuration from "./config/configuration";
+
 
 // Modules métier
 import { AuthModule } from "./auth/auth.module";
@@ -15,6 +16,7 @@ import { RendezvousModule } from "./rendez-vous/rendez-vous.module";
 import { NotificationModule } from "./notification/notification.module";
 import { ProcedureModule } from "./procedure/procedure.module";
 import { SmtpService } from "./config/smtp.service";
+
 
 @Module({
   imports: [
@@ -77,7 +79,7 @@ import { SmtpService } from "./config/smtp.service";
   ],
   controllers: [],
   providers: [
-    SmtpService, // ← CORRECTION : pas besoin de configuration spéciale
+    SmtpService, 
     {
       provide: 'INITIALIZE_DATABASE',
       useFactory: async (configService: ConfigService) => {

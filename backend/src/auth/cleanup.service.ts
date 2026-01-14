@@ -12,7 +12,7 @@ export class CleanupService {
     private readonly revokedToken: RevokedTokenService,
   ) {}
 
-  // 🔹 Nettoyage HOURLY des sessions expirées (désactivation)
+  // Nettoyage HOURLY des sessions expirées (désactivation)
   @Cron(CronExpression.EVERY_HOUR)
   async handleCleanupExpiredSessions() {
     try {
@@ -24,7 +24,7 @@ export class CleanupService {
     }
   }
 
-  // 🔹 Nettoyage QUOTIDIEN des sessions (doublon volontaire pour robustesse)
+  // Nettoyage QUOTIDIEN des sessions (doublon volontaire pour robustesse)
   @Cron(CronExpression.EVERY_DAY_AT_2AM)
   async handleDailyCleanup() {
     try {
@@ -37,7 +37,7 @@ export class CleanupService {
     }
   }
 
-  // 🔹 Nettoyage QUOTIDIEN des tokens révoqués expirés
+  // Nettoyage QUOTIDIEN des tokens révoqués expirés
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async handleRevokedTokensCleanup() {
     try {

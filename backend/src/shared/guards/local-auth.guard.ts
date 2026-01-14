@@ -22,18 +22,18 @@ export class LocalAuthGuard extends AuthGuard("local") {
     const request = context.switchToHttp().getRequest();
     const email = request.body?.email;
     
-    // ✅ GÉRER D'ABORD LES ERREURS SPÉCIFIQUES DU BACKEND
+    //  GÉRER D'ABORD LES ERREURS SPÉCIFIQUES DU BACKEND
     if (err) {
       this.logger.error(`Erreur dans LocalAuthGuard: ${err.message}`, err.stack);
       
-      // ✅ DÉTECTER LES ERREURS STRUCTURÉES (avec code)
+      //  DÉTECTER LES ERREURS STRUCTURÉES (avec code)
       if (err.response && err.response.code) {
         const errorCode = err.response.code;
         const errorMessage = err.response.message || err.message;
         
         this.logger.warn(`Erreur structurée détectée: ${errorCode} - ${this.maskEmail(email)}`);
         
-        // ✅ PASSWORD_RESET_REQUIRED - C'EST LE VOTRE PROBLÈME
+        //  PASSWORD_RESET_REQUIRED - C'EST LE VOTRE PROBLÈME
         if (errorCode === AuthConstants.ERROR_MESSAGES.PASSWORD_RESET_REQUIRED) {
           this.logger.warn(`Password reset required for: ${this.maskEmail(email)}`);
           throw new UnauthorizedException({
@@ -71,9 +71,9 @@ export class LocalAuthGuard extends AuthGuard("local") {
         }
       }
       
-      // ✅ Pour toutes les autres erreurs UnauthorizedException
+      //  Pour toutes les autres erreurs UnauthorizedException
       if (err instanceof UnauthorizedException) {
-        // ✅ DÉTECTION DIRECTE DU MESSAGE "Un mot de passe doit être défini pour ce compte"
+        //  DÉTECTION DIRECTE DU MESSAGE "Un mot de passe doit être défini pour ce compte"
         if (err.message.includes("mot de passe doit être défini") || 
             err.message.includes("PASSWORD RESET REQUIRED")) {
           this.logger.warn(`Password reset detected from message: ${this.maskEmail(email)}`);
@@ -113,7 +113,7 @@ export class LocalAuthGuard extends AuthGuard("local") {
       const request = context.switchToHttp().getRequest();
       const email = request.body?.email;
       
-      this.logger.log(`🔐 Tentative de connexion pour: ${this.maskEmail(email)}`);
+      this.logger.log(` Tentative de connexion pour: ${this.maskEmail(email)}`);
 
       // Vérifier que le body contient email et password
       if (!email || !request.body?.password) {
@@ -124,10 +124,10 @@ export class LocalAuthGuard extends AuthGuard("local") {
       // Appel de la méthode parent
       const result = (await super.canActivate(context)) as boolean;
       
-      this.logger.log(`✅ Authentification locale réussie pour: ${this.maskEmail(email)}`);
+      this.logger.log(` Authentification locale réussie pour: ${this.maskEmail(email)}`);
       return result;
     } catch (error) {
-      this.logger.error(`❌ Erreur activation guard local: ${error.message}`, error.stack);
+      this.logger.error(` Erreur activation guard local: ${error.message}`, error.stack);
       throw error;
     }
   }

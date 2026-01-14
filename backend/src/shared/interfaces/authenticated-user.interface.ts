@@ -1,8 +1,8 @@
 // src/shared/interfaces/authenticated-user.interface.ts
 export interface AuthenticatedUser {
-  id: string;           // ID MongoDB de l'utilisateur (propriété principale)
-  sub?: string;         // Alias pour id (compatibilité JWT standard)
-  userId?: string;      // Autre alias
+  id: string;           
+  sub?: string;         
+  userId?: string;     
   email: string;
   role: string;
   firstName?: string;

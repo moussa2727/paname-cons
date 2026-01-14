@@ -21,7 +21,6 @@ import { JwtAuthGuard } from "../shared/guards/jwt-auth.guard";
 import { RolesGuard } from "../shared/guards/roles.guard";
 import { UsersService } from "./users.service";
 import { AuthenticatedRequest } from "../shared/interfaces/authenticated-user.interface";
-import { isValidObjectId } from "mongoose";
 
 @Controller("users")
 export class UsersController {
@@ -68,7 +67,7 @@ export class UsersController {
   async create(@Body() createUserDto: RegisterDto) {
     this.logger.log('Création d\'utilisateur par admin');
 
-    // ✅ FORCER tous les comptes créés via API à être USER
+    // FORCER tous les comptes créés via API à être USER
     if (createUserDto.role === UserRole.ADMIN) {
       createUserDto.role = UserRole.USER;
       this.logger.warn('Rôle admin forcé en USER pour création via API');
@@ -77,7 +76,7 @@ export class UsersController {
     try {
       const user = await this.usersService.create(createUserDto);
       
-      // ✅ CORRECTION: Retourner l'utilisateur avec id (pas _id)
+      //  CORRECTION: Retourner l'utilisateur avec id (pas _id)
       const responseUser = {
         ...user,
         id: user.id || this.extractUserId(user)
@@ -100,7 +99,7 @@ export class UsersController {
     try {
       const users = await this.usersService.findAll();
       
-      // ✅ CORRECTION: Les users ont déjà id grâce au schéma toJSON
+      //  CORRECTION: Les users ont déjà id grâce au schéma toJSON
       this.logger.log(`${users.length} utilisateurs récupérés`);
       return users;
     } catch (error) {
@@ -133,7 +132,7 @@ export class UsersController {
     this.logger.log(`Suppression utilisateur demandée: ${this.maskUserId(id)}`);
     
     try {
-      // ✅ CORRECTION: Utiliser directement l'id
+      //  CORRECTION: Utiliser directement l'id
       await this.usersService.delete(id);
       this.logger.log('Utilisateur supprimé');
     } catch (error) {
@@ -149,7 +148,7 @@ export class UsersController {
     this.logger.log(`Changement statut utilisateur: ${this.maskUserId(id)}`);
     
     try {
-      // ✅ CORRECTION: Utiliser directement l'id
+      //  CORRECTION: Utiliser directement l'id
       const user = await this.usersService.toggleStatus(id);
       
       this.logger.log(`Statut utilisateur modifié - Actif: ${user.isActive}`);
@@ -196,7 +195,7 @@ export class UsersController {
     this.logger.log(`Vérification accès utilisateur: ${this.maskUserId(userId)}`);
     
     try {
-      // ✅ CORRECTION: Utiliser directement l'id
+      //  CORRECTION: Utiliser directement l'id
       const accessCheck = await this.usersService.checkUserAccess(userId);
       
       this.logger.log(`Accès utilisateur: ${accessCheck.canAccess}`);
@@ -214,7 +213,7 @@ export class UsersController {
     @Request() req: AuthenticatedRequest,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    // ✅ CORRECTION: Utiliser directement req.user.id
+    //  CORRECTION: Utiliser directement req.user.id
     const userId = req.user?.id;
     
     if (!userId) {
@@ -286,7 +285,7 @@ export class UsersController {
 
       this.logger.log('Profil mis à jour avec succès');
 
-      // ✅ CORRECTION: Utiliser user.id (pas _id)
+      //  CORRECTION: Utiliser user.id (pas _id)
       return {
         id: updatedUser.id || userId,
         email: updatedUser.email,
@@ -312,7 +311,7 @@ export class UsersController {
   ) {
     this.logger.log(`Réinitialisation mot de passe admin pour: ${this.maskUserId(id)}`);
     
-    // ✅ EMPÊCHER RÉINITIALISATION ADMIN SI NON ADMIN CONNECTÉ
+    //  EMPÊCHER RÉINITIALISATION ADMIN SI NON ADMIN CONNECTÉ
     const adminEmail = process.env.EMAIL_USER;
     const currentUser = await this.usersService.findById(id);
     
@@ -320,7 +319,7 @@ export class UsersController {
       // Vérifier que l'admin connecté est bien l'admin unique
       const requestingUser = await this.usersService.findByRole(UserRole.ADMIN);
       if (!requestingUser || requestingUser.email !== adminEmail) {
-        this.logger.warn(`❌ TENTATIVE DE RÉINITIALISATION ADMIN NON AUTORISÉE`);
+        this.logger.warn(` TENTATIVE DE RÉINITIALISATION ADMIN NON AUTORISÉE`);
         throw new BadRequestException("Seul l'administrateur principal peut réinitialiser son mot de passe");
       }
     }
@@ -353,7 +352,7 @@ export class UsersController {
       const updatedUser = await this.usersService.update(id, updateUserDto);
       this.logger.log('Utilisateur mis à jour par admin');
 
-      // ✅ CORRECTION: Utiliser user.id (pas _id)
+      //  CORRECTION: Utiliser user.id (pas _id)
       return {
         id: updatedUser.id || id,
         email: updatedUser.email,
@@ -372,7 +371,7 @@ export class UsersController {
   @Get("profile/me")
   @UseGuards(JwtAuthGuard)
   async getMyProfile(@Request() req: AuthenticatedRequest) {
-    // ✅ CORRECTION: Utiliser directement req.user.id
+    //  CORRECTION: Utiliser directement req.user.id
     const userId = req.user?.id;
     
     if (!userId) {
@@ -386,7 +385,7 @@ export class UsersController {
       const user = await this.usersService.findById(userId);
       this.logger.log('Profil récupéré avec succès');
 
-      // ✅ CORRECTION: Utiliser user.id (pas _id)
+      //  CORRECTION: Utiliser user.id (pas _id)
       return {
         id: user.id || userId,
         email: user.email,

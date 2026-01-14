@@ -47,6 +47,7 @@ export default defineConfig(({ mode }) => ({
             './src/pages/user/rendezvous/RendezVous.tsx',
             './src/pages/user/UserProfile.tsx',
             './src/pages/user/UserProcedure.tsx',
+            
           ]
         }
       }

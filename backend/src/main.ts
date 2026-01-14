@@ -23,6 +23,10 @@ import { AppModule } from "./app.module";
 import { rateLimit } from "express-rate-limit";
 import * as crypto from 'crypto';
 
+// Configuration des variables d'environnement pour SMTP
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 if (!global.crypto) {
   global.crypto = crypto as any;
 }
@@ -93,10 +97,20 @@ async function bootstrap() {
     new ExpressAdapter(server),
   );
 
-
   const logger = new Logger('Bootstrap');
 
-  // ✅ CRÉATION DES DOSSIERS NÉCESSAIRES
+  // Vérifier les variables d'environnement SMTP
+  const emailUser = process.env.EMAIL_USER;
+  const emailPass = process.env.EMAIL_PASS;
+  
+  if (!emailUser || !emailPass) {
+    logger.warn(' Variables SMTP non configurées. Le service d\'email ne fonctionnera pas.');
+    logger.warn('   Définissez EMAIL_USER et EMAIL_PASS dans votre fichier .env');
+  } else {
+    logger.log(`SMTP configuré pour: ${emailUser.substring(0, 3)}...@${emailUser.split('@')[1]}`);
+  }
+
+  // CRÉATION DES DOSSIERS NÉCESSAIRES
   const uploadsDir = join(__dirname, "..", "uploads");
   const logsDir = join(__dirname, "..", "logs");
   
@@ -107,7 +121,7 @@ async function bootstrap() {
     }
   });
 
-  // ✅ FICHIERS STATIQUES
+  // FICHIERS STATIQUES
   app.use(
     "/uploads",
     express.static(uploadsDir, {
@@ -120,37 +134,67 @@ async function bootstrap() {
     }),
   );
 
-  // ✅ CORS avec credentials
-app.enableCors({
-  origin: [
-    "https://panameconsulting.com",
-    "https://www.panameconsulting.com",
-    "https://panameconsulting.vercel.app",
-    "https://panameconsulting.up.railway.app",
-    "https://vercel.live",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:10000"
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie'],
-  exposedHeaders: ['Set-Cookie'],
-});
+  app.enableCors({
+    origin: (origin, callback) => {
+      // Autoriser les requêtes sans origin (comme les applications mobiles, curl, postman)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      const allowedOrigins = [
+        "https://panameconsulting.com",
+        "https://www.panameconsulting.com",
+        "https://panameconsulting.vercel.app",
+        "https://panameconsulting.up.railway.app",
+        "https://vercel.live",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:10000",
+      ];
+      
+      // En développement, autoriser toutes les origines locales
+      if (process.env.NODE_ENV !== 'production') {
+        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+          return callback(null, true);
+        }
+      }
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        logger.warn(`CORS bloqué pour origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'Cookie', 
+      'Set-Cookie',
+      'X-Requested-With',
+      'Accept',
+      'Origin'
+    ],
+    exposedHeaders: ['Set-Cookie', 'Authorization'],
+    maxAge: 86400, // 24 heures en secondes
+  });
 
   server.get("/", (_req: express.Request, res: express.Response) => {
     res.status(200).json({
       status: "ok",
       timestamp: new Date().toISOString(),
       service: "paname-consulting-api",
-      version: process.env.npm_package_version || "1.0.0"
+      version: process.env.npm_package_version || "1.0.0",
+      smtp: emailUser ? "Configuré" : "Non configuré"
     });
   });
 
-  // ✅ PREFIX GLOBAL DE L'API
+  // PREFIX GLOBAL DE L'API
   app.setGlobalPrefix("api");
 
-  // ✅ API INFO - route séparée pour éviter les erreurs
+  // API INFO - route séparée pour éviter les erreurs
   server.get("/api", (_req: express.Request, res: express.Response) => {
     res.status(200).json({
       service: "paname-consulting-api",
@@ -163,11 +207,12 @@ app.enableCors({
         destinations: "/api/destinations",
         rendezvous: "/api/rendezvous",
       },
-      support: "panameconsulting906@gmail.com",
+      support: process.env.EMAIL_USER,
+      smtp_configured: !!(emailUser && emailPass)
     });
   });
 
-  // ✅ MIDDLEWARE: Body parsers
+  // MIDDLEWARE: Body parsers
   server.use(express.urlencoded({
     limit: '10mb',
     extended: true,
@@ -187,13 +232,13 @@ app.enableCors({
     }
   }));
 
-  // ✅ MIDDLEWARE: Compression
+  // MIDDLEWARE: Compression
   server.use(compression());
 
-  // ✅ MIDDLEWARE: Cookie Parser (options séparées)
+  // MIDDLEWARE: Cookie Parser (options séparées)
   server.use(cookieParser(process.env.COOKIE_SECRET));
 
-  // ✅ MIDDLEWARE: Configuration des cookies de session (30 minutes)
+  // MIDDLEWARE: Configuration des cookies de session (30 minutes)
   server.use((_req: express.Request, res: express.Response, next: express.NextFunction) => {
     // Configurer les cookies de réponse pour qu'ils soient sécurisés
     const cookieOptions = {
@@ -213,7 +258,7 @@ app.enableCors({
     next();
   });
 
-  // ✅ MIDDLEWARE: Security headers avec Helmet
+  // MIDDLEWARE: Security headers avec Helmet
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -235,7 +280,7 @@ app.enableCors({
     }),
   );
 
-  // ✅ MIDDLEWARE: Headers de sécurité additionnels
+  // MIDDLEWARE: Headers de sécurité additionnels
   app.use((_req: express.Request, res: express.Response, next) => {
     res.removeHeader("X-Powered-By");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -252,7 +297,7 @@ app.enableCors({
     next();
   });
 
-  // ✅ MIDDLEWARE: Détection des routes admin
+  // MIDDLEWARE: Détection des routes admin
   app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
     const adminRoutes = [
       '/api/users/stats',
@@ -328,7 +373,7 @@ app.enableCors({
     }
   });
 
-  // ✅ VALIDATION GLOBALE
+  // VALIDATION GLOBALE
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
@@ -355,17 +400,26 @@ app.enableCors({
     }),
   );
 
-  // ✅ DÉMARRAGE DU SERVEUR
+  // DÉMARRAGE DU SERVEUR
   const port = parseInt(process.env.PORT, 10);
   const host = process.env.HOST || "0.0.0.0";
 
   await app.listen(port, host, () => {
     logger.log(`Server started successfully on PORT=${port}`); 
-    logger.log(`🚀 Application is running on: ${host}:${port}`);
-    logger.log(`📁 Environment: ${process.env.NODE_ENV || 'development'}`);
-    logger.log(`🍪 Session timeout: 30 minutes`);
-    logger.log(`⏱️ Rate limits: Users=2000/30min, Admin=10000/30min`);
-    logger.log(`🔐 CORS with credentials enabled`);
+    logger.log(`Application is running on: ${host}:${port}`);
+    logger.log(`Environment: ${process.env.NODE_ENV}`);
+    logger.log(`Session timeout: 30 minutes`);
+    logger.log(` CORS with credentials enabled`);
+    
+    if (emailUser && emailPass) {
+      logger.log(` SMTP service: CONFIGURED (${emailUser.substring(0, 3)}...@${emailUser.split('@')[1]})`);
+    } else {
+      logger.warn(`  SMTP service: NOT CONFIGURED`);
+      logger.warn(`   Add EMAIL_USER and EMAIL_PASS to .env file`);
+    }
+    
+    logger.log(` Application accessible sur : http://localhost:${port}`);
+    logger.log(`   API Base URL: http://localhost:${port}/api`);
   });
 }
 

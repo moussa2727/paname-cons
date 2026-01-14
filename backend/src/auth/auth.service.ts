@@ -9,7 +9,7 @@ import { JwtService } from "@nestjs/jwt";
 import { InjectModel } from "@nestjs/mongoose";
 import * as bcrypt from 'bcryptjs';
 import * as crypto from "crypto";
-import { Model, Types } from "mongoose";
+import { Model } from "mongoose";
 import { randomUUID } from "crypto";
 import { MailService } from "../mail/mail.service";
 import { ResetToken } from "../schemas/reset-token.schema";
@@ -51,8 +51,6 @@ export class AuthService {
     @InjectModel(User.name) private userModel: Model<User>,
   ) {}
 
-  // Supprimer convertObjectIdToString car nous n'utilisons plus _id
-  // Remplacé par des références directes à l'ID
 
   private getLoginAttempts(email: string): {
     attempts: number;
@@ -113,7 +111,7 @@ export class AuthService {
   try {
     const adminEmail = process.env.EMAIL_USER;
     
-    // ✅ LOGIQUE SIMPLIFIÉE : TOUJOURS USER SAUF EMAIL_USER (premier seulement)
+    // LOGIQUE SIMPLIFIÉE : TOUJOURS USER SAUF EMAIL_USER (premier seulement)
     const existingAdmin = await this.usersService.findByRole(UserRole.ADMIN);
     
     if (registerDto.email === adminEmail) {
@@ -121,20 +119,20 @@ export class AuthService {
       if (existingAdmin) {
         // Admin existe déjà → devient USER
         registerDto.role = UserRole.USER;
-        this.logger.warn(`⚠️ Email admin utilisé pour créer un USER (admin existe déjà)`);
+        this.logger.warn(`Email admin utilisé pour créer un USER (admin existe déjà)`);
       } else {
         // Premier admin → devient ADMIN
         registerDto.role = UserRole.ADMIN;
-        this.logger.log(`✅ Création du SEUL et UNIQUE admin: ${this.maskEmail(adminEmail)}`);
+        this.logger.log(`Création du SEUL et UNIQUE admin: ${this.maskEmail(adminEmail)}`);
       }
     } else {
       // Tous les autres emails sont USER
       registerDto.role = UserRole.USER;
-      this.logger.log(`✅ Création d'utilisateur standard: ${this.maskEmail(registerDto.email)}`);
+      this.logger.log(`Création d'utilisateur standard: ${this.maskEmail(registerDto.email)}`);
     }
 
     const newUser = await this.usersService.create(registerDto);
-    // ✅ UTILISATION DE id AU LIEU DE _id
+    // UTILISATION DE id pour l'identifiant
     const userId = newUser.id;
 
     const jtiAccess = randomUUID();
@@ -215,7 +213,7 @@ export class AuthService {
   async login(user: User) {
     const jtiAccess = randomUUID();
     const jtiRefresh = randomUUID();
-    // ✅ UTILISATION DE id AU LIEU DE _id
+    // UTILISATION DE id 
     const userId = user.id;
 
     const accessPayload = {
@@ -301,7 +299,7 @@ export class AuthService {
         throw new UnauthorizedException("Utilisateur non trouvé");
       }
 
-      // ✅ UTILISATION DE id AU LIEU DE _id
+      // UTILISATION DE id 
       const userId = user.id;
 
       const jtiAccess = randomUUID();
@@ -348,14 +346,14 @@ export class AuthService {
 
       await this.refreshTokenService.deactivateByToken(refresh_token);
 
-      this.logger.log(`✅ Tokens rafraîchis pour l'utilisateur ${this.maskUserId(userId)}`);
+      this.logger.log(`Tokens rafraîchis pour l'utilisateur ${this.maskUserId(userId)}`);
 
       return {
         access_token: new_access_token,
         refresh_token: new_refresh_token,
       };
     } catch (error: any) {
-      this.logger.error(`❌ Erreur refresh token: ${error.message}`);
+      this.logger.error(` Erreur refresh token: ${error.message}`);
 
       if (
         error.name === "JsonWebTokenError" ||
@@ -472,7 +470,6 @@ async logoutAll(): Promise<{
       this.resetTokenModel.deleteMany({ user: { $in: userIds } }).exec(),
     ]);
 
-    const executionTime = Date.now() - startTime;
 
     this.logger.log(` DÉCONNEXION GLOBALE RÉUSSIE : ${activeNonAdminUsers.length} utilisateurs déconnectés`);
     this.logger.log(` ADMIN PRÉSERVÉ : ${this.maskEmail(adminEmail)} - ID: ${adminUser.id}`);
@@ -718,7 +715,7 @@ async validateUser(email: string, password: string): Promise<User | null> {
       return null;
     }
 
-    //  UTILISATION DE id AU LIEU DE _id
+    //  UTILISATION DE id 
     const userId = user.id;
     
     //  VÉRIFICATION D'ACCÈS POUR LES UTILISATEURS NORMALS SEULEMENT
@@ -796,7 +793,7 @@ async validateUser(email: string, password: string): Promise<User | null> {
         throw new NotFoundException("Utilisateur non trouvé");
       }
 
-      //  UTILISATION DE id AU LIEU DE convertObjectIdToString
+      //  UTILISATION DE id 
       const userId = user.id;
       await this.usersService.resetPassword(userId, newPassword);
 
@@ -868,17 +865,17 @@ async validateUser(email: string, password: string): Promise<User | null> {
 
       const resetUrl = this.buildResetUrl(resetToken);
 
-      this.logger.log(`🔗 URL de reset générée pour ${this.maskEmail(email)}`);
+      this.logger.log(` URL de reset générée pour ${this.maskEmail(email)}`);
 
       try {
         await this.mailService.sendPasswordReset(user.email, resetUrl);
-        this.logger.log(`✅ Email de réinitialisation envoyé à ${this.maskEmail(email)}`);
+        this.logger.log(`Email de réinitialisation envoyé à ${this.maskEmail(email)}`);
       } catch (emailError) {
-        this.logger.error(`❌ Échec envoi email pour ${this.maskEmail(email)}: ${emailError.message}`);
-        this.logger.warn(`🔑 Token de réinitialisation généré pour ${this.maskEmail(email)}`);
+        this.logger.error(`Échec envoi email pour ${this.maskEmail(email)}: ${emailError.message}`);
+        this.logger.warn(`Token de réinitialisation généré pour ${this.maskEmail(email)}`);
       }
     } catch (error) {
-      this.logger.error(`❌ Erreur lors de la demande de réinitialisation: ${error.message}`);
+      this.logger.error(` Erreur lors de la demande de réinitialisation: ${error.message}`);
     }
   }
 
@@ -897,7 +894,7 @@ async validateUser(email: string, password: string): Promise<User | null> {
         const user = await this.usersService.findById(cleanUserId);
 
         if (!user) {
-          this.logger.warn(`❌ Utilisateur non trouvé pour l'ID: ${this.maskUserId(cleanUserId)}`);
+          this.logger.warn(`Utilisateur non trouvé pour l'ID: ${this.maskUserId(cleanUserId)}`);
           throw new NotFoundException("Utilisateur non trouvé");
         }
 
@@ -922,7 +919,7 @@ async validateUser(email: string, password: string): Promise<User | null> {
         throw error;
       }
 
-      this.logger.error(`❌ Erreur critique dans getProfile: ${error.message}`, error.stack);
+      this.logger.error(`Erreur critique dans getProfile: ${error.message}`, error.stack);
       throw new BadRequestException("Erreur lors de la récupération du profil");
     }
   }

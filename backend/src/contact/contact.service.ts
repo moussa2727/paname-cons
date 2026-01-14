@@ -24,13 +24,13 @@ export class ContactService {
   async create(createContactDto: CreateContactDto): Promise<Contact> {
     const contactId = "CONTACT_" + Date.now(); // ID temporaire pour les logs
     try {
-      this.logger.log(`Création d'un nouveau message de contact [ID: ${contactId}]`);
+      this.logger.log(`Création d'un nouveau message de contact .`);
 
       // Nettoie les champs optionnels vides
       const cleanedData = {
         ...createContactDto,
-        firstName: createContactDto.firstName?.trim() || undefined,
-        lastName: createContactDto.lastName?.trim() || undefined,
+        firstName: createContactDto.firstName?.trim() || '',
+        lastName: createContactDto.lastName?.trim() || '',
       };
 
       const createdContact = new this.contactModel(cleanedData);
@@ -38,16 +38,16 @@ export class ContactService {
 
       // Masquer l'email dans les logs
       const maskedEmail = this.maskEmail(savedContact.email);
-      this.logger.log(`Message de contact créé avec succès [ID: ${savedContact._id}, Email: ${maskedEmail}]`);
+      this.logger.log(`Message de contact créé avec succès pour l'Email: ${maskedEmail}`);
 
       // Envoyer les notifications après la sauvegarde
       try {
         await this.notificationService.sendContactNotification(savedContact);
         await this.notificationService.sendContactConfirmation(savedContact);
-        this.logger.log(`Notifications envoyées pour le contact [ID: ${savedContact._id}]`);
+        this.logger.log(`Notifications envoyées pour le contact ${maskedEmail}] `);
       } catch (notificationError) {
         this.logger.error(
-          `Erreur lors de l'envoi des notifications pour le contact [ID: ${savedContact._id}]`,
+          `Erreur lors de l'envoi des notifications pour le contact  ${maskedEmail}`,
           notificationError.stack,
         );
         // Ne pas propager l'erreur des notifications pour ne pas bloquer l'envoi du formulaire

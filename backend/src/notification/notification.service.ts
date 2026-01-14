@@ -15,7 +15,7 @@ export class NotificationService {
     private readonly smtpService: SmtpService,
     private readonly configService: ConfigService
   ) {
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'https://panameconsulting.vercel.app';
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL');
   }
 
 
@@ -25,7 +25,7 @@ export class NotificationService {
     html: string, 
     context: string
   ): Promise<boolean> {
-    if (!this.smtpService.isServiceAvailable()) {
+    if (!this.smtpService.getStatus()) {
       this.logger.warn(`"${context}" ignorée - service indisponible`);
       return false;
     }
@@ -331,7 +331,7 @@ export class NotificationService {
             
             <div class="info-box">
               <h3 style="margin-top: 0; color: #f59e0b;">En attente de confirmation</h3>
-              <p>Nous traitons votre demande dans les meilleurs délais.</p>
+              <p>Nous traiterons votre demande dans les meilleurs délais.</p>
             </div>
           </div>
         `;

@@ -252,7 +252,7 @@ ProcedureSchema.pre('save', async function () {
   const procedure = this as ProcedureDocument;
   procedure.dateDerniereModification = new Date();
 
-  // ✅ CORRECTION: Ignorer la validation stricte si la procédure est annulée ou rejetée
+  // CORRECTION: Ignorer la validation stricte si la procédure est annulée ou rejetée
   if ([ProcedureStatus.CANCELLED, ProcedureStatus.REJECTED].includes(procedure.statut)) {
     return; // Sortir tôt, pas de validation stricte pour les procédures finalisées
   }

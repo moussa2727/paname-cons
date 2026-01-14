@@ -247,7 +247,7 @@ export class SessionService {
       .exec();
   }
 
-  // ✅ Méthodes de masquage pour cohérence
+  // Méthodes de masquage pour cohérence
   private maskUserId(userId: string): string {
     if (!userId) return 'user_***';
     if (userId.length <= 8) return userId;

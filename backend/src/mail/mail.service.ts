@@ -12,7 +12,7 @@ export class MailService {
     private readonly smtpService: SmtpService,
     private readonly configService: ConfigService
   ) {
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'https://panameconsulting.vercel.app';
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL');
   }
 
   /**
@@ -32,7 +32,7 @@ export class MailService {
       contentType?: string;
     }>;
   }): Promise<boolean> {
-    if (!this.smtpService.isServiceAvailable()) {
+    if (!this.smtpService.getStatus()) {
       this.logger.warn('Envoi ignoré - service indisponible');
       return false;
     }
@@ -474,7 +474,7 @@ export class MailService {
     const adminEmail = this.configService.get<string>('EMAIL_USER');
     
     if (!adminEmail) {
-      this.logger.warn('📧 Email admin non configuré');
+      this.logger.warn(' Email admin non configuré');
       return false;
     }
 
@@ -543,7 +543,7 @@ export class MailService {
       <body>
         <div class="container">
           <div class="header">
-            <h2>⚠️ Alerte Administration</h2>
+            <h2>Alerte Administration</h2>
           </div>
           <div class="content">
             <div class="alert-box">

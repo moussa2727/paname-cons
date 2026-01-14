@@ -38,7 +38,7 @@ export class ThrottleGuard implements CanActivate {
       ? (now.getTime() - attempts.lastAttempt.getTime()) / (1000 * 60)
       : 999; // en minutes
 
-    // ✅ Utiliser les constantes définies
+    //  Utiliser les constantes définies
     const windowMinutes = AuthConstants.RATE_LIMIT_WINDOW_MS / (1000 * 60); // Convertir ms en minutes
     const maxAttempts = AuthConstants.MAX_LOGIN_ATTEMPTS;
 
@@ -96,7 +96,7 @@ export class ThrottleGuard implements CanActivate {
 
     current.attempts++;
     current.lastAttempt = new Date();
-    // ✅ Utiliser la constante LOGIN_ATTEMPTS_TTL_MINUTES
+    //  Utiliser la constante LOGIN_ATTEMPTS_TTL_MINUTES
     current.ttl = new Date(
       Date.now() + AuthConstants.LOGIN_ATTEMPTS_TTL_MINUTES * 60 * 1000
     );

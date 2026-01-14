@@ -25,7 +25,7 @@ import { UserRole } from '../schemas/user.schema';
 import { StepStatus } from '../schemas/procedure.schema';
 import { Request } from 'express';
 
-// ✅ Interface pour l'utilisateur authentifié
+// Interface pour l'utilisateur authentifié
 interface AuthenticatedUser {
   email: string;
   role: UserRole;
@@ -33,7 +33,7 @@ interface AuthenticatedUser {
   [key: string]: unknown;
 }
 
-// ✅ Interface pour la requête avec utilisateur authentifié
+// Interface pour la requête avec utilisateur authentifié
 interface AuthenticatedRequest extends Request {
   user: AuthenticatedUser;
 }

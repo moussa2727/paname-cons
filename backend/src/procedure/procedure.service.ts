@@ -1,3 +1,4 @@
+import { isValidObjectId } from 'mongoose';
 import {
   Injectable,
   NotFoundException,
@@ -22,7 +23,7 @@ import { UpdateStepDto } from './dto/update-step.dto';
 import { NotificationService } from '../notification/notification.service';
 import { UserRole } from '../enums/user-role.enum';
 
-// ✅ Interface pour l'utilisateur authentifié
+//  Interface pour l'utilisateur authentifié
 interface AuthenticatedUser {
   email: string;
   role: UserRole;
@@ -93,7 +94,7 @@ export class ProcedureService {
     const maskedId = this.maskId(id);
     this.logger.debug(`Récupération détails procédure: ${maskedId}`);
 
-    if (!Types.ObjectId.isValid(id)) {
+    if (!isValidObjectId(id)) {
       throw new BadRequestException('ID de procédure invalide');
     }
 
@@ -344,7 +345,7 @@ export class ProcedureService {
 
       const existingStep = procedure.steps[stepIndex];
 
-      // ✅ CORRECTION: Gestion du type StepStatus avec valeur par défaut
+      // CORRECTION: Gestion du type StepStatus avec valeur par défaut
       const currentStepStatus = existingStep.statut;
       const newStepStatus = updateDto.statut !== undefined ? updateDto.statut : currentStepStatus;
 
@@ -367,7 +368,7 @@ export class ProcedureService {
       ) {
         procedure.steps.forEach((step, _index) => {
           if (step.nom !== StepName.DEMANDE_ADMISSION) {
-            step.statut = updateDto.statut!; // ✅ Utilisation de ! car nous savons que c'est défini ici
+            step.statut = updateDto.statut!; //  Utilisation de ! car nous savons que c'est défini ici
             if (updateDto.raisonRefus && !step.raisonRefus) {
               step.raisonRefus = updateDto.raisonRefus;
             }
@@ -521,7 +522,7 @@ export class ProcedureService {
     this.logger.debug(`Liste procédures utilisateur: ${maskedEmail}, Page: ${page}`);
 
     const skip = (page - 1) * limit;
-    // ✅ RETIRER le filtre isDeleted: false pour voir les procédures annulées
+    // RETIRER le filtre isDeleted: false pour voir les procédures annulées
     const query = { email: email.toLowerCase() };
 
     const [data, total] = await Promise.all([
@@ -566,11 +567,11 @@ export class ProcedureService {
       throw new BadRequestException('Procédure déjà finalisée');
     }
 
-    // ✅ CORRECTION: Ne pas mettre isDeleted: true, seulement changer le statut
+    // CORRECTION: Ne pas mettre isDeleted: true, seulement changer le statut
     procedure.statut = ProcedureStatus.CANCELLED;
     procedure.raisonRejet = reason || "Annulée par l'utilisateur";
     
-    // ✅ Mettre à jour toutes les étapes
+    // Mettre à jour toutes les étapes
     procedure.steps.forEach((step) => {
       if ([StepStatus.IN_PROGRESS, StepStatus.PENDING].includes(step.statut)) {
         step.statut = StepStatus.CANCELLED;
@@ -583,7 +584,7 @@ export class ProcedureService {
       }
     });
 
-    // ✅ Appeler save() avec validation
+    //  Appeler save() avec validation
     const savedProcedure = await procedure.save({ validateBeforeSave: true });
 
     await this.notificationService.sendCancellationNotification(savedProcedure);
@@ -598,7 +599,7 @@ export class ProcedureService {
     this.logger.debug(`Liste procédures actives - Page: ${page}, Limit: ${limit}`);
 
     const skip = (page - 1) * limit;
-    // ✅ RETIRER le filtre isDeleted: false pour voir toutes les procédures
+    //  RETIRER le filtre isDeleted: false pour voir toutes les procédures
     const query: Record<string, unknown> = {};
 
     if (email) {
@@ -636,7 +637,7 @@ export class ProcedureService {
     const procedure = await this.procedureModel.findById(id);
     if (!procedure) throw new NotFoundException('Procédure non trouvée');
 
-    // ✅ CORRECTION: Ne pas mettre isDeleted: true, seulement changer le statut
+    //  CORRECTION: Ne pas mettre isDeleted: true, seulement changer le statut
     procedure.statut = ProcedureStatus.CANCELLED;
     procedure.raisonRejet = reason || "Annulée par l'administrateur";
 
@@ -660,11 +661,11 @@ export class ProcedureService {
 
     const [byStatus, byDestination, total] = await Promise.all([
       this.procedureModel.aggregate([
-        // ✅ RETIRER le filtre isDeleted: false pour inclure toutes les procédures
+        //  RETIRER le filtre isDeleted: false pour inclure toutes les procédures
         { $group: { _id: '$statut', count: { $sum: 1 } } },
       ]),
       this.procedureModel.aggregate([
-        // ✅ RETIRER le filtre isDeleted: false pour inclure toutes les procédures
+        //  RETIRER le filtre isDeleted: false pour inclure toutes les procédures
         { $group: { _id: '$destination', count: { $sum: 1 } } },
       ]),
       this.procedureModel.countDocuments(),

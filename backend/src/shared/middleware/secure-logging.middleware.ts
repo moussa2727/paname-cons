@@ -12,8 +12,8 @@ export class SecureLoggingMiddleware implements NestMiddleware {
     res.send = function (body) {
       const duration = Date.now() - startTime;
 
-      // ✅ LOGS SÉCURISÉS
-      console.log("🌐 API Request:", {
+      //  LOGS SÉCURISÉS
+      console.log(" API Request:", {
         method: req.method,
         url: req.url,
         statusCode: res.statusCode,

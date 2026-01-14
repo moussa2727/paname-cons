@@ -39,7 +39,7 @@ import { Document, Types } from "mongoose";
   deactivatedAt?: Date;
 
   @Prop()
-  revocationReason?: string; // Ajout pour l'audit
+  revocationReason?: string;
 }
 
 export const RefreshTokenSchema = SchemaFactory.createForClass(RefreshToken);

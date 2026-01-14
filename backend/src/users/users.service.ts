@@ -190,15 +190,15 @@ export class UsersService {
     return result;
   }
 
-  // ✅ Définir des variables booléennes claires
+  //  Définir des variables booléennes claires
   const isUser = user.role === UserRole.USER;
   const isAdmin = user.role === UserRole.ADMIN;
   const adminEmail = process.env.EMAIL_USER;
   const isMainAdmin = adminEmail && user.email === adminEmail && isAdmin;
 
-  // ✅ ADMIN UNIQUE : IGNORER TOUTES LES RESTRICTIONS
+  //  ADMIN UNIQUE : IGNORER TOUTES LES RESTRICTIONS
   if (isMainAdmin) {
-    this.logger.log(`🔓 ADMIN DÉTECTÉ: ${this.maskEmail(user.email)} - Accès illimité accordé`);
+    this.logger.log(` ADMIN DÉTECTÉ: ${this.maskEmail(user.email)} - Accès illimité accordé`);
     
     const result = {
       canAccess: true,
@@ -231,7 +231,7 @@ export class UsersService {
     return result;
   }
 
-  // 🔐 VÉRIFICATIONS POUR TOUS LES AUTRES
+  //  VÉRIFICATIONS POUR TOUS LES AUTRES
   const isMaintenance = await this.isMaintenanceMode();
 
   // Mode maintenance : seulement pour les users normaux
@@ -309,7 +309,7 @@ export class UsersService {
     return result;
   }
 
-  // ✅ ACCÈS AUTORISÉ
+  //  ACCÈS AUTORISÉ
   const result = {
     canAccess: true,
     user: {
@@ -379,14 +379,14 @@ export class UsersService {
       if (createUserDto.email === adminEmail) {
         if (existingAdmin) {
           userRole = UserRole.USER;
-          this.logger.warn(`⚠️ Email admin utilisé pour créer un USER (admin existe déjà)`);
+          this.logger.warn(` Email admin utilisé pour créer un USER (admin existe déjà)`);
         } else {
           userRole = UserRole.ADMIN;
-          this.logger.log(`✅ Création du SEUL et UNIQUE admin: ${this.maskEmail(adminEmail)}`);
+          this.logger.log(` Création du SEUL et UNIQUE admin: ${this.maskEmail(adminEmail)}`);
         }
       } else {
         userRole = UserRole.USER;
-        this.logger.log(`✅ Création d'utilisateur standard: ${this.maskEmail(createUserDto.email)}`);
+        this.logger.log(` Création d'utilisateur standard: ${this.maskEmail(createUserDto.email)}`);
       }
 
       const normalizedTelephone = this.normalizeTelephone(createUserDto.telephone);

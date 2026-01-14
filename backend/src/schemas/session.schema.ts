@@ -3,7 +3,7 @@ import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Document, Types, Model } from "mongoose";
 import { AuthConstants } from "../auth/auth.constants";
 
-// ✅ Définir l'interface statique
+//  Définir l'interface statique
 export interface SessionModel extends Model<Session> {
   cleanupExpired(): Promise<number>;
   findActiveByUserId(userId: string | Types.ObjectId): Promise<Session[]>;
@@ -92,7 +92,7 @@ export class Session extends Document {
 
 export const SessionSchema = SchemaFactory.createForClass(Session);
 
-// ✅ Index pour performances
+//  Index pour performances
 SessionSchema.index(
   { user: 1, isActive: 1, expiresAt: 1 },
   { 
@@ -101,7 +101,7 @@ SessionSchema.index(
   }
 );
 
-// ✅ Index TTL
+//  Index TTL
 SessionSchema.index(
   { expiresAt: 1 }, 
   { 
@@ -111,7 +111,7 @@ SessionSchema.index(
   }
 );
 
-// ✅ Index pour recherche par token
+//  Index pour recherche par token
 SessionSchema.index(
   { token: 1 }, 
   { 
@@ -120,7 +120,7 @@ SessionSchema.index(
   }
 );
 
-// ✅ Index pour nettoyage
+//  Index pour nettoyage
 SessionSchema.index(
   { deactivatedAt: 1 },
   { 
@@ -129,13 +129,13 @@ SessionSchema.index(
   }
 );
 
-// ✅ Index pour audits
+//  Index pour audits
 SessionSchema.index(
   { createdAt: -1 },
   { name: 'created_desc' }
 );
 
-// ✅ Pré-save pour définir l'expiration par défaut
+//  Pré-save pour définir l'expiration par défaut
 SessionSchema.pre('save', async function() {
   if (!this.expiresAt) {
     this.expiresAt = new Date(Date.now() + AuthConstants.SESSION_EXPIRATION_MS);
@@ -146,7 +146,7 @@ SessionSchema.pre('save', async function() {
   }
 });
 
-// ✅ Méthode d'instance pour désactiver la session
+//  Méthode d'instance pour désactiver la session
 SessionSchema.methods.deactivate = function(reason?: string) {
   this.isActive = false;
   this.deactivatedAt = new Date();
@@ -154,7 +154,7 @@ SessionSchema.methods.deactivate = function(reason?: string) {
   return this.save();
 };
 
-// ✅ Méthode statique pour nettoyer les sessions expirées
+// Méthode statique pour nettoyer les sessions expirées
 SessionSchema.statics.cleanupExpired = async function() {
   const result = await this.updateMany(
     { 
@@ -171,7 +171,7 @@ SessionSchema.statics.cleanupExpired = async function() {
   return result.modifiedCount;
 };
 
-// ✅ Méthode statique pour trouver les sessions actives d'un utilisateur
+// Méthode statique pour trouver les sessions actives d'un utilisateur
 SessionSchema.statics.findActiveByUserId = function(userId: string | Types.ObjectId) {
   return this.find({
     user: userId,

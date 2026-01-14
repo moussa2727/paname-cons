@@ -1,0 +1,20 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+
+    environment:
+    - EMAIL_USER=moussa.sangare.ma@gmail.com
+    - EMAIL_PASS=wgzt mnjc gvbf upmk
+
+    ports:
+      - "10000:10000"
+    restart: unless-stopped
+    networks:
+      - appnet
+
+networks:
+  appnet:
+    driver: bridge

@@ -5,7 +5,7 @@ import {
   MinLength,
   Matches,
   IsOptional,
-} from "class-validator";
+} from "@nestjs/class-validator";
 import { ApiProperty } from "@nestjs/swagger";
 
 export class RegisterDto {

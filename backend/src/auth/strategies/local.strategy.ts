@@ -31,18 +31,18 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
         });
       }
 
-      // 🔍 Extraction de l'ID utilisateur (doit être présent dans l'objet user)
+      //  Extraction de l'ID utilisateur (doit être présent dans l'objet user)
       const userId = this.extractUserId(user);
       
       if (!userId) {
-        this.logger.error(`❌ Objet utilisateur sans ID pour l'email: ${this.maskEmail(email)}`, user);
+        this.logger.error(` Objet utilisateur sans ID pour l'email: ${this.maskEmail(email)}`, user);
         throw new UnauthorizedException("Erreur interne: impossible d'extraire l'ID utilisateur");
       }
 
-      // ✅ Retourner l'utilisateur avec l'ID correct
+      //  Retourner l'utilisateur avec l'ID correct
       return {
         ...user,
-        id: userId // 🔥 Seulement 'id', pas de '_id'
+        id: userId //  Seulement 'id'
       };
 
     } catch (error) {
@@ -97,7 +97,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
     }
   }
 
-  // 🔧 Méthode pour extraire l'ID utilisateur - utilise uniquement 'id'
+  // Méthode pour extraire l'ID utilisateur
   private extractUserId(user: any): string | null {
     if (!user) {
       this.logger.warn("Objet utilisateur null ou undefined");
