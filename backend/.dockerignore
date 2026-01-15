@@ -1,5 +1,7 @@
 # Node.js dependencies
 node_modules/
+npm-debug.log
+yarn-debug.log
 
 # Build outputs
 dist/
@@ -9,26 +11,20 @@ out/
 # Logs and debug files
 logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
 
-# IDE and editor folders
+# IDE/editor files
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Test and coverage artifacts
+# Test directories (none detected, but general pattern)
 test/
 tests/
-coverage/
-*.lcov
 
 # Version control
 .git/
 .gitignore
-.gitattributes
 .svn/
 .hg/
 
@@ -41,35 +37,26 @@ coverage/
 
 # Local and temp files
 .local/
-local/
 tmp/
 temp/
 *.tmp
 
-# Documentation
+# Project-specific: documentation
 README*
-docs/
 *.md
+docs/
 
-# Docker and Compose files
+# Docker and Compose files (do not copy Docker build files)
 Dockerfile*
 docker-compose*
+compose.yaml
 
 # Miscellaneous
-*.DS_Store
-Thumbs.db
-
-# Project-specific uploads (if not needed in image)
-uploads/
-
-# Exclude npmrc if not needed in image
+.gitattributes
 .npmrc
 
-# Exclude ESLint config if not needed in image
-eslint.config.cjs
+# Ignore uploads if not needed in build (uncomment if uploads are not required)
+# uploads/
 
-# Exclude YAML config if not needed in image
-*.yaml
-
-# Exclude CJS config if not needed in image
-*.cjs
+# Ignore existing .dockerignore to avoid recursive copy
+.dockerignore

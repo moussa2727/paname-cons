@@ -1,20 +1,44 @@
 services:
-  backend:
+  ts-app:
     build:
       context: .
       dockerfile: Dockerfile
-    env_file: .env
+    image: ts-app:latest
+    container_name: ts-app
+    restart: unless-stopped
+    init: true
+    ports:
+      - "10000:10000" # Expose NestJS default port
+    env_file: ./.env  # Uncomment if .env file exists
 
     environment:
-    - EMAIL_USER=moussa.sangare.ma@gmail.com
-    - EMAIL_PASS=wgzt mnjc gvbf upmk
+    - MONGODB_URI=mongodb://mongo:27017/panameconsultingDb
+    - EMAIL_USER=${EMAIL_USER}
+    - EMAIL_PASS=${EMAIL_PASS}
+    - JWT_SECRET=${JWT_SECRET}
+    - PORT=10000
 
-    ports:
-      - "10000:10000"
+    networks:
+      - appnet
+    # Add depends_on here if you add external services below
+
+# If you discover external dependencies (e.g. MongoDB, Redis), add them below:
+  mongo:
+    image: mongo:latest
+    container_name: mongo
     restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
     networks:
       - appnet
 
 networks:
   appnet:
     driver: bridge
+
+# Uncomment and use if you add persistent services above
+volumes:
+ mongo-data:
+   driver: local

@@ -95,8 +95,8 @@ const handleSubmit = async (e: React.FormEvent) => {
   const data: FormData = {
     firstName: (formData.get('firstName') as string) || '',
     lastName: (formData.get('lastName') as string) || '',
-    email: (formData.get('email') as string) || '',
-    message: (formData.get('message') as string) || '',
+    email: (formData.get('email') as string),
+    message: (formData.get('message') as string),
   };
 
   // Validation complète avant soumission
@@ -180,7 +180,6 @@ const handleSubmit = async (e: React.FormEvent) => {
       throw new Error(errorMessage);
     }
 
-    const result = await response.json();
     
     setSubmitStatus({
       success: true,

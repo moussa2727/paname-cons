@@ -182,7 +182,7 @@ const Register: React.FC = () => {
                       type='text'
                       value={formData.firstName}
                       onChange={handleChange}
-                      className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:outline-none focus:ring-none focus:outline-none focus:border-sky-500 transition-colors'
+                      className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:ring-none focus:outline-none focus:border-sky-500 transition-colors'
                       placeholder='Votre prénom'
                       required
                       disabled={isLoading}
@@ -205,7 +205,7 @@ const Register: React.FC = () => {
                       type='text'
                       value={formData.lastName}
                       onChange={handleChange}
-                      className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:outline-none focus:ring-none focus:outline-none focus:border-sky-500 transition-colors'
+                      className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:ring-none focus:outline-none focus:border-sky-500 transition-colors'
                       placeholder='Votre nom'
                       required
                       disabled={isLoading}
@@ -230,7 +230,7 @@ const Register: React.FC = () => {
                     type='email'
                     value={formData.email}
                     onChange={handleChange}
-                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:outline-none focus:ring-none focus:outline-none focus:border-sky-500 transition-colors'
+                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:ring-none focus:outline-none focus:border-sky-500 transition-colors'
                     placeholder='votre@email.com'
                     required
                     disabled={isLoading}
@@ -246,14 +246,14 @@ const Register: React.FC = () => {
                 </label>
                 <div className='relative'>
                   <div className='absolute inset-y-0 left-0 pl-3 flex mb-8 items-center pointer-events-none'>
-                    <FiPhone className='text-gray-400' />
+                    <FiPhone className='text-gray-400 mb-1' />
                   </div>
                   <input
                     name='telephone'
                     type='tel'
                     value={formData.telephone}
                     onChange={handleChange}
-                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:outline-none focus:ring-none focus:outline-none focus:border-sky-500 transition-colors'
+                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:ring-none focus:outline-none focus:border-sky-500 transition-colors'
                     placeholder='Ex: +33123456789 ou 0123456789'
                     required
                     disabled={isLoading}
@@ -282,7 +282,7 @@ const Register: React.FC = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={formData.password}
                     onChange={handleChange}
-                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:outline-none focus:ring-none focus:outline-none focus:border-sky-500 pr-9 transition-colors'
+                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:ring-none focus:outline-none focus:border-sky-500 pr-9 transition-colors'
                     placeholder='••••••••'
                     required
                     minLength={8}
@@ -323,7 +323,7 @@ const Register: React.FC = () => {
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:outline-none focus:ring-none focus:outline-none focus:border-sky-500 pr-9 transition-colors'
+                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:ring-none focus:outline-none focus:border-sky-500 pr-9 transition-colors'
                     placeholder='••••••••'
                     required
                     minLength={8}

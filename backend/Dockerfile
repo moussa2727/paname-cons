@@ -9,7 +9,7 @@ WORKDIR /app
 COPY . ./
 
 # Installez nodemailer DANS la phase de build seulement
-RUN corepack enable && corepack prepare pnpm@10.26.2  --activate
+RUN corepack enable && corepack prepare pnpm@10.26.2 --activate
 
 # Installation complète pour le build
 RUN pnpm install 
