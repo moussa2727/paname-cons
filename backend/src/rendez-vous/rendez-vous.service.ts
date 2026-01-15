@@ -224,13 +224,34 @@ export class RendezvousService {
     // Traitement et validation des données
     const processedData = this.processAndValidateRendezvousData(createDto);
 
-    // Vérification champs "Autre"
-    if (processedData.destination === 'Autre' && (!processedData.destinationAutre || processedData.destinationAutre.trim() === '')) {
-      throw new BadRequestException('La destination "Autre" nécessite une précision');
-    }
+    // VÉRIFICATION STRICTE DES DESTINATIONS
+    const validDestinations = ['Russie', 'Chypre', 'Chine', 'Maroc', 'Algérie', 'Turquie', 'France'];
     
-    if (processedData.filiere === 'Autre' && (!processedData.filiereAutre || processedData.filiereAutre.trim() === '')) {
-      throw new BadRequestException('La filière "Autre" nécessite une précision');
+    // Si destination est "Autre", vérifier destinationAutre
+    if (processedData.destination === 'Autre') {
+      if (!processedData.destinationAutre || processedData.destinationAutre.trim() === '') {
+        throw new BadRequestException('La destination "Autre" nécessite une précision');
+      }
+      // La valeur destination reste "Autre", destinationAutre contient la valeur personnalisée
+    } 
+    // Sinon, vérifier que c'est une destination valide
+    else if (!validDestinations.includes(processedData.destination)) {
+      throw new BadRequestException(`Destination invalide. Valeurs autorisées: ${validDestinations.join(', ')}, ou "Autre"`);
+    }
+
+    // VÉRIFICATION STRICTE DES FILIÈRES
+    const validFilieres = ['Informatique', 'Médecine', 'Droit', 'Commerce', 'Ingénierie', 'Architecture'];
+    
+    // Si filière est "Autre", vérifier filiereAutre
+    if (processedData.filiere === 'Autre') {
+      if (!processedData.filiereAutre || processedData.filiereAutre.trim() === '') {
+        throw new BadRequestException('La filière "Autre" nécessite une précision');
+      }
+      // La valeur filiere reste "Autre", filiereAutre contient la valeur personnalisée
+    } 
+    // Sinon, vérifier que c'est une filière valide
+    else if (!validFilieres.includes(processedData.filiere)) {
+      throw new BadRequestException(`Filière invalide. Valeurs autorisées: ${validFilieres.join(', ')}, ou "Autre"`);
     }
 
     // Vérification disponibilité du créneau
@@ -282,24 +303,21 @@ export class RendezvousService {
       niveauEtude: processedData.niveauEtude,
       date: processedData.date,
       time: processedData.time,
-      status: RENDEZVOUS_STATUS.CONFIRMED, // Statut confirmé automatiquement
+      status: RENDEZVOUS_STATUS.CONFIRMED,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
-    // Gestion des champs "Autre"
+    // Gestion des champs "Autre" - destination reste "Autre", on stocke la valeur personnalisée
+    rendezvousData.destination = processedData.destination;
     if (processedData.destination === 'Autre' && processedData.destinationAutre) {
-      rendezvousData.destination = 'Autre';
       rendezvousData.destinationAutre = processedData.destinationAutre.trim();
-    } else {
-      rendezvousData.destination = processedData.destination;
     }
 
+    // Gestion des champs "Autre" - filiere reste "Autre", on stocke la valeur personnalisée
+    rendezvousData.filiere = processedData.filiere;
     if (processedData.filiere === 'Autre' && processedData.filiereAutre) {
-      rendezvousData.filiere = 'Autre';
       rendezvousData.filiereAutre = processedData.filiereAutre.trim();
-    } else {
-      rendezvousData.filiere = processedData.filiere;
     }
 
     // Création du rendez-vous
@@ -315,7 +333,6 @@ export class RendezvousService {
 
     return saved;
   }
-
   async findAll(
     page: number = 1,
     limit: number = 10,

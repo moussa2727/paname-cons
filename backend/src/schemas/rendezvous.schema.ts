@@ -33,12 +33,15 @@ const TIME_SLOTS = [
   '15:00', '15:30', '16:00', '16:30'
 ] as const;
 
+// DESTINATIONS - Inclure "Autre" comme option valide
 const DESTINATIONS = [
+  'Russie',
+  'Chypre',
+  'Chine', 
+  'Maroc',
+  'Algérie',
+  'Turquie',
   'France',
-  'Canada',
-  'Belgique',
-  'Suisse',
-  'États-Unis',
   'Autre'
 ] as const;
 
@@ -78,7 +81,7 @@ export type RendezvousDocument = Rendezvous & Document & RendezvousMethods;
   timestamps: true,
   toJSON: {
     virtuals: true,
-    transform: (doc, ret) => {
+    transform: (_doc, ret) => {
       delete ret.__v;
       delete ret._id;
       return ret;
@@ -86,7 +89,7 @@ export type RendezvousDocument = Rendezvous & Document & RendezvousMethods;
   },
   toObject: {
     virtuals: true,
-    transform: (doc, ret) => {
+    transform: (_doc, ret) => {
       delete ret.__v;
       return ret;
     },
@@ -131,7 +134,7 @@ export class Rendezvous {
     required: true,
     trim: true,
     maxlength: 100,
-    enum: DESTINATIONS,
+    enum: DESTINATIONS, // "Autre" inclus comme valeur valide
   })
   destination: string;
 
@@ -153,7 +156,7 @@ export class Rendezvous {
     required: true,
     trim: true,
     maxlength: 100,
-    enum: FILIERES,
+    enum: FILIERES, // "Autre" inclus comme valeur valide
   })
   filiere: string;
 
@@ -228,12 +231,39 @@ export class Rendezvous {
   })
   user?: mongoose.Schema.Types.ObjectId;
 
+  // Virtual pour la destination effective (celle qui doit être affichée)
+  @Prop({
+    virtual: true,
+    get: function() {
+      const rendezvous = this as any;
+      // Si destination est "Autre", retourner destinationAutre, sinon destination
+      return rendezvous.destination === 'Autre' && rendezvous.destinationAutre 
+        ? rendezvous.destinationAutre 
+        : rendezvous.destination;
+    }
+  })
+  effectiveDestination?: string;
+
+  // Virtual pour la filière effective (celle qui doit être affichée)
+  @Prop({
+    virtual: true,
+    get: function() {
+      const rendezvous = this as any;
+      // Si filiere est "Autre", retourner filiereAutre, sinon filiere
+      return rendezvous.filiere === 'Autre' && rendezvous.filiereAutre 
+        ? rendezvous.filiereAutre 
+        : rendezvous.filiere;
+    }
+  })
+  effectiveFiliere?: string;
+
   // Virtual pour la date/heure combinée
   @Prop({
     virtual: true,
     get: function() {
-      const dateStr = this.date;
-      const timeStr = this.time;
+      const rendezvous = this as any;
+      const dateStr = rendezvous.date;
+      const timeStr = rendezvous.time;
       
       if (!dateStr || !timeStr) return null;
       
@@ -261,9 +291,10 @@ export class Rendezvous {
   @Prop({
     virtual: true,
     get: function() {
-      if (!this.dateTime) return null;
+      const rendezvous = this as any;
+      if (!rendezvous.dateTime) return null;
       
-      const expirationTime = new Date(this.dateTime.getTime() + 10 * 60000);
+      const expirationTime = new Date(rendezvous.dateTime.getTime() + 10 * 60000);
       return expirationTime;
     }
   })
@@ -273,13 +304,14 @@ export class Rendezvous {
   @Prop({
     virtual: true,
     get: function() {
-      if (!this.dateTime) return false;
+      const rendezvous = this as any;
+      if (!rendezvous.dateTime) return false;
       
       const now = new Date();
-      const lateTime = new Date(this.dateTime.getTime() + 10 * 60000);
+      const lateTime = new Date(rendezvous.dateTime.getTime() + 10 * 60000);
       return now > lateTime && 
-             (this.status === RENDEZVOUS_STATUS.PENDING || 
-              this.status === RENDEZVOUS_STATUS.CONFIRMED);
+             (rendezvous.status === RENDEZVOUS_STATUS.PENDING || 
+              rendezvous.status === RENDEZVOUS_STATUS.CONFIRMED);
     }
   })
   isLate?: boolean;
@@ -303,13 +335,32 @@ RendezvousSchema.pre('save', async function() {
     if (rendezvous.filiere) rendezvous.filiere = rendezvous.filiere.trim();
     if (rendezvous.filiereAutre) rendezvous.filiereAutre = rendezvous.filiereAutre.trim();
     
-    // Validation des champs "Autre"
-    if (rendezvous.destination === 'Autre' && (!rendezvous.destinationAutre || rendezvous.destinationAutre.trim() === '')) {
-      throw new BadRequestException('La destination "Autre" nécessite une précision');
+    // VÉRIFICATION STRICTE DES DESTINATIONS
+    const validDestinations = ['Russie', 'Chypre', 'Chine', 'Maroc', 'Algérie', 'Turquie', 'France', 'Canada'];
+    
+    // Validation destination "Autre"
+    if (rendezvous.destination === 'Autre') {
+      if (!rendezvous.destinationAutre || rendezvous.destinationAutre.trim() === '') {
+        throw new BadRequestException('La destination "Autre" nécessite une précision');
+      }
+    } 
+    // Validation des destinations prédéfinies
+    else if (!validDestinations.includes(rendezvous.destination)) {
+      throw new BadRequestException(`Destination invalide. Valeurs autorisées: ${validDestinations.join(', ')}, ou "Autre"`);
     }
     
-    if (rendezvous.filiere === 'Autre' && (!rendezvous.filiereAutre || rendezvous.filiereAutre.trim() === '')) {
-      throw new BadRequestException('La filière "Autre" nécessite une précision');
+    // VÉRIFICATION STRICTE DES FILIÈRES
+    const validFilieres = ['Informatique', 'Médecine', 'Droit', 'Commerce', 'Ingénierie', 'Architecture'];
+    
+    // Validation filière "Autre"
+    if (rendezvous.filiere === 'Autre') {
+      if (!rendezvous.filiereAutre || rendezvous.filiereAutre.trim() === '') {
+        throw new BadRequestException('La filière "Autre" nécessite une précision');
+      }
+    } 
+    // Validation des filières prédéfinies
+    else if (!validFilieres.includes(rendezvous.filiere)) {
+      throw new BadRequestException(`Filière invalide. Valeurs autorisées: ${validFilieres.join(', ')}, ou "Autre"`);
     }
 
     // Validation de la date
@@ -361,6 +412,7 @@ RendezvousSchema.pre('save', async function() {
 
 RendezvousSchema.methods.getEffectiveDestination = function(): string {
   const rendezvous = this as any;
+  // Si destination est "Autre", retourner destinationAutre, sinon retourner destination
   return rendezvous.destination === 'Autre' && rendezvous.destinationAutre 
     ? rendezvous.destinationAutre 
     : rendezvous.destination;
@@ -368,6 +420,7 @@ RendezvousSchema.methods.getEffectiveDestination = function(): string {
 
 RendezvousSchema.methods.getEffectiveFiliere = function(): string {
   const rendezvous = this as any;
+  // Si filiere est "Autre", retourner filiereAutre, sinon retourner filiere
   return rendezvous.filiere === 'Autre' && rendezvous.filiereAutre 
     ? rendezvous.filiereAutre 
     : rendezvous.filiere;
@@ -440,14 +493,12 @@ RendezvousSchema.methods.canBeModified = function(): boolean {
 RendezvousSchema.methods.canBeMarkedAsCompleted = function(): boolean {
   const rendezvous = this as any;
   
-  // Vérifier que le rendez-vous n'est pas déjà terminé, annulé ou expiré
   if (rendezvous.status === RENDEZVOUS_STATUS.COMPLETED ||
       rendezvous.status === RENDEZVOUS_STATUS.CANCELLED ||
       rendezvous.status === RENDEZVOUS_STATUS.EXPIRED) {
     return false;
   }
   
-  // Vérifier que le rendez-vous a eu lieu (date dans le passé ou aujourd'hui)
   if (!rendezvous.dateTime || isNaN(rendezvous.dateTime.getTime())) {
     return false;
   }

@@ -26,10 +26,11 @@ const EDUCATION_LEVELS = [
 
 const DESTINATIONS = [
   'France',
-  'Canada',
-  'Belgique',
-  'Suisse',
-  'États-Unis',
+   'Chypre',
+  'Chine', 
+  'Maroc',
+  'Algérie',
+  'Turquie',
   'Autre'
 ] as const;
 
