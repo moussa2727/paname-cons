@@ -1,15 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Injectable } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
-
-export const getEnv = (key: string, fallback?: string): string => {
-  const value = process.env[key];
-  if (value === undefined || value === "") {
-    if (fallback !== undefined) return fallback;
-    throw new Error(`Missing environment variable: ${key}`);
-  }
-  return value;
-};
+import { LoggerService } from './logger.service';
 
 export interface EmailOptions {
   to: string | string[];
@@ -17,58 +9,46 @@ export interface EmailOptions {
   html: string;
   text?: string;
   replyTo?: string;
-  cc?: string[];
-  bcc?: string[];
-  attachments?: Array<{
-    filename: string;
-    content?: Buffer | string;
-    path?: string;
-    contentType?: string;
-  }>;
   priority?: 'high' | 'normal' | 'low';
 }
 
 @Injectable()
 export class SmtpService {
   private transporter: nodemailer.Transporter;
-  private readonly logger = new Logger(SmtpService.name);
   private readonly fromEmail: string;
   private readonly fromName: string = 'Paname Consulting';
-  private readonly emailUser: string;
-  private readonly emailPass: string;  
 
-  constructor(private configService: ConfigService) {
-    // Configuration simplifiée et robuste pour Gmail
-    this.emailUser = this.configService.get<string>('EMAIL_USER') || process.env.EMAIL_USER || getEnv("EMAIL_USER", '');
-    this.emailPass = this.configService.get<string>('EMAIL_PASS') || process.env.EMAIL_PASS || getEnv("EMAIL_PASS", '');
-    this.fromEmail = this.emailUser;
-    
+  constructor(private configService: ConfigService, private loggerService: LoggerService) {
+    const emailHost = this.configService.get<string>('EMAIL_HOST') || 'smtp.gmail.com';
+    const emailPort = parseInt(this.configService.get<string>('EMAIL_PORT') || '587');
+    const emailUser = this.configService.get<string>('EMAIL_USER');
+    const emailPass = this.configService.get<string>('EMAIL_PASS');
+
+    if (!emailUser || !emailPass) {
+      this.loggerService.warn('EMAIL_USER ou EMAIL_PASS non configuré', 'SmtpService');
+    }
+
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: emailHost,
+      port: emailPort,
+      secure: emailPort === 465,
       auth: {
-        type: 'LOGIN',
-        user: this.emailUser,
-        pass: this.emailPass,
+        user: emailUser,
+        pass: emailPass,
       },
-      // Configuration optimisée pour Gmail
-      tls: {
-        ciphers: 'SSLv3',
-        rejectUnauthorized: false
-      },
-      connectionTimeout: 10000, // 10 secondes
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
     });
 
-    const maskedUser = this.maskEmail(this.emailUser);
-    this.logger.log(`Service SMTP initialisé pour: ${maskedUser}`);
+    this.fromEmail = emailUser;
+
+    const maskedEmail = this.maskEmail(this.fromEmail);
+    this.loggerService.log(`Service SMTP initialisé avec: ${maskedEmail} (${emailHost}:${emailPort})`, 'SmtpService');
   }
 
   /**
    * Vérifie si le service SMTP est configuré
    */
   isConfigured(): boolean {
-    return !!(this.emailUser && this.emailPass);
+    return !!this.transporter;
   }
 
   /**
@@ -76,12 +56,11 @@ export class SmtpService {
    */
   private maskEmail(email: string | string[]): string {
     if (!email) return '[EMAIL_NON_DEFINI]';
-    
-    // Gestion des tableaux d'emails
+
     if (Array.isArray(email)) {
       return email.map(e => this.maskSingleEmail(e)).join(', ');
     }
-    
+
     return this.maskSingleEmail(email);
   }
 
@@ -90,80 +69,74 @@ export class SmtpService {
    */
   private maskSingleEmail(email: string): string {
     if (!email || typeof email !== 'string') return '[EMAIL_INVALIDE]';
-    
+
     const [localPart, domain] = email.split('@');
     if (!localPart || !domain) return '[EMAIL_MAL_FORMATE]';
-    
-    // Garde les 2 premiers caractères du local part, masque le reste
-    const maskedLocal = localPart.length > 2 
+
+    const maskedLocal = localPart.length > 2
       ? localPart.substring(0, 2) + '*'.repeat(Math.min(localPart.length - 2, 4))
       : '*'.repeat(localPart.length);
-    
-    // Masque partiellement le domaine
+
     const domainParts = domain.split('.');
     if (domainParts.length >= 2) {
       const mainDomain = domainParts[0];
-      const maskedDomain = mainDomain.length > 2 
+      const maskedDomain = mainDomain.length > 2
         ? mainDomain.substring(0, 2) + '*'.repeat(Math.min(mainDomain.length - 2, 3))
         : '*'.repeat(mainDomain.length);
-      
+
       const tld = domainParts.slice(1).join('.');
       return `${maskedLocal}@${maskedDomain}.${tld}`;
     }
-    
+
     return `${maskedLocal}@${domain}`;
   }
 
   /**
-   * Masque le mot de passe pour la journalisation
+   * Masque les IDs de message
    */
-  private maskPassword(password: string): string {
-    if (!password) return '[MOT_DE_PASSE_NON_DEFINI]';
-    if (password.length <= 4) return '****';
-    return password.substring(0, 2) + '*'.repeat(password.length - 4) + password.substring(password.length - 2);
+  private maskMessageId(id?: string): string {
+    if (!id) return '[ID_MASQUE]';
+    return id.substring(0, 4) + '****' + id.substring(Math.max(id.length - 4, 0));
   }
 
   /**
-   * Envoie un email avec les options fournies
+   * Envoie un email via SMTP Gmail
    */
   async sendEmail(options: EmailOptions): Promise<{ success: boolean; error?: string }> {
-    // Vérification rapide de la configuration
     if (!this.isConfigured()) {
       const error = 'Service SMTP non configuré. Vérifiez EMAIL_USER et EMAIL_PASS.';
-      this.logger.error(error);
+      this.loggerService.error(error, 'SmtpService');
       return { success: false, error };
     }
 
     try {
       const maskedTo = this.maskEmail(options.to);
-      this.logger.log(`Tentative d'envoi d'email à: ${maskedTo}, Sujet: ${options.subject.substring(0, 50)}${options.subject.length > 50 ? '...' : ''}`);
+      const subjectPreview = options.subject.substring(0, 50) + (options.subject.length > 50 ? '...' : '');
+      this.loggerService.log(`Tentative d'envoi d'email à: ${maskedTo}, Sujet: ${subjectPreview}`, 'SmtpService');
 
-      await this.transporter.sendMail({
-        from: `"${this.fromName}" <${this.fromEmail}>`,
-        to: Array.isArray(options.to) ? options.to.join(', ') : options.to,
+      const result = await this.transporter.sendMail({
+        from: `${this.fromName} <${this.fromEmail}>`,
+        to: Array.isArray(options.to) ? options.to : [options.to],
         subject: options.subject,
         html: options.html,
-        text: options.text || this.stripHtml(options.html),
+        text: options.text,
         replyTo: options.replyTo,
-        cc: options.cc?.join(', '),
-        bcc: options.bcc?.join(', '),
-        attachments: options.attachments,
-        priority: options.priority,
+        priority: options.priority || 'normal',
       });
 
-      this.logger.log(`Email envoyé avec succès à: ${maskedTo}`);
+      const maskedId = this.maskMessageId(result.messageId);
+      this.loggerService.log(`Email envoyé avec succès à: ${maskedTo} (ID: ${maskedId})`, 'SmtpService');
       return { success: true };
-      
+
     } catch (error: any) {
-      // Gestion d'erreur améliorée avec masquage
       const errorMessage = this.getErrorMessage(error);
       const maskedError = this.maskSensitiveInfo(errorMessage);
-      
-      this.logger.error(`Échec d'envoi d'email: ${maskedError}`);
-      
-      return { 
-        success: false, 
-        error: maskedError 
+
+      this.loggerService.error(`Échec d'envoi d'email: ${maskedError}`, 'SmtpService', error.stack);
+
+      return {
+        success: false,
+        error: maskedError
       };
     }
   }
@@ -172,10 +145,9 @@ export class SmtpService {
    * Masque les informations sensibles dans les messages d'erreur
    */
   private maskSensitiveInfo(message: string): string {
-    // Masque les emails dans le message d'erreur
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
     let maskedMessage = message;
-    
+
     const emails = message.match(emailRegex);
     if (emails) {
       emails.forEach(email => {
@@ -183,13 +155,12 @@ export class SmtpService {
         maskedMessage = maskedMessage.replace(email, maskedEmail);
       });
     }
-    
-    // Masque les tokens/passwords potentiels
+
     maskedMessage = maskedMessage.replace(/(pass(word)?|token|secret|key)=[^&\s]+/gi, (match) => {
-      const [key, value] = match.split('=');
+      const [key] = match.split('=');
       return `${key}=***`;
     });
-    
+
     return maskedMessage;
   }
 
@@ -198,29 +169,28 @@ export class SmtpService {
    */
   async testConnection(): Promise<{ success: boolean; message: string }> {
     if (!this.isConfigured()) {
-      const maskedUser = this.maskEmail(this.emailUser);
       return {
         success: false,
-        message: `SMTP non configuré. Email: ${maskedUser}`
+        message: 'Service SMTP non configuré'
       };
     }
 
     try {
-      const maskedUser = this.maskEmail(this.emailUser);
-      this.logger.log(`Test de connexion SMTP pour: ${maskedUser}`);
-      
+      const maskedEmail = this.maskEmail(this.fromEmail);
+      this.loggerService.log(`Test de connexion SMTP avec: ${maskedEmail}`, 'SmtpService');
+
       await this.transporter.verify();
-      
-      this.logger.log('Connexion SMTP réussie');
+
+      this.loggerService.log('Connexion SMTP réussie', 'SmtpService');
       return {
         success: true,
-        message: 'Connexion SMTP réussie avec Gmail'
+        message: 'Connexion SMTP réussie'
       };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       const maskedError = this.maskSensitiveInfo(errorMessage);
-      
-      this.logger.error(`Échec de connexion SMTP: ${maskedError}`);
+
+      this.loggerService.error(`Échec de connexion SMTP: ${maskedError}`, 'SmtpService');
       return {
         success: false,
         message: `Échec de connexion SMTP: ${maskedError}`
@@ -229,50 +199,34 @@ export class SmtpService {
   }
 
   /**
-   * Récupère le statut du service SMTP (version masquée pour la sécurité)
+   * Récupère le statut du service SMTP
    */
   getStatus() {
     const isConfigured = this.isConfigured();
     const maskedEmail = this.maskEmail(this.fromEmail);
-    const maskedUser = this.maskEmail(this.emailUser);
-    
+
     return {
       available: isConfigured,
       configured: isConfigured,
       message: isConfigured ? 'Service SMTP configuré et prêt' : 'Service SMTP non configuré',
       fromEmail: maskedEmail,
       fromName: this.fromName,
-      emailUserConfigured: !!this.emailUser,
-      emailPassConfigured: !!this.emailPass,
-      host: 'smtp.gmail.com'
+      provider: 'SMTP Gmail'
     };
   }
 
   /**
-   * Récupère le statut détaillé (uniquement pour les logs internes sécurisés)
+   * Récupère le statut détaillé (logs internes sécurisés)
    */
   private getDetailedStatusForLogs() {
     const isConfigured = this.isConfigured();
-    const maskedUser = this.maskEmail(this.emailUser);
-    const maskedPass = this.maskPassword(this.emailPass);
-    
+    const maskedEmail = this.maskEmail(this.fromEmail);
+
     return {
       configured: isConfigured,
-      emailUser: maskedUser,
-      emailPassConfigured: !!this.emailPass,
-      emailPassLength: this.emailPass ? this.emailPass.length : 0,
-      emailPassMasked: maskedPass
+      fromEmail: maskedEmail,
+      provider: 'SMTP Gmail'
     };
-  }
-
-  /**
-   * Méthode utilitaire pour convertir HTML en texte brut
-   */
-  private stripHtml(html: string): string {
-    return html
-      .replace(/<[^>]*>/g, ' ') // Remplace les balises par des espaces
-      .replace(/\s+/g, ' ') // Réduit les espaces multiples
-      .trim();
   }
 
   /**
@@ -280,24 +234,20 @@ export class SmtpService {
    */
   private getErrorMessage(error: any): string {
     const message = error.message || 'Erreur inconnue';
-    
-    // Messages d'erreur courants de Gmail
+
     if (message.includes('Invalid login')) {
-      return 'Identifiants Gmail incorrects. Utilisez un mot de passe d\'application.';
-    }
-    if (message.includes('rate limit')) {
-      return 'Limite d\'envoi atteinte. Veuillez patienter.';
-    }
-    if (message.includes('timeout')) {
-      return 'Timeout de connexion au serveur SMTP.';
+      return 'Identifiants SMTP invalides. Vérifiez EMAIL_USER et EMAIL_PASS.';
     }
     if (message.includes('ECONNREFUSED')) {
-      return 'Connexion refusée au serveur SMTP.';
+      return 'Impossible de se connecter au serveur SMTP. Vérifiez EMAIL_HOST et EMAIL_PORT.';
     }
-    if (message.includes('535')) {
-      return 'Échec d\'authentification. Activez la vérification en 2 étapes et utilisez un mot de passe d\'application.';
+    if (message.includes('Invalid email')) {
+      return 'Adresse email invalide.';
     }
-    
+    if (message.includes('ETIMEDOUT')) {
+      return 'Délai d\'attente dépassé. Le serveur SMTP ne répond pas.';
+    }
+
     return message;
   }
 
@@ -314,6 +264,6 @@ export class SmtpService {
    */
   logSecureInfo() {
     const status = this.getDetailedStatusForLogs();
-    this.logger.log(`Statut SMTP: ${JSON.stringify(status)}`);
+    this.loggerService.log(`Statut SMTP: ${JSON.stringify(status)}`, 'SmtpService');
   }
 }

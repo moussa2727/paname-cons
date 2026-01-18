@@ -22,6 +22,7 @@ import { join } from "path";
 import { AppModule } from "./app.module";
 import { rateLimit } from "express-rate-limit";
 import * as crypto from 'crypto';
+import { LoggerService } from './config/logger.service';
 
 // Configuration des variables d'environnement pour SMTP
 import * as dotenv from 'dotenv';
@@ -91,23 +92,28 @@ const normalizeIpForRateLimit = (req: express.Request): string => {
 };
 
 async function bootstrap() {
-  const server = express();
+  const loggerService = new LoggerService();
+  
+  loggerService.log('Démarrage de l\'application Paname Consulting...', 'Bootstrap');
+  
   const app = await NestFactory.create<NestExpressApplication>(
     AppModule,
-    new ExpressAdapter(server),
+    new ExpressAdapter(express()),
   );
+  
+  app.useLogger(loggerService);
 
-  const logger = new Logger('Bootstrap');
+  loggerService.log('Configuration de l\'application en cours...', 'Bootstrap');
 
   // Vérifier les variables d'environnement SMTP
   const emailUser = process.env.EMAIL_USER;
   const emailPass = process.env.EMAIL_PASS;
   
   if (!emailUser || !emailPass) {
-    logger.warn(' Variables SMTP non configurées. Le service d\'email ne fonctionnera pas.');
-    logger.warn('   Définissez EMAIL_USER et EMAIL_PASS dans votre fichier .env');
+    loggerService.warn(' Variables SMTP non configurées. Le service d\'email ne fonctionnera pas.');
+    loggerService.warn('   Définissez EMAIL_USER et EMAIL_PASS dans votre fichier .env');
   } else {
-    logger.log(`SMTP configuré pour: ${emailUser.substring(0, 3)}...@${emailUser.split('@')[1]}`);
+    loggerService.log(`SMTP configuré pour: ${emailUser.substring(0, 3)}...@${emailUser.split('@')[1]}`);
   }
 
   // CRÉATION DES DOSSIERS NÉCESSAIRES
@@ -117,7 +123,7 @@ async function bootstrap() {
   [uploadsDir, logsDir].forEach(dir => {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
-      logger.log(`Directory created: ${dir}`);
+      loggerService.log(`Directory created: ${dir}`);
     }
   });
 
@@ -162,7 +168,7 @@ async function bootstrap() {
       if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
-        logger.warn(`CORS bloqué pour origin: ${origin}`);
+        loggerService.warn(`CORS bloqué pour origin: ${origin}`);
         callback(new Error('Not allowed by CORS'));
       }
     },
@@ -181,7 +187,7 @@ async function bootstrap() {
     maxAge: 86400, // 24 heures en secondes
   });
 
-  server.get("/", (_req: express.Request, res: express.Response) => {
+  express().get("/", (_req: express.Request, res: express.Response) => {
     res.status(200).json({
       status: "ok",
       timestamp: new Date().toISOString(),
@@ -195,7 +201,7 @@ async function bootstrap() {
   app.setGlobalPrefix("api");
 
   // API INFO - route séparée pour éviter les erreurs
-  server.get("/api", (_req: express.Request, res: express.Response) => {
+  express().get("/api", (_req: express.Request, res: express.Response) => {
     res.status(200).json({
       service: "paname-consulting-api",
       version: process.env.npm_package_version || "1.0.0",
@@ -213,13 +219,13 @@ async function bootstrap() {
   });
 
   // MIDDLEWARE: Body parsers
-  server.use(express.urlencoded({
+  express().use(express.urlencoded({
     limit: '10mb',
     extended: true,
     parameterLimit: 1000
   }));
 
-  server.use(express.json({
+  express().use(express.json({
     limit: '10mb',
     verify: (req: express.Request, _res: express.Response, buf: Buffer, encoding: BufferEncoding) => {
       try {
@@ -233,13 +239,13 @@ async function bootstrap() {
   }));
 
   // MIDDLEWARE: Compression
-  server.use(compression());
+  express().use(compression());
 
   // MIDDLEWARE: Cookie Parser (options séparées)
-  server.use(cookieParser(process.env.COOKIE_SECRET));
+  express().use(cookieParser(process.env.COOKIE_SECRET));
 
   // MIDDLEWARE: Configuration des cookies de session (30 minutes)
-  server.use((_req: express.Request, res: express.Response, next: express.NextFunction) => {
+  express().use((_req: express.Request, res: express.Response, next: express.NextFunction) => {
     // Configurer les cookies de réponse pour qu'ils soient sécurisés
     const cookieOptions = {
       httpOnly: true,
@@ -405,21 +411,21 @@ async function bootstrap() {
   const host = process.env.HOST || "0.0.0.0";
 
   await app.listen(port, host, () => {
-    logger.log(`Server started successfully on PORT=${port}`); 
-    logger.log(`Application is running on: ${host}:${port}`);
-    logger.log(`Environment: ${process.env.NODE_ENV}`);
-    logger.log(`Session timeout: 30 minutes`);
-    logger.log(` CORS with credentials enabled`);
+    loggerService.log(`Server started successfully on PORT=${port}`); 
+    loggerService.log(`Application is running on: ${host}:${port}`);
+    loggerService.log(`Environment: ${process.env.NODE_ENV}`);
+    loggerService.log(`Session timeout: 30 minutes`);
+    loggerService.log(` CORS with credentials enabled`);
     
     if (emailUser && emailPass) {
-      logger.log(` SMTP service: CONFIGURED (${emailUser.substring(0, 3)}...@${emailUser.split('@')[1]})`);
+      loggerService.log(` SMTP service: CONFIGURED (${emailUser.substring(0, 3)}...@${emailUser.split('@')[1]})`);
     } else {
-      logger.warn(`  SMTP service: NOT CONFIGURED`);
-      logger.warn(`   Add EMAIL_USER and EMAIL_PASS to .env file`);
+      loggerService.warn(`  SMTP service: NOT CONFIGURED`);
+      loggerService.warn(`   Add EMAIL_USER and EMAIL_PASS to .env file`);
     }
     
-    logger.log(` Application accessible sur : http://localhost:${port}`);
-    logger.log(`   API Base URL: http://localhost:${port}/api`);
+    loggerService.log(` Application accessible sur : http://localhost:${port}`);
+    loggerService.log(`   API Base URL: http://localhost:${port}/api`);
   });
 }
 

@@ -1,1 +1,8 @@
+# Handle React Router - redirect all non-file requests to index.html
 /*    /index.html    200
+
+# API routes - proxy to backend
+/api/*  https://panameconsulting.up.railway.app/api/:splat  200
+
+# Security headers
+/api/admin/*  https://panameconsulting.up.railway.app/api/admin/:splat  200

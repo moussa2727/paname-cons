@@ -188,6 +188,23 @@ export class UsersController {
     };
   }
 
+  @Patch('maintenance-mode/toggle')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async toggleMaintenanceMode(): Promise<{ success: boolean; maintenanceMode: boolean }> {
+    const currentMode = await this.usersService.getMaintenanceStatus();
+    const newMode = !currentMode.isActive;
+    
+    await this.usersService.setMaintenanceMode(newMode);
+    
+    this.logger.log(`Mode maintenance basculé: ${currentMode.isActive} → ${newMode}`, 'UsersController');
+    
+    return {
+      success: true,
+      maintenanceMode: newMode,
+    };
+  }
+
   @Get("check-access/:userId")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)

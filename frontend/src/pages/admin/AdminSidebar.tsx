@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard,
-  LogOut,
   MapPin,
   MessageSquare,
   Users,
@@ -258,7 +257,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
   return (
     <>
       {/* Version Desktop et Tablet */}
-      <div className='hidden md:flex h-screen bg-gradient-to-br from-slate-50 to-blue-50/30'>
+      <div className='hidden md:flex h-screen bg-linear-to-br from-slate-50 to-blue-50/30'>
         {/* Sidebar */}
         <div
           className={`bg-white h-full fixed left-0 top-0 z-40 shadow-xl border-r border-slate-200 flex flex-col transition-all duration-300 ${
@@ -268,7 +267,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
           }`}
         >
           {/* En-tête */}
-          <div className='p-4 border-b border-slate-200 bg-gradient-to-r from-sky-500 to-sky-600'>
+          <div className='p-4 border-b border-slate-200 bg-linear-to-r from-sky-500 to-sky-600'>
             <div className='flex items-center justify-between'>
               <div className='flex items-center space-x-3'>
                 <Link
@@ -327,7 +326,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
           {/* Section utilisateur et déconnexion */}
           <div className='p-4 border-t border-slate-200 space-y-3'>
             <div className='flex items-center space-x-3 px-3 py-2'>
-              <div className='w-10 h-10 bg-gradient-to-br from-sky-500 to-sky-600 rounded-full flex items-center justify-center text-white text-sm font-semibold shadow-lg'>
+              <div className='w-10 h-10 bg-linear-to-br from-sky-500 to-sky-600 rounded-full flex items-center justify-center text-white text-sm font-semibold shadow-lg'>
                 {getNameInitial()}
               </div>
               <div className='flex-1 min-w-0'>
@@ -348,8 +347,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                 onClick={() => setShowMaintenanceToggle(true)}
                 className={`w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 ${
                   isMaintenanceMode
-                    ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-white hover:from-amber-600 hover:to-yellow-700 focus:ring-amber-500/30'
-                    : 'bg-gradient-to-r from-rose-500 to-pink-600 text-white hover:from-rose-600 hover:to-pink-700 focus:ring-rose-500/30'
+                    ? 'bg-linear-to-r from-amber-500 to-yellow-600 text-white hover:from-amber-600 hover:to-yellow-700 focus:ring-amber-500/30'
+                    : 'bg-linear-to-r from-rose-500 to-pink-600 text-white hover:from-rose-600 hover:to-pink-700 focus:ring-rose-500/30'
                 }`}
                 disabled={isMaintenanceLoading}
               >
@@ -383,7 +382,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
         {isCollapsed && (
           <button
             onClick={toggleSidebar}
-            className='fixed left-4 top-4 z-50 p-2 bg-gradient-to-r from-sky-500 to-sky-600 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50'
+            className='fixed left-4 top-4 z-50 p-2 bg-linear-to-r from-sky-500 to-sky-600 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50'
             aria-label='Ouvrir le menu'
           >
             <ChevronRight className='w-5 h-5' />
@@ -401,7 +400,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
       </div>
 
       {/* Version Mobile - Mobile First Design */}
-      <div className='md:hidden flex flex-col h-screen bg-gradient-to-b from-slate-50 to-blue-50/20'>
+      <div className='md:hidden flex flex-col h-screen bg-linear-to-b from-slate-50 to-blue-50/20'>
         {/* Header Mobile */}
         <header className='sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm'>
           <div className='px-4'>
@@ -409,7 +408,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
               <div className='flex items-center space-x-3'>
                 <Link
                   to='/'
-                  className='w-10 h-10 bg-gradient-to-r from-sky-500 to-sky-600 rounded-xl flex items-center justify-center shadow-md'
+                  className='w-10 h-10 bg-linear-to-r from-sky-500 to-sky-600 rounded-xl flex items-center justify-center shadow-md'
                 >
                   <Settings2 className='w-6 h-6 text-white' />
                 </Link>
@@ -424,8 +423,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                   onClick={() => setShowMaintenanceToggle(true)}
                   className={`p-2 rounded-lg shadow-sm hover:shadow-md focus:outline-none focus:ring-2 transition-all duration-200 ${
                     isMaintenanceMode
-                      ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-white focus:ring-amber-500/30'
-                      : 'bg-gradient-to-r from-rose-500 to-pink-600 text-white focus:ring-rose-500/30'
+                      ? 'bg-linear-to-r from-amber-500 to-yellow-600 text-white focus:ring-amber-500/30'
+                      : 'bg-linear-to-r from-rose-500 to-pink-600 text-white focus:ring-rose-500/30'
                   }`}
                   title={isMaintenanceMode ? 'Mode maintenance actif' : 'Déconnecter tous'}
                   disabled={isMaintenanceLoading}
@@ -509,7 +508,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
         <footer className='sticky bottom-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3'>
           <div className='flex items-center justify-between'>
             <div className='flex items-center space-x-3'>
-              <div className='w-8 h-8 bg-gradient-to-br from-sky-500 to-sky-600 rounded-full flex items-center justify-center text-white text-xs font-semibold'>
+              <div className='w-8 h-8 bg-linear-to-br from-sky-500 to-sky-600 rounded-full flex items-center justify-center text-white text-xs font-semibold'>
                 {getNameInitial()}
               </div>
               <div>
@@ -523,8 +522,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
               onClick={() => setShowMaintenanceToggle(true)}
               className={`px-4 py-2 text-sm font-medium rounded-lg shadow-sm hover:shadow-md focus:outline-none focus:ring-2 transition-all duration-200 ${
                 isMaintenanceMode
-                  ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-white focus:ring-amber-500/30'
-                  : 'bg-gradient-to-r from-rose-500 to-pink-600 text-white focus:ring-rose-500/30'
+                  ? 'bg-linear-to-r from-amber-500 to-yellow-600 text-white focus:ring-amber-500/30'
+                  : 'bg-linear-to-r from-rose-500 to-pink-600 text-white focus:ring-rose-500/30'
               }`}
               disabled={isMaintenanceLoading}
             >
@@ -536,15 +535,15 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
 
       {/* Modal de confirmation */}
       {(isLogoutAllOpen || showMaintenanceToggle) && (
-        <div className='fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm'>
+        <div className='fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm'>
           <div className='bg-white rounded-2xl shadow-2xl w-full max-w-sm transform transition-all duration-300 scale-100 opacity-100'>
             {/* En-tête avec condition pour mode maintenance */}
             <div className='p-5 border-b border-slate-200'>
               <div className='flex items-center space-x-3'>
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                   isMaintenanceMode 
-                    ? 'bg-gradient-to-r from-amber-100 to-yellow-100'
-                    : 'bg-gradient-to-r from-rose-100 to-pink-100'
+                    ? 'bg-linear-to-r from-amber-100 to-yellow-100'
+                    : 'bg-linear-to-r from-rose-100 to-pink-100'
                 }`}>
                   {isMaintenanceMode ? (
                     <Wrench className='w-5 h-5 text-amber-600' />
@@ -634,8 +633,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                   <div className='text-center mb-4'>
                     <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-3 ${
                       isMaintenanceMode
-                        ? 'bg-gradient-to-br from-amber-100 to-yellow-100'
-                        : 'bg-gradient-to-br from-sky-100 to-blue-100'
+                        ? 'bg-linear-to-br from-amber-100 to-yellow-100'
+                        : 'bg-linear-to-br from-sky-100 to-blue-100'
                     }`}>
                       {isMaintenanceMode ? (
                         <Wrench className='w-8 h-8 text-amber-600' />
@@ -657,8 +656,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
 
                   <div className={`rounded-lg p-3 border mb-4 ${
                     isMaintenanceMode
-                      ? 'bg-gradient-to-r from-amber-50 to-yellow-50/50 border-amber-100'
-                      : 'bg-gradient-to-r from-sky-50 to-blue-50/50 border-sky-100'
+                      ? 'bg-linear-to-r from-amber-50 to-yellow-50/50 border-amber-100'
+                      : 'bg-linear-to-r from-sky-50 to-blue-50/50 border-sky-100'
                   }`}>
                     <div className='flex items-start space-x-2'>
                       {isMaintenanceMode ? (
@@ -715,8 +714,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                     disabled={isLogoutAllLoading || isMaintenanceLoading}
                     className={`flex-1 px-3 py-2 text-white rounded-lg hover:shadow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 text-sm ${
                       isMaintenanceMode
-                        ? 'bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 focus:ring-amber-500/30'
-                        : 'bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 focus:ring-rose-500/30'
+                        ? 'bg-linear-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 focus:ring-amber-500/30'
+                        : 'bg-linear-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 focus:ring-rose-500/30'
                     }`}
                   >
                     {(isLogoutAllLoading || isMaintenanceLoading) ? (
@@ -740,7 +739,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                     setLogoutAllResult(null);
                     setShowMaintenanceToggle(false);
                   }}
-                  className='flex-1 px-3 py-2 bg-gradient-to-r from-sky-500 to-sky-600 text-white rounded-lg hover:from-sky-600 hover:to-sky-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/30 text-sm'
+                  className='flex-1 px-3 py-2 bg-linear-to-r from-sky-500 to-sky-600 text-white rounded-lg hover:from-sky-600 hover:to-sky-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500/30 text-sm'
                 >
                   {logoutAllResult.success ? 'Fermer' : 'Compris'}
                 </button>

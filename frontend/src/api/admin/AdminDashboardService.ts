@@ -46,7 +46,7 @@ class AdminDashboardService {
   private activeRequests = new Map<string, Promise<any>>();
 
   private constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    this.baseUrl = import.meta.env.VITE_API_URL;
 
     // Validation en production
     if (!this.baseUrl) {
@@ -85,7 +85,6 @@ class AdminDashboardService {
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     // CORRECTION IMPORTANTE : Vos contrôleurs montrent des routes directes
-    // Ex: @Controller("contact") -> /contact, pas /api/contact
     const url = `${this.baseUrl}${endpoint}`;
 
     const headers: Record<string, string> = {
@@ -253,7 +252,7 @@ class AdminDashboardService {
       // Récupérer TOUTES les stats en parallèle avec les endpoints officiels
       const [userStats, procedureStats, contactStats, rendezvousStats] =
         await Promise.allSettled([
-          // ✅ Endpoint: GET /users/stats (users.controller.ts ligne 40)
+          // Endpoint: GET /users/stats (users.controller.ts ligne 40)
           this.requestWithCache(
             '/api/users/stats',
             accessToken,
@@ -261,7 +260,7 @@ class AdminDashboardService {
             true
           ).catch(() => null),
 
-          // ✅ Endpoint: GET /procedures/admin/stats (procedure.controller.ts ligne 78)
+          // Endpoint: GET /procedures/admin/stats (procedure.controller.ts ligne 78)
           this.requestWithCache(
             '/api/procedures/admin/stats',
             accessToken,
@@ -269,7 +268,7 @@ class AdminDashboardService {
             true
           ).catch(() => null),
 
-          // ✅ Endpoint: GET /contact/stats (contact.controller.ts ligne 39)
+          // Endpoint: GET /contact/stats (contact.controller.ts ligne 39)
           this.requestWithCache(
             '/api/contact/stats',
             accessToken,
@@ -277,7 +276,7 @@ class AdminDashboardService {
             true
           ).catch(() => null),
 
-          // ✅ CORRIGÉ: Utiliser '/rendezvous/stats/overview' (rendez-vous.controller.ts ligne 456)
+          // CORRIGÉ: Utiliser '/rendezvous/stats/overview' (rendez-vous.controller.ts ligne 456)
           this.requestWithCache(
             '/api/rendezvous/stats/overview',
             accessToken,
@@ -545,6 +544,61 @@ class AdminDashboardService {
   }
 
   /**
+   * Récupère le statut du mode maintenance
+   * ✅ Utilise fetchWithAuth du contexte pour la bonne URL et authentification
+   */
+  async getMaintenanceStatus(
+    fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>
+  ): Promise<any> {
+    try {
+      const response = await fetchWithAuth('/api/users/maintenance-status');
+
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('Erreur récupération statut maintenance:', error);
+      }
+      return null;
+    }
+  }
+
+  /**
+   * Active/désactive le mode maintenance
+   * ✅ Utilise fetchWithAuth du contexte pour la bonne URL et authentification
+   */
+  async toggleMaintenanceMode(
+    enabled: boolean,
+    fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>
+  ): Promise<any> {
+    try {
+      const response = await fetchWithAuth('/api/users/maintenance-mode', {
+        method: 'POST',
+        body: JSON.stringify({ enabled }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      // FORCER LE RAFRAÎCHISSEMENT IMMÉDIAT APRÈS LE TOGGLE
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      return result;
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('Erreur changement mode maintenance:', error);
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Masque les emails dans les logs
    */
   private maskEmail(email: string): string {
@@ -611,10 +665,19 @@ class AdminDashboardService {
 // Instance unique du service
 export const adminDashboardService = AdminDashboardService.getInstance();
 
-// Hook React pour utiliser le service
+// ==================== HOOK REACT AMÉLIORÉ ====================
 export const useAdminDashboard = () => {
-  const { access_token, refreshToken, isAuthenticated, user, isLoading } =
-    useAuth();
+  const {
+    access_token,
+    refreshToken,
+    isAuthenticated,
+    user,
+    isLoading,
+    fetchWithAuth,
+    checkMaintenanceStatus,
+    toggleMaintenanceMode: contextToggleMaintenanceMode,
+    maintenanceStatus,
+  } = useAuth();
 
   // Wrapper pour gérer le rafraîchissement automatique du token
   const secureRequest = async <T>(
@@ -661,6 +724,18 @@ export const useAdminDashboard = () => {
 
     getUnreadContacts: () =>
       secureRequest(token => adminDashboardService.getUnreadContacts(token)),
+
+    // ✅ Ajouter les méthodes de maintenance
+    getMaintenanceStatus: () =>
+      adminDashboardService.getMaintenanceStatus(fetchWithAuth),
+
+    toggleMaintenanceMode: (enabled: boolean) =>
+      adminDashboardService.toggleMaintenanceMode(enabled, fetchWithAuth),
+
+    // ✅ Ajouter aussi les méthodes du contexte directement
+    checkMaintenanceStatusFromContext: checkMaintenanceStatus,
+    toggleMaintenanceModeFromContext: contextToggleMaintenanceMode,
+    maintenanceStatus,
 
     // Méthodes utilitaires
     clearCache: () => adminDashboardService.clearCache(),

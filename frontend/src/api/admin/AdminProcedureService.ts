@@ -788,7 +788,7 @@ export const useProcedureService = () => {
 // ==================== REACT HOOKS UTILITAIRES ====================
 import { useState, useCallback } from 'react';
 
-export const useProcedureActions = (service: ProcedureService) => {
+export const useProcedureActions = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

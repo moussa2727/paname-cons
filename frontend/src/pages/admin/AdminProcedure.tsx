@@ -105,12 +105,6 @@ const AdminProcedure: React.FC = () => {
 
       if (filters.email) cleanFilters.email = filters.email;
 
-      const getFilterValue = (
-        value: ProcedureStatus | ''
-      ): string | undefined => {
-        return value !== '' ? value : undefined;
-      };
-
       if (filters.destination) cleanFilters.destination = filters.destination;
       if (filters.filiere) cleanFilters.filiere = filters.filiere;
       if (filterInput) cleanFilters.search = filterInput;
@@ -144,12 +138,12 @@ const AdminProcedure: React.FC = () => {
   ]);
 
   // Helper pour convertir Date en string si nécessaire
-  const normalizeDate = (date: any): string | undefined => {
-    if (!date) return undefined;
-    if (date instanceof Date) return date.toISOString();
-    if (typeof date === 'string') return date;
-    return undefined;
-  };
+  // const normalizeDate = (date: any): string | undefined => {
+  //   if (!date) return undefined;
+  //   if (date instanceof Date) return date.toISOString();
+  //   if (typeof date === 'string') return date;
+  //   return undefined;
+  // };
 
   // Chargement des statistiques
   const loadStats = useCallback(async () => {

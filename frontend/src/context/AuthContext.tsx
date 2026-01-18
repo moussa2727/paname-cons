@@ -1,4 +1,4 @@
-import React, {
+import  {
   createContext,
   useContext,
   useState,
@@ -120,15 +120,15 @@ interface AuthContextType {
 // ==================== CONSTANTS ALIGNÉES AVEC BACKEND ====================
 const AUTH_CONSTANTS = {
   // Durées strictes : 15, 20, 30 minutes (alignées avec auth.constants.ts)
-  ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000, // ✅ 15 minutes exactement
-  ACCESS_TOKEN_EXPIRATION_SECONDS: 15 * 60, // ✅ 15 minutes en secondes
-  REFRESH_TOKEN_EXPIRATION_MS: 30 * 60 * 1000, // ✅ 30 minutes
-  MAX_SESSION_DURATION_MS: 30 * 60 * 1000, // ✅ 30 minutes maximum
-  SESSION_EXPIRATION_MS: 30 * 60 * 1000, // ✅ 30 minutes en ms
+  ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000, // 15 minutes exactement
+  ACCESS_TOKEN_EXPIRATION_SECONDS: 15 * 60, // 15 minutes en secondes
+  REFRESH_TOKEN_EXPIRATION_MS: 30 * 60 * 1000, // 30 minutes
+  MAX_SESSION_DURATION_MS: 30 * 60 * 1000, // 30 minutes maximum
+  SESSION_EXPIRATION_MS: 30 * 60 * 1000, // 30 minutes en ms
 
   // Configuration rafraîchissement
-  PREVENTIVE_REFRESH_MS: 5 * 60 * 1000, // ✅ 5 minutes avant expiration (au lieu de 1)
-  SESSION_CHECK_INTERVAL: 60 * 1000, // ✅ 1 minute (check toutes les minutes)
+  PREVENTIVE_REFRESH_MS: 5 * 60 * 1000, // 5 minutes avant expiration
+  SESSION_CHECK_INTERVAL: 60 * 1000, // 1 minute (check toutes les minutes)
 
   // Codes d'erreur (alignés avec backend)
   ERROR_CODES: {
@@ -257,7 +257,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const handleAuthError = useCallback(
-    (error: any, context: string = ''): void => {
+    (error: any, _context: string = ''): void => {
       const errorMessage = error.message || 'Erreur inconnue';
 
       if (
@@ -380,11 +380,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           STORAGE_KEYS.MAINTENANCE_STATUS,
           JSON.stringify(status)
         );
+      } else if (response.status === 401) {
+        // Nettoyer si le token est invalide
+        cleanupAuthData();
       }
     } catch (error) {
       console.warn('Erreur récupération statut maintenance:', error);
     }
-  }, [access_token, user, fetchWithAuth]);
+  }, [access_token, user, fetchWithAuth, cleanupAuthData]);
 
   const toggleMaintenanceMode = useCallback(async (enabled: boolean): Promise<boolean> => {
     if (!access_token || !user || user.role !== UserRole.ADMIN) {
@@ -406,6 +409,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('Erreur lors du changement du mode maintenance');
       }
 
+      // FORCER LE RAFRAÎCHISSEMENT IMMÉDIAT
       await checkMaintenanceStatus();
       
       toast.success(
@@ -547,18 +551,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const tokenExpirationTime = decoded.exp * 1000;
       const timeUntilExpiration = tokenExpirationTime - currentTime;
 
+      // Si le token est déjà expiré, le nettoyer directement sans appeler refresh
+      if (timeUntilExpiration <= 0) {
+        cleanupAuthData();
+        return;
+      }
+
       if (timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS) {
         // Refresh si le token expire dans moins de 5 minutes
         if (!isRefreshingRef.current) {
-          await refreshToken();
+          const refreshSuccess = await refreshToken();
+          // Si le refresh échoue, nettoyer les données
+          if (!refreshSuccess) {
+            cleanupAuthData();
+          }
         }
       } else if (!user) {
         await fetchUserData();
       }
     } catch (error) {
+      // Si le token est invalide, le supprimer
       console.warn('Erreur vérification auth:', error);
+      cleanupAuthData();
     }
-  }, [fetchUserData, refreshToken, user]);
+  }, [fetchUserData, refreshToken, user, cleanupAuthData]);
 
   const setupTokenRefresh = useCallback(
     (accessToken: string): void => {
@@ -992,10 +1008,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// ==================== HOOKS ====================
+//// ==================== HOOKS ====================
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

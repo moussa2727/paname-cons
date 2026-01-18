@@ -1,40 +1,23 @@
 import { Injectable, UnauthorizedException, Logger, ExecutionContext } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 import { AuthConstants } from "../../auth/auth.constants";
-import { request } from "express";
+import { request, Request } from "express";
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard("jwt") {
   private readonly logger = new Logger(JwtAuthGuard.name);
 
-  handleRequest(err: any, user: any, _info: any, context: ExecutionContext) {
-    const request = context.switchToHttp().getRequest();
-    const token = request.headers.authorization?.split(" ")[1] || 
-                  request.cookies?.access_token;
-    
+  handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
+    const request = context.switchToHttp().getRequest() as Request;
+
     if (err || !user) {
-      this.logger.warn(
-        `Token JWT invalide ou expiré: ${this.maskToken(token)}`
-      );
+      const errorMessage = info?.message || "Authentification échouée";
       
-      if (err?.name === 'TokenExpiredError') {
-        throw new UnauthorizedException({
-          message: "Token expiré",
-          code: "TOKEN_EXPIRED",
-          requiresRefresh: true
-        });
-      }
-      
-      if (err?.name === 'JsonWebTokenError') {
-        throw new UnauthorizedException({
-          message: "Token invalide",
-          code: "TOKEN_INVALID"
-        });
-      }
+      this.logger.warn(`Token JWT invalide ou expiré: ${errorMessage}`);
       
       throw new UnauthorizedException({
         message: "Session invalide ou expirée",
-        code: "SESSION_INVALID"
+        details: errorMessage,
       });
     }
 

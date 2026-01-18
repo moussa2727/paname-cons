@@ -3,22 +3,17 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Configuration optimisée pour Docker
+# 1. Copie seulement les fichiers de dépendances d'abord (optimisation cache)
+COPY package.json pnpm-lock.yaml* ./
 
-# Copie des fichiers de dépendances d'abord (meilleur cache)
-COPY . ./
+# 2. Installation des dépendances
+RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN pnpm install --frozen-lockfile
 
-# Installez nodemailer DANS la phase de build seulement
-RUN corepack enable && corepack prepare pnpm@10.26.2 --activate
+# 3. Copie du code source
+COPY . .
 
-# Installation complète pour le build
-RUN pnpm install 
-
-# Copie du reste du code
-COPY . ./
-
-# Construction
-RUN sed -i 's/"skipLibCheck": false/"skipLibCheck": true/g' tsconfig.json || true
+# 4. Build (si nécessaire)
 RUN pnpm build
 
 # ============ ÉTAPE DE PRODUCTION ============
@@ -26,21 +21,25 @@ FROM node:18-alpine AS production
 
 ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
+ENV EMAIL_USER=${EMAIL_USER}
+ENV EMAIL_PASS=${EMAIL_PASS}
+ENV JWT_SECRET=${JWT_SECRET}
+ENV MONGODB_URI=${MONGODB_URI}
 ENV PORT=10000
 
 WORKDIR /app
 
-# Copie des fichiers de dépendances
+# 1. Copie des fichiers de dépendances depuis le builder
 COPY --from=builder /app/package.json /app/pnpm-lock.yaml* ./
 
-# Installation de production UNIQUEMENT
-RUN corepack enable && corepack prepare pnpm@10.26.2 --activate
-RUN pnpm install --prod --frozen-lockfile --prefer-offline
+# 2. Installation des dépendances de production
+RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN pnpm install --prod --frozen-lockfile
 
-# Copie des fichiers construits
+# 3. Copie des fichiers construits depuis le builder
 COPY --from=builder /app/dist ./dist
 
-# Création des répertoires avec les bonnes permissions
+# 4. Création des répertoires avec les bonnes permissions
 RUN mkdir -p /app/uploads /app/logs && \
     chown -R node:node /app
 

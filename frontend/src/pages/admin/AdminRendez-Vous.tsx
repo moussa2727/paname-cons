@@ -119,7 +119,7 @@ const AdminRendezVous = (): React.JSX.Element => {
   const [rendezvous, setRendezvous] = useState<LocalRendezvous[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingDestinations, setIsLoadingDestinations] = useState(false);
+  const [_isLoadingDestinations, setIsLoadingDestinations] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('tous');
   const [page, setPage] = useState(1);
@@ -128,7 +128,6 @@ const AdminRendezVous = (): React.JSX.Element => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
-  const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [showAvisModal, setShowAvisModal] = useState(false);
   const [pendingStatusUpdate, setPendingStatusUpdate] = useState<{
     id: string;
@@ -143,7 +142,7 @@ const AdminRendezVous = (): React.JSX.Element => {
   );
   const [editingForm, setEditingForm] = useState<Partial<LocalRendezvous>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [refreshTrigger] = useState(0);
   const modalRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
 
@@ -342,10 +341,7 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   };
 
-  // Rafraîchir la liste
-  const refreshList = () => {
-    setRefreshTrigger(prev => prev + 1);
-  };
+
 
   // Mise à jour du statut
   const handleUpdateStatus = async (
@@ -684,10 +680,6 @@ const AdminRendezVous = (): React.JSX.Element => {
       });
       setShowCreateModal(false);
 
-      // Rafraîchir les dates disponibles
-      const dates = await service.fetchAvailableDates();
-      setAvailableDates(dates);
-
       toast.success('Rendez-vous créé avec succès');
     } catch (error) {
       const errorMessage =
@@ -731,10 +723,7 @@ const AdminRendezVous = (): React.JSX.Element => {
           fetchDestinations(),
           (async () => {
             try {
-              const dates = await service.fetchAvailableDates();
-              setAvailableDates(dates);
             } catch (error) {
-              setAvailableDates([]);
             }
           })(),
         ]);
@@ -1018,10 +1007,6 @@ const AdminRendezVous = (): React.JSX.Element => {
                   const { canDelete } = canDeleteRendezvous(rdv);
                   const isEditing = editingRendezvous === rdv.id;
                   const isAdmin = user?.role === 'admin';
-                  const statusOptions = getAvailableStatusTransitions(
-                    rdv.status
-                  );
-
                   return (
                     <div
                       key={`rdv-${rdv.id || index}-${index}`}

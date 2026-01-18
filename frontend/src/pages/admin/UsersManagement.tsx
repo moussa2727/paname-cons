@@ -59,7 +59,6 @@ const UsersManagement: React.FC = () => {
     deleteUser: deleteUserService,
     toggleUserStatus: toggleUserStatusService,
     canAccessAdmin,
-    isUserAdmin,
   } = useAdminUserService();
 
   const [users, setUsers] = useState<AppUser[]>([]);

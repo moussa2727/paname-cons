@@ -779,8 +779,21 @@ async validateUser(email: string, password: string): Promise<User | null> {
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
     try {
+      // Nettoyer le token si une URL complète est fournie
+      let cleanToken = token;
+      if (token.includes('reset-password?token=')) {
+        this.logger.log('Détection d\'URL dans le token de reset, extraction en cours...');
+        const tokenMatch = token.match(/token=([^&]+)/);
+        if (tokenMatch) {
+          cleanToken = tokenMatch[1];
+          this.logger.log(`Token extrait pour reset: ${cleanToken.substring(0, 20)}...`);
+        } else {
+          this.logger.warn('Échec de l\'extraction du token de reset de l\'URL');
+        }
+      }
+
       const resetToken = await (this.resetTokenModel as any).findOne({
-        token,
+        token: cleanToken,
         expiresAt: { $gt: new Date() },
       });
 
@@ -816,8 +829,8 @@ async validateUser(email: string, password: string): Promise<User | null> {
 
     if (!url) {
       url = nodeEnv === "production"
-        ? "https://panameconsulting.com"
-        : "https://panbameconsulting.vercel.app";
+        ? "https://panameconsulting.vercel.app"
+        : "http://localhost:5173";
     }
 
     return url.replace(/\/$/, "");
@@ -834,7 +847,26 @@ async validateUser(email: string, password: string): Promise<User | null> {
       );
     }
 
-    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+    // S'assurer que le token est bien une chaîne simple et pas une URL
+    let cleanToken = token;
+    
+    this.logger.log(`Token original: ${token.substring(0, 100)}...`);
+    
+    // Si le token contient une URL complète, extraire uniquement le token
+    if (token.includes('reset-password?token=')) {
+      this.logger.log('Détection d\'URL dans le token, extraction en cours...');
+      const tokenMatch = token.match(/token=([^&]+)/);
+      if (tokenMatch) {
+        cleanToken = tokenMatch[1];
+        this.logger.log(`Token extrait: ${cleanToken.substring(0, 50)}...`);
+      } else {
+        this.logger.warn('Échec de l\'extraction du token de l\'URL');
+      }
+    } else {
+      this.logger.log('Token simple détecté, pas d\'extraction nécessaire');
+    }
+    
+    const resetUrl = `${baseUrl}/reset-password?token=${cleanToken}`;
     this.logger.log(` URL de reset finale résolue: ${resetUrl.substring(0, 50)}...`);
 
     return resetUrl;
@@ -849,6 +881,7 @@ async validateUser(email: string, password: string): Promise<User | null> {
       }
 
       const resetToken = crypto.randomBytes(32).toString("hex");
+      this.logger.log(`Token brut généré: ${resetToken.substring(0, 20)}...`);
       const expiresAt = new Date(
         Date.now() + AuthConstants.RESET_TOKEN_EXPIRATION_MS,
       );
@@ -864,8 +897,9 @@ async validateUser(email: string, password: string): Promise<User | null> {
       });
 
       const resetUrl = this.buildResetUrl(resetToken);
+    this.logger.log(`URL avant envoi email: ${resetUrl}`);
 
-      this.logger.log(` URL de reset générée pour ${this.maskEmail(email)}`);
+    this.logger.log(` URL de reset générée pour ${this.maskEmail(email)}`);
 
       try {
         await this.mailService.sendPasswordReset(user.email, resetUrl);

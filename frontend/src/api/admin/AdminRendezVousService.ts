@@ -332,8 +332,7 @@ export class AdminRendezVousService {
   }
 
   private async handleResponse<T>(
-    response: Response,
-    operation: string
+    response: Response
   ): Promise<T> {
     if (!response.ok) {
       let errorMessage = ERROR_MESSAGES.SERVER_ERROR;
@@ -475,8 +474,7 @@ export class AdminRendezVousService {
         );
 
         const data = await this.handleResponse<RendezvousListResponse>(
-          response,
-          'Chargement des rendez-vous'
+          response
         );
 
         return data;
@@ -570,8 +568,7 @@ export class AdminRendezVousService {
         });
 
         const result = await this.handleResponse<Rendezvous>(
-          response,
-          'Création du rendez-vous'
+          response
         );
 
         toast.success(ERROR_MESSAGES.CREATE_SUCCESS, {
@@ -604,8 +601,7 @@ export class AdminRendezVousService {
         );
 
         const data = await this.handleResponse<RendezvousListResponse>(
-          response,
-          'Chargement des rendez-vous utilisateur'
+          response
         );
 
         return data;
@@ -633,8 +629,7 @@ export class AdminRendezVousService {
         const response = await this.rateLimitedFetch(`/api/rendezvous/${id}`);
 
         const data = await this.handleResponse<Rendezvous>(
-          response,
-          'Récupération du rendez-vous'
+          response
         );
 
         // Vérifier les permissions d'accès
@@ -749,8 +744,7 @@ export class AdminRendezVousService {
         });
 
         const result = await this.handleResponse<Rendezvous>(
-          response,
-          'Mise à jour du rendez-vous'
+          response
         );
 
         toast.success(ERROR_MESSAGES.UPDATE_SUCCESS, {
@@ -805,8 +799,7 @@ export class AdminRendezVousService {
         );
 
         const result = await this.handleResponse<Rendezvous>(
-          response,
-          'Mise à jour du statut'
+          response
         );
 
         toast.success(ERROR_MESSAGES.STATUS_UPDATE_SUCCESS, {
@@ -848,8 +841,7 @@ export class AdminRendezVousService {
         });
 
         const result = await this.handleResponse<Rendezvous>(
-          response,
-          'Annulation du rendez-vous'
+          response
         );
 
         toast.success(ERROR_MESSAGES.DELETE_SUCCESS, {
@@ -865,7 +857,7 @@ export class AdminRendezVousService {
   }
 
   // Méthode pour confirmer un rendez-vous (admin uniquement)
-  async confirmRendezvous(id: string, userEmail?: string): Promise<Rendezvous> {
+  async confirmRendezvous(id: string): Promise<Rendezvous> {
     return this.queueRequest(async () => {
       if (!id || id.trim() === '' || id === 'undefined') {
         toast.error('ID rendez-vous invalide', {
@@ -886,8 +878,7 @@ export class AdminRendezVousService {
         );
 
         const result = await this.handleResponse<Rendezvous>(
-          response,
-          'Confirmation du rendez-vous'
+          response
         );
 
         toast.success(ERROR_MESSAGES.CONFIRM_SUCCESS, {
@@ -927,8 +918,7 @@ export class AdminRendezVousService {
         );
 
         const data = await this.handleResponse<string[]>(
-          response,
-          'Chargement des créneaux disponibles'
+          response
         );
 
         return data;
@@ -950,8 +940,7 @@ export class AdminRendezVousService {
         );
 
         const data = await this.handleResponse<string[]>(
-          response,
-          'Chargement des dates disponibles'
+          response
         );
 
         return data;

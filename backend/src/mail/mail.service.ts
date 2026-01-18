@@ -42,9 +42,6 @@ export class MailService {
       subject: options.subject,
       html: options.html,
       replyTo: options.replyTo,
-      attachments: options.attachments,
-      cc: options.cc,
-      bcc: options.bcc
     });
 
     return result.success;
@@ -54,10 +51,12 @@ export class MailService {
    */
   async sendPasswordReset(
     email: string, 
-    resetToken: string, 
+    resetUrl: string, 
     firstName: string = ''
   ): Promise<boolean> {
-    const resetUrl = `${this.frontendUrl}/reset-password?token=${resetToken}`;
+    // Le resetUrl est déjà l'URL complète construite par buildResetUrl
+    // Plus besoin de la reconstruire ici
+    this.logger.log(`[MailService] URL reçue pour email: ${resetUrl.substring(0, 50)}...`);
 
     const html = `
       <!DOCTYPE html>
