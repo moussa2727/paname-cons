@@ -1,0 +1,25 @@
+web: docker start -ai backend
+services:
+  - type: web
+    name: backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        value: ${MONGODB_URI}
+      - key: EMAIL_USER
+        value: ${EMAIL_USER}
+      - key: EMAIL_PASS
+        value: ${EMAIL_PASS}
+      - key: JWT_SECRET
+        value: ${JWT_SECRET}
+      - key: JWT_REFRESH_SECRET
+        value: ${JWT_REFRESH_SECRET}
+      - key: FRONTEND_URL
+        value: ${FRONTEND_URL}
