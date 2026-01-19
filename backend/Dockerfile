@@ -19,14 +19,6 @@ RUN pnpm build
 # ============ ÉTAPE DE PRODUCTION ============
 FROM node:18-alpine AS production
 
-ARG NODE_ENV=production
-ENV NODE_ENV=${NODE_ENV}
-ENV EMAIL_USER=${EMAIL_USER}
-ENV EMAIL_PASS=${EMAIL_PASS}
-ENV JWT_SECRET=${JWT_SECRET}
-ENV MONGODB_URI=${MONGODB_URI}
-ENV PORT=10000
-
 WORKDIR /app
 
 # 1. Copie des fichiers de dépendances depuis le builder
@@ -45,6 +37,6 @@ RUN mkdir -p /app/uploads /app/logs && \
 
 USER node
 
-EXPOSE $PORT
+EXPOSE 10000
 
 CMD ["node", "dist/main.js"]

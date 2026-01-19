@@ -10,17 +10,16 @@ services:
     ports:
       - "10000:10000"
     env_file: ./.env
-
     environment:
-    - MONGODB_URI=mongodb://mongo:27017/panameconsulting
+    - MONGODB_URI=mongodb://mongo:27017/panameconsultingDb
     - EMAIL_USER=${EMAIL_USER}
     - EMAIL_PASS=${EMAIL_PASS}
     - JWT_SECRET=${JWT_SECRET}
-    - PORT=${PORT}
-
+    - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+    - PORT=10000
+    - NODE_ENV=production
     networks:
       - appnet
-
   mongo:
     image: mongo:latest
     container_name: mongo
@@ -30,7 +29,7 @@ services:
     volumes:
       - mongo-data:/data/db
     networks:
-      - appnet
+      - appnet 
 
 networks:
   appnet:
