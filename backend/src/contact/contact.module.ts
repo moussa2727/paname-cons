@@ -4,11 +4,15 @@ import { ContactController } from "./contact.controller";
 import { ContactService } from "./contact.service";
 import { Contact, ContactSchema } from "../schemas/contact.schema";
 import { NotificationModule } from "../notification/notification.module";
+import { ConfigModule } from "@nestjs/config";
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Contact.name, schema: ContactSchema }]),
     NotificationModule,
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
   ],
   controllers: [ContactController],
   providers: [ContactService],

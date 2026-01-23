@@ -540,7 +540,7 @@ export class NotificationService {
   async sendContactNotification(contact: Contact): Promise<boolean> {
     const adminEmail = this.configService.get<string>('EMAIL_USER');
     if (!adminEmail) {
-      this.logger.warn("📧 Email admin non configuré");
+      this.logger.warn(" Email admin non configuré");
       return false;
     }
 
@@ -571,7 +571,7 @@ export class NotificationService {
     `;
 
     return await this.sendEmail(
-      adminEmail,
+      contact.email,
       'Nouveau message de contact - Paname Consulting',
       this.getBaseTemplate("Nouveau Message Contact", content, "Équipe"),
       'notification-contact-admin'

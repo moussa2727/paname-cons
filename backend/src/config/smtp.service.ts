@@ -19,8 +19,6 @@ export class SmtpService {
   private readonly fromName: string = 'Paname Consulting';
 
   constructor(private configService: ConfigService, private loggerService: LoggerService) {
-    const emailHost = this.configService.get<string>('EMAIL_HOST') || 'smtp.gmail.com';
-    const emailPort = parseInt(this.configService.get<string>('EMAIL_PORT') || '587');
     const emailUser = this.configService.get<string>('EMAIL_USER');
     const emailPass = this.configService.get<string>('EMAIL_PASS');
 
@@ -29,19 +27,24 @@ export class SmtpService {
     }
 
     this.transporter = nodemailer.createTransport({
-      host: emailHost,
-      port: emailPort,
-      secure: emailPort === 465,
+      host: 'smtp.gmail.com',
+      port: this.configService.get<number>('EMAIL_PORT'),
+      secure: false,
       auth: {
-        user: emailUser,
-        pass: emailPass,
+        user: this.configService.get<string>('EMAIL_USER'),
+        pass: this.configService.get<string>('EMAIL_PASS'),
       },
+
+       tls: {
+        rejectUnauthorized: false, // Pour les problèmes de certificat
+      },
+
     });
 
     this.fromEmail = emailUser;
 
     const maskedEmail = this.maskEmail(this.fromEmail);
-    this.loggerService.log(`Service SMTP initialisé avec: ${maskedEmail} (${emailHost}:${emailPort})`, 'SmtpService');
+    this.loggerService.log(`Service SMTP initialisé avec: ${maskedEmail} (${this.configService.get<string>('EMAIL_USER')}:${this.configService.get<number>('EMAIL_PORT')})`, 'SmtpService');
   }
 
   /**

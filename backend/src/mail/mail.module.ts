@@ -6,7 +6,10 @@ import { LoggerService } from "../config/logger.service";
 
 @Global()
 @Module({
-  imports: [ConfigModule],
+  imports: [
+      ConfigModule.forRoot({
+      isGlobal: true,
+    })],
   providers: [MailService, SmtpService, LoggerService],
   exports: [MailService, SmtpService, LoggerService],
 })
