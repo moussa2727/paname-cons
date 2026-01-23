@@ -55,6 +55,21 @@ export class AuthController {
       // Ne pas définir de domaine spécifique pour éviter les problèmes cross-domain
     };
   }
+  @Get("get-token")
+  async getTokenFromCookies(@Req() req: any, @Res() res: Response) {
+    try {
+      const access_token = req.cookies?.access_token;
+      
+      if (!access_token) {
+        return res.status(401).json({ message: "Aucun token trouvé" });
+      }
+      
+      return res.json({ access_token });
+    } catch (error) {
+      return res.status(500).json({ message: "Erreur serveur" });
+    }
+  }
+
  @Post("login")
   @UseGuards(ThrottleGuard, LocalAuthGuard)
   @ApiOperation({ summary: "Connexion utilisateur" })

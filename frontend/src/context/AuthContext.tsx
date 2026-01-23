@@ -319,11 +319,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           STORAGE_KEYS.USER_DATA,
           JSON.stringify(mappedUser)
         );
+        console.log('✅ Données utilisateur récupérées avec succès:', mappedUser.email);
       } else if (response.status === 401) {
+        console.warn('⚠️ Token invalide, nettoyage des données');
         cleanupAuthData();
+      } else {
+        console.warn('⚠️ Erreur récupération utilisateur:', response.status);
       }
     } catch (error) {
-      console.warn('Erreur récupération utilisateur:', error);
+      console.warn('❌ Erreur récupération utilisateur:', error);
+      // En cas d'erreur réseau, essayer de restaurer depuis localStorage
+      const storedUser = window.localStorage?.getItem(STORAGE_KEYS.USER_DATA);
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          console.log('🔄 Données utilisateur restaurées depuis localStorage');
+        } catch (parseError) {
+          console.warn('❌ Erreur parsing localStorage:', parseError);
+        }
+      }
     }
   }, [access_token, cleanupAuthData, fetchWithAuth]);
 
@@ -391,6 +406,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [cleanupAuthData, fetchUserData]);
 
+  const getTokenFromCookies = useCallback(async (): Promise<string | null> => {
+    try {
+      // Essayer de lire le token depuis les cookies
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/auth/me`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        // Si la requête réussit, extraire le token des cookies via une route dédiée
+        const tokenResponse = await fetch(`${API_CONFIG.BASE_URL}/api/auth/get-token`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        
+        if (tokenResponse.ok) {
+          const tokenData = await tokenResponse.json();
+          return tokenData.access_token || null;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.warn('Erreur lecture cookies:', error);
+      return null;
+    }
+  }, []);
+
   const checkMaintenanceStatus = useCallback(async (): Promise<void> => {
     try {
       const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.MAINTENANCE_STATUS}`);
@@ -407,27 +452,54 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const savedToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
 
     if (!savedToken) {
+      // Essayer de récupérer depuis les cookies si localStorage est vide
+      const cookieToken = await getTokenFromCookies();
+      if (cookieToken) {
+        window.localStorage?.setItem(STORAGE_KEYS.ACCESS_TOKEN, cookieToken);
+        setAccessToken(cookieToken);
+        console.log('🔄 Token récupéré depuis les cookies');
+      } else {
+        console.log('❌ Aucun token trouvé (localStorage ni cookies)');
+        return;
+      }
+    }
+
+    const tokenToCheck = savedToken || window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    
+    if (!tokenToCheck) {
+      console.log('❌ Toujours pas de token après vérification');
       return;
     }
 
     try {
-      const decoded = jwtDecode<JwtPayload>(savedToken);
+      const decoded = jwtDecode<JwtPayload>(tokenToCheck);
       const currentTime = Date.now();
       const tokenExpirationTime = decoded.exp * 1000;
       const timeUntilExpiration = tokenExpirationTime - currentTime;
 
+      console.log('🔍 Token valide, expiration dans:', Math.floor(timeUntilExpiration / 60000), 'minutes');
+
       if (timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS) {
         // Refresh si le token expire dans moins de 5 minutes
         if (!isRefreshingRef.current) {
+          console.log('🔄 Token expire bientôt, tentative de refresh');
           await refreshToken();
         }
-      } else if (!user) {
+      } 
+      
+      // Toujours récupérer les données utilisateur pour s'assurer qu'elles sont à jour
+      if (!user || !user.email) {
+        console.log('📥 Récupération des données utilisateur...');
         await fetchUserData();
+      } else {
+        console.log('✅ Utilisateur déjà connecté:', user.email);
       }
     } catch (error) {
-      console.warn('Erreur vérification auth:', error);
+      console.warn('❌ Erreur vérification auth:', error);
+      // Nettoyer les données invalides
+      cleanupAuthData();
     }
-  }, [fetchUserData, refreshToken, user]);
+  }, [fetchUserData, refreshToken, user, cleanupAuthData, getTokenFromCookies]);
 
   const setupTokenRefresh = useCallback((accessToken: string): void => {
     try {
@@ -773,6 +845,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Vérifier le status maintenance d'abord
       await checkMaintenanceStatus();
       
+      // Toujours vérifier l'authentification au chargement
       await checkAuth();
 
       if (isMounted) {
