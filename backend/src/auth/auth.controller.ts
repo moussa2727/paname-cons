@@ -47,26 +47,20 @@ export class AuthController {
 
   private getCookieOptions(req?: any): any {
     const origin = req?.headers?.origin || req?.headers?.referer;
-    let domain = undefined;
     
-    if (origin) {
-      if (origin.includes('panameconsulting.vercel.app')) {
-        domain = '.panameconsulting.vercel.app';
-      } else if (origin.includes('paname-consulting.vercel.app')) {
-        domain = '.paname-consulting.vercel.app';
-      }
-    }
-    
-    return {
+    const baseOptions = {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: true, // Toujours true en production
+      sameSite: 'none' as const, // Requis pour cross-domain
       path: '/',
-      domain: domain,
-    };
+    };  
+    console.log(`Cookie options pour origin: ${origin}`);
+    console.log(`Options:`, baseOptions);
+    
+    return baseOptions;
   }
 
-  @Post("login")
+ @Post("login")
   @UseGuards(ThrottleGuard, LocalAuthGuard)
   @ApiOperation({ summary: "Connexion utilisateur" })
   @ApiResponse({ status: 200, description: "Connexion réussie" })
@@ -80,34 +74,42 @@ export class AuthController {
       });
     }
     
+    console.log('Login - Génération des tokens...');
     const result = await this.authService.login(req.user);
     
     const cookieOptions = this.getCookieOptions(req);
 
+    // Définir les cookies AVANT d'envoyer la réponse
+    console.log('Définition du refresh_token cookie');
     res.cookie("refresh_token", result.refresh_token, {
       ...cookieOptions,
-      maxAge: AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000,
+      maxAge: AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000, // 30 minutes
     });
 
+    console.log('Définition du access_token cookie');
     res.cookie("access_token", result.access_token, {
       ...cookieOptions,
-      maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000,
+      maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000, // 15 minutes
     });
 
-   return res.json({
-    access_token: result.access_token,
-    user: {
-      id: result.user.id,
-      email: result.user.email,
-      firstName: result.user.firstName,
-      lastName: result.user.lastName,
-      telephone: result.user.telephone,
-      role: result.user.role,
-      isAdmin: result.user.role === UserRole.ADMIN,
-    },
-    message: "Connexion réussie",
-  });
+    console.log('Login réussi - cookies définis');
+
+    // Envoyer la réponse JSON
+    return res.status(200).json({
+      access_token: result.access_token,
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+        firstName: result.user.firstName,
+        lastName: result.user.lastName,
+        telephone: result.user.telephone,
+        role: result.user.role,
+        isAdmin: result.user.role === UserRole.ADMIN,
+      },
+      message: "Connexion réussie",
+    });
   }
+
 
   @Post("refresh")
   @ApiOperation({ summary: "Rafraîchir le token" })
@@ -118,20 +120,28 @@ export class AuthController {
     @Body() body: any,
     @Res() res: Response,
   ) {
+    // Lire le refresh_token depuis les cookies
     const refresh_token = req.cookies?.refresh_token || body?.refresh_token;
 
+    console.log('Refresh - Vérification du refresh_token...');
+    console.log('Refresh token présent:', !!refresh_token);
+
     if (!refresh_token) {
+      console.error('Refresh token manquant');
       this.clearAuthCookies(res);
       return res.status(401).json({
         message: "Refresh token manquant",
         loggedOut: true,
+        requiresReauth: true,
       });
     }
 
     try {
+      console.log('Appel du service refresh...');
       const result = await this.authService.refresh(refresh_token);
 
       if (result.sessionExpired) {
+        console.warn('Session expirée détectée');
         this.clearAuthCookies(res);
         return res.status(401).json({
           loggedOut: true,
@@ -144,21 +154,29 @@ export class AuthController {
         throw new BadRequestException("Access token non généré");
       }
 
+      console.log('Nouveaux tokens générés');
+
       const cookieOptions = this.getCookieOptions(req);
 
+      // Définir le nouveau refresh_token si présent
       if (result.refresh_token) {
+        console.log('Mise à jour du refresh_token cookie');
         res.cookie("refresh_token", result.refresh_token, {
           ...cookieOptions,
           maxAge: AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000,
         });
       }
 
+      // Définir le nouveau access_token
+      console.log('Mise à jour du access_token cookie');
       res.cookie("access_token", result.access_token, {
         ...cookieOptions,
         maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000,
       });
 
-      return res.json({
+      console.log('Refresh réussi - cookies mis à jour');
+
+      return res.status(200).json({
         access_token: result.access_token,
         refresh_token: result.refresh_token,
         message: "Tokens rafraîchis avec succès",
@@ -166,6 +184,7 @@ export class AuthController {
       });
 
     } catch (error: any) {
+      console.error('Erreur lors du refresh:', error.message);
       this.clearAuthCookies(res);
 
       let errorMessage = "Session expirée - veuillez vous reconnecter";
@@ -183,6 +202,7 @@ export class AuthController {
       });
     }
   }
+
 
   @Post("register")
   @ApiOperation({ summary: "Inscription utilisateur" })
@@ -381,16 +401,20 @@ export class AuthController {
     return { message: "Mot de passe réinitialisé avec succès" };
   }
 
-  private clearAuthCookies(res: Response): void {
+ private clearAuthCookies(res: Response): void {
+    console.log('Nettoyage des cookies d\'authentification');
+    
     const cookieOptions: any = {
       httpOnly: true,
       secure: true,
-      sameSite: 'none',
+      sameSite: 'none' as const,
       path: '/',
     };
 
     res.clearCookie("refresh_token", cookieOptions);
     res.clearCookie("access_token", cookieOptions);
+    
+    console.log('Cookies nettoyés');
   }
 
   private maskUserId(userId: string): string {

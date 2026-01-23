@@ -318,43 +318,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [navigate]
   );
 
-const fetchWithAuth = useCallback(async (endpoint: string, options: RequestInit = {}): Promise<Response> => {
-  try {
-    const response = await window.fetch(
-      `${API_CONFIG.BASE_URL}${endpoint}`,
-      {
-        ...options,
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-      }
-    );
-
-    if (response.status === 401) {
-      const errorData = await response.json().catch(() => ({}));
-      
-      if (errorData.loggedOut || errorData.requiresReauth || errorData.message?.includes('expiré')) {
-        cleanupAuthData();
-        
-        document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-        document.cookie = "refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-        
-        if (!window.location.pathname.includes('/connexion')) {
-          toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+  const fetchWithAuth = useCallback(async (endpoint: string, options: RequestInit = {}): Promise<Response> => {
+    try {
+      const response = await window.fetch(
+        `${API_CONFIG.BASE_URL}${endpoint}`,
+        {
+          ...options,
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...options.headers,
+          },
         }
-        
-        navigate(REDIRECT_PATHS.LOGIN, { replace: true });
-        throw new Error('SESSION_EXPIRED');
-      }
-    }
+      );
 
-    return response;
-  } catch (error) {
-    throw error;
-  }
-}, [cleanupAuthData, navigate]);
+      if (response.status === 401) {
+        const errorData = await response.json().catch(() => ({}));
+        
+        const isSessionExpired = 
+          errorData.loggedOut === true || 
+          errorData.sessionExpired === true ||
+          errorData.requiresReauth === true;
+        
+        if (isSessionExpired) {
+          console.warn(' Session réellement expirée - nettoyage des cookies');
+          cleanupAuthData();
+          
+          // Nettoyer les cookies côté client
+          document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=; secure; samesite=none";
+          document.cookie = "refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=; secure; samesite=none";
+          
+          if (!window.location.pathname.includes('/connexion')) {
+            toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+          }
+          
+          navigate(REDIRECT_PATHS.LOGIN, { replace: true });
+          throw new Error('SESSION_EXPIRED');
+        } else {
+          console.warn(' 401 reçu mais pas une expiration de session');
+        }
+      }
+
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }, [cleanupAuthData, navigate]);
+
 
   // ==================== GESTION MAINTENANCE ====================
   const checkMaintenanceStatus = useCallback(async (): Promise<void> => {
@@ -476,70 +486,81 @@ const fetchWithAuth = useCallback(async (endpoint: string, options: RequestInit 
   }, [access_token, cleanupAuthData, checkMaintenanceStatus]);
 
   // ==================== GESTION DU TEMPS D'AUTHENTIFICATION ====================
-  const refreshToken = useCallback(async (): Promise<boolean> => {
-    if (isRefreshingRef.current) {
+ const refreshToken = useCallback(async (): Promise<boolean> => {
+  if (isRefreshingRef.current) {
+    console.log('⏳ Refresh déjà en cours - attente...');
+    return false;
+  }
+
+  const lastRefreshTime = window.localStorage?.getItem(STORAGE_KEYS.LAST_REFRESH_TIME);
+  if (lastRefreshTime) {
+    const timeSinceLastRefresh = Date.now() - parseInt(lastRefreshTime);
+    if (timeSinceLastRefresh < 30000) {
+      console.log('⏸️ Dernier refresh trop récent (< 30s) - skip');
       return false;
     }
+  }
 
-    const lastRefreshTime = window.localStorage?.getItem(
-      STORAGE_KEYS.LAST_REFRESH_TIME
+  isRefreshingRef.current = true;
+  console.log('🔄 Début du refresh token...');
+
+  try {
+    const response = await window.fetch(
+      `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REFRESH}`,
+      {
+        method: 'POST',
+        credentials: 'include', // ✅ Important : envoyer les cookies
+      }
     );
-    if (lastRefreshTime) {
-      const timeSinceLastRefresh = Date.now() - parseInt(lastRefreshTime);
-      if (timeSinceLastRefresh < 30000) {
-        // 30 secondes minimum entre refresh
-        return false;
-      }
-    }
 
-    isRefreshingRef.current = true;
-
-    try {
-      const response = await window.fetch(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REFRESH}`,
-        {
-          method: 'POST',
-          credentials: 'include',
-        }
-      );
-
-      if (response.status === 401) {
-        return false;
-      }
-
-      if (!response.ok) {
-        return false;
-      }
-
-      const data = await response.json();
-
-      if (!data.access_token) {
-        return false;
-      }
-
-      window.localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.access_token);
-      setAccessToken(data.access_token);
-
-      await fetchUserData();
-
-      window.localStorage.setItem(
-        STORAGE_KEYS.LAST_REFRESH_TIME,
-        Date.now().toString()
-      );
-
-      return true;
-    } catch (error) {
-      console.error('Erreur lors du refresh:', error);
+    if (response.status === 401) {
+      console.error('Refresh refusé - 401');
       return false;
-    } finally {
-      isRefreshingRef.current = false;
     }
-  }, [fetchUserData]);
+
+    if (!response.ok) {
+      console.error('Refresh échoué - status:', response.status);
+      return false;
+    }
+
+    const data = await response.json();
+
+    if (!data.access_token) {
+      console.error(' Pas de access_token dans la réponse refresh');
+      return false;
+    }
+
+    console.log('Nouveau access_token reçu');
+
+    // CORRECTION 6 : Sauvegarder le nouveau token
+    window.localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.access_token);
+    setAccessToken(data.access_token);
+
+    // Recharger les données utilisateur
+    await fetchUserData();
+
+    // Marquer le refresh comme effectué
+    window.localStorage.setItem(
+      STORAGE_KEYS.LAST_REFRESH_TIME,
+      Date.now().toString()
+    );
+
+    console.log('Refresh token terminé avec succès');
+    return true;
+  } catch (error) {
+    console.error('Erreur lors du refresh:', error);
+    return false;
+  } finally {
+    isRefreshingRef.current = false;
+  }
+}, [fetchUserData]);
+
 
   const checkAuth = useCallback(async (): Promise<void> => {
     const savedToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
 
     if (!savedToken) {
+      console.log('Aucun token trouvé dans localStorage');
       return;
     }
 
@@ -549,27 +570,41 @@ const fetchWithAuth = useCallback(async (endpoint: string, options: RequestInit 
       const tokenExpirationTime = decoded.exp * 1000;
       const timeUntilExpiration = tokenExpirationTime - currentTime;
 
-      // Si le token est déjà expiré, le nettoyer directement sans appeler refresh
+      console.log(`Vérification token - Expire dans: ${Math.round(timeUntilExpiration / 1000 / 60)} minutes`);
+
+      //  CORRECTION 3 : Si le token est déjà expiré, essayer de refresh avant de nettoyer
       if (timeUntilExpiration <= 0) {
-        cleanupAuthData();
+        console.warn('Token expiré - tentative de refresh...');
+        const refreshSuccess = await refreshToken();
+        
+        if (!refreshSuccess) {
+          console.error('Refresh échoué - nettoyage des données');
+          cleanupAuthData();
+        } else {
+          console.log('Token rafraîchi avec succès après expiration');
+        }
         return;
       }
 
+      //  CORRECTION 4 : Refresh préventif si proche de l'expiration
       if (timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS) {
-        // Refresh si le token expire dans moins de 5 minutes
+        console.log(' Refresh préventif du token...');
         if (!isRefreshingRef.current) {
           const refreshSuccess = await refreshToken();
-          // Si le refresh échoue, nettoyer les données
           if (!refreshSuccess) {
+            console.error(' Refresh préventif échoué');
             cleanupAuthData();
+          } else {
+            console.log(' Refresh préventif réussi');
           }
         }
       } else if (!user) {
+        //  CORRECTION 5 : Charger les données utilisateur si manquantes
+        console.log(' Chargement des données utilisateur...');
         await fetchUserData();
       }
     } catch (error) {
-      // Si le token est invalide, le supprimer
-      console.warn('Erreur vérification auth:', error);
+      console.error('Erreur vérification auth:', error);
       cleanupAuthData();
     }
   }, [fetchUserData, refreshToken, user, cleanupAuthData]);
@@ -606,136 +641,46 @@ const fetchWithAuth = useCallback(async (endpoint: string, options: RequestInit 
 
   // ==================== MÉTHODES D'AUTHENTIFICATION ====================
   const login = useCallback(async (email: string, password: string): Promise<void> => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await window.fetch(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-          credentials: 'include', // Cookies seront reçus automatiquement
-        }
-      );
-
-      const data: LoginResponse = await response.json();
-
-      if (!response.ok) {
-        // Analyser le message, pas le code
-        const errorMessage = data.message || 'Erreur de connexion';
-        
-        if (errorMessage.includes('INVALID CREDENTIALS') || errorMessage.includes('Email ou mot de passe incorrect')) {
-          throw new Error(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS);
-        }
-        
-        if (errorMessage.includes('PASSWORD RESET REQUIRED')) {
-          throw new Error(AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED);
-        }
-        
-        if (errorMessage.includes('COMPTE DESACTIVE')) {
-          throw new Error(AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE);
-        }
-        
-        if (errorMessage.includes('COMPTE TEMPORAIREMENT DECONNECTE')) {
-          throw new Error(errorMessage); // Garder le message complet avec heures
-        }
-        
-        if (errorMessage.includes('MAINTENANCE MODE')) {
-          throw new Error(AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE);
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      const userData: User = {
-        id: data.user.id,
-        email: data.user.email,
-        firstName: data.user.firstName,
-        lastName: data.user.lastName,
-        role: data.user.role,
-        telephone: data.user.telephone,
-        isActive: true,
-        isAdmin: data.user.role === UserRole.ADMIN,
-      };
-
-      setUser(userData);
-      window.localStorage?.setItem(
-        STORAGE_KEYS.USER_DATA,
-        JSON.stringify(userData)
-      );
-      window.localStorage?.setItem(
-        STORAGE_KEYS.SESSION_START,
-        Date.now().toString()
-      );
-
-      // Pour setupTokenRefresh, on a besoin d'un token temporaire
-      if (data.access_token) {
-        setAccessToken(data.access_token);
-        setupTokenRefresh(data.access_token);
-      }
-
-      // Reste du code inchangé...
-    } catch (err: any) {
-      handleAuthError(err, 'login');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [navigate, handleAuthError, setupTokenRefresh, checkMaintenanceStatus]);
-
-
-  const register = useCallback(
-    async (formData: RegisterFormData): Promise<void> => {
       setIsLoading(true);
       setError(null);
 
       try {
         const response = await window.fetch(
-          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REGISTER}`,
+          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`,
           {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              firstName: formData.firstName.trim(),
-              lastName: formData.lastName.trim(),
-              email: formData.email.toLowerCase().trim(),
-              telephone: formData.telephone.trim(),
-              password: formData.password,
-            }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
             credentials: 'include',
           }
         );
 
-        const data: RegisterResponse = await response.json();
+        const data: LoginResponse = await response.json();
 
         if (!response.ok) {
-          if (response.status === 400) {
-            const errorMessage = data.message || 'Données invalides';
-
-            if (data.errors) {
-              const validationErrors = Object.values(data.errors).join(', ');
-              throw new Error(`Validation échouée : ${validationErrors}`);
-            }
-
+          const errorMessage = data.message || 'Erreur de connexion';
+          
+          if (errorMessage.includes('INVALID CREDENTIALS') || errorMessage.includes('Email ou mot de passe incorrect')) {
+            throw new Error(AUTH_CONSTANTS.ERROR_CODES.INVALID_CREDENTIALS);
+          }
+          
+          if (errorMessage.includes('PASSWORD RESET REQUIRED')) {
+            throw new Error(AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED);
+          }
+          
+          if (errorMessage.includes('COMPTE DESACTIVE')) {
+            throw new Error(AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE);
+          }
+          
+          if (errorMessage.includes('COMPTE TEMPORAIREMENT DECONNECTE')) {
             throw new Error(errorMessage);
           }
-
-          throw new Error(data.message || "Erreur lors de l'inscription");
-        }
-
-        if (data.access_token) {
-          window.localStorage?.setItem(
-            STORAGE_KEYS.ACCESS_TOKEN,
-            data.access_token
-          );
-          setAccessToken(data.access_token);
-
-          // Configurer le refresh automatique
-          setupTokenRefresh(data.access_token);
+          
+          if (errorMessage.includes('MAINTENANCE MODE')) {
+            throw new Error(AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE);
+          }
+          
+          throw new Error(errorMessage);
         }
 
         const userData: User = {
@@ -745,36 +690,134 @@ const fetchWithAuth = useCallback(async (endpoint: string, options: RequestInit 
           lastName: data.user.lastName,
           role: data.user.role,
           telephone: data.user.telephone,
-          isActive: data.user.isActive !== false,
+          isActive: true,
           isAdmin: data.user.role === UserRole.ADMIN,
         };
 
         setUser(userData);
-        window.localStorage?.setItem(
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify(userData)
-        );
-        window.localStorage?.setItem(
-          STORAGE_KEYS.SESSION_START,
-          Date.now().toString()
-        );
+        window.localStorage?.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
+        window.localStorage?.setItem(STORAGE_KEYS.SESSION_START, Date.now().toString());
 
-        const redirectPath =
-          userData.role === UserRole.ADMIN
-            ? REDIRECT_PATHS.ADMIN_DASHBOARD
-            : REDIRECT_PATHS.HOME;
+        //  CORRECTION 7 : Sauvegarder le token ET configurer le refresh
+        if (data.access_token) {
+          window.localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.access_token);
+          setAccessToken(data.access_token);
+          setupTokenRefresh(data.access_token);
+          
+          console.log('Connexion réussie - tokens sauvegardés');
+          console.log('Cookies reçus du backend (via Set-Cookie)');
+        }
+
+        // Vérifier le statut maintenance pour admin
+        if (userData.role === UserRole.ADMIN) {
+          await checkMaintenanceStatus();
+        }
+
+        // Redirection
+        const redirectPath = userData.role === UserRole.ADMIN
+          ? REDIRECT_PATHS.ADMIN_DASHBOARD
+          : REDIRECT_PATHS.HOME;
 
         navigate(redirectPath, { replace: true });
-        toast.success(TOAST_MESSAGES.REGISTER_SUCCESS);
+        toast.success(TOAST_MESSAGES.LOGIN_SUCCESS);
+
       } catch (err: any) {
-        handleAuthError(err, 'register');
+        handleAuthError(err, 'login');
         throw err;
       } finally {
         setIsLoading(false);
       }
-    },
-    [navigate, handleAuthError, setupTokenRefresh]
-  );
+    }, [navigate, handleAuthError, setupTokenRefresh, checkMaintenanceStatus]);
+
+    const register = useCallback(
+      async (formData: RegisterFormData): Promise<void> => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+          const response = await window.fetch(
+            `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REGISTER}`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                firstName: formData.firstName.trim(),
+                lastName: formData.lastName.trim(),
+                email: formData.email.toLowerCase().trim(),
+                telephone: formData.telephone.trim(),
+                password: formData.password,
+              }),
+              credentials: 'include',
+            }
+          );
+
+          const data: RegisterResponse = await response.json();
+
+          if (!response.ok) {
+            if (response.status === 400) {
+              const errorMessage = data.message || 'Données invalides';
+
+              if (data.errors) {
+                const validationErrors = Object.values(data.errors).join(', ');
+                throw new Error(`Validation échouée : ${validationErrors}`);
+              }
+
+              throw new Error(errorMessage);
+            }
+
+            throw new Error(data.message || "Erreur lors de l'inscription");
+          }
+
+          if (data.access_token) {
+            window.localStorage?.setItem(
+              STORAGE_KEYS.ACCESS_TOKEN,
+              data.access_token
+            );
+            setAccessToken(data.access_token);
+
+            // Configurer le refresh automatique
+            setupTokenRefresh(data.access_token);
+          }
+
+          const userData: User = {
+            id: data.user.id,
+            email: data.user.email,
+            firstName: data.user.firstName,
+            lastName: data.user.lastName,
+            role: data.user.role,
+            telephone: data.user.telephone,
+            isActive: data.user.isActive !== false,
+            isAdmin: data.user.role === UserRole.ADMIN,
+          };
+
+          setUser(userData);
+          window.localStorage?.setItem(
+            STORAGE_KEYS.USER_DATA,
+            JSON.stringify(userData)
+          );
+          window.localStorage?.setItem(
+            STORAGE_KEYS.SESSION_START,
+            Date.now().toString()
+          );
+
+          const redirectPath =
+            userData.role === UserRole.ADMIN
+              ? REDIRECT_PATHS.ADMIN_DASHBOARD
+              : REDIRECT_PATHS.HOME;
+
+          navigate(redirectPath, { replace: true });
+          toast.success(TOAST_MESSAGES.REGISTER_SUCCESS);
+        } catch (err: any) {
+          handleAuthError(err, 'register');
+          throw err;
+        } finally {
+          setIsLoading(false);
+        }
+      },
+      [navigate, handleAuthError, setupTokenRefresh]
+    );
 
   const logout = useCallback(async (): Promise<void> => {
     try {
