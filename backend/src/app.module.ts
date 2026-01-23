@@ -16,7 +16,6 @@ import { RendezvousModule } from "./rendez-vous/rendez-vous.module";
 import { NotificationModule } from "./notification/notification.module";
 import { ProcedureModule } from "./procedure/procedure.module";
 import { SmtpService } from "./config/smtp.service";
-import { LoggerService } from './config/logger.service';
 
 
 @Module({
@@ -81,7 +80,6 @@ import { LoggerService } from './config/logger.service';
   controllers: [],
   providers: [
     SmtpService, 
-    LoggerService,
     {
       provide: 'INITIALIZE_DATABASE',
       useFactory: async (configService: ConfigService) => {
@@ -99,7 +97,6 @@ import { LoggerService } from './config/logger.service';
   ],
   exports: [
     SmtpService,
-    LoggerService,
   ],
 })
 export class AppModule {}

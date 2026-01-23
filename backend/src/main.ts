@@ -5,7 +5,7 @@
 
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { LoggerService } from './config/logger.service';
+import { Logger } from '@nestjs/common';
 import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ExpressAdapter } from '@nestjs/platform-express';
@@ -30,9 +30,9 @@ const allowedOrigins = [
 ];
 
 async function bootstrap() {
-  const logger = new LoggerService();
+  const logger = new Logger('Bootstrap');
   
-  logger.log('Démarrage de l\'application Paname Consulting...', 'Bootstrap');
+  logger.log('Démarrage de l\'application Paname Consulting...');
   
   // Créer l'application Express
   const expressApp = express();
@@ -112,7 +112,7 @@ async function bootstrap() {
     AppModule,
     new ExpressAdapter(expressApp),
     {
-      logger: isVercel ? false : logger,
+      logger: isVercel ? ['error', 'warn'] : ['log', 'error', 'warn', 'debug'],
     }
   );
   
@@ -235,7 +235,7 @@ async function bootstrap() {
   // ========== GESTION VERCEL vs LOCAL ==========
   if (isVercel) {
     // Pour Vercel: retourner l'application Express pour le handler
-    logger.log('Application prête pour Vercel Serverless', 'Bootstrap');
+    logger.log('Application prête pour Vercel Serverless');
     return expressApp;
     
   } else {
@@ -244,12 +244,12 @@ async function bootstrap() {
     const host = process.env.HOST || '0.0.0.0';
     
     await app.listen(port, host, () => {
-      logger.log(` Serveur démarré sur http://${host}:${port}`, 'Bootstrap');
-      logger.log(`API: http://${host}:${port}/api`, 'Bootstrap');
-      logger.log(` Environnement: ${process.env.NODE_ENV || 'development'}`, 'Bootstrap');
-      logger.log(` CORS activé pour:`, 'Bootstrap');
+      logger.log(`Serveur démarré sur http://${host}:${port}`);
+      logger.log(`API: http://${host}:${port}/api`);
+      logger.log(`Environnement: ${process.env.NODE_ENV || 'development'}`);
+      logger.log('CORS activé pour:');
       allowedOrigins.forEach(origin => {
-        logger.log(`   - ${origin}`, 'Bootstrap');
+        logger.log(`   - ${origin}`);
       });
     });
   }
@@ -298,7 +298,7 @@ if (isVercel) {
 } else if (require.main === module) {
   // Démarrer localement
   bootstrap().catch((error) => {
-    console.error(' Erreur de démarrage local:', error);
+    console.error('Erreur de démarrage local:', error);
     process.exit(1);
   });
 }
