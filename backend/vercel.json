@@ -6,20 +6,20 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/dist/main.js"
+      "destination": "/api/main"
     },
     {
       "source": "/uploads/(.*)",
-      "destination": "/dist/main.js"
+      "destination": "/api/main"
     },
     {
       "source": "/(.*)",
-      "destination": "/dist/main.js"
+      "destination": "/api/main"
     }
   ],
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/api/(.*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",

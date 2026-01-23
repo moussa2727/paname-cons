@@ -138,10 +138,9 @@ async function bootstrap() {
       }
     }),
   );
-
   app.enableCors({
     origin: (origin, callback) => {
-      // Autoriser les requêtes sans origin (comme les applications mobiles, curl, postman)
+      // Autoriser les requêtes sans origin
       if (!origin) {
         return callback(null, true);
       }
@@ -149,7 +148,8 @@ async function bootstrap() {
       const allowedOrigins = [
         "https://panameconsulting.com",
         "https://www.panameconsulting.com",
-        "https://paname-consulting.vercel.app",
+        "https://panameconsulting.vercel.app",
+        "https://paname-consulting.vercel.app", // AJOUTÉ
         "https://vercel.live",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -163,7 +163,7 @@ async function bootstrap() {
         }
       }
       
-      if (allowedOrigins.indexOf(origin) !== -1) {
+      if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         loggerService.warn(`CORS bloqué pour origin: ${origin}`);
@@ -182,7 +182,7 @@ async function bootstrap() {
       'Origin'
     ],
     exposedHeaders: ['Set-Cookie', 'Authorization'],
-    maxAge: 86400, // 24 heures en secondes
+    maxAge: 86400,
   });
 
   express().get("/", (_req: express.Request, res: express.Response) => {
