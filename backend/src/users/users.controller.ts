@@ -160,10 +160,23 @@ export class UsersController {
   }
 
   @Get("maintenance-status")
+  async getMaintenanceStatusPublic() {
+    this.logger.log('Statut maintenance demandé (public)');
+    
+    const status = await this.usersService.getMaintenanceStatus();
+    
+    return {
+      isActive: status.isActive,
+      enabledAt: status.enabledAt,
+      message: status.message,
+    };
+  }
+
+  @Get("admin/maintenance-status")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async getMaintenanceStatus() {
-    this.logger.log('Statut maintenance demandé');
+    this.logger.log('Statut maintenance demandé (admin)');
     
     const status = await this.usersService.getMaintenanceStatus();
     

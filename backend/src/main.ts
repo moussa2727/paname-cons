@@ -114,7 +114,8 @@ async function initializeApp(): Promise<express.Application> {
               sameSite: 'none' as const,
               secure: true,
               httpOnly: true,
-              domain: origin.includes('panameconsulting.vercel.app') ? 'panameconsulting.vercel.app' : 'paname-consulting.vercel.app',
+              // Ne pas définir de domaine pour permettre aux deux domaines de fonctionner
+              // domain: undefined,
             };
             return originalCookie.call(this, name, value, cookieOptions);
           };

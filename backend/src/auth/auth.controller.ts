@@ -52,6 +52,7 @@ export class AuthController {
       secure: true,
       sameSite: 'none',
       path: '/',
+      // Ne pas définir de domaine spécifique pour éviter les problèmes cross-domain
     };
   }
  @Post("login")
@@ -403,6 +404,7 @@ export class AuthController {
       secure: true,
       sameSite: 'none' as const,
       path: '/',
+      // Ne pas définir de domaine spécifique
     };
 
     res.clearCookie("refresh_token", cookieOptions);
