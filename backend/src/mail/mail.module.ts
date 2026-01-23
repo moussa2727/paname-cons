@@ -2,7 +2,6 @@ import { Module, Global } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { MailService } from "./mail.service";
 import { SmtpService } from "../config/smtp.service";
-import { LoggerService } from "../config/logger.service";
 
 @Global()
 @Module({
@@ -10,7 +9,7 @@ import { LoggerService } from "../config/logger.service";
       ConfigModule.forRoot({
       isGlobal: true,
     })],
-  providers: [MailService, SmtpService, LoggerService],
-  exports: [MailService, SmtpService, LoggerService],
+  providers: [MailService, SmtpService],
+  exports: [MailService, SmtpService],
 })
 export class MailModule {}

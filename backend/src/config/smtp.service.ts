@@ -1,7 +1,6 @@
 import { ConfigService } from '@nestjs/config';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
-import { LoggerService } from './logger.service';
 
 export interface EmailOptions {
   to: string | string[];
@@ -18,12 +17,14 @@ export class SmtpService {
   private readonly fromEmail: string;
   private readonly fromName: string = 'Paname Consulting';
 
-  constructor(private configService: ConfigService, private loggerService: LoggerService) {
+  private readonly logger = new Logger('SmtpService');
+
+  constructor(private configService: ConfigService) {
     const emailUser = this.configService.get<string>('EMAIL_USER');
     const emailPass = this.configService.get<string>('EMAIL_PASS');
 
     if (!emailUser || !emailPass) {
-      this.loggerService.warn('EMAIL_USER ou EMAIL_PASS non configuré', 'SmtpService');
+      this.logger.warn('EMAIL_USER ou EMAIL_PASS non configuré');
     }
 
     this.transporter = nodemailer.createTransport({
@@ -44,7 +45,7 @@ export class SmtpService {
     this.fromEmail = emailUser;
 
     const maskedEmail = this.maskEmail(this.fromEmail);
-    this.loggerService.log(`Service SMTP initialisé avec: ${maskedEmail} (${this.configService.get<string>('EMAIL_USER')}:${this.configService.get<number>('EMAIL_PORT')})`, 'SmtpService');
+    this.logger.log(`Service SMTP initialisé avec: ${maskedEmail} (${this.configService.get<string>('EMAIL_USER')}:${this.configService.get<number>('EMAIL_PORT')})`, 'SmtpService');
   }
 
   /**
@@ -108,14 +109,14 @@ export class SmtpService {
   async sendEmail(options: EmailOptions): Promise<{ success: boolean; error?: string }> {
     if (!this.isConfigured()) {
       const error = 'Service SMTP non configuré. Vérifiez EMAIL_USER et EMAIL_PASS.';
-      this.loggerService.error(error, 'SmtpService');
+      this.logger.error(error, 'SmtpService');
       return { success: false, error };
     }
 
     try {
       const maskedTo = this.maskEmail(options.to);
       const subjectPreview = options.subject.substring(0, 50) + (options.subject.length > 50 ? '...' : '');
-      this.loggerService.log(`Tentative d'envoi d'email à: ${maskedTo}, Sujet: ${subjectPreview}`, 'SmtpService');
+      this.logger.log(`Tentative d'envoi d'email à: ${maskedTo}, Sujet: ${subjectPreview}`, 'SmtpService');
 
       const result = await this.transporter.sendMail({
         from: `${this.fromName} <${this.fromEmail}>`,
@@ -128,14 +129,14 @@ export class SmtpService {
       });
 
       const maskedId = this.maskMessageId(result.messageId);
-      this.loggerService.log(`Email envoyé avec succès à: ${maskedTo} (ID: ${maskedId})`, 'SmtpService');
+      this.logger.log(`Email envoyé avec succès à: ${maskedTo} (ID: ${maskedId})`, 'SmtpService');
       return { success: true };
 
     } catch (error: any) {
       const errorMessage = this.getErrorMessage(error);
       const maskedError = this.maskSensitiveInfo(errorMessage);
 
-      this.loggerService.error(`Échec d'envoi d'email: ${maskedError}`, 'SmtpService', error.stack);
+      this.logger.error(`Échec d'envoi d'email: ${maskedError}`, 'SmtpService', error.stack);
 
       return {
         success: false,
@@ -180,11 +181,11 @@ export class SmtpService {
 
     try {
       const maskedEmail = this.maskEmail(this.fromEmail);
-      this.loggerService.log(`Test de connexion SMTP avec: ${maskedEmail}`, 'SmtpService');
+      this.logger.log(`Test de connexion SMTP avec: ${maskedEmail}`, 'SmtpService');
 
       await this.transporter.verify();
 
-      this.loggerService.log('Connexion SMTP réussie', 'SmtpService');
+      this.logger.log('Connexion SMTP réussie', 'SmtpService');
       return {
         success: true,
         message: 'Connexion SMTP réussie'
@@ -193,7 +194,7 @@ export class SmtpService {
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       const maskedError = this.maskSensitiveInfo(errorMessage);
 
-      this.loggerService.error(`Échec de connexion SMTP: ${maskedError}`, 'SmtpService');
+      this.logger.error(`Échec de connexion SMTP: ${maskedError}`, 'SmtpService');
       return {
         success: false,
         message: `Échec de connexion SMTP: ${maskedError}`
@@ -267,6 +268,6 @@ export class SmtpService {
    */
   logSecureInfo() {
     const status = this.getDetailedStatusForLogs();
-    this.loggerService.log(`Statut SMTP: ${JSON.stringify(status)}`, 'SmtpService');
+    this.logger.log(`Statut SMTP: ${JSON.stringify(status)}`, 'SmtpService');
   }
 }

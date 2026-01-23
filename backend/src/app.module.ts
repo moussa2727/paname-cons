@@ -83,14 +83,12 @@ import { SmtpService } from "./config/smtp.service";
     {
       provide: 'INITIALIZE_DATABASE',
       useFactory: async (configService: ConfigService) => {
-        const logger = new Logger('DatabaseInit');
         const uri = configService.get<string>("MONGODB_URI");
         
-        if (!uri) {
-          logger.error('MONGODB_URI manquante au démarrage');
-        } else {
-          logger.log('Configuration MongoDB chargée');
+        if (!uri && process.env.NODE_ENV !== 'production') {
+          console.error('MONGODB_URI manquante au démarrage');
         }
+        // Pas de logs en production pour masquer les informations sensibles
       },
       inject: [ConfigService],
     },

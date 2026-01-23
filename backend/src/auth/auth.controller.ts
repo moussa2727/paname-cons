@@ -5,6 +5,7 @@ import {
   Get,
   Post,
   Request,
+  Req,
   Res,
   UseGuards,
   UseInterceptors,
@@ -44,12 +45,25 @@ export class AuthController {
     private usersService: UsersService,
   ) {}
 
-  private getCookieOptions(): any {
+  private getCookieOptions(req?: any): any {
+    const origin = req?.headers?.origin || req?.headers?.referer;
+    let domain = undefined;
+    
+    // Détection du domaine pour les cookies cross-domain
+    if (origin) {
+      if (origin.includes('panameconsulting.vercel.app')) {
+        domain = '.panameconsulting.vercel.app';
+      } else if (origin.includes('paname-consulting.vercel.app')) {
+        domain = '.paname-consulting.vercel.app';
+      }
+    }
+    
     return {
       httpOnly: true,
       secure: true,
       sameSite: 'none',
       path: '/',
+      domain: domain,
     };
   }
 
@@ -62,14 +76,14 @@ export class AuthController {
     if (!req.user) {
       return res.status(401).json({
         message: "Email ou mot de passe incorrect",
-        code: "INVALID_CREDENTIALS",
+        code: "INVALID CREDENTIALS",
         timestamp: new Date().toISOString()
       });
     }
     
     const result = await this.authService.login(req.user);
     
-    const cookieOptions = this.getCookieOptions();
+    const cookieOptions = this.getCookieOptions(req);
 
     res.cookie("refresh_token", result.refresh_token, {
       ...cookieOptions,
@@ -131,7 +145,7 @@ export class AuthController {
         throw new BadRequestException("Access token non généré");
       }
 
-      const cookieOptions = this.getCookieOptions();
+      const cookieOptions = this.getCookieOptions(req);
 
       if (result.refresh_token) {
         res.cookie("refresh_token", result.refresh_token, {
@@ -175,10 +189,10 @@ export class AuthController {
   @ApiOperation({ summary: "Inscription utilisateur" })
   @ApiResponse({ status: 201, description: "Utilisateur créé" })
   @ApiResponse({ status: 400, description: "Données invalides" })
-  async register(@Body() registerDto: RegisterDto, @Res() res: Response) {
+  async register(@Body() registerDto: RegisterDto, @Req() req: any, @Res() res: Response) {
     try {
       const result = await this.authService.register(registerDto);
-      const cookieOptions = this.getCookieOptions();
+      const cookieOptions = this.getCookieOptions(req);
 
       res.cookie("refresh_token", result.refresh_token, {
         ...cookieOptions,

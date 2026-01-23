@@ -42,6 +42,15 @@
           "value": "Set-Cookie, Authorization"
         }
       ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Set-Cookie",
+          "value": "SameSite=None; Secure; HttpOnly; Path=/; Domain=.panameconsulting.vercel.app"
+        }
+      ]
     }
   ]
 }
