@@ -185,7 +185,9 @@ async function bootstrap() {
     maxAge: 86400,
   });
 
-  express().get("/", (_req: express.Request, res: express.Response) => {
+  // Health check endpoint using Express instance
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.get("/", (_req: express.Request, res: express.Response) => {
     res.status(200).json({
       status: "ok",
       timestamp: new Date().toISOString(),
@@ -199,7 +201,7 @@ async function bootstrap() {
   app.setGlobalPrefix("api");
 
   // API INFO - route séparée pour éviter les erreurs
-  express().get("/api", (_req: express.Request, res: express.Response) => {
+  expressApp.get("/api", (_req: express.Request, res: express.Response) => {
     res.status(200).json({
       service: "paname-consulting-api",
       version: process.env.npm_package_version || "1.0.0",
@@ -217,13 +219,13 @@ async function bootstrap() {
   });
 
   // MIDDLEWARE: Body parsers
-  express().use(express.urlencoded({
+  app.use(express.urlencoded({
     limit: '10mb',
     extended: true,
     parameterLimit: 1000
   }));
 
-  express().use(express.json({
+  app.use(express.json({
     limit: '10mb',
     verify: (req: express.Request, _res: express.Response, buf: Buffer, encoding: BufferEncoding) => {
       try {
@@ -237,13 +239,13 @@ async function bootstrap() {
   }));
 
   // MIDDLEWARE: Compression
-  express().use(compression());
+  app.use(compression());
 
   // MIDDLEWARE: Cookie Parser (options séparées)
-  express().use(cookieParser(process.env.COOKIE_SECRET));
+  app.use(cookieParser(process.env.COOKIE_SECRET));
 
   // MIDDLEWARE: Configuration des cookies de session (30 minutes)
-  express().use((_req: express.Request, res: express.Response, next: express.NextFunction) => {
+  app.use((_req: express.Request, res: express.Response, next: express.NextFunction) => {
     // Configurer les cookies de réponse pour qu'ils soient sécurisés
     const cookieOptions = {
       httpOnly: true,
