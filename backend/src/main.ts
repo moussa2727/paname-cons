@@ -158,7 +158,7 @@ async function initializeApp(): Promise<express.Application> {
       
       // ========== CONFIGURATION NESTJS ==========
       
-      // CORS dans NestJS (complémentaire)
+      // CORS dans NestJS (complémentaire) - AJOUT DE LA CONFIGURATION RECOMMANDÉE
       app.enableCors({
         origin: (origin, callback) => {
           if (!origin || allowedOrigins.includes(origin)) {
@@ -167,10 +167,10 @@ async function initializeApp(): Promise<express.Application> {
             callback(null, false);
           }
         },
-        credentials: true,
+        credentials: true, // IMPORTANT: permet l'envoi des cookies
+        exposedHeaders: ['Set-Cookie'], // Expose les headers Set-Cookie
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie', 'X-Requested-With', 'Accept', 'Origin'],
-        exposedHeaders: ['Set-Cookie', 'Authorization'],
         maxAge: 86400,
         optionsSuccessStatus: 204,
         preflightContinue: false,

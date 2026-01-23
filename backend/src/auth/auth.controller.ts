@@ -45,20 +45,22 @@ export class AuthController {
     private usersService: UsersService,
   ) {}
 
-  private getCookieOptions(req?: any): any {
-    const origin = req?.headers?.origin || req?.headers?.referer;
-    
-    const baseOptions = {
-      httpOnly: true,
-      secure: true, // Toujours true en production
-      sameSite: 'none' as const, // Requis pour cross-domain
-      path: '/',
-    };  
-    console.log(`Cookie options pour origin: ${origin}`);
-    console.log(`Options:`, baseOptions);
-    
-    return baseOptions;
-  }
+ // Dans la méthode getCookieOptions du AuthController
+private getCookieOptions(_req?: any): any {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProduction, // True seulement en production si HTTPS
+    sameSite: isProduction ? 'none' : 'lax', // 'none' nécessite HTTPS
+    path: '/',
+    domain: process.env.NODE_ENV === 'production' 
+      ? '.panameconsulting.vercel.app'
+      : 'localhost',
+  };
+  
+  return cookieOptions;
+}
 
  @Post("login")
   @UseGuards(ThrottleGuard, LocalAuthGuard)
