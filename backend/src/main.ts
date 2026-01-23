@@ -431,3 +431,6 @@ bootstrap().catch((error) => {
   console.error('Failed to bootstrap application:', error);
   process.exit(1);
 });
+
+// Export for Vercel serverless deployment
+export { default as handler } from './vercel';
