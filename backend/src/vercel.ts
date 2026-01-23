@@ -4,21 +4,49 @@ import { AppModule } from './app.module';
 import { LoggerService } from './config/logger.service';
 import * as express from 'express';
 
-let cachedApp: any;
+let cachedServer: any = null;
 
-async function bootstrapApp() {
-  if (!cachedApp) {
+async function createServer() {
+  if (!cachedServer) {
     const loggerService = new LoggerService();
     
-    const expressApp = express();
+    // Create Express app
+    const server = express();
+    
+    // Add CORS middleware BEFORE NestJS to handle OPTIONS
+    server.use((req, res, next) => {
+      // Handle preflight requests
+      if (req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization');
+        res.status(200).end();
+        return;
+      }
+      
+      // Add CORS headers to all responses
+      res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization');
+      
+      next();
+    });
+    
+    // Basic middleware
+    server.use(express.json({ limit: '10mb' }));
+    server.use(express.urlencoded({ extended: true, limit: '10mb' }));
+    
+    // Create NestJS app
     const app = await NestFactory.create(
       AppModule,
-      new ExpressAdapter(expressApp),
+      new ExpressAdapter(server),
     );
     
     app.useLogger(loggerService);
     
-    // Configuration CORS pour Vercel
+    // CORS for NestJS (backup)
     app.enableCors({
       origin: [
         "https://panameconsulting.com",
@@ -41,32 +69,46 @@ async function bootstrapApp() {
         'Origin'
       ],
       exposedHeaders: ['Set-Cookie', 'Authorization'],
+      preflightContinue: false,
+      optionsSuccessStatus: 204
     });
 
-    // Prefix global de l'API
+    // Global prefix
     app.setGlobalPrefix("api");
     
+    // Initialize app
     await app.init();
-    cachedApp = expressApp;
+    
+    cachedServer = server;
   }
   
-  return cachedApp;
+  return cachedServer;
 }
 
+// Vercel serverless handler
 export default async function handler(req: any, res: any) {
   try {
-    const app = await bootstrapApp();
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
     
-    // Handle the request with the Express app
-    app(req, res);
+    const server = await createServer();
+    
+    // Handle the request
+    server(req, res);
+    
   } catch (error) {
     console.error('Vercel handler error:', error);
     
     if (!res.headersSent) {
+      // Ensure CORS headers are set even for errors
+      res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization');
+      
       res.status(500).json({
         error: 'Internal Server Error',
         message: 'La fonction sans serveur a échoué',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
