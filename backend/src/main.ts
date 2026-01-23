@@ -434,3 +434,4 @@ bootstrap().catch((error) => {
 
 // Export for Vercel serverless deployment
 export { default as handler } from './vercel';
+export { bootstrap };

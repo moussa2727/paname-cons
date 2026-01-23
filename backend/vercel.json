@@ -3,45 +3,20 @@
   "name": "paname-consulting-backend",
   "buildCommand": "pnpm install && pnpm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/**/*.ts": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/api/main"
     },
     {
-      "source": "/uploads/(.*)",
-      "destination": "/api/main"
-    },
-    {
       "source": "/(.*)",
       "destination": "/api/main"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "https://panameconsulting.vercel.app"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin"
-        },
-        {
-          "key": "Access-Control-Allow-Credentials",
-          "value": "true"
-        },
-        {
-          "key": "Access-Control-Expose-Headers",
-          "value": "Set-Cookie, Authorization"
-        }
-      ]
     }
   ]
 }
