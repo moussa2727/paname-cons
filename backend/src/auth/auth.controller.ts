@@ -46,22 +46,14 @@ export class AuthController {
   ) {}
 
  // Dans la méthode getCookieOptions du AuthController
-private getCookieOptions(_req?: any): any {
-  const isProduction = process.env.NODE_ENV === 'production';
-  
-  const cookieOptions = {
-    httpOnly: true,
-    secure: isProduction, // True seulement en production si HTTPS
-    sameSite: isProduction ? 'none' : 'lax', // 'none' nécessite HTTPS
-    path: '/',
-    domain: process.env.NODE_ENV === 'production' 
-      ? '.panameconsulting.vercel.app'
-      : 'localhost',
-  };
-  
-  return cookieOptions;
-}
-
+ private getCookieOptions(): any {
+    return {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      path: '/',
+    };
+  }
  @Post("login")
   @UseGuards(ThrottleGuard, LocalAuthGuard)
   @ApiOperation({ summary: "Connexion utilisateur" })
@@ -79,7 +71,7 @@ private getCookieOptions(_req?: any): any {
     console.log('Login - Génération des tokens...');
     const result = await this.authService.login(req.user);
     
-    const cookieOptions = this.getCookieOptions(req);
+    const cookieOptions = this.getCookieOptions();
 
     // Définir les cookies AVANT d'envoyer la réponse
     console.log('Définition du refresh_token cookie');
@@ -158,7 +150,7 @@ private getCookieOptions(_req?: any): any {
 
       console.log('Nouveaux tokens générés');
 
-      const cookieOptions = this.getCookieOptions(req);
+      const cookieOptions = this.getCookieOptions();
 
       // Définir le nouveau refresh_token si présent
       if (result.refresh_token) {
@@ -213,7 +205,7 @@ private getCookieOptions(_req?: any): any {
   async register(@Body() registerDto: RegisterDto, @Req() req: any, @Res() res: Response) {
     try {
       const result = await this.authService.register(registerDto);
-      const cookieOptions = this.getCookieOptions(req);
+      const cookieOptions = this.getCookieOptions();
 
       res.cookie("refresh_token", result.refresh_token, {
         ...cookieOptions,
