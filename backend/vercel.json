@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "paname-consulting-backend",
   "builds": [
     {
@@ -7,18 +7,18 @@
       "use": "@vercel/node"
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/dist/main.js"
+      "source": "/api/(.*)",
+      "destination": "/dist/main.js"
     },
     {
-      "src": "/uploads/(.*)",
-      "dest": "/dist/main.js"
+      "source": "/uploads/(.*)",
+      "destination": "/dist/main.js"
     },
     {
-      "src": "/(.*)",
-      "dest": "/dist/main.js"
+      "source": "/(.*)",
+      "destination": "/dist/main.js"
     }
   ],
   "headers": [
