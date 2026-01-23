@@ -1,12 +1,8 @@
 {
   "version": 2,
   "name": "paname-consulting-backend",
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/node"
-    }
-  ],
+  "buildCommand": "pnpm install && pnpm run build",
+  "outputDirectory": "dist",
   "rewrites": [
     {
       "source": "/api/(.*)",

@@ -48,8 +48,7 @@ declare global {
 const productionOrigins = [
   "https://panameconsulting.com",
   "https://www.panameconsulting.com",
-  "https://panameconsulting.vercel.app",
-  "https://panameconsulting.up.railway.app",
+  "https://paname-consulting.vercel.app",
   "https://vercel.live",
   "http://localhost:5173",
   "http://localhost:10000",
@@ -150,8 +149,7 @@ async function bootstrap() {
       const allowedOrigins = [
         "https://panameconsulting.com",
         "https://www.panameconsulting.com",
-        "https://panameconsulting.vercel.app",
-        "https://panameconsulting.up.railway.app",
+        "https://paname-consulting.vercel.app",
         "https://vercel.live",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
