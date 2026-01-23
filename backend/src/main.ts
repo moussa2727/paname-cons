@@ -234,36 +234,9 @@ async function bootstrap() {
   
   // ========== GESTION VERCEL vs LOCAL ==========
   if (isVercel) {
-    // Pour Vercel: exporter le handler serverless
+    // Pour Vercel: retourner l'application Express pour le handler
     logger.log('Application prête pour Vercel Serverless', 'Bootstrap');
-    
-    // Créer le handler Vercel
-    const vercelHandler = async (req: express.Request, res: express.Response) => {
-      try {
-        console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-        
-        // Vérifier si c'est une requête OPTIONS (gérée par le middleware)
-        if (req.method === 'OPTIONS') {
-          return res.status(204).end();
-        }
-        
-        // Passer à Express
-        expressApp(req, res);
-      } catch (error) {
-        console.error('Vercel handler error:', error);
-        
-        if (!res.headersSent) {
-          res.status(500).json({
-            error: 'Internal Server Error',
-            message: error.message,
-            timestamp: new Date().toISOString(),
-          });
-        }
-      }
-    };
-    
-    // Exporter pour Vercel
-    module.exports = vercelHandler;
+    return expressApp;
     
   } else {
     // Pour le développement local
@@ -284,11 +257,44 @@ async function bootstrap() {
 
 // ========== POINT D'ENTRÉE ==========
 if (isVercel) {
-  // Initialiser pour Vercel (asynchrone)
-  bootstrap().catch((error) => {
-    console.error('Erreur d\'initialisation Vercel:', error);
-    process.exit(1);
-  });
+  // Pour Vercel, on exporte le handler directement sans initialisation asynchrone
+  // L'initialisation se fera lors du premier appel
+  let appInstance: any = null;
+  
+  const getHandler = async () => {
+    if (!appInstance) {
+      try {
+        appInstance = await bootstrap();
+        return appInstance;
+      } catch (error) {
+        console.error('Erreur d\'initialisation Vercel:', error);
+        throw error;
+      }
+    }
+    return appInstance;
+  };
+  
+  // Exporter le handler pour Vercel
+  const handler = async (req: express.Request, res: express.Response) => {
+    try {
+      const expressApp = await getHandler();
+      return expressApp(req, res);
+    } catch (error) {
+      console.error('Vercel handler error:', error);
+      
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: 'Internal Server Error',
+          message: error.message,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+  };
+  
+  // Export pour Vercel
+  module.exports = handler;
+  
 } else if (require.main === module) {
   // Démarrer localement
   bootstrap().catch((error) => {

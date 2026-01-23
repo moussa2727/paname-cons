@@ -6,15 +6,15 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/dist/main.js"
+      "destination": "/main.js"
     },
     {
       "source": "/uploads/(.*)",
-      "destination": "/dist/main.js"
+      "destination": "/main.js"
     },
     {
       "source": "/(.*)",
-      "destination": "/dist/main.js"
+      "destination": "/main.js"
     }
   ],
   "headers": [
