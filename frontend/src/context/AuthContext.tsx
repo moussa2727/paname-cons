@@ -106,6 +106,9 @@ interface AuthContextType {
   error: string | null;
   fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>;
   isMaintenanceMode: boolean;
+  checkMaintenanceStatus: () => Promise<void>;
+  toggleMaintenanceMode: (enabled?: boolean) => Promise<{ success: boolean; maintenanceMode: boolean }>;
+  maintenanceStatus: { isActive: boolean; enabledAt?: string; message?: string } | null;
 }
 
 // ==================== CONSTANTS ALIGNÉES AVEC BACKEND ====================
@@ -199,6 +202,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
+  const [maintenanceStatus, setMaintenanceStatus] = useState<{ isActive: boolean; enabledAt?: string; message?: string } | null>(null);
 
   const refreshTimeoutRef = useRef<number | null>(null);
   const sessionCheckIntervalRef = useRef<number | null>(null);
@@ -315,28 +319,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
 
         setUser(mappedUser);
-        window.localStorage?.setItem(
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify(mappedUser)
-        );
-        console.log('✅ Données utilisateur récupérées avec succès:', mappedUser.email);
+        window.localStorage?.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(mappedUser));
       } else if (response.status === 401) {
-        console.warn('⚠️ Token invalide, nettoyage des données');
         cleanupAuthData();
-      } else {
-        console.warn('⚠️ Erreur récupération utilisateur:', response.status);
       }
     } catch (error) {
-      console.warn('❌ Erreur récupération utilisateur:', error);
-      // En cas d'erreur réseau, essayer de restaurer depuis localStorage
+      // Fallback vers localStorage en cas d'erreur
       const storedUser = window.localStorage?.getItem(STORAGE_KEYS.USER_DATA);
       if (storedUser) {
         try {
-          const parsedUser = JSON.parse(storedUser);
-          setUser(parsedUser);
-          console.log('🔄 Données utilisateur restaurées depuis localStorage');
-        } catch (parseError) {
-          console.warn('❌ Erreur parsing localStorage:', parseError);
+          setUser(JSON.parse(storedUser));
+        } catch {
+          // Ignorer les erreurs de parsing
         }
       }
     }
@@ -408,30 +402,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const getTokenFromCookies = useCallback(async (): Promise<string | null> => {
     try {
-      // Essayer de lire le token depuis les cookies
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/auth/me`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/auth/get-token`, {
         method: 'GET',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
       });
       
       if (response.ok) {
-        // Si la requête réussit, extraire le token des cookies via une route dédiée
-        const tokenResponse = await fetch(`${API_CONFIG.BASE_URL}/api/auth/get-token`, {
-          method: 'GET',
-          credentials: 'include',
-        });
-        
-        if (tokenResponse.ok) {
-          const tokenData = await tokenResponse.json();
-          return tokenData.access_token || null;
-        }
+        const data = await response.json();
+        return data.access_token || null;
       }
       return null;
     } catch (error) {
-      console.warn('Erreur lecture cookies:', error);
       return null;
     }
   }, []);
@@ -442,64 +423,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (response.ok) {
         const data = await response.json();
         setIsMaintenanceMode(data.isActive || false);
+        setMaintenanceStatus(data);
       }
     } catch (error) {
-      console.warn('Erreur vérification status maintenance:', error);
+      // Silencieux en cas d'erreur
     }
   }, []);
 
-  const checkAuth = useCallback(async (): Promise<void> => {
-    const savedToken = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+  const toggleMaintenanceMode = useCallback(async (_enabled?: boolean): Promise<{ success: boolean; maintenanceMode: boolean }> => {
+    try {
+      const response = await fetchWithAuth('/api/users/maintenance-mode/toggle', {
+        method: 'PATCH',
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        await checkMaintenanceStatus();
+        return result;
+      }
+      throw new Error('Échec du basculement du mode maintenance');
+    } catch (error) {
+      throw error;
+    }
+  }, [fetchWithAuth, checkMaintenanceStatus]);
 
-    if (!savedToken) {
-      // Essayer de récupérer depuis les cookies si localStorage est vide
-      const cookieToken = await getTokenFromCookies();
-      if (cookieToken) {
-        window.localStorage?.setItem(STORAGE_KEYS.ACCESS_TOKEN, cookieToken);
-        setAccessToken(cookieToken);
-        console.log('🔄 Token récupéré depuis les cookies');
+  const checkAuth = useCallback(async (): Promise<void> => {
+    let token = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+
+    if (!token) {
+      token = await getTokenFromCookies();
+      if (token) {
+        window.localStorage?.setItem(STORAGE_KEYS.ACCESS_TOKEN, token);
+        setAccessToken(token);
       } else {
-        console.log('❌ Aucun token trouvé (localStorage ni cookies)');
         return;
       }
     }
 
-    const tokenToCheck = savedToken || window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-    
-    if (!tokenToCheck) {
-      console.log('❌ Toujours pas de token après vérification');
-      return;
-    }
-
     try {
-      const decoded = jwtDecode<JwtPayload>(tokenToCheck);
-      const currentTime = Date.now();
-      const tokenExpirationTime = decoded.exp * 1000;
-      const timeUntilExpiration = tokenExpirationTime - currentTime;
-
-      console.log('🔍 Token valide, expiration dans:', Math.floor(timeUntilExpiration / 60000), 'minutes');
+      const decoded = jwtDecode<JwtPayload>(token);
+      const timeUntilExpiration = decoded.exp * 1000 - Date.now();
 
       if (timeUntilExpiration < AUTH_CONSTANTS.PREVENTIVE_REFRESH_MS) {
-        // Refresh si le token expire dans moins de 5 minutes
         if (!isRefreshingRef.current) {
-          console.log('🔄 Token expire bientôt, tentative de refresh');
           await refreshToken();
         }
-      } 
-      
-      // Toujours récupérer les données utilisateur pour s'assurer qu'elles sont à jour
-      if (!user || !user.email) {
-        console.log('📥 Récupération des données utilisateur...');
+      } else if (!user?.email) {
         await fetchUserData();
-      } else {
-        console.log('✅ Utilisateur déjà connecté:', user.email);
       }
     } catch (error) {
-      console.warn('❌ Erreur vérification auth:', error);
-      // Nettoyer les données invalides
       cleanupAuthData();
     }
-  }, [fetchUserData, refreshToken, user, cleanupAuthData, getTokenFromCookies]);
+  }, [fetchUserData, refreshToken, user?.email, cleanupAuthData, getTokenFromCookies]);
 
   const setupTokenRefresh = useCallback((accessToken: string): void => {
     try {
@@ -841,25 +816,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const initializeAuth = async (): Promise<void> => {
       if (!isMounted) return;
-
-      // Vérifier le status maintenance d'abord
       await checkMaintenanceStatus();
-      
-      // Toujours vérifier l'authentification au chargement
       await checkAuth();
 
       if (isMounted) {
-        // Vérifier la session toutes les minutes (max 30 minutes)
         sessionCheckIntervalRef.current = window.setInterval(() => {
-          const sessionStart = window.localStorage?.getItem(
-            STORAGE_KEYS.SESSION_START
-          );
-          if (sessionStart) {
-            const sessionAge = Date.now() - parseInt(sessionStart);
-            if (sessionAge > AUTH_CONSTANTS.MAX_SESSION_DURATION_MS) {
-              cleanupAuthData();
-              toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-            }
+          const sessionStart = window.localStorage?.getItem(STORAGE_KEYS.SESSION_START);
+          if (sessionStart && Date.now() - parseInt(sessionStart) > AUTH_CONSTANTS.MAX_SESSION_DURATION_MS) {
+            cleanupAuthData();
+            toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
           }
         }, AUTH_CONSTANTS.SESSION_CHECK_INTERVAL);
       }
@@ -869,12 +834,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       isMounted = false;
-      if (refreshTimeoutRef.current) {
-        window.clearTimeout(refreshTimeoutRef.current);
-      }
-      if (sessionCheckIntervalRef.current) {
-        window.clearInterval(sessionCheckIntervalRef.current);
-      }
+      if (refreshTimeoutRef.current) window.clearTimeout(refreshTimeoutRef.current);
+      if (sessionCheckIntervalRef.current) window.clearInterval(sessionCheckIntervalRef.current);
     };
   }, [checkAuth, checkMaintenanceStatus, cleanupAuthData]);
 
@@ -895,6 +856,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     updateProfile: fetchUserData,
     fetchWithAuth,
     isMaintenanceMode,
+    checkMaintenanceStatus,
+    toggleMaintenanceMode,
+    maintenanceStatus,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

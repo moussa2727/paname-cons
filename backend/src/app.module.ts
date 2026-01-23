@@ -4,7 +4,7 @@ import { MongooseModule } from "@nestjs/mongoose";
 import { ServeStaticModule } from "@nestjs/serve-static";
 import path, { join } from "path";
 import configuration from "./config/configuration";
-
+import { AppController } from "./app.controller";
 
 // Modules métier
 import { AuthModule } from "./auth/auth.module";
@@ -77,7 +77,7 @@ import { SmtpService } from "./config/smtp.service";
     RendezvousModule,
     NotificationModule,
   ],
-  controllers: [],
+  controllers: [AppController],
   providers: [
     SmtpService, 
     {
