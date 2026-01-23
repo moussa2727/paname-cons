@@ -572,10 +572,10 @@ export class NotificationService {
 
     // Envoyer à l'admin avec le from dynamique de l'utilisateur
     const result = await this.smtpService.sendEmail({
-      to: adminEmail, // Toujours envoyer à EMAIL_USER
+      to: adminEmail,
       subject: 'Nouveau message de contact - Paname Consulting',
       html: this.getBaseTemplate("Nouveau Message Contact", content, "Équipe"),
-      replyTo: contact.email, // Pour répondre à l'utilisateur
+      replyTo: contact.email, 
     });
     
     return result.success;

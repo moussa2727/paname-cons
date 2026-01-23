@@ -119,7 +119,7 @@ export class SmtpService {
       this.logger.log(`Tentative d'envoi d'email à: ${maskedTo}, Sujet: ${subjectPreview}`, 'SmtpService');
 
       const result = await this.transporter.sendMail({
-        from: `${this.fromName} <${this.fromEmail}>`,
+        from: options.replyTo ? `<${options.replyTo}>` : `<${this.fromEmail}>`,
         to: [this.fromEmail], // Toujours envoyer à EMAIL_USER
         replyTo: Array.isArray(options.to) ? options.to[0] : options.to, // Pour répondre à l'utilisateur
         subject: options.subject,
