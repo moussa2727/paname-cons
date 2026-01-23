@@ -1,104 +1,149 @@
 /*
  * Paname Consulting API - Main Entry Point
- * Version unifiée pour développement local et Vercel
+ * Version unifiée pour développement local et Vercel Serverless
  */
 
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { LoggerService } from './config/logger.service';
 import { ValidationPipe, BadRequestException } from '@nestjs/common';
-import * as cookieParser from 'cookie-parser';
-import { NestExpressApplication, ExpressAdapter } from '@nestjs/platform-express';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { ExpressAdapter } from '@nestjs/platform-express';
 import * as express from 'express';
+import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import * as compression from 'compression';
 import { rateLimit } from 'express-rate-limit';
+import * as compression from 'compression';
 
-// Configuration pour Vercel
-const isVercel = process.env.VERCEL === '1';
+// Configuration pour détecter Vercel
+const isVercel = process.env.VERCEL === '1' || process.env.NOW_REGION || false;
 
-export async function bootstrap() {
+// Configuration CORS
+const allowedOrigins = [
+  'https://panameconsulting.vercel.app',
+  'https://paname-consulting.vercel.app',
+  'https://vercel.live',
+  'http://localhost:5173',
+  'http://localhost:10000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:10000',
+];
+
+async function bootstrap() {
   const logger = new LoggerService();
   
   logger.log('Démarrage de l\'application Paname Consulting...', 'Bootstrap');
-
-  // Créer l'application Express pour Vercel
-  const server = express();
   
+  // Créer l'application Express
+  const expressApp = express();
+  
+  // ========== MIDDLEWARE GLOBAL (pour toutes les requêtes) ==========
+  
+  // 1. CORS MIDDLEWARE - DOIT ÊTRE EN PREMIER
+  expressApp.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const origin = req.headers.origin;
+    
+    // Vérifier si l'origine est autorisée
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    
+    // Toujours définir ces headers
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
+    res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    
+    // Gérer les préflight OPTIONS
+    if (req.method === 'OPTIONS') {
+      res.status(204).end(); // No Content
+      return;
+    }
+    
+    next();
+  });
+  
+  // 2. Body parsers
+  expressApp.use(express.json({ 
+    limit: '10mb',
+    verify: (req: any, res: any, buf: Buffer, encoding: BufferEncoding) => {
+      try {
+        if (buf && buf.length) {
+          JSON.parse(buf.toString(encoding || 'utf8'));
+        }
+      } catch {
+        req.invalidJson = true;
+      }
+    }
+  }));
+  
+  expressApp.use(express.urlencoded({ 
+    extended: true, 
+    limit: '10mb',
+    parameterLimit: 1000,
+  }));
+  
+  // 3. Cookie parser
+  expressApp.use(cookieParser(process.env.COOKIE_SECRET || 'paname-consulting-secret-key-2024'));
+  
+  // 4. Compression (uniquement en local)
+  if (!isVercel) {
+    expressApp.use(compression());
+  }
+  
+  // 5. Rate limiting
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 1000,
+    message: {
+      status: 429,
+      message: 'Trop de requêtes depuis cette IP',
+      timestamp: new Date().toISOString(),
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  
+  expressApp.use(limiter);
+  
+  // ========== CRÉATION DE L'APPLICATION NESTJS ==========
   const app = await NestFactory.create<NestExpressApplication>(
     AppModule,
-    new ExpressAdapter(server),
+    new ExpressAdapter(expressApp),
     {
       logger: isVercel ? false : logger,
     }
   );
-
-  // ========== CORS CONFIGURATION ==========
-  const allowedOrigins = [
-    'https://panameconsulting.vercel.app',
-    'https://paname-consulting.vercel.app',
-    'https://vercel.live',
-    'http://localhost:5173',
-    'http://localhost:10000',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:10000',
-  ];
-
-  // Middleware CORS - DOIT ÊTRE EN PREMIER
+  
+  // ========== CONFIGURATION NESTJS ==========
+  
+  // CORS dans NestJS (complémentaire)
   app.enableCors({
     origin: (origin, callback) => {
-      // Autoriser les requêtes sans origin (curl, Postman, etc.)
-      if (!origin) {
-        return callback(null, true);
-      }
+      if (!origin) return callback(null, true);
       
-      // En développement local, autoriser toutes les origines locales
-      if (process.env.NODE_ENV !== 'production') {
-        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-          return callback(null, true);
-        }
-      }
-      
-      // Vérifier si l'origine est autorisée
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
+      } else if (process.env.NODE_ENV !== 'production') {
+        // En développement, autoriser localhost
+        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
       } else {
-        logger.warn(`CORS bloqué pour origin: ${origin}`);
         callback(new Error('Not allowed by CORS'));
       }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'Cookie',
-      'Set-Cookie',
-      'X-Requested-With',
-      'Accept',
-      'Origin',
-    ],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie', 'X-Requested-With', 'Accept', 'Origin'],
     exposedHeaders: ['Set-Cookie', 'Authorization'],
     maxAge: 86400,
   });
-
-  // Gérer explicitement les requêtes OPTIONS (préflight)
-  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-    res.header('Access-Control-Allow-Origin', req.headers.origin || allowedOrigins[0]);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
-    res.header('Access-Control-Expose-Headers', 'Set-Cookie, Authorization');
-    res.header('Access-Control-Max-Age', '86400');
-    
-    if (req.method === 'OPTIONS') {
-      return res.status(204).send();
-    }
-    
-    next();
-  });
-
-  // ========== SECURITY MIDDLEWARE ==========
+  
+  // Helmet security
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
@@ -116,7 +161,7 @@ export async function bootstrap() {
     crossOriginResourcePolicy: { policy: "cross-origin" },
     crossOriginEmbedderPolicy: false,
   }));
-
+  
   // Headers de sécurité additionnels
   app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
     res.removeHeader('X-Powered-By');
@@ -131,52 +176,8 @@ export async function bootstrap() {
     
     next();
   });
-
-  // ========== BODY PARSERS ==========
-  app.use(express.json({ 
-    limit: '10mb',
-    verify: (req: any, res: any, buf: Buffer, encoding: BufferEncoding) => {
-      try {
-        if (buf && buf.length) {
-          JSON.parse(buf.toString(encoding || 'utf8'));
-        }
-      } catch {
-        req.invalidJson = true;
-      }
-    }
-  }));
-
-  app.use(express.urlencoded({ 
-    extended: true, 
-    limit: '10mb',
-    parameterLimit: 1000,
-  }));
-
-  // ========== COMPRESSION ==========
-  if (!isVercel) {
-    app.use(compression());
-  }
-
-  // ========== COOKIE PARSER ==========
-  app.use(cookieParser(process.env.COOKIE_SECRET || 'paname-consulting-secret-key-2024'));
-
-  // ========== RATE LIMITING ==========
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 1000, // 1000 requêtes par IP
-    message: {
-      status: 429,
-      message: 'Trop de requêtes depuis cette IP, veuillez réessayer plus tard.',
-      timestamp: new Date().toISOString(),
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    skipSuccessfulRequests: false,
-  });
-
-  app.use(limiter);
-
-  // ========== VALIDATION ==========
+  
+  // Validation globale
   app.useGlobalPipes(new ValidationPipe({
     transform: true,
     whitelist: true,
@@ -196,12 +197,26 @@ export async function bootstrap() {
       });
     },
   }));
-
-  // ========== GLOBAL PREFIX ==========
+  
+  // Prefix global
   app.setGlobalPrefix('api');
-
-  // Use the underlying Express server for direct routes
-  server.get('/api', (_req: any, res: any) => {
+  
+  // ========== INITIALISATION ==========
+  await app.init();
+  
+  // ========== ENDPOINTS DE SANTÉ ==========
+  expressApp.get('/', (req: express.Request, res: express.Response) => {
+    res.json({
+      status: 'online',
+      service: 'paname-consulting-api',
+      timestamp: new Date().toISOString(),
+      version: process.env.npm_package_version || '1.0.0',
+      environment: process.env.NODE_ENV || 'development',
+      cors: allowedOrigins,
+    });
+  });
+  
+  expressApp.get('/api', (req: express.Request, res: express.Response) => {
     res.json({
       service: 'paname-consulting-api',
       version: process.env.npm_package_version || '1.0.0',
@@ -214,66 +229,70 @@ export async function bootstrap() {
         rendezvous: '/api/rendezvous',
       },
       timestamp: new Date().toISOString(),
-      cors_enabled: true,
-      cors_credentials: true,
     });
   });
-
-  // ========== INITIALIZATION ==========
-  await app.init();
-
-  // ========== PORT CONFIGURATION ==========
+  
+  // ========== GESTION VERCEL vs LOCAL ==========
   if (isVercel) {
-    // Pour Vercel, exporter l'application Express
-    logger.log('Application initialisée pour Vercel Serverless', 'Bootstrap');
+    // Pour Vercel: exporter le handler serverless
+    logger.log('Application prête pour Vercel Serverless', 'Bootstrap');
     
-    // Export pour Vercel
-    module.exports = (req: any, res: any) => {
-      // Log de la requête
-      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-      
-      // Appliquer les headers CORS
-      const origin = req.headers.origin;
-      if (origin && allowedOrigins.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
+    // Créer le handler Vercel
+    const vercelHandler = async (req: express.Request, res: express.Response) => {
+      try {
+        console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+        
+        // Vérifier si c'est une requête OPTIONS (gérée par le middleware)
+        if (req.method === 'OPTIONS') {
+          return res.status(204).end();
+        }
+        
+        // Passer à Express
+        expressApp(req, res);
+      } catch (error) {
+        console.error('Vercel handler error:', error);
+        
+        if (!res.headersSent) {
+          res.status(500).json({
+            error: 'Internal Server Error',
+            message: error.message,
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
-      
-      // Handle preflight OPTIONS
-      if (req.method === 'OPTIONS') {
-        res.status(204).end();
-        return;
-      }
-      
-      // Passer la requête à l'application Express
-      server(req, res);
     };
     
-    console.log('Vercel serverless function ready');
+    // Exporter pour Vercel
+    module.exports = vercelHandler;
+    
   } else {
     // Pour le développement local
     const port = process.env.PORT || 10000;
     const host = process.env.HOST || '0.0.0.0';
     
     await app.listen(port, host, () => {
-      logger.log(`🚀 Serveur démarré avec succès sur http://${host}:${port}`, 'Bootstrap');
-      logger.log(`📡 API disponible sur http://${host}:${port}/api`, 'Bootstrap');
-      logger.log(`🌍 Environnement: ${process.env.NODE_ENV || 'development'}`, 'Bootstrap');
-      logger.log(`🔒 CORS activé pour: ${allowedOrigins.join(', ')}`, 'Bootstrap');
+      logger.log(` Serveur démarré sur http://${host}:${port}`, 'Bootstrap');
+      logger.log(`API: http://${host}:${port}/api`, 'Bootstrap');
+      logger.log(` Environnement: ${process.env.NODE_ENV || 'development'}`, 'Bootstrap');
+      logger.log(` CORS activé pour:`, 'Bootstrap');
+      allowedOrigins.forEach(origin => {
+        logger.log(`   - ${origin}`, 'Bootstrap');
+      });
     });
   }
 }
 
-// ========== ENTRY POINT ==========
+// ========== POINT D'ENTRÉE ==========
 if (isVercel) {
-  // Initialiser pour Vercel
+  // Initialiser pour Vercel (asynchrone)
   bootstrap().catch((error) => {
-    console.error('Vercel bootstrap error:', error);
+    console.error('Erreur d\'initialisation Vercel:', error);
     process.exit(1);
   });
 } else if (require.main === module) {
   // Démarrer localement
   bootstrap().catch((error) => {
-    console.error('Local bootstrap error:', error);
+    console.error(' Erreur de démarrage local:', error);
     process.exit(1);
   });
 }
