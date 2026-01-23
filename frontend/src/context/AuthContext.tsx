@@ -400,22 +400,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [cleanupAuthData, fetchUserData]);
 
-  const getTokenFromCookies = useCallback(async (): Promise<string | null> => {
-    try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/auth/get-token`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        return data.access_token || null;
-      }
-      return null;
-    } catch (error) {
-      return null;
-    }
-  }, []);
+ 
 
   const checkMaintenanceStatus = useCallback(async (): Promise<void> => {
     try {
@@ -448,11 +433,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [fetchWithAuth, checkMaintenanceStatus]);
 
   const checkAuth = useCallback(async (): Promise<void> => {
-    let token = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    let token = window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN) || document.cookie.split('; ').find(row => row.startsWith('access_token='))?.split('=')[1];
 
     if (!token) {
-      token = await getTokenFromCookies();
-      if (token) {
+      const cookieToken = document.cookie.split('; ').find(row => row.startsWith('access_token='))?.split('=')[1];
+      if (cookieToken) {
+        token = cookieToken;
         window.localStorage?.setItem(STORAGE_KEYS.ACCESS_TOKEN, token);
         setAccessToken(token);
       } else {
@@ -474,7 +460,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       cleanupAuthData();
     }
-  }, [fetchUserData, refreshToken, user?.email, cleanupAuthData, getTokenFromCookies]);
+  }, [fetchUserData, refreshToken, user?.email, cleanupAuthData]);
 
   const setupTokenRefresh = useCallback((accessToken: string): void => {
     try {
