@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 1,
   "name": "paname-consulting-backend",
   "builds": [
     {
@@ -21,14 +21,6 @@
       "dest": "/dist/main.js"
     }
   ],
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "build": {
-    "env": {
-      "NODE_ENV": "production"
-    }
-  },
   "headers": [
     {
       "source": "/api/(.*)",
