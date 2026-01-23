@@ -19,11 +19,13 @@ export class NotificationService {
   }
 
 
-  private async sendEmail(
+ private async sendEmail(
     to: string, 
     subject: string, 
     html: string, 
-    context: string
+    context: string,
+    from?: string,
+    fromName?: string
   ): Promise<boolean> {
     if (!this.smtpService.getStatus()) {
       this.logger.warn(`"${context}" ignorée - service indisponible`);
@@ -33,6 +35,8 @@ export class NotificationService {
     try {
       const result = await this.smtpService.sendEmail({
         to,
+        from, // Optionnel: email expéditeur personnalisé
+        fromName, // Optionnel: nom expéditeur personnalisé
         subject,
         html
       });
@@ -537,73 +541,79 @@ export class NotificationService {
     );
   }
 
-  async sendContactNotification(contact: Contact): Promise<boolean> {
-    const adminEmail = this.configService.get<string>('EMAIL_USER');
-    if (!adminEmail) {
-      this.logger.warn("Email admin non configuré");
-      return false;
-    }
-
-    const content = `
-      <div class="details">
-        <p>Nouveau message de contact reçu :</p>
-        
-        <div class="info-box">
-          <h3 style="margin-top: 0; color: #0ea5e9;">Informations</h3>
-          <div class="detail-item">
-            <span class="detail-label">Nom :</span> ${contact.firstName} ${contact.lastName}
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Email :</span> ${contact.email}
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">Date :</span> ${new Date().toLocaleString("fr-FR")}
-          </div>
-        </div>
-        
-        <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #8b5cf6;">
-          <h4 style="margin-top: 0; color: #8b5cf6;">Message :</h4>
-          <div style="white-space: pre-line; line-height: 1.7;">${contact.message}</div>
-        </div>
-        
-        <p>Pour répondre : Répondre directement à cet email.</p>
-      </div>
-    `;
-
-    // Envoyer à l'admin avec le from dynamique de l'utilisateur
-    const result = await this.smtpService.sendEmail({
-      to: adminEmail,
-      subject: 'Nouveau message de contact - Paname Consulting',
-      html: this.getBaseTemplate("Nouveau Message Contact", content, "Équipe"),
-      replyTo: contact.email, 
-    });
-    
-    return result.success;
+ async sendContactNotification(contact: Contact): Promise<boolean> {
+  const adminEmail = this.configService.get<string>('EMAIL_USER');
+  if (!adminEmail) {
+    this.logger.warn("Email admin non configuré");
+    return false;
   }
+
+  const content = `
+    <div class="details">
+      <p>Nouveau message de contact reçu :</p>
+      
+      <div class="info-box">
+        <h3 style="margin-top: 0; color: #0ea5e9;">Informations</h3>
+        <div class="detail-item">
+          <span class="detail-label">Nom :</span> ${contact.firstName} ${contact.lastName}
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Email :</span> ${contact.email}
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Date :</span> ${new Date().toLocaleString("fr-FR")}
+        </div>
+      </div>
+      
+      <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #8b5cf6;">
+        <h4 style="margin-top: 0; color: #8b5cf6;">Message :</h4>
+        <div style="white-space: pre-line; line-height: 1.7;">${contact.message}</div>
+      </div>
+      
+      <p>Pour répondre : Répondre directement à cet email.</p>
+    </div>
+  `;
+
+  // Envoyer à l'admin avec l'expéditeur dynamique (email du formulaire)
+  const result = await this.smtpService.sendEmail({
+    from: contact.email, // Email de l'expéditeur du formulaire
+    fromName: `${contact.firstName} ${contact.lastName}`.trim() || 'Contact Formulaire',
+    to: adminEmail, // Destinataire fixe: admin
+    subject: 'Nouveau message de contact - Paname Consulting',
+    html: this.getBaseTemplate("Nouveau Message Contact", content, "Équipe"),
+    replyTo: contact.email, // Pour répondre à l'utilisateur
+  });
+  
+  return result.success;
+}
+
 
   async sendContactConfirmation(contact: Contact): Promise<boolean> {
-    const content = `
-      <div class="details">
-        <p>Nous accusons réception de votre message.</p>
-        
-        <div class="info-box">
-          <p>Votre demande a bien été enregistrée et sera traitée dans les plus brefs délais.</p>
-          <div class="detail-item">
-            <span class="detail-label">Délai de réponse :</span> 48 heures ouvrables maximum
-          </div>
+  const content = `
+    <div class="details">
+      <p>Nous accusons réception de votre message.</p>
+      
+      <div class="info-box">
+        <p>Votre demande a bien été enregistrée et sera traitée dans les plus brefs délais.</p>
+        <div class="detail-item">
+          <span class="detail-label">Délai de réponse :</span> 48 heures ouvrables maximum
         </div>
-        
-        <p>Un membre de notre équipe vous contactera rapidement.</p>
       </div>
-    `;
+      
+      <p>Un membre de notre équipe vous contactera rapidement.</p>
+    </div>
+  `;
 
-    return await this.sendEmail(
-      contact.email,
-      'Confirmation de votre message - Paname Consulting',
-      this.getBaseTemplate("Confirmation de Réception", content, contact.firstName || "Cher client"),
-      'confirmation-contact'
-    );
-  }
+  // Envoyer la confirmation avec notre email officiel comme expéditeur
+  return await this.sendEmail(
+    contact.email,
+    'Confirmation de votre message - Paname Consulting',
+    this.getBaseTemplate("Confirmation de Réception", content, contact.firstName || "Cher client"),
+    'confirmation-contact',
+    'panameconsulting906@gmail.com',
+    'Paname Consulting'
+  );
+}
 
   // ==================== UTILITY METHODS ====================
 

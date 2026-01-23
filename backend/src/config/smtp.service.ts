@@ -1,9 +1,12 @@
 import { ConfigService } from '@nestjs/config';
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import { CreateContactDto } from 'src/contact/dto/create-contact.dto';
 
 export interface EmailOptions {
   to: string | string[];
+  from?: string; 
+  fromName?: string; 
   subject: string;
   html: string;
   text?: string;
@@ -115,13 +118,19 @@ export class SmtpService {
 
     try {
       const maskedTo = this.maskEmail(options.to);
+      const maskedFrom = options.from ? this.maskEmail(options.from) : this.maskEmail(this.fromEmail);
       const subjectPreview = options.subject.substring(0, 50) + (options.subject.length > 50 ? '...' : '');
-      this.logger.log(`Tentative d'envoi d'email à: ${maskedTo}, Sujet: ${subjectPreview}`, 'SmtpService');
+      
+      this.logger.log(`Envoi d'email depuis: ${maskedFrom} vers: ${maskedTo}, Sujet: ${subjectPreview}`, 'SmtpService');
 
+      // Déterminer l'expéditeur
+      const fromEmail = options.from || this.fromEmail;
+      const fromName = options.fromName || this.fromName;
+      
       const result = await this.transporter.sendMail({
-        from: options.replyTo ? `<${options.replyTo}>` : `<${this.fromEmail}>`,
-        to: [this.fromEmail], // Toujours envoyer à EMAIL_USER
-        replyTo: Array.isArray(options.to) ? options.to[0] : options.to, // Pour répondre à l'utilisateur
+        from: `${fromName} <${fromEmail}>`, // Email expéditeur dynamique
+        to: Array.isArray(options.to) ? options.to : [options.to], // Destinataire(s)
+        replyTo: options.replyTo || options.from || fromEmail, // Pour les réponses
         subject: options.subject,
         html: options.html,
         text: options.text,
@@ -129,7 +138,7 @@ export class SmtpService {
       });
 
       const maskedId = this.maskMessageId(result.messageId);
-      this.logger.log(`Email envoyé avec succès à: ${maskedTo} (ID: ${maskedId})`, 'SmtpService');
+      this.logger.log(`Email envoyé avec succès depuis ${maskedFrom} vers ${maskedTo} (ID: ${maskedId})`, 'SmtpService');
       return { success: true };
 
     } catch (error: any) {

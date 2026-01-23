@@ -20,13 +20,12 @@ export class ContactService {
     private notificationService: NotificationService,
   ) {}
 
-  // Créer un nouveau message de contact
-  async create(createContactDto: CreateContactDto): Promise<Contact> {
-    const contactId = "CONTACT_" + Date.now(); // ID temporaire pour les logs
+ async create(createContactDto: CreateContactDto): Promise<Contact> {
+    const contactId = "CONTACT_" + Date.now();
     try {
-      this.logger.log(`Création d'un nouveau message de contact .`);
+      this.logger.log(`Création d'un nouveau message de contact.`);
 
-      // Nettoie les champs optionnels vides
+      // Nettoie les champs
       const cleanedData = {
         ...createContactDto,
         firstName: createContactDto.firstName?.trim() || '',
@@ -36,31 +35,33 @@ export class ContactService {
       const createdContact = new this.contactModel(cleanedData);
       const savedContact = await createdContact.save();
 
-      // Masquer l'email dans les logs
       const maskedEmail = this.maskEmail(savedContact.email);
       this.logger.log(`Message de contact créé avec succès pour l'Email: ${maskedEmail}`);
 
       // Envoyer les notifications après la sauvegarde
       try {
+        // 1. Notification à l'admin (expéditeur = email du formulaire)
         await this.notificationService.sendContactNotification(savedContact);
+        
+        // 2. Confirmation à l'utilisateur (expéditeur = notre email officiel)
         await this.notificationService.sendContactConfirmation(savedContact);
-        this.logger.log(`Notifications envoyées pour le contact ${maskedEmail}] `);
+        
+        this.logger.log(`Notifications envoyées pour le contact ${maskedEmail}`);
       } catch (notificationError) {
         this.logger.error(
-          `Erreur lors de l'envoi des notifications pour le contact  ${maskedEmail}`,
+          `Erreur lors de l'envoi des notifications pour le contact ${maskedEmail}`,
           notificationError.stack,
         );
-        // Ne pas propager l'erreur des notifications pour ne pas bloquer l'envoi du formulaire
+        // Ne pas propager l'erreur des notifications
       }
 
       return savedContact;
     } catch (error) {
       this.logger.error(
-        `Erreur lors de la création du contact [ID: ${contactId}]: ${error.message}`,
+        `Erreur lors de la création du contact: ${error.message}`,
         error.stack,
       );
       
-      // Si c'est une erreur de validation Mongoose, la formater proprement
       if (error.name === 'ValidationError') {
         throw new BadRequestException({
           message: "Erreur de validation",
@@ -71,7 +72,6 @@ export class ContactService {
       throw new BadRequestException("Erreur lors de l'envoi du message");
     }
   }
-
   // Récupérer tous les messages avec pagination et filtres
   async findAll(
     page: number = 1,
