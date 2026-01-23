@@ -29,12 +29,6 @@
       "NODE_ENV": "production"
     }
   },
-  "functions": {
-    "dist/main.js": {
-      "maxDuration": 30,
-      "memory": 1024
-    }
-  },
   "headers": [
     {
       "source": "/api/(.*)",
