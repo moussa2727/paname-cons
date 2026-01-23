@@ -82,8 +82,8 @@ export class Session extends Document {
 
   // Virtuals
   public get isExpired(): boolean {
-    return this.expiresAt < new Date();
-  }
+  return new Date(this.expiresAt) < new Date(); 
+}
 
   public get isValid(): boolean {
     return this.isActive && !this.isExpired;

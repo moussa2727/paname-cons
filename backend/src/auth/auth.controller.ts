@@ -49,7 +49,6 @@ export class AuthController {
     const origin = req?.headers?.origin || req?.headers?.referer;
     let domain = undefined;
     
-    // Détection du domaine pour les cookies cross-domain
     if (origin) {
       if (origin.includes('panameconsulting.vercel.app')) {
         domain = '.panameconsulting.vercel.app';
@@ -87,12 +86,12 @@ export class AuthController {
 
     res.cookie("refresh_token", result.refresh_token, {
       ...cookieOptions,
-      maxAge: AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000, // 30 minutes
+      maxAge: AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000,
     });
 
     res.cookie("access_token", result.access_token, {
       ...cookieOptions,
-      maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000, // 15 minutes
+      maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000,
     });
 
    return res.json({
@@ -150,13 +149,13 @@ export class AuthController {
       if (result.refresh_token) {
         res.cookie("refresh_token", result.refresh_token, {
           ...cookieOptions,
-          maxAge: AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000, // 30 minutes
+          maxAge: AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000,
         });
       }
 
       res.cookie("access_token", result.access_token, {
         ...cookieOptions,
-        maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000, // 15 minutes
+        maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000,
       });
 
       return res.json({
@@ -196,12 +195,12 @@ export class AuthController {
 
       res.cookie("refresh_token", result.refresh_token, {
         ...cookieOptions,
-        maxAge: AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000, // 30 minutes
+        maxAge: AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000,
       });
 
       res.cookie("access_token", result.access_token, {
         ...cookieOptions,
-        maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000, // 15 minutes
+        maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000,
       });
 
      return res.status(201).json({
@@ -265,7 +264,7 @@ export class AuthController {
           usersLoggedOut: result.stats.usersLoggedOut,
           adminPreserved: result.stats.adminPreserved,
           adminEmail: result.stats.adminEmail,
-          duration: result.stats.duration || "30 minutes",
+          duration: result.stats.duration || "24 heures",
           timestamp: result.stats.timestamp || new Date().toISOString(),
           userEmails: result.stats.userEmails || []
         },

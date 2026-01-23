@@ -6,7 +6,6 @@ import { RevokedToken } from "../schemas/revoked-token.schema";
 
 @Injectable()
 export class RevokedTokenService {
-  // Le logger reste défini mais on n'utilisera que des niveaux "silencieux"
   private readonly logger = new Logger(RevokedTokenService.name);
 
   constructor(
@@ -17,16 +16,14 @@ export class RevokedTokenService {
 
   async revokeToken(access_token: string, expiresAt: Date): Promise<void> {
     try {
-      // Extraction sécurisée du userId
       let userId = null;
       try {
         const decoded = this.jwtService.decode(access_token) as any;
         userId = decoded?.sub || decoded?.id;
       } catch (e) {
-        // Erreur de décodage silencieuse
+        this.logger.warn(`Cannot decode token for revocation: ${e.message}`);
       }
 
-      // Utilisation de .debug ou .verbose pour masquer les logs
       this.logger.debug(`Attempting revocation for user: ${userId || 'unknown'}`);
 
       const exists = await this.revokedTokenModel.findOne({ token: access_token }).lean();
@@ -40,13 +37,12 @@ export class RevokedTokenService {
         this.logger.verbose(`Token stored in blacklist`);
       }
     } catch (error) {
-      // Même l'erreur est passée en debug pour un silence total
-      this.logger.debug(`Silent error during revocation: ${error.message}`);
+      this.logger.error(`Error during token revocation: ${error.message}`);
+      throw error;
     }
   }
 
   async isTokenRevoked(access_token: string): Promise<boolean> {
-    // Suppression de tout log visible
     const found = await this.revokedTokenModel.findOne({ token: access_token }).select('_id').lean();
     return !!found;
   }
@@ -54,7 +50,7 @@ export class RevokedTokenService {
   async revokeAllTokens(): Promise<{ message: string; revokedCount: number }> {
     const result = await this.revokedTokenModel.deleteMany({}).exec();
     
-    this.logger.verbose(`Flush database: ${result.deletedCount} items removed`);
+    this.logger.log(`Flush database: ${result.deletedCount} items removed`);
     
     return {
       message: `Opération réussie`,
@@ -69,11 +65,11 @@ export class RevokedTokenService {
       })
       .exec();
 
-    this.logger.verbose(`Cleanup completed: ${result.deletedCount} items`);
+    this.logger.log(`Cleanup completed: ${result.deletedCount} expired tokens removed`);
   }
 
   async revokeTokensForUser(userId: string): Promise<void> {
     await this.revokedTokenModel.deleteMany({ userId }).exec();
-    this.logger.verbose(`User ${userId} tokens cleared`);
+    this.logger.log(`User ${userId} tokens cleared from revocation list`);
   }
 }

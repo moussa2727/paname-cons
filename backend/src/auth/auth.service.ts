@@ -51,7 +51,6 @@ export class AuthService {
     @InjectModel(User.name) private userModel: Model<User>,
   ) {}
 
-
   private getLoginAttempts(email: string): {
     attempts: number;
     lastAttempt: Date;
@@ -132,7 +131,6 @@ export class AuthService {
     }
 
     const newUser = await this.usersService.create(registerDto);
-    // UTILISATION DE id pour l'identifiant
     const userId = newUser.id;
 
     const jtiAccess = randomUUID();
@@ -213,7 +211,6 @@ export class AuthService {
   async login(user: User) {
     const jtiAccess = randomUUID();
     const jtiRefresh = randomUUID();
-    // UTILISATION DE id 
     const userId = user.id;
 
     const accessPayload = {
@@ -299,7 +296,6 @@ export class AuthService {
         throw new UnauthorizedException("Utilisateur non trouvé");
       }
 
-      // UTILISATION DE id 
       const userId = user.id;
 
       const jtiAccess = randomUUID();
@@ -389,7 +385,6 @@ async logoutAll(): Promise<{
   try {
     this.logger.log(" Début déconnexion temporaire (24h) des utilisateurs NON-ADMIN");
 
-    //  PROTECTION STRICTE : SEULEMENT l'email du .env
     const adminEmail = process.env.EMAIL_USER;
     
     if (!adminEmail) {
@@ -397,7 +392,6 @@ async logoutAll(): Promise<{
       throw new BadRequestException("EMAIL_USER non défini dans l'environnement");
     }
 
-    //  CORRECTION CRITIQUE : Vérifier que l'admin connecté n'est PAS inclus
     const adminUser = await this.userModel.findOne({ email: adminEmail }).exec();
     
     if (!adminUser) {
@@ -405,11 +399,10 @@ async logoutAll(): Promise<{
       throw new BadRequestException("Administrateur principal non trouvé");
     }
 
-    //  CORRECTION : Exclure explicitement l'admin par SON ID
     const activeNonAdminUsers = await this.userModel
       .find({
-        email: { $ne: adminEmail }, // Exclusion par email
-        role: { $ne: UserRole.ADMIN }, // ET exclusion par rôle
+        email: { $ne: adminEmail },
+        role: { $ne: UserRole.ADMIN },
         isActive: true,
       })
       .select('id email firstName lastName role')
@@ -436,14 +429,13 @@ async logoutAll(): Promise<{
 
     const userIds = activeNonAdminUsers.map(user => user.id);
 
-    const logoutUntilDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const logoutUntilDate = new Date(Date.now() + AuthConstants.GLOBAL_LOGOUT_DURATION);
 
-    //  CORRECTION : Mettre à jour UNIQUEMENT les non-admin
     await Promise.all([
       this.userModel.updateMany(
         { 
           id: { $in: userIds },
-          email: { $ne: adminEmail } // Double vérification
+          email: { $ne: adminEmail }
         },
         {
           $set: {
@@ -470,7 +462,6 @@ async logoutAll(): Promise<{
       this.resetTokenModel.deleteMany({ user: { $in: userIds } }).exec(),
     ]);
 
-
     this.logger.log(` DÉCONNEXION GLOBALE RÉUSSIE : ${activeNonAdminUsers.length} utilisateurs déconnectés`);
     this.logger.log(` ADMIN PRÉSERVÉ : ${this.maskEmail(adminEmail)} - ID: ${adminUser.id}`);
 
@@ -483,7 +474,7 @@ async logoutAll(): Promise<{
         adminEmail: this.maskEmail(adminEmail),
         duration: "24 heures",
         timestamp: new Date().toISOString(),
-        userEmails: [] // Pour confidentialité
+        userEmails: []
       }
     };
 
@@ -492,7 +483,6 @@ async logoutAll(): Promise<{
     throw new BadRequestException(`Échec de la déconnexion globale: ${error.message}`);
   }
 }
-
 
   async revokeToken(token: string, expiresAt: Date): Promise<void> {
     try {
@@ -599,7 +589,6 @@ async validateUser(email: string, password: string): Promise<User | null> {
       return null;
     }
 
-    //  VÉRIFICATION STRICTE : SEUL L'EMAIL DU .ENV PEUT ÊTRE ADMIN
     const adminEmail = process.env.EMAIL_USER;
     
     if (!adminEmail) {
@@ -610,19 +599,15 @@ async validateUser(email: string, password: string): Promise<User | null> {
     const isAdminEmail = user.email === adminEmail;
     const isAdminRole = user.role === UserRole.ADMIN;
 
-    //  LOGIQUE DE SÉCURITÉ RENFORCÉE POUR L'ADMIN
     if (isAdminRole) {
-      // Si le rôle est ADMIN mais l'email ne correspond pas → REJETER
       if (!isAdminEmail) {
         this.logger.error(` ADMIN NON AUTORISÉ DÉTECTÉ: ${this.maskEmail(user.email)} (email ne correspond pas à ${this.maskEmail(adminEmail)})`);
         this.incrementLoginAttempts(email);
         throw new UnauthorizedException("Accès refusé");
       }
       
-      //  ADMIN LÉGITIME - IGNORER TOUTES LES RESTRICTIONS
       this.logger.log(` ADMIN LÉGITIME DÉTECTÉ: ${this.maskEmail(user.email)}`);
       
-      // Vérification du mot de passe pour l'admin
       if (!user.password || user.password.trim() === '') {
         this.logger.error(` CRITICAL: Admin ${this.maskEmail(email)} has no password in database`);
         throw new UnauthorizedException(
@@ -663,7 +648,6 @@ async validateUser(email: string, password: string): Promise<User | null> {
         return null;
       }
 
-      //  L'admin ignore COMPLÈTEMENT logoutUntil, isActive, etc.
       this.logger.log(` Admin ${this.maskEmail(user.email)} - accès accordé (ignore toutes restrictions)`);
       
       this.resetLoginAttempts(email);
@@ -674,7 +658,6 @@ async validateUser(email: string, password: string): Promise<User | null> {
       return userWithoutPassword;
     }
 
-    //  LOGIQUE POUR LES UTILISATEURS NORMALS (NON-ADMIN)
     if (!user.password || user.password.trim() === '') {
       this.logger.error(` CRITICAL: User ${this.maskEmail(email)} has no password in database`);
       this.incrementLoginAttempts(email);
@@ -715,19 +698,19 @@ async validateUser(email: string, password: string): Promise<User | null> {
       return null;
     }
 
-    //  UTILISATION DE id 
     const userId = user.id;
     
-    //  VÉRIFICATION D'ACCÈS POUR LES UTILISATEURS NORMALS SEULEMENT
     const accessCheck = await this.usersService.checkUserAccess(userId);
     
     if (!accessCheck.canAccess) {
       this.logger.warn(`Accès refusé pour ${this.maskEmail(email)}: ${accessCheck.reason}`);
       
+      // CORRECTION : Utiliser details.remainingHours si disponible
+      const remainingHours = accessCheck.details?.remainingHours || 24;
+      
       if (accessCheck.reason?.includes('Compte désactivé')) {
         throw new UnauthorizedException(AuthConstants.ERROR_MESSAGES.COMPTE_DESACTIVE);
       } else if (accessCheck.reason?.includes('Déconnecté temporairement')) {
-        const remainingHours = accessCheck.details?.remainingHours || 24;
         throw new UnauthorizedException(
           `${AuthConstants.ERROR_MESSAGES.COMPTE_TEMPORAIREMENT_DECONNECTE}:${remainingHours}`
         );
@@ -761,7 +744,6 @@ async validateUser(email: string, password: string): Promise<User | null> {
   }
 }
 
-
   async validateToken(token: string): Promise<boolean> {
     try {
       const payload = this.jwtService.verify(token);
@@ -779,7 +761,6 @@ async validateUser(email: string, password: string): Promise<User | null> {
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
     try {
-      // Nettoyer le token si une URL complète est fournie
       let cleanToken = token;
       if (token.includes('reset-password?token=')) {
         this.logger.log('Détection d\'URL dans le token de reset, extraction en cours...');
@@ -806,7 +787,6 @@ async validateUser(email: string, password: string): Promise<User | null> {
         throw new NotFoundException("Utilisateur non trouvé");
       }
 
-      //  UTILISATION DE id 
       const userId = user.id;
       await this.usersService.resetPassword(userId, newPassword);
 
@@ -847,12 +827,10 @@ async validateUser(email: string, password: string): Promise<User | null> {
       );
     }
 
-    // S'assurer que le token est bien une chaîne simple et pas une URL
     let cleanToken = token;
     
     this.logger.log(`Token original: ${token.substring(0, 100)}...`);
     
-    // Si le token contient une URL complète, extraire uniquement le token
     if (token.includes('reset-password?token=')) {
       this.logger.log('Détection d\'URL dans le token, extraction en cours...');
       const tokenMatch = token.match(/token=([^&]+)/);
@@ -1053,12 +1031,10 @@ async validateUser(email: string, password: string): Promise<User | null> {
     return '***@***';
   }
   
-  // Masquer le nom (garder première lettre et dernière)
   const maskedName = name.length <= 2 
     ? name.charAt(0) + '*'
     : name.charAt(0) + '***' + (name.length > 1 ? name.charAt(name.length - 1) : '');
   
-  // Masquer partiellement le domaine
   const domainParts = domain.split('.');
   if (domainParts.length < 2) return `${maskedName}@***`;
   

@@ -12,7 +12,6 @@ export class CleanupService {
     private readonly revokedToken: RevokedTokenService,
   ) {}
 
-  // Nettoyage HOURLY des sessions expirées (désactivation)
   @Cron(CronExpression.EVERY_HOUR)
   async handleCleanupExpiredSessions() {
     try {
@@ -24,20 +23,6 @@ export class CleanupService {
     }
   }
 
-  // Nettoyage QUOTIDIEN des sessions (doublon volontaire pour robustesse)
-  @Cron(CronExpression.EVERY_DAY_AT_2AM)
-  async handleDailyCleanup() {
-    try {
-      this.logger.log(" Début du nettoyage quotidien des sessions");
-      // Note: Appel identique à handleCleanupExpiredSessions pour garantie quotidienne
-      await this.authService.cleanupExpiredSessions();
-      this.logger.log(" Nettoyage quotidien des sessions terminé avec succès");
-    } catch (error: any) {
-      this.logger.error(` Erreur lors du nettoyage quotidien des sessions: ${error.message}`, error.stack);
-    }
-  }
-
-  // Nettoyage QUOTIDIEN des tokens révoqués expirés
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async handleRevokedTokensCleanup() {
     try {

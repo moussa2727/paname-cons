@@ -62,3 +62,27 @@ GLOBAL_LOGOUT_DURATION: 24 * 60 * 60 * 1000, // 24h en millisecondes
     }
   }
 } as const;
+
+export const COOKIE_NAMES = {
+  ACCESS_TOKEN: 'access_token',
+  REFRESH_TOKEN: 'refresh_token'
+} as const;
+
+export const COOKIE_CONFIG = {
+  ACCESS_TOKEN: {
+    name: 'access_token',
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none' as const,
+    maxAge: 15 * 60 * 1000, // 15 minutes
+    path: '/',
+  },
+  REFRESH_TOKEN: {
+    name: 'refresh_token',
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none' as const,
+    maxAge: 30 * 60 * 1000, // 30 minutes
+    path: '/',
+  }
+} as const;

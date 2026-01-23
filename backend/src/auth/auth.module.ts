@@ -18,13 +18,13 @@ import {
 import { Session, SessionSchema } from "../schemas/session.schema";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
-import { CleanupService } from "./cleanup.service";
 import { RefreshTokenService } from "./refresh-token.service";
 import { RevokedTokenService } from "./revoked-token.service";
 import { SessionService } from "./session.service";
 import { LocalStrategy } from "./strategies/local.strategy";
 import { User, UserSchema } from "../schemas/user.schema";
 import { JwtStrategy } from "./strategies/jwt.strategy";
+import { CleanupService } from "./cleanup.service";
 
 @Module({
   imports: [

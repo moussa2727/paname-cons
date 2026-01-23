@@ -15,7 +15,7 @@ import { rateLimit } from 'express-rate-limit';
 import * as compression from 'compression';
 
 // Configuration pour détecter Vercel
-const isVercel = process.env.VERCEL === '1' || process.env.NOW_REGION || false;
+const isVercel = process.env.NODE_ENV === 'production';
 
 // Configuration CORS
 const allowedOrigins = [
@@ -64,7 +64,7 @@ async function bootstrap() {
   // 2. Body parsers
   expressApp.use(express.json({ 
     limit: '10mb',
-    verify: (req: any, res: any, buf: Buffer, encoding: BufferEncoding) => {
+    verify: (req: any, _res: any, buf: Buffer, encoding: BufferEncoding) => {
       try {
         if (buf && buf.length) {
           JSON.parse(buf.toString(encoding || 'utf8'));
@@ -214,7 +214,7 @@ async function bootstrap() {
   await app.init();
   
   // ========== ENDPOINTS DE SANTÉ ==========
-  expressApp.get('/', (req: express.Request, res: express.Response) => {
+  expressApp.get('/', (_req: express.Request, res: express.Response) => {
     const prefix = isVercel ? '' : '/api';
     res.json({
       status: 'online',
@@ -264,8 +264,8 @@ if (isVercel) {
     };
   });
   
-} else if (require.main === module) {
-  // Démarrer localement
+} else {
+  // Démarrer en mode local ou production standard
   bootstrap().catch((error) => {
     // Masquer les erreurs détaillées en production
     if (process.env.NODE_ENV === 'production') {
