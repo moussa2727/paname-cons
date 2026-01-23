@@ -49,6 +49,12 @@ import UserProfile from './pages/user/UserProfile';
 import UserProcedure from './pages/user/UserProcedure';
 import ResetPassword from './components/auth/ResetPassword';
 
+// Définir UserRole localement (identique à AuthContext)
+const UserRole = {
+  ADMIN: 'admin',
+  USER: 'user',
+} as const;
+
 // Layout pour les pages publiques
 const PublicLayout = ({ children }: { children: ReactNode }) => {
   return (
@@ -122,11 +128,34 @@ const AccueilLayout = ({ children }: { children: ReactNode }) => {
   );
 };
 
+// Composant pour vérifier le mode maintenance
+const MaintenanceGuard = ({ children }: { children: ReactNode }) => {
+  const { isMaintenanceMode, user } = useAuth();
+  const isAdmin = user?.role === UserRole.ADMIN || user?.isAdmin === true;
+  
+  if (isMaintenanceMode && !isAdmin) {
+    return (
+      <Navigate 
+        to='/' 
+        replace 
+        state={{ 
+          message: 'Mode maintenance activé. Accès réservé aux administrateurs.',
+          from: location.pathname 
+        }} 
+      />
+    );
+  }
+  
+  return <>{children}</>;
+};
+
 function App() {
   const location = useLocation();
   const [navigationKey, setNavigationKey] = useState(0);
-  const { isLoading, isAuthenticated, user } = useAuth();
+  const { isLoading, isAuthenticated, user, isMaintenanceMode } = useAuth();
   const [isAOSInitialized, setIsAOSInitialized] = useState(false);
+
+  const isAdmin = user?.role === UserRole.ADMIN || user?.isAdmin === true;
 
   const safeScrollToTop = useCallback((behavior: ScrollBehavior = 'smooth') => {
     if (typeof globalThis.window === 'undefined') return;
@@ -321,9 +350,9 @@ function App() {
               isAuthenticated ? (
                 <Navigate
                   to={
-                    user?.role === 'admin' || user?.isAdmin === true
-                      ? '/' // ← MODIFIÉ: Redirige vers la page d'accueil, pas vers /gestionnaire/statistiques
-                      : '/'
+                    isAdmin
+                      ? '/gestionnaire/statistiques' // Admin vers dashboard
+                      : '/' // Utilisateur vers accueil
                   }
                   replace
                 />
@@ -341,9 +370,9 @@ function App() {
               isAuthenticated ? (
                 <Navigate
                   to={
-                    user?.role === 'admin' || user?.isAdmin === true
-                      ? '/' // ← MODIFIÉ: Redirige vers la page d'accueil, pas vers /gestionnaire/statistiques
-                      : '/'
+                    isAdmin
+                      ? '/gestionnaire/statistiques' // Admin vers dashboard
+                      : '/' // Utilisateur vers accueil
                   }
                   replace
                 />
@@ -361,9 +390,9 @@ function App() {
               isAuthenticated ? (
                 <Navigate
                   to={
-                    user?.role === 'admin' || user?.isAdmin === true
-                      ? '/' // ← MODIFIÉ: Redirige vers la page d'accueil, pas vers /gestionnaire/statistiques
-                      : '/'
+                    isAdmin
+                      ? '/gestionnaire/statistiques' // Admin vers dashboard
+                      : '/' // Utilisateur vers accueil
                   }
                   replace
                 />
@@ -379,100 +408,136 @@ function App() {
           {/* /gestionnaire seul → NotFound */}
           <Route path='/gestionnaire' element={<NotFound />} />
 
-          {/* Routes admin avec layout */}
+          {/* Routes admin avec layout et vérification maintenance */}
           <Route
             path='/gestionnaire/statistiques'
             element={
-              <RequireAdmin>
-                <Suspense fallback={<Loader />}>
-                  <AdminLayout>
-                    <AdminDashboard />
-                  </AdminLayout>
-                </Suspense>
-              </RequireAdmin>
+              <MaintenanceGuard>
+                <RequireAdmin>
+                  <Suspense fallback={<Loader />}>
+                    <AdminLayout>
+                      <AdminDashboard />
+                    </AdminLayout>
+                  </Suspense>
+                </RequireAdmin>
+              </MaintenanceGuard>
             }
           />
 
           <Route
             path='/gestionnaire/utilisateurs'
             element={
-              <RequireAdmin>
-                <Suspense fallback={<Loader />}>
-                  <AdminLayout>
-                    <UsersManagement />
-                  </AdminLayout>
-                </Suspense>
-              </RequireAdmin>
+              <MaintenanceGuard>
+                <RequireAdmin>
+                  <Suspense fallback={<Loader />}>
+                    <AdminLayout>
+                      <UsersManagement />
+                    </AdminLayout>
+                  </Suspense>
+                </RequireAdmin>
+              </MaintenanceGuard>
             }
           />
 
           <Route
             path='/gestionnaire/messages'
             element={
-              <RequireAdmin>
-                <Suspense fallback={<Loader />}>
-                  <AdminLayout>
-                    <AdminMessages />
-                  </AdminLayout>
-                </Suspense>
-              </RequireAdmin>
+              <MaintenanceGuard>
+                <RequireAdmin>
+                  <Suspense fallback={<Loader />}>
+                    <AdminLayout>
+                      <AdminMessages />
+                    </AdminLayout>
+                  </Suspense>
+                </RequireAdmin>
+              </MaintenanceGuard>
             }
           />
 
           <Route
             path='/gestionnaire/procedures'
             element={
-              <RequireAdmin>
-                <Suspense fallback={<Loader />}>
-                  <AdminLayout>
-                    <AdminProcedure />
-                  </AdminLayout>
-                </Suspense>
-              </RequireAdmin>
+              <MaintenanceGuard>
+                <RequireAdmin>
+                  <Suspense fallback={<Loader />}>
+                    <AdminLayout>
+                      <AdminProcedure />
+                    </AdminLayout>
+                  </Suspense>
+                </RequireAdmin>
+              </MaintenanceGuard>
             }
           />
 
           <Route
             path='/gestionnaire/profil'
             element={
-              <RequireAdmin>
-                <Suspense fallback={<Loader />}>
-                  <AdminLayout>
-                    <AdminProfile />
-                  </AdminLayout>
-                </Suspense>
-              </RequireAdmin>
+              <MaintenanceGuard>
+                <RequireAdmin>
+                  <Suspense fallback={<Loader />}>
+                    <AdminLayout>
+                      <AdminProfile />
+                    </AdminLayout>
+                  </Suspense>
+                </RequireAdmin>
+              </MaintenanceGuard>
             }
           />
 
           <Route
             path='/gestionnaire/destinations'
             element={
-              <RequireAdmin>
-                <Suspense fallback={<Loader />}>
-                  <AdminLayout>
-                    <AdminDestinations />
-                  </AdminLayout>
-                </Suspense>
-              </RequireAdmin>
+              <MaintenanceGuard>
+                <RequireAdmin>
+                  <Suspense fallback={<Loader />}>
+                    <AdminLayout>
+                      <AdminDestinations />
+                    </AdminLayout>
+                  </Suspense>
+                </RequireAdmin>
+              </MaintenanceGuard>
             }
           />
 
           <Route
             path='/gestionnaire/rendez-vous'
             element={
-              <RequireAdmin>
-                <Suspense fallback={<Loader />}>
-                  <AdminLayout>
-                    <AdminRendezVous />
-                  </AdminLayout>
-                </Suspense>
-              </RequireAdmin>
+              <MaintenanceGuard>
+                <RequireAdmin>
+                  <Suspense fallback={<Loader />}>
+                    <AdminLayout>
+                      <AdminRendezVous />
+                    </AdminLayout>
+                  </Suspense>
+                </RequireAdmin>
+              </MaintenanceGuard>
             }
           />
 
-          {/* Autres routes sous /gestionnaire → NotFound */}
-          <Route path='/gestionnaire/*' element={<NotFound />} />
+          {/* Routes admin avec chemin dynamique - protection maintenance */}
+          <Route
+            path='/gestionnaire/*'
+            element={
+              isMaintenanceMode && !isAdmin ? (
+                <Navigate 
+                  to='/' 
+                  replace 
+                  state={{ 
+                    message: 'Mode maintenance activé. Accès réservé aux administrateurs.',
+                    from: location.pathname 
+                  }} 
+                />
+              ) : (
+                <RequireAdmin>
+                  <Suspense fallback={<Loader />}>
+                    <AdminLayout>
+                      <NotFound />
+                    </AdminLayout>
+                  </Suspense>
+                </RequireAdmin>
+              )
+            }
+          />
 
           {/* Route 404 pour toutes les autres routes */}
           <Route path='*' element={<NotFound />} />

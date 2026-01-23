@@ -15,10 +15,19 @@ import {
   User as UserIcon,
   UserPlus,
   X,
+  Users,
+  MessageSquare,
+  Globe,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+
+// Définir UserRole localement (identique à AuthContext)
+const UserRole = {
+  ADMIN: 'admin',
+  USER: 'user',
+} as const;
 
 function Header(): React.JSX.Element {
   const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
@@ -33,6 +42,8 @@ function Header(): React.JSX.Element {
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const hamburgerRef = useRef<HTMLButtonElement>(null);
+
+  const isAdmin = user?.role === UserRole.ADMIN || user?.isAdmin === true;
 
   useEffect(() => {
     setIsMounted(true);
@@ -175,13 +186,43 @@ function Header(): React.JSX.Element {
     return user.email || '';
   };
 
-  // Menu admin simplifié - seulement Tableau de bord
+  // Menu admin complet avec toutes les routes
   const adminMenuItems = [
     {
       name: 'Tableau de bord',
       path: '/gestionnaire/statistiques',
       icon: <LayoutDashboard className='w-4 h-4' />,
-      visible: user?.role === 'admin' || user?.isAdmin === true,
+      visible: true,
+    },
+    {
+      name: 'Utilisateurs',
+      path: '/gestionnaire/utilisateurs',
+      icon: <Users className='w-4 h-4' />,
+      visible: true,
+    },
+    {
+      name: 'Messages',
+      path: '/gestionnaire/messages',
+      icon: <MessageSquare className='w-4 h-4' />,
+      visible: true,
+    },
+    {
+      name: 'Procédures',
+      path: '/gestionnaire/procedures',
+      icon: <FileText className='w-4 h-4' />,
+      visible: true,
+    },
+    {
+      name: 'Destinations',
+      path: '/gestionnaire/destinations',
+      icon: <Globe className='w-4 h-4' />,
+      visible: true,
+    },
+    {
+      name: 'Rendez-vous',
+      path: '/gestionnaire/rendez-vous',
+      icon: <Calendar className='w-4 h-4' />,
+      visible: true,
     },
     {
       name: 'Mon Profil',
@@ -198,7 +239,7 @@ function Header(): React.JSX.Element {
         <LogOut className='w-4 h-4' />
       ),
       visible: true,
-      disabled: isLoggingOut,
+      disabled: isLoggingOut || authLoading,
     },
   ];
 
@@ -231,22 +272,17 @@ function Header(): React.JSX.Element {
         <LogOut className='w-4 h-4' />
       ),
       visible: true,
-      disabled: isLoggingOut,
+      disabled: isLoggingOut || authLoading,
     },
   ];
 
-  // Sélection du menu selon le rôle
-  const getMenuItems = () => {
-    if (user?.role === 'admin' || user?.isAdmin === true) {
-      return adminMenuItems;
-    }
-    return normalUserMenuItems;
-  };
-
-  const currentMenuItems = getMenuItems();
+  // Sélection du menu selon le rôle avec useMemo
+  const currentMenuItems = useMemo(() => {
+    return isAdmin ? adminMenuItems : normalUserMenuItems;
+  }, [isAdmin, isLoggingOut, authLoading]);
 
   return (
-    <header role='banner' className='fixed top-0 z-50 w-full font-sans '>
+    <header role='banner' className='fixed top-0 z-50 w-full font-sans'>
       {/* Top Bar - Desktop seulement */}
       <div
         className={`bg-sky-500 text-white text-sm transition-all duration-300 ${showTopBar ? 'h-10' : 'h-0 overflow-hidden'} hidden md:block`}
@@ -349,15 +385,19 @@ function Header(): React.JSX.Element {
                 <div className='relative ml-2 md:ml-4' ref={dropdownRef}>
                   <button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className='flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full bg-sky-500 text-white font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-400 transition-all duration-200 hover:scale-105 hover:bg-sky-600'
+                    className='flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full bg-sky-500 text-white font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-400 transition-all duration-200 hover:scale-105 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed'
                     aria-label='Menu utilisateur'
                     aria-expanded={dropdownOpen}
                     aria-haspopup='true'
                     disabled={authLoading}
                   >
-                    <span className='text-xs md:text-sm font-semibold'>
-                      {getUserInitials()}
-                    </span>
+                    {authLoading ? (
+                      <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                    ) : (
+                      <span className='text-xs md:text-sm font-semibold'>
+                        {getUserInitials()}
+                      </span>
+                    )}
                   </button>
 
                   {dropdownOpen && (
@@ -374,13 +414,13 @@ function Header(): React.JSX.Element {
                         <p className='text-xs text-gray-500 truncate mt-1'>
                           {user?.email}
                         </p>
-                        {user?.role === 'admin' || user?.isAdmin === true ? (
+                        {isAdmin && (
                           <div className='mt-2'>
                             <span className='inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-800'>
                               Administrateur
                             </span>
                           </div>
-                        ) : null}
+                        )}
                       </div>
 
                       {/* Liens utilisateur */}
@@ -394,18 +434,22 @@ function Header(): React.JSX.Element {
                                 onClick={() =>
                                   handleProtectedNavigation(item.path)
                                 }
-                                className='flex w-full items-center px-3 md:px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-sky-600 transition-all duration-150 font-medium'
+                                className='flex w-full items-center px-3 md:px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-sky-600 transition-all duration-150 font-medium disabled:opacity-50 disabled:cursor-not-allowed'
                                 role='menuitem'
                                 disabled={item.disabled}
                                 aria-disabled={item.disabled}
                               >
-                                <span className='shrink-0 text-gray-400'>
-                                  {item.icon}
-                                </span>
+                                {authLoading ? (
+                                  <div className='w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin'></div>
+                                ) : (
+                                  <span className='shrink-0 text-gray-400'>
+                                    {item.icon}
+                                  </span>
+                                )}
                                 <span className='ml-3 truncate'>
                                   {item.name}
                                 </span>
-                                {user?.role === 'admin' &&
+                                {isAdmin &&
                                   item.name === 'Tableau de bord' && (
                                     <span className='ml-auto text-xs text-sky-500 font-semibold'>
                                       ADMIN
@@ -418,7 +462,7 @@ function Header(): React.JSX.Element {
                                 onClick={() => {
                                   if (item.action) item.action();
                                 }}
-                                className='flex w-full items-center px-3 md:px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-all duration-150 font-medium mt-2 border-t border-gray-100'
+                                className='flex w-full items-center px-3 md:px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-all duration-150 font-medium mt-2 border-t border-gray-100 disabled:opacity-50 disabled:cursor-not-allowed'
                                 role='menuitem'
                                 disabled={item.disabled}
                                 aria-disabled={item.disabled}
@@ -438,22 +482,40 @@ function Header(): React.JSX.Element {
                 <div className='flex items-center space-x-1 md:space-x-2 ml-2 md:ml-4'>
                   <Link
                     to='/connexion'
-                    className='flex items-center px-3 py-1.5 md:px-4 md:py-2 text-sky-600 hover:bg-sky-50 border border-sky-200 transition-all duration-200 rounded-full font-medium text-sm md:text-base hover:border-sky-300'
+                    className='flex items-center px-3 py-1.5 md:px-4 md:py-2 text-sky-600 hover:bg-sky-50 border border-sky-200 transition-all duration-200 rounded-full font-medium text-sm md:text-base hover:border-sky-300 disabled:opacity-50 disabled:cursor-not-allowed'
                     aria-label='Se connecter'
                     state={{ from: location.pathname }}
+                    onClick={(e) => authLoading && e.preventDefault()}
                   >
-                    <LogIn className='w-4 h-4 md:w-5 md:h-5 mr-1 md:mr-2' />
-                    <span className='hidden sm:inline'>Connexion</span>
-                    <span className='sm:hidden'>Login</span>
+                    {authLoading ? (
+                      <div className='w-4 h-4 border-2 border-sky-300 border-t-transparent rounded-full animate-spin mr-2'></div>
+                    ) : (
+                      <LogIn className='w-4 h-4 md:w-5 md:h-5 mr-1 md:mr-2' />
+                    )}
+                    <span className='hidden sm:inline'>
+                      {authLoading ? 'Chargement...' : 'Connexion'}
+                    </span>
+                    <span className='sm:hidden'>
+                      {authLoading ? '...' : 'Login'}
+                    </span>
                   </Link>
                   <Link
                     to='/inscription'
-                    className='flex items-center px-3 py-1.5 md:px-4 md:py-2 text-white bg-sky-500 hover:bg-sky-600 transition-all duration-200 rounded-full font-medium text-sm md:text-base'
+                    className='flex items-center px-3 py-1.5 md:px-4 md:py-2 text-white bg-sky-500 hover:bg-sky-600 transition-all duration-200 rounded-full font-medium text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed'
                     aria-label='Créer un compte'
+                    onClick={(e) => authLoading && e.preventDefault()}
                   >
-                    <UserPlus className='w-4 h-4 md:w-5 md:h-5 mr-1 md:mr-2' />
-                    <span className='hidden sm:inline'>Inscription</span>
-                    <span className='sm:hidden'>Sign up</span>
+                    {authLoading ? (
+                      <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2'></div>
+                    ) : (
+                      <UserPlus className='w-4 h-4 md:w-5 md:h-5 mr-1 md:mr-2' />
+                    )}
+                    <span className='hidden sm:inline'>
+                      {authLoading ? 'Chargement...' : 'Inscription'}
+                    </span>
+                    <span className='sm:hidden'>
+                      {authLoading ? '...' : 'Sign up'}
+                    </span>
                   </Link>
                 </div>
               )}
@@ -462,14 +524,16 @@ function Header(): React.JSX.Element {
             {/* Bouton hamburger mobile */}
             <button
               ref={hamburgerRef}
-              className='lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-all duration-200'
+              className='lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
               onClick={() => setNav(!nav)}
               aria-label={nav ? 'Fermer le menu' : 'Ouvrir le menu'}
               aria-expanded={nav}
               aria-controls='mobile-menu'
               disabled={authLoading}
             >
-              {nav ? (
+              {authLoading ? (
+                <div className='w-6 h-6 border-2 border-gray-400 border-t-transparent rounded-full animate-spin'></div>
+              ) : nav ? (
                 <X className='w-6 h-6 text-gray-700' />
               ) : (
                 <Menu className='w-6 h-6 text-gray-700' />
@@ -498,7 +562,11 @@ function Header(): React.JSX.Element {
                       {/* Avatar mobile seulement si connecté */}
                       {isAuthenticated && (
                         <div className='flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white font-bold mr-3'>
-                          {getUserInitials()}
+                          {authLoading ? (
+                            <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                          ) : (
+                            getUserInitials()
+                          )}
                         </div>
                       )}
                       <div>
@@ -510,7 +578,7 @@ function Header(): React.JSX.Element {
                             <p className='text-xs text-gray-500 truncate'>
                               {user?.email}
                             </p>
-                            {user?.role === 'admin' && (
+                            {isAdmin && (
                               <span className='inline-flex items-center px-2 py-0.5 mt-1 rounded text-xs font-medium bg-sky-100 text-sky-800'>
                                 Administrateur
                               </span>
@@ -548,18 +616,22 @@ function Header(): React.JSX.Element {
                                 onClick={() =>
                                   handleProtectedNavigation(item.path, true)
                                 }
-                                className='flex w-full items-center px-3 py-3 text-gray-800 hover:bg-gray-50 hover:text-sky-600 rounded-lg transition-all duration-150 font-medium'
+                                className='flex w-full items-center px-3 py-3 text-gray-800 hover:bg-gray-50 hover:text-sky-600 rounded-lg transition-all duration-150 font-medium disabled:opacity-50 disabled:cursor-not-allowed'
                                 role='menuitem'
-                                disabled={item.disabled}
-                                aria-disabled={item.disabled}
+                                disabled={item.disabled || authLoading}
+                                aria-disabled={item.disabled || authLoading}
                               >
-                                <span className='shrink-0 text-sky-500'>
-                                  {item.icon}
-                                </span>
+                                {authLoading ? (
+                                  <div className='w-5 h-5 border-2 border-gray-300 border-t-transparent rounded-full animate-spin mr-2'></div>
+                                ) : (
+                                  <span className='shrink-0 text-sky-500'>
+                                    {item.icon}
+                                  </span>
+                                )}
                                 <span className='ml-3 flex-1 text-left font-semibold'>
                                   {item.name}
                                 </span>
-                                {user?.role === 'admin' &&
+                                {isAdmin &&
                                   item.name === 'Tableau de bord' && (
                                     <span className='ml-2 text-xs font-bold text-white bg-sky-500 px-2 py-0.5 rounded'>
                                       ADMIN
@@ -631,25 +703,39 @@ function Header(): React.JSX.Element {
                         <Link
                           to='/connexion'
                           onClick={() => setNav(false)}
-                          className='flex items-center justify-between w-full px-3 py-3 text-sky-600 hover:bg-sky-50 border border-sky-200 rounded-lg transition-all duration-200 font-medium hover:border-sky-300'
+                          className='flex items-center justify-between w-full px-3 py-3 text-sky-600 hover:bg-sky-50 border border-sky-200 rounded-lg transition-all duration-200 font-medium hover:border-sky-300 disabled:opacity-50 disabled:cursor-not-allowed'
                           role='menuitem'
                           state={{ from: location.pathname }}
+                          onClickCapture={(e) => authLoading && e.preventDefault()}
                         >
                           <div className='flex items-center'>
-                            <LogIn className='w-5 h-5 mr-2 text-sky-500' />
-                            <span className='font-semibold'>Connexion</span>
+                            {authLoading ? (
+                              <div className='w-5 h-5 border-2 border-sky-300 border-t-transparent rounded-full animate-spin mr-2'></div>
+                            ) : (
+                              <LogIn className='w-5 h-5 mr-2 text-sky-500' />
+                            )}
+                            <span className='font-semibold'>
+                              {authLoading ? 'Chargement...' : 'Connexion'}
+                            </span>
                           </div>
                           <span className='text-xs text-gray-500'>→</span>
                         </Link>
                         <Link
                           to='/inscription'
                           onClick={() => setNav(false)}
-                          className='flex items-center justify-between w-full px-3 py-3 text-white bg-sky-500 hover:bg-sky-600 rounded-lg transition-all duration-200 font-medium'
+                          className='flex items-center justify-between w-full px-3 py-3 text-white bg-sky-500 hover:bg-sky-600 rounded-lg transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed'
                           role='menuitem'
+                          onClickCapture={(e) => authLoading && e.preventDefault()}
                         >
                           <div className='flex items-center'>
-                            <UserPlus className='w-5 h-5 mr-2' />
-                            <span className='font-semibold'>Inscription</span>
+                            {authLoading ? (
+                              <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2'></div>
+                            ) : (
+                              <UserPlus className='w-5 h-5 mr-2' />
+                            )}
+                            <span className='font-semibold'>
+                              {authLoading ? 'Chargement...' : 'Inscription'}
+                            </span>
                           </div>
                           <span className='text-xs text-white/90'>→</span>
                         </Link>
@@ -663,19 +749,20 @@ function Header(): React.JSX.Element {
                       <div className='space-y-2'>
                         <button
                           onClick={handleLogout}
-                          className='flex w-full items-center justify-between px-3 py-3 text-white bg-red-500 hover:bg-red-600 rounded-lg transition-all duration-200 font-medium'
+                          className='flex w-full items-center justify-between px-3 py-3 text-white bg-red-500 hover:bg-red-600 rounded-lg transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed'
                           role='menuitem'
-                          disabled={isLoggingOut}
-                          aria-disabled={isLoggingOut}
+                          disabled={isLoggingOut || authLoading}
+                          aria-disabled={isLoggingOut || authLoading}
                         >
                           <div className='flex items-center'>
-                            {isLoggingOut ? (
+                            {isLoggingOut || authLoading ? (
                               <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2'></div>
                             ) : (
                               <LogOut className='w-5 h-5 mr-2' />
                             )}
                             <span className='font-semibold'>
-                              {isLoggingOut ? 'Déconnexion...' : 'Déconnexion'}
+                              {isLoggingOut ? 'Déconnexion...' : 
+                               authLoading ? 'Chargement...' : 'Déconnexion'}
                             </span>
                           </div>
                           <span className='text-xs text-white/80'>→</span>
