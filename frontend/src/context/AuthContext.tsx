@@ -318,53 +318,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [navigate]
   );
 
-  const fetchWithAuth = useCallback(async (endpoint: string, options: RequestInit = {}): Promise<Response> => {
-    try {
-      const response = await window.fetch(
-        `${API_CONFIG.BASE_URL}${endpoint}`,
-        {
-          ...options,
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-          },
-        }
-      );
-
-      if (response.status === 401) {
-        const errorData = await response.json().catch(() => ({}));
-        
-        const isSessionExpired = 
-          errorData.loggedOut === true || 
-          errorData.sessionExpired === true ||
-          errorData.requiresReauth === true;
-        
-        if (isSessionExpired) {
-          console.warn(' Session réellement expirée - nettoyage des cookies');
-          cleanupAuthData();
-          
-          // Nettoyer les cookies côté client
-          document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=; secure; samesite=none";
-          document.cookie = "refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=; secure; samesite=none";
-          
-          if (!window.location.pathname.includes('/connexion')) {
-            toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
-          }
-          
-          navigate(REDIRECT_PATHS.LOGIN, { replace: true });
-          throw new Error('SESSION_EXPIRED');
-        } else {
-          console.warn(' 401 reçu mais pas une expiration de session');
-        }
+const fetchWithAuth = useCallback(async (endpoint: string, options: RequestInit = {}): Promise<Response> => {
+  try {
+    const response = await window.fetch(
+      `${API_CONFIG.BASE_URL}${endpoint}`,
+      {
+        ...options,
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
       }
+    );
 
-      return response;
-    } catch (error) {
-      throw error;
+    if (response.status === 401) {
+      const errorData = await response.json().catch(() => ({}));
+      
+      if (errorData.loggedOut || errorData.requiresReauth || errorData.message?.includes('expiré')) {
+        cleanupAuthData();
+        
+        document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        document.cookie = "refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        
+        if (!window.location.pathname.includes('/connexion')) {
+          toast.info(TOAST_MESSAGES.SESSION_EXPIRED);
+        }
+        
+        navigate(REDIRECT_PATHS.LOGIN, { replace: true });
+        throw new Error('SESSION_EXPIRED');
+      }
     }
-  }, [cleanupAuthData, navigate]);
 
+    return response;
+  } catch (error) {
+    throw error;
+  }
+}, [cleanupAuthData, navigate]);
 
   // ==================== GESTION MAINTENANCE ====================
   const checkMaintenanceStatus = useCallback(async (): Promise<void> => {
