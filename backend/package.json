@@ -6,10 +6,9 @@
   "type": "commonjs",
   "scripts": {
     "build": "nest build",
-    "start": "node dist/main.js",
+    "start": "dotenv -e .env -- node dist/main.js",
     "dev": "nest start --debug --watch",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "typeorm": "ts-node ./node_modules/typeorm/cli"
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix"
   },
   "keywords": [
     "nestjs",

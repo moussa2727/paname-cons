@@ -26,6 +26,10 @@
           "value": "https://panameconsulting.vercel.app"
         },
         {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://paname-consulting.vercel.app"
+        },
+        {
           "key": "Access-Control-Allow-Methods",
           "value": "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         },
@@ -48,7 +52,7 @@
       "headers": [
         {
           "key": "Set-Cookie",
-          "value": "SameSite=None; Secure; HttpOnly; Path=/; Domain=.panameconsulting.vercel.app"
+          "value": "SameSite=None; Secure; HttpOnly; Path=/; Domain=.paname-consulting.vercel.app"
         }
       ]
     }
