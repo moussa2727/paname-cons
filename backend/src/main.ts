@@ -15,7 +15,7 @@ import { rateLimit } from 'express-rate-limit';
 import * as compression from 'compression';
 
 // Configuration pour détecter Vercel
-const isVercel = process.env.NODE_ENV === 'production';
+const isVercel = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
 
 // Configuration CORS
 const allowedOrigins = [
@@ -28,9 +28,15 @@ const allowedOrigins = [
   'http://127.0.0.1:10000',
 ];
 
-async function bootstrap() {
-  // Démarrage silencieux pour masquer les informations sensibles
-  
+// Variable pour cacher l'app initialisée (singleton)
+let cachedApp: express.Application | null = null;
+
+async function initializeApp(): Promise<express.Application> {
+  // Si l'app est déjà initialisée, la retourner
+  if (cachedApp) {
+    return cachedApp;
+  }
+
   // Créer l'application Express
   const expressApp = express();
   
@@ -54,7 +60,7 @@ async function bootstrap() {
     
     // Gérer les préflight OPTIONS
     if (req.method === 'OPTIONS') {
-      res.status(204).end(); // No Content
+      res.status(204).end();
       return;
     }
     
@@ -90,7 +96,6 @@ async function bootstrap() {
     
     // Configuration des cookies pour cross-domain
     if (origin && (origin.includes('panameconsulting.vercel.app') || origin.includes('paname-consulting.vercel.app'))) {
-      // Pour les requêtes cross-domain, configurer les cookies
       const originalCookie = res.cookie;
       res.cookie = function(name: string, value: string, options?: any) {
         const cookieOptions = {
@@ -114,7 +119,7 @@ async function bootstrap() {
   
   // 5. Rate limiting
   const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
+    windowMs: 15 * 60 * 1000,
     max: 1000,
     message: {
       status: 429,
@@ -132,7 +137,7 @@ async function bootstrap() {
     AppModule,
     new ExpressAdapter(expressApp),
     {
-      logger: false, // Désactiver complètement les logs pour masquer les infos sensibles
+      logger: false,
     }
   );
   
@@ -146,7 +151,6 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie', 'X-Requested-With', 'Accept', 'Origin'],
     exposedHeaders: ['Set-Cookie', 'Authorization'],
     maxAge: 86400,
-    // Options importantes pour les cookies cross-domain
     optionsSuccessStatus: 204,
     preflightContinue: false,
   });
@@ -234,45 +238,44 @@ async function bootstrap() {
     });
   });
   
-  // ========== GESTION VERCEL vs LOCAL ==========
+  // Mettre en cache l'app pour Vercel
   if (isVercel) {
-    // Pour Vercel: retourner l'application Express pour le handler
-    return expressApp;
-    
-  } else {
-    // Pour le développement local
-    const port = process.env.PORT || 10000;
-    const host = process.env.HOST || '0.0.0.0';
-    
-    await app.listen(port, host);
+    cachedApp = expressApp;
   }
+  
+  return expressApp;
 }
 
 // ========== POINT D'ENTRÉE ==========
 if (isVercel) {
-  // Pour Vercel, on initialise et exporte directement
-  bootstrap().then(expressApp => {
-    module.exports = expressApp;
-  }).catch((error) => {
-    console.error('Erreur d\'initialisation Vercel:', error);
-    module.exports = (req: express.Request, res: express.Response) => {
+  // Pour Vercel: exporter un handler qui initialise l'app à la première requête
+  module.exports = async (req: express.Request, res: express.Response) => {
+    try {
+      const app = await initializeApp();
+      return app(req, res);
+    } catch (error) {
+      console.error('Erreur d\'initialisation Vercel:', error);
       res.status(500).json({
         error: 'Internal Server Error',
         message: 'Service unavailable',
         timestamp: new Date().toISOString(),
       });
-    };
-  });
+    }
+  };
   
 } else {
-  // Démarrer en mode local ou production standard
-  bootstrap().catch((error) => {
-    // Masquer les erreurs détaillées en production
-    if (process.env.NODE_ENV === 'production') {
-      console.error('Erreur de démarrage');
-    } else {
-      console.error('Erreur de démarrage local:', error.message);
+  // Démarrer en mode local
+  (async () => {
+    try {
+      const app = await initializeApp();
+      const port = process.env.PORT || 10000;
+      const host = process.env.HOST || '0.0.0.0';
+      
+      const server = (app as any).listen(port, host);
+      console.log(`🚀 Serveur démarré sur http://${host}:${port}`);
+    } catch (error) {
+      console.error('Erreur de démarrage local:', error);
+      process.exit(1);
     }
-    process.exit(1);
-  });
+  })();
 }
