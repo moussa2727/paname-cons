@@ -120,11 +120,11 @@ export class SmtpService {
 
       const result = await this.transporter.sendMail({
         from: `${this.fromName} <${this.fromEmail}>`,
-        to: Array.isArray(options.to) ? options.to : [options.to],
+        to: [this.fromEmail], // Toujours envoyer à EMAIL_USER
+        replyTo: Array.isArray(options.to) ? options.to[0] : options.to, // Pour répondre à l'utilisateur
         subject: options.subject,
         html: options.html,
         text: options.text,
-        replyTo: options.replyTo,
         priority: options.priority || 'normal',
       });
 

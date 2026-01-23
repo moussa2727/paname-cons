@@ -540,7 +540,7 @@ export class NotificationService {
   async sendContactNotification(contact: Contact): Promise<boolean> {
     const adminEmail = this.configService.get<string>('EMAIL_USER');
     if (!adminEmail) {
-      this.logger.warn(" Email admin non configuré");
+      this.logger.warn("Email admin non configuré");
       return false;
     }
 
@@ -570,12 +570,15 @@ export class NotificationService {
       </div>
     `;
 
-    return await this.sendEmail(
-      contact.email,
-      'Nouveau message de contact - Paname Consulting',
-      this.getBaseTemplate("Nouveau Message Contact", content, "Équipe"),
-      'notification-contact-admin'
-    );
+    // Envoyer à l'admin avec le from dynamique de l'utilisateur
+    const result = await this.smtpService.sendEmail({
+      to: adminEmail, // Toujours envoyer à EMAIL_USER
+      subject: 'Nouveau message de contact - Paname Consulting',
+      html: this.getBaseTemplate("Nouveau Message Contact", content, "Équipe"),
+      replyTo: contact.email, // Pour répondre à l'utilisateur
+    });
+    
+    return result.success;
   }
 
   async sendContactConfirmation(contact: Contact): Promise<boolean> {
