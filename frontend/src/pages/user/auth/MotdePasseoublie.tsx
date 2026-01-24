@@ -1,12 +1,13 @@
 import { Helmet } from 'react-helmet-async';
-import Login from '../components/auth/Login';
+import ForgotPassword from '../../../components/auth/ForgotPassword';
 import React from 'react';
 
-const Connexion = () => {
-  const pageTitle = 'Connexion à votre compte - PANAME CONSULTING';
+const MotdePasseOubliePage = () => {
+  const pageTitle = 'Mot de passe oublié - PANAME CONSULTING';
   const pageDescription =
-    "Accédez à votre espace personnel pour gérer votre dossier d'études à l'étranger avec Paname Consulting";
-  const canonicalUrl = 'https://panameconsulting.com/connexion';
+    'Réinitialisez votre mot de passe pour accéder à votre espace Paname Consulting.';
+  const canonicalUrl =
+    'https://panameconsulting.vercel.app/mot-de-passe-oublie';
 
   return (
     <>
@@ -63,11 +64,11 @@ const Connexion = () => {
         <meta name='theme-color' content='#0369a1' />
       </Helmet>
 
-      <main className='min-h-screen flex flex-col'>
-        <Login />
+      <main className='min-h-screen bg-gray-50 flex flex-col'>
+        <ForgotPassword />
       </main>
     </>
   );
 };
 
-export default React.memo(Connexion);
+export default React.memo(MotdePasseOubliePage);

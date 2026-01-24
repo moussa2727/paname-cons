@@ -25,11 +25,14 @@ import Propos from './pages/Propos';
 import Services from './pages/Services';
 import NotFound from './pages/Notfound';
 import RendezVous from './pages/user/rendezvous/RendezVous';
+import PolitiqueConfidentialite from './pages/politiques/PolitiqueConfidentialite';
+import ConditionsGenerales from './pages/politiques/ConditionsGenerales';
+import MentionsLegales from './pages/politiques/MentionsLegales';
 
 // Pages de connexion, inscription, mot de passe oublié
-import Connexion from './pages/Connexion';
-import Inscription from './pages/Inscription';
-import MotdePasseoublie from './pages/MotdePasseoublie';
+import Connexion from './pages/user/auth/Connexion';
+import Inscription from './pages/user/auth/Inscription';
+import MotdePasseoublie from './pages/user/auth/MotdePasseoublie';
 
 // Pages admin (lazy loaded)
 const UsersManagement = lazy(() => import('./pages/admin/UsersManagement'));
@@ -236,6 +239,33 @@ function App() {
               <PublicLayout>
                 <Propos />
               </PublicLayout>
+            }
+          />
+
+          <Route
+            path='/politique-de-confidentialite'
+            element={
+              <MinimalLayout>
+                <PolitiqueConfidentialite />
+              </MinimalLayout>
+            }
+          />
+
+          <Route
+            path='/conditions-generales'
+            element={
+              <MinimalLayout>
+                <ConditionsGenerales />
+              </MinimalLayout>
+            }
+          />
+
+          <Route
+            path='/mentions-legales'
+            element={
+              <MinimalLayout>
+                <MentionsLegales />
+              </MinimalLayout>
             }
           />
 

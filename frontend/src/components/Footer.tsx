@@ -13,7 +13,6 @@ const FaTiktok = () => (
 
 import { SiWhatsapp } from 'react-icons/si';
 import { Link } from 'react-router-dom';
-// AOS is now initialized globally in App.tsx
 
 export default function Footer() {
   return (

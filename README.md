@@ -11,6 +11,7 @@
 - [Configuration](#configuration)
 - [Démarrage](#démarrage)
 - [Documentation](#documentation)
+- [Pages Légales](#pages-légales)
 - [Support](#support)
 
 ---
@@ -22,6 +23,8 @@ Paname Consulting est une plateforme complète permettant aux utilisateurs de :
 - 📋 Gérer leurs procédures administratives
 - 💬 Contacter l'équipe via des formulaires de contact
 - 👤 Gérer leur profil et préférences
+- 🌍 Accéder à des services d'orientation académique internationale
+- 📄 Consulter les documents légaux et politiques
 
 ### Caractéristiques principales
 
@@ -32,6 +35,9 @@ Paname Consulting est une plateforme complète permettant aux utilisateurs de :
 - ✅ Mode maintenance configurable
 - ✅ API REST documentée
 - ✅ Interface responsive (mobile-first)
+- ✅ Pages légales conformes (RGPD)
+- ✅ SEO optimisé avec meta tags
+- ✅ Système de routage avancé
 
 ---
 
@@ -48,6 +54,7 @@ panameconsulting/
 │   │   ├── contact/        # Formulaires de contact
 │   │   ├── procedures/     # Procédures
 │   │   ├── rendezvous/     # Rendez-vous
+│   │   ├── destination/    # Destinations d'études
 │   │   ├── config/         # Configuration (SMTP, Logger)
 │   │   └── shared/         # Utilitaires partagés
 │   ├── .env                # Variables d'environnement
@@ -57,8 +64,12 @@ panameconsulting/
 ├── frontend/                # Application React/TypeScript
 │   ├── src/
 │   │   ├── pages/          # Pages principales
+│   │   │   ├── admin/      # Dashboard admin
+│   │   │   ├── user/       # Pages utilisateur
+│   │   │   ├── politiques/ # Pages légales
+│   │   │   └── ...         # Autres pages publiques
 │   │   ├── components/     # Composants réutilisables
-│   │   ├── context/        # Context API
+│   │   ├── context/        # Context API (Auth)
 │   │   ├── api/            # Appels API
 │   │   └── assets/         # Images/ressources
 │   ├── .env                # Variables d'environnement
@@ -75,18 +86,66 @@ panameconsulting/
 - Nodemailer (SMTP)
 - JWT (Authentification)
 - Bcrypt (Hachage mots de passe)
+- Logs centralisés
 
 **Frontend:**
-- React 18+
-- TypeScript
-- Tailwind CSS
-- Vite
-- Axios
-- Context API
+- React 19+ avec TypeScript
+- Tailwind CSS 4.1.18
+- Vite 7.3.0
+- Axios 1.13.2
+- React Router DOM 7.11.0
+- React Helmet Async (SEO)
+- Framer Motion (Animations)
+- AOS (Animations on scroll)
+- Context API (Gestion d'état)
 
 **DevOps:**
 - Docker & Docker Compose
 - Git/GitHub
+- Vercel (Déploiement)
+
+---
+
+## Pages Légales
+
+L'application inclut des pages légales complètes et conformes :
+
+### 📄 Pages disponibles
+
+1. **Politique de Confidentialité** (`/politique-de-confidentialite`)
+   - Protection des données personnelles
+   - Conformité RGPD
+   - Droits des utilisateurs
+   - Gestion des cookies
+
+2. **Conditions Générales d'Utilisation** (`/conditions-generales`)
+   - CGU complètes
+   - Obligations des parties
+   - Services proposés
+   - Gestion des litiges
+
+3. **Mentions Légales** (`/mentions-legales`)
+   - Informations éditeur
+   - Hébergeur (Vercel)
+   - Propriété intellectuelle
+   - Contact légal
+
+### 🎨 Caractéristiques
+
+- **Design cohérent** : Thème sky-50/sky-100 identique au reste du site
+- **Sans Header/Footer** : Layout minimal pour lecture optimale
+- **SEO optimisé** : Meta tags `noindex, nofollow` appropriés
+- **Responsive** : Adapté mobile/desktop
+- **Accessibilité** : Structure sémantique HTML5
+
+### 📝 Contenu
+
+Les pages incluent :
+- Informations légales complètes
+- Coordonnées de l'entreprise
+- Politiques de protection des données
+- Conditions d'utilisation des services
+- Mentions obligatoires (hébergeur, éditeur)
 
 ---
 
@@ -228,8 +287,12 @@ npm run dev
 
 - **API Backend** : http://localhost:10000
 - **Frontend** : http://localhost:5173
-- **Admin Dashboard** : http://localhost:5173/admin
+- **Admin Dashboard** : http://localhost:5173/gestionnaire/statistiques
 - **API Docs** : http://localhost:10000/api
+- **Pages légales** :
+  - Politique de confidentialité : http://localhost:5173/politique-de-confidentialite
+  - Conditions générales : http://localhost:5173/conditions-generales
+  - Mentions légales : http://localhost:5173/mentions-legales
 
 ---
 
@@ -270,6 +333,15 @@ Gérable depuis le tableau de bord admin :
 - Logs dans les fichiers centralisés
 - Accessible pour les admins uniquement
 
+#### Pages Légales
+
+Conformité légale complète :
+- Politique de confidentialité RGPD
+- Conditions générales d'utilisation
+- Mentions légales complètes
+- SEO optimisé avec meta tags
+- Layout minimal pour lecture optimale
+
 ---
 
 ## Structure des répertoires
@@ -284,6 +356,7 @@ backend/
 │   ├── contact/           # Formulaires contact
 │   ├── procedures/        # Procédures
 │   ├── rendezvous/        # Rendez-vous
+│   ├── destination/       # Destinations d'études
 │   ├── config/
 │   │   ├── smtp.service.ts      # Service email SMTP
 │   │   └── logger.service.ts    # Service logging
@@ -305,11 +378,16 @@ frontend/
 ├── src/
 │   ├── pages/            # Pages principales
 │   │   ├── admin/        # Dashboard admin
+│   │   ├── user/         # Pages utilisateur
+│   │   ├── politiques/   # Pages légales
 │   │   ├── auth/         # Login, Register
-│   │   └── ...
+│   │   └── ...           # Autres pages publiques
 │   ├── components/       # Composants réutilisables
+│   │   ├── Header.tsx    # Navigation principale
+│   │   ├── Footer.tsx    # Pied de page avec liens légaux
+│   │   └── ...           # Autres composants
 │   ├── context/          # Context API (Auth)
-│   ├── api/              # Services API
+│   ├── api/              # Appels API
 │   ├── styles/           # Global styles
 │   └── main.tsx          # Point d'entrée
 ├── .env                  # Variables d'environnement
@@ -374,6 +452,13 @@ npm run build
 # Servir le dossier dist/
 ```
 
+### Déploiement sur Vercel
+
+Le frontend est configuré pour Vercel :
+- Build automatique via GitHub
+- Variables d'environnement configurées
+- Domaine personnalisé : `panameconsulting.vercel.app`
+
 ---
 
 ## Troubleshooting
@@ -400,6 +485,11 @@ npm run build
 - ✅ Vérifier permissions d'écriture
 - ✅ Redémarrer le backend
 
+**Pages légales non accessibles**
+- ✅ Vérifier les routes dans `App.tsx`
+- ✅ Vérifier les imports des composants
+- ✅ Consulter la console pour erreurs JavaScript
+
 ---
 
 ## Support
@@ -410,10 +500,16 @@ npm run build
 - ⚛️ [Documentation React](https://react.dev)
 - 🎨 [Documentation Tailwind](https://tailwindcss.com/docs)
 - 🐳 [Documentation Docker](https://docs.docker.com)
+- 🌐 [Documentation Vercel](https://vercel.com/docs)
 
 ### Contact
 
 Pour les questions ou bugs, créez une issue sur GitHub.
+
+**Paname Consulting**
+- 📧 Email : panameconsulting906@gmail.com
+- 📞 Téléphone : +223 91 83 09 41
+- 📍 Adresse : Kalaban Coura, Imm.Bore en face de l'hôtel Wassulu, Bamako, Mali
 
 ---
 

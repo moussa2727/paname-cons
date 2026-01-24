@@ -41,7 +41,7 @@ const partners = [
     image: '/universitechiongqing.png',
     link: 'https://english.cqu.edu.cn/',
     description: 'Université prestigieuse classée parmi les meilleures institutions de recherche en Chine.',
-    category: 'RECHERCHE & INNOVATION',
+    category: 'MULTI-FORMATION',
     since: '2025',
   },
   {
@@ -51,7 +51,7 @@ const partners = [
     image: '/hecf.webp',
     link: 'https://hecf.ac.ma/',
     description: 'HECF Fès, institut international de formation avec des programmes innovants.',
-    category: 'RECHERCHE & INNOVATION',
+    category: 'COMPTABILITES & FINANCES',
     since: '2026',
   },
   {
@@ -60,8 +60,8 @@ const partners = [
     location: 'Fès, Maroc',
     image: '/supmanagement.webp',
     link: 'https://www.supmanagement.ma/',
-    description: 'Sup\'Management, école de management internationale innovante.',
-    category: 'RECHERCHE & INNOVATION',
+    description: 'Sup\'Management, école de management et d\'informatique internationale.',
+    category: 'MANAGEMENT & INFORMATIQUE',
     since: '2026',
   },
   {
@@ -71,8 +71,7 @@ const partners = [
     image: '/francesucces.webp',
     link: 'https://universfrancesucces.com/',
     description: 'Organisme d\'accompagnement international pour études en France et Afrique.',
-    category: 'RECHERCHE & INNOVATION',
-    since: '2026',
+    category: 'ACCOMPAGNEMENT'
   },
   {
     id: 8,
@@ -81,7 +80,7 @@ const partners = [
     image: '/inted.webp',
     link: 'https://www.intedgroup.com/',
     description: 'Groupe international de formation basé à Paris avec programmes innovants.',
-    category: 'RECHERCHE & INNOVATION',
+    category: 'MULTI-FORMATION',
     since: '2025',
   }
 ];

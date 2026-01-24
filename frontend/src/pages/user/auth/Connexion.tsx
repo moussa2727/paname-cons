@@ -1,12 +1,12 @@
-import React from 'react';
 import { Helmet } from 'react-helmet-async';
-import Register from '../components/auth/Register';
+import Login from '../../../components/auth/Login';
+import React from 'react';
 
-const Inscription = () => {
-  const pageTitle = 'Créer un compte - PANAME CONSULTING';
+const Connexion = () => {
+  const pageTitle = 'Connexion à votre compte - PANAME CONSULTING';
   const pageDescription =
-    'Inscrivez-vous pour démarrer votre projet d’études à l’étranger avec Paname Consulting.';
-  const canonicalUrl = 'https://panameconsulting.com/inscription';
+    "Accédez à votre espace personnel pour gérer votre dossier d'études à l'étranger avec Paname Consulting";
+  const canonicalUrl = 'https://panameconsulting.com/connexion';
 
   return (
     <>
@@ -27,7 +27,7 @@ const Inscription = () => {
         <meta property='og:type' content='website' />
         <meta
           property='og:image'
-          content='https://panameconsulting.com/paname-consulting.jpg'
+          content='https://panameconsulting.vercel.app/paname-consulting.jpg'
         />
         <meta property='og:image:alt' content='Logo Paname Consulting' />
 
@@ -37,7 +37,7 @@ const Inscription = () => {
         <meta name='twitter:description' content={pageDescription} />
         <meta
           name='twitter:image'
-          content='https://panameconsulting.com/paname-consulting.jpg'
+          content='https://panameconsulting.vercel.app/paname-consulting.jpg'
         />
 
         {/* Favicon et icônes */}
@@ -59,15 +59,15 @@ const Inscription = () => {
           sizes='16x16'
           href='/paname-consulting.png'
         />
-        <link rel='manifest' href='/paname-consulting-site.webmanifest' />
+        <link rel='manifest' href='/manifest.json' />
         <meta name='theme-color' content='#0369a1' />
       </Helmet>
 
-      <main className='min-h-screen bg-gray-50 flex flex-col'>
-        <Register />
+      <main className='min-h-screen flex flex-col'>
+        <Login />
       </main>
     </>
   );
 };
 
-export default React.memo(Inscription);
+export default React.memo(Connexion);

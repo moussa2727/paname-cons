@@ -1,13 +1,12 @@
-import { Helmet } from 'react-helmet-async';
-import ForgotPassword from '../components/auth/ForgotPassword';
 import React from 'react';
+import { Helmet } from 'react-helmet-async';
+import Register from '../../../components/auth/Register';
 
-const MotdePasseOubliePage = () => {
-  const pageTitle = 'Mot de passe oublié - PANAME CONSULTING';
+const Inscription = () => {
+  const pageTitle = 'Créer un compte - PANAME CONSULTING';
   const pageDescription =
-    'Réinitialisez votre mot de passe pour accéder à votre espace Paname Consulting.';
-  const canonicalUrl =
-    'https://panameconsulting.vercel.app/mot-de-passe-oublie';
+    'Inscrivez-vous pour démarrer votre projet d’études à l’étranger avec Paname Consulting.';
+  const canonicalUrl = 'https://panameconsulting.com/inscription';
 
   return (
     <>
@@ -28,7 +27,7 @@ const MotdePasseOubliePage = () => {
         <meta property='og:type' content='website' />
         <meta
           property='og:image'
-          content='https://panameconsulting.vercel.app/paname-consulting.jpg'
+          content='https://panameconsulting.com/paname-consulting.jpg'
         />
         <meta property='og:image:alt' content='Logo Paname Consulting' />
 
@@ -38,7 +37,7 @@ const MotdePasseOubliePage = () => {
         <meta name='twitter:description' content={pageDescription} />
         <meta
           name='twitter:image'
-          content='https://panameconsulting.vercel.app/paname-consulting.jpg'
+          content='https://panameconsulting.com/paname-consulting.jpg'
         />
 
         {/* Favicon et icônes */}
@@ -60,15 +59,15 @@ const MotdePasseOubliePage = () => {
           sizes='16x16'
           href='/paname-consulting.png'
         />
-        <link rel='manifest' href='/manifest.json' />
+        <link rel='manifest' href='/paname-consulting-site.webmanifest' />
         <meta name='theme-color' content='#0369a1' />
       </Helmet>
 
       <main className='min-h-screen bg-gray-50 flex flex-col'>
-        <ForgotPassword />
+        <Register />
       </main>
     </>
   );
 };
 
-export default React.memo(MotdePasseOubliePage);
+export default React.memo(Inscription);
