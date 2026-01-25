@@ -8,7 +8,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import {
   Procedure,
   ProcedureStatus,
@@ -38,16 +38,22 @@ export class ProcedureService {
   constructor(
     @InjectModel(Procedure.name) private procedureModel: Model<Procedure>,
     @InjectModel(Rendezvous.name) private rendezvousModel: Model<Rendezvous>,
-    private notificationService: NotificationService,
+    private notificationService: NotificationService
   ) {}
 
   // ==================== CORE METHODS ====================
 
-  async createFromRendezvous(createDto: CreateProcedureDto): Promise<Procedure> {
+  async createFromRendezvous(
+    createDto: CreateProcedureDto
+  ): Promise<Procedure> {
     const maskedRendezvousId = this.maskId(createDto.rendezVousId);
-    this.logger.log(`Création procédure depuis rendez-vous: ${maskedRendezvousId}`);
+    this.logger.log(
+      `Création procédure depuis rendez-vous: ${maskedRendezvousId}`
+    );
 
-    const rendezvous = await this.rendezvousModel.findById(createDto.rendezVousId);
+    const rendezvous = await this.rendezvousModel.findById(
+      createDto.rendezVousId
+    );
     if (!rendezvous) throw new BadRequestException('Rendez-vous non trouvé');
 
     // Validation stricte
@@ -62,7 +68,8 @@ export class ProcedureService {
       rendezVousId: createDto.rendezVousId,
       isDeleted: false,
     });
-    if (existingProcedure) throw new BadRequestException('Une procédure existe déjà');
+    if (existingProcedure)
+      throw new BadRequestException('Une procédure existe déjà');
 
     const procedureData = {
       rendezVousId: rendezvous._id,
@@ -90,7 +97,10 @@ export class ProcedureService {
     return procedure;
   }
 
-  async getProcedureDetails(id: string, user: AuthenticatedUser): Promise<Procedure> {
+  async getProcedureDetails(
+    id: string,
+    user: AuthenticatedUser
+  ): Promise<Procedure> {
     const maskedId = this.maskId(id);
     this.logger.debug(`Récupération détails procédure: ${maskedId}`);
 
@@ -103,14 +113,19 @@ export class ProcedureService {
         _id: id,
         isDeleted: false,
       })
-      .populate('rendezVousId', 'firstName lastName date time status avisAdmin');
+      .populate(
+        'rendezVousId',
+        'firstName lastName date time status avisAdmin'
+      );
 
     if (!procedure) throw new NotFoundException('Procédure non trouvée');
 
     // Vérification d'accès
     if (procedure.email !== user.email && user.role !== UserRole.ADMIN) {
       const maskedEmail = this.maskEmail(user.email);
-      this.logger.warn(`Tentative accès non autorisé procédure ${maskedId} par: ${maskedEmail}`);
+      this.logger.warn(
+        `Tentative accès non autorisé procédure ${maskedId} par: ${maskedEmail}`
+      );
       throw new ForbiddenException('Accès non autorisé');
     }
 
@@ -118,14 +133,17 @@ export class ProcedureService {
     return procedure;
   }
 
-  async updateProcedure(id: string, updateDto: UpdateProcedureDto): Promise<Procedure> {
+  async updateProcedure(
+    id: string,
+    updateDto: UpdateProcedureDto
+  ): Promise<Procedure> {
     const maskedId = this.maskId(id);
     this.logger.log(`Mise à jour procédure: ${maskedId}`);
 
     const procedure = await this.procedureModel.findByIdAndUpdate(
       id,
       { ...updateDto, dateDerniereModification: new Date() },
-      { new: true, runValidators: true },
+      { new: true, runValidators: true }
     );
 
     if (!procedure) throw new NotFoundException('Procédure non trouvée');
@@ -134,26 +152,32 @@ export class ProcedureService {
     return procedure;
   }
 
-  private validateStepOrder(procedure: Procedure, stepName: StepName, newStatus: StepStatus): void {
+  private validateStepOrder(
+    procedure: Procedure,
+    stepName: StepName,
+    newStatus: StepStatus
+  ): void {
     const steps = procedure.steps;
 
-    const currentStep = steps.find((s) => s.nom === stepName);
+    const currentStep = steps.find(s => s.nom === stepName);
     if (!currentStep) {
       throw new BadRequestException('Étape non trouvée dans la procédure');
     }
 
     if (
-      [StepStatus.COMPLETED, StepStatus.CANCELLED, StepStatus.REJECTED].includes(
-        currentStep.statut,
-      ) &&
+      [
+        StepStatus.COMPLETED,
+        StepStatus.CANCELLED,
+        StepStatus.REJECTED,
+      ].includes(currentStep.statut) &&
       currentStep.statut !== newStatus
     ) {
       throw new BadRequestException(
-        `Impossible de modifier une étape ${currentStep.statut.toLowerCase()}`,
+        `Impossible de modifier une étape ${currentStep.statut.toLowerCase()}`
       );
     }
 
-    const admissionStep = steps.find((s) => s.nom === StepName.DEMANDE_ADMISSION);
+    const admissionStep = steps.find(s => s.nom === StepName.DEMANDE_ADMISSION);
 
     if (
       admissionStep &&
@@ -161,18 +185,21 @@ export class ProcedureService {
     ) {
       if (newStatus !== admissionStep.statut) {
         throw new BadRequestException(
-          `Impossible de modifier une étape car l'admission est ${admissionStep.statut.toLowerCase()}`,
+          `Impossible de modifier une étape car l'admission est ${admissionStep.statut.toLowerCase()}`
         );
       }
     }
 
     if (stepName === StepName.PREPARATIF_VOYAGE) {
-      const visaStep = steps.find((s) => s.nom === StepName.DEMANDE_VISA);
+      const visaStep = steps.find(s => s.nom === StepName.DEMANDE_VISA);
 
-      if (visaStep && [StepStatus.REJECTED, StepStatus.CANCELLED].includes(visaStep.statut)) {
+      if (
+        visaStep &&
+        [StepStatus.REJECTED, StepStatus.CANCELLED].includes(visaStep.statut)
+      ) {
         if (newStatus !== visaStep.statut) {
           throw new BadRequestException(
-            `Impossible de modifier les préparatifs de voyage car la demande de visa est ${visaStep.statut.toLowerCase()}`,
+            `Impossible de modifier les préparatifs de voyage car la demande de visa est ${visaStep.statut.toLowerCase()}`
           );
         }
       }
@@ -180,10 +207,14 @@ export class ProcedureService {
 
     if (
       !admissionStep ||
-      ![StepStatus.REJECTED, StepStatus.CANCELLED].includes(admissionStep.statut)
+      ![StepStatus.REJECTED, StepStatus.CANCELLED].includes(
+        admissionStep.statut
+      )
     ) {
       if (stepName === StepName.DEMANDE_VISA) {
-        const admissionStep = steps.find((s) => s.nom === StepName.DEMANDE_ADMISSION);
+        const admissionStep = steps.find(
+          s => s.nom === StepName.DEMANDE_ADMISSION
+        );
 
         if (!admissionStep) {
           throw new BadRequestException("Étape d'admission non trouvée");
@@ -194,13 +225,13 @@ export class ProcedureService {
           admissionStep.statut !== StepStatus.COMPLETED
         ) {
           throw new BadRequestException(
-            "La demande d'admission doit être terminée avant de pouvoir modifier la demande de visa",
+            "La demande d'admission doit être terminée avant de pouvoir modifier la demande de visa"
           );
         }
       }
 
       if (stepName === StepName.PREPARATIF_VOYAGE) {
-        const visaStep = steps.find((s) => s.nom === StepName.DEMANDE_VISA);
+        const visaStep = steps.find(s => s.nom === StepName.DEMANDE_VISA);
 
         if (!visaStep) {
           throw new BadRequestException('Étape de demande de visa non trouvée');
@@ -211,37 +242,52 @@ export class ProcedureService {
           visaStep.statut !== StepStatus.COMPLETED
         ) {
           throw new BadRequestException(
-            'La demande de visa doit être terminée avant de pouvoir modifier les préparatifs de voyage',
+            'La demande de visa doit être terminée avant de pouvoir modifier les préparatifs de voyage'
           );
         }
       }
     }
 
     if (
-      [StepStatus.REJECTED, StepStatus.CANCELLED].includes(currentStep.statut) &&
-      [StepStatus.IN_PROGRESS, StepStatus.PENDING, StepStatus.COMPLETED].includes(newStatus)
+      [StepStatus.REJECTED, StepStatus.CANCELLED].includes(
+        currentStep.statut
+      ) &&
+      [
+        StepStatus.IN_PROGRESS,
+        StepStatus.PENDING,
+        StepStatus.COMPLETED,
+      ].includes(newStatus)
     ) {
       throw new BadRequestException(
-        `Impossible de reprendre une étape ${currentStep.statut.toLowerCase()}`,
+        `Impossible de reprendre une étape ${currentStep.statut.toLowerCase()}`
       );
     }
 
-    if (currentStep.statut === StepStatus.COMPLETED && newStatus !== StepStatus.COMPLETED) {
-      throw new BadRequestException("Impossible de modifier le statut d'une étape déjà terminée");
+    if (
+      currentStep.statut === StepStatus.COMPLETED &&
+      newStatus !== StepStatus.COMPLETED
+    ) {
+      throw new BadRequestException(
+        "Impossible de modifier le statut d'une étape déjà terminée"
+      );
     }
   }
 
   private applyCascadeRejection(procedure: Procedure): void {
     const steps = procedure.steps;
 
-    const admissionStep = steps.find((s) => s.nom === StepName.DEMANDE_ADMISSION);
+    const admissionStep = steps.find(s => s.nom === StepName.DEMANDE_ADMISSION);
     if (
       admissionStep &&
       [StepStatus.REJECTED, StepStatus.CANCELLED].includes(admissionStep.statut)
     ) {
-      const otherSteps = steps.filter((s) => s.nom !== StepName.DEMANDE_ADMISSION);
-      otherSteps.forEach((step) => {
-        if (![StepStatus.REJECTED, StepStatus.CANCELLED].includes(step.statut)) {
+      const otherSteps = steps.filter(
+        s => s.nom !== StepName.DEMANDE_ADMISSION
+      );
+      otherSteps.forEach(step => {
+        if (
+          ![StepStatus.REJECTED, StepStatus.CANCELLED].includes(step.statut)
+        ) {
           step.statut = admissionStep.statut;
           if (admissionStep.raisonRefus && !step.raisonRefus) {
             step.raisonRefus = admissionStep.raisonRefus;
@@ -252,8 +298,8 @@ export class ProcedureService {
       });
     }
 
-    const visaStep = steps.find((s) => s.nom === StepName.DEMANDE_VISA);
-    const voyageStep = steps.find((s) => s.nom === StepName.PREPARATIF_VOYAGE);
+    const visaStep = steps.find(s => s.nom === StepName.DEMANDE_VISA);
+    const voyageStep = steps.find(s => s.nom === StepName.PREPARATIF_VOYAGE);
 
     if (
       visaStep &&
@@ -270,11 +316,17 @@ export class ProcedureService {
     }
   }
 
-  async updateStep(id: string, stepName: string, updateDto: UpdateStepDto): Promise<Procedure> {
+  async updateStep(
+    id: string,
+    stepName: string,
+    updateDto: UpdateStepDto
+  ): Promise<Procedure> {
     const maskedId = this.maskId(id);
 
     try {
-      this.logger.log(`Mise à jour étape - Procédure: ${maskedId}, Étape: ${stepName}`);
+      this.logger.log(
+        `Mise à jour étape - Procédure: ${maskedId}, Étape: ${stepName}`
+      );
 
       let decodedStepName: string;
       try {
@@ -286,7 +338,9 @@ export class ProcedureService {
       const validStepNames = Object.values(StepName);
       if (!validStepNames.includes(decodedStepName as StepName)) {
         this.logger.error(`Nom d'étape invalide: "${decodedStepName}"`);
-        throw new BadRequestException(`Nom d'étape invalide: "${decodedStepName}"`);
+        throw new BadRequestException(
+          `Nom d'étape invalide: "${decodedStepName}"`
+        );
       }
 
       const procedure = await this.procedureModel.findById(id).exec();
@@ -295,10 +349,16 @@ export class ProcedureService {
         throw new NotFoundException('Procédure non trouvée');
       }
 
-      const stepIndex = procedure.steps.findIndex((step: Step) => step.nom === decodedStepName);
+      const stepIndex = procedure.steps.findIndex(
+        (step: Step) => step.nom === decodedStepName
+      );
       if (stepIndex === -1) {
-        this.logger.error(`Étape non trouvée: "${decodedStepName}" dans ${maskedId}`);
-        throw new NotFoundException(`Étape "${decodedStepName}" non trouvée dans cette procédure`);
+        this.logger.error(
+          `Étape non trouvée: "${decodedStepName}" dans ${maskedId}`
+        );
+        throw new NotFoundException(
+          `Étape "${decodedStepName}" non trouvée dans cette procédure`
+        );
       }
 
       // ==================== VALIDATION DE LA RAISON DE REFUS ====================
@@ -307,38 +367,51 @@ export class ProcedureService {
         (!updateDto.raisonRefus || updateDto.raisonRefus.trim() === '')
       ) {
         throw new BadRequestException(
-          'La raison du refus est obligatoire lorsque le statut est "Rejeté"',
+          'La raison du refus est obligatoire lorsque le statut est "Rejeté"'
         );
       }
       // ==================== FIN VALIDATION ====================
 
-      const admissionStep = procedure.steps.find((s) => s.nom === StepName.DEMANDE_ADMISSION);
+      const admissionStep = procedure.steps.find(
+        s => s.nom === StepName.DEMANDE_ADMISSION
+      );
 
       if (
         admissionStep &&
-        [StepStatus.REJECTED, StepStatus.CANCELLED].includes(admissionStep.statut)
+        [StepStatus.REJECTED, StepStatus.CANCELLED].includes(
+          admissionStep.statut
+        )
       ) {
         if (updateDto.statut && updateDto.statut !== admissionStep.statut) {
           throw new BadRequestException(
-            `Impossible de modifier l'étape "${decodedStepName}" car la demande d'admission est ${admissionStep.statut.toLowerCase()}`,
+            `Impossible de modifier l'étape "${decodedStepName}" car la demande d'admission est ${admissionStep.statut.toLowerCase()}`
           );
         }
       }
 
       if (decodedStepName === StepName.PREPARATIF_VOYAGE) {
-        const visaStep = procedure.steps.find((s) => s.nom === StepName.DEMANDE_VISA);
+        const visaStep = procedure.steps.find(
+          s => s.nom === StepName.DEMANDE_VISA
+        );
 
-        if (visaStep && [StepStatus.REJECTED, StepStatus.CANCELLED].includes(visaStep.statut)) {
+        if (
+          visaStep &&
+          [StepStatus.REJECTED, StepStatus.CANCELLED].includes(visaStep.statut)
+        ) {
           if (updateDto.statut && updateDto.statut !== visaStep.statut) {
             throw new BadRequestException(
-              `Impossible de modifier les préparatifs de voyage car la demande de visa est ${visaStep.statut.toLowerCase()}`,
+              `Impossible de modifier les préparatifs de voyage car la demande de visa est ${visaStep.statut.toLowerCase()}`
             );
           }
         }
       }
 
       if (updateDto.statut) {
-        this.validateStepOrder(procedure, decodedStepName as StepName, updateDto.statut);
+        this.validateStepOrder(
+          procedure,
+          decodedStepName as StepName,
+          updateDto.statut
+        );
       }
 
       const now = new Date();
@@ -347,13 +420,16 @@ export class ProcedureService {
 
       // CORRECTION: Gestion du type StepStatus avec valeur par défaut
       const currentStepStatus = existingStep.statut;
-      const newStepStatus = updateDto.statut !== undefined ? updateDto.statut : currentStepStatus;
+      const newStepStatus =
+        updateDto.statut !== undefined ? updateDto.statut : currentStepStatus;
 
       const updatedStep: Step = {
         nom: existingStep.nom,
         statut: newStepStatus,
         raisonRefus:
-          updateDto.raisonRefus !== undefined ? updateDto.raisonRefus : existingStep.raisonRefus,
+          updateDto.raisonRefus !== undefined
+            ? updateDto.raisonRefus
+            : existingStep.raisonRefus,
         dateCreation: existingStep.dateCreation,
         dateMaj: now,
       };
@@ -384,12 +460,16 @@ export class ProcedureService {
         [StepStatus.REJECTED, StepStatus.CANCELLED].includes(updateDto.statut)
       ) {
         const voyageStepIndex = procedure.steps.findIndex(
-          (s) => s.nom === StepName.PREPARATIF_VOYAGE,
+          s => s.nom === StepName.PREPARATIF_VOYAGE
         );
 
         if (voyageStepIndex !== -1) {
           const voyageStep = procedure.steps[voyageStepIndex];
-          if (![StepStatus.REJECTED, StepStatus.CANCELLED].includes(voyageStep.statut)) {
+          if (
+            ![StepStatus.REJECTED, StepStatus.CANCELLED].includes(
+              voyageStep.statut
+            )
+          ) {
             voyageStep.statut = updateDto.statut!;
             if (updateDto.raisonRefus && !voyageStep.raisonRefus) {
               voyageStep.raisonRefus = updateDto.raisonRefus;
@@ -412,7 +492,9 @@ export class ProcedureService {
       ) {
         const nextStep = procedure.steps[stepIndex + 1];
         if (nextStep.statut === StepStatus.PENDING) {
-          this.logger.log(`Activation étape suivante: ${nextStep.nom} pour ${maskedId}`);
+          this.logger.log(
+            `Activation étape suivante: ${nextStep.nom} pour ${maskedId}`
+          );
           nextStep.statut = StepStatus.IN_PROGRESS;
           nextStep.dateMaj = now;
           await procedure.save();
@@ -423,23 +505,28 @@ export class ProcedureService {
         await this.notificationService.sendProcedureUpdate(savedProcedure);
       } catch (notificationError: unknown) {
         this.logger.warn(
-          `Erreur notification procédure ${maskedId}: ${this.getErrorMessage(notificationError)}`,
+          `Erreur notification procédure ${maskedId}: ${this.getErrorMessage(notificationError)}`
         );
       }
 
-      this.logger.log(`Étape mise à jour avec succès: ${stepName} pour ${maskedId}`);
+      this.logger.log(
+        `Étape mise à jour avec succès: ${stepName} pour ${maskedId}`
+      );
       return savedProcedure;
     } catch (error: unknown) {
       this.logger.error(
-        `Erreur mise à jour étape "${stepName}" pour ${maskedId}: ${this.getErrorMessage(error)}`,
+        `Erreur mise à jour étape "${stepName}" pour ${maskedId}: ${this.getErrorMessage(error)}`
       );
 
-      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
         throw error;
       }
 
       throw new InternalServerErrorException(
-        `Erreur lors de la mise à jour de l'étape: ${this.getErrorMessage(error)}`,
+        `Erreur lors de la mise à jour de l'étape: ${this.getErrorMessage(error)}`
       );
     }
   }
@@ -457,7 +544,10 @@ export class ProcedureService {
         email: email.toLowerCase(),
         isDeleted: false,
       })
-      .populate('rendezVousId', 'firstName lastName date time status avisAdmin');
+      .populate(
+        'rendezVousId',
+        'firstName lastName date time status avisAdmin'
+      );
   }
 
   private updateProcedureGlobalStatus(procedure: Procedure): void {
@@ -467,13 +557,17 @@ export class ProcedureService {
     }
 
     const allCompleted = procedure.steps.every(
-      (step: Step) => step.statut === StepStatus.COMPLETED,
+      (step: Step) => step.statut === StepStatus.COMPLETED
     );
-    const anyRejected = procedure.steps.some((step: Step) => step.statut === StepStatus.REJECTED);
-    const anyCancelled = procedure.steps.some((step: Step) => step.statut === StepStatus.CANCELLED);
+    const anyRejected = procedure.steps.some(
+      (step: Step) => step.statut === StepStatus.REJECTED
+    );
+    const anyCancelled = procedure.steps.some(
+      (step: Step) => step.statut === StepStatus.CANCELLED
+    );
 
     const admissionStep = procedure.steps.find(
-      (step: Step) => step.nom === StepName.DEMANDE_ADMISSION,
+      (step: Step) => step.nom === StepName.DEMANDE_ADMISSION
     );
 
     if (
@@ -503,7 +597,7 @@ export class ProcedureService {
     if (anyRejected) {
       procedure.statut = ProcedureStatus.REJECTED;
       const rejectedStep = procedure.steps.find(
-        (step: Step) => step.statut === StepStatus.REJECTED,
+        (step: Step) => step.statut === StepStatus.REJECTED
       );
       procedure.raisonRejet = rejectedStep?.raisonRefus || undefined;
     } else if (anyCancelled) {
@@ -519,7 +613,9 @@ export class ProcedureService {
   // ==================== USER METHODS ====================
   async getUserProcedures(email: string, page: number = 1, limit: number = 10) {
     const maskedEmail = this.maskEmail(email);
-    this.logger.debug(`Liste procédures utilisateur: ${maskedEmail}, Page: ${page}`);
+    this.logger.debug(
+      `Liste procédures utilisateur: ${maskedEmail}, Page: ${page}`
+    );
 
     const skip = (page - 1) * limit;
     // RETIRER le filtre isDeleted: false pour voir les procédures annulées
@@ -529,7 +625,7 @@ export class ProcedureService {
       this.procedureModel
         .find(query)
         .select(
-          'prenom nom email telephone destination destinationAutre filiere filiereAutre niveauEtude statut steps createdAt rendezVousId',
+          'prenom nom email telephone destination destinationAutre filiere filiereAutre niveauEtude statut steps createdAt rendezVousId'
         )
         .populate('rendezVousId', 'firstName lastName date time status')
         .skip(skip)
@@ -538,7 +634,9 @@ export class ProcedureService {
       this.procedureModel.countDocuments(query),
     ]);
 
-    this.logger.debug(`Procédures trouvées: ${data.length} pour ${maskedEmail}`);
+    this.logger.debug(
+      `Procédures trouvées: ${data.length} pour ${maskedEmail}`
+    );
 
     return {
       data,
@@ -549,7 +647,11 @@ export class ProcedureService {
     };
   }
 
-  async cancelProcedure(id: string, userEmail: string, reason?: string): Promise<Procedure> {
+  async cancelProcedure(
+    id: string,
+    userEmail: string,
+    reason?: string
+  ): Promise<Procedure> {
     const maskedId = this.maskId(id);
     const maskedEmail = this.maskEmail(userEmail);
 
@@ -559,20 +661,30 @@ export class ProcedureService {
     if (!procedure) throw new NotFoundException('Procédure non trouvée');
 
     if (procedure.email !== userEmail.toLowerCase()) {
-      this.logger.warn(`Tentative annulation non autorisée: ${maskedId} par: ${maskedEmail}`);
-      throw new ForbiddenException('Vous ne pouvez annuler que vos propres procédures');
+      this.logger.warn(
+        `Tentative annulation non autorisée: ${maskedId} par: ${maskedEmail}`
+      );
+      throw new ForbiddenException(
+        'Vous ne pouvez annuler que vos propres procédures'
+      );
     }
 
-    if ([ProcedureStatus.COMPLETED, ProcedureStatus.CANCELLED, ProcedureStatus.REJECTED].includes(procedure.statut)) {
+    if (
+      [
+        ProcedureStatus.COMPLETED,
+        ProcedureStatus.CANCELLED,
+        ProcedureStatus.REJECTED,
+      ].includes(procedure.statut)
+    ) {
       throw new BadRequestException('Procédure déjà finalisée');
     }
 
     // CORRECTION: Ne pas mettre isDeleted: true, seulement changer le statut
     procedure.statut = ProcedureStatus.CANCELLED;
     procedure.raisonRejet = reason || "Annulée par l'utilisateur";
-    
+
     // Mettre à jour toutes les étapes
-    procedure.steps.forEach((step) => {
+    procedure.steps.forEach(step => {
       if ([StepStatus.IN_PROGRESS, StepStatus.PENDING].includes(step.statut)) {
         step.statut = StepStatus.CANCELLED;
         step.raisonRefus = reason || "Annulée par l'utilisateur";
@@ -595,8 +707,14 @@ export class ProcedureService {
 
   // ==================== ADMIN METHODS ====================
 
-  async getActiveProcedures(page: number = 1, limit: number = 10, email?: string) {
-    this.logger.debug(`Liste procédures actives - Page: ${page}, Limit: ${limit}`);
+  async getActiveProcedures(
+    page: number = 1,
+    limit: number = 10,
+    email?: string
+  ) {
+    this.logger.debug(
+      `Liste procédures actives - Page: ${page}, Limit: ${limit}`
+    );
 
     const skip = (page - 1) * limit;
     //  RETIRER le filtre isDeleted: false pour voir toutes les procédures
@@ -611,7 +729,7 @@ export class ProcedureService {
       this.procedureModel
         .find(query)
         .select(
-          'prenom nom email telephone destination destinationAutre filiere filiereAutre niveauEtude statut steps createdAt',
+          'prenom nom email telephone destination destinationAutre filiere filiereAutre niveauEtude statut steps createdAt'
         )
         .skip(skip)
         .limit(limit)
@@ -641,7 +759,7 @@ export class ProcedureService {
     procedure.statut = ProcedureStatus.CANCELLED;
     procedure.raisonRejet = reason || "Annulée par l'administrateur";
 
-    procedure.steps.forEach((step) => {
+    procedure.steps.forEach(step => {
       if ([StepStatus.IN_PROGRESS, StepStatus.PENDING].includes(step.statut)) {
         step.statut = StepStatus.CANCELLED;
         step.raisonRefus = reason || "Annulée par l'administrateur";
@@ -710,11 +828,15 @@ export class ProcedureService {
     }
 
     if (reason.trim().length < 5) {
-      throw new BadRequestException('La raison doit contenir au moins 5 caractères');
+      throw new BadRequestException(
+        'La raison doit contenir au moins 5 caractères'
+      );
     }
 
     if (reason.length > 500) {
-      throw new BadRequestException('La raison ne doit pas dépasser 500 caractères');
+      throw new BadRequestException(
+        'La raison ne doit pas dépasser 500 caractères'
+      );
     }
     // ==================== FIN VALIDATION ====================
 
@@ -724,7 +846,7 @@ export class ProcedureService {
     procedure.statut = ProcedureStatus.REJECTED;
     procedure.raisonRejet = reason;
 
-    procedure.steps.forEach((step) => {
+    procedure.steps.forEach(step => {
       step.statut = StepStatus.REJECTED;
       step.raisonRefus = reason;
       step.dateMaj = new Date();

@@ -1,5 +1,3 @@
-/* eslint-disable no-undef */
-
 import React, { useState, useEffect } from 'react';
 import { FiAlertCircle, FiMail } from 'react-icons/fi';
 import { Eye as FiEye, EyeOff as FiEyeOff, Lock as FiLock } from 'lucide-react';

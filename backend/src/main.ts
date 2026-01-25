@@ -1,11 +1,11 @@
 /*
  * Paname Consulting API - Main Entry Point
- * Version unifiée pour développement local et Vercel Serverless
+ * Version optimisée pour Vercel Serverless et développement local
  */
 
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe, BadRequestException } from '@nestjs/common';
+import { ValidationPipe, BadRequestException, Logger } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import * as express from 'express';
@@ -14,8 +14,10 @@ import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import * as compression from 'compression';
 
-// Configuration pour détecter Vercel
-const isVercel = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+// Configuration pour détecter Vercel (méthode recommandée)
+const isVercel = process.env.VERCEL === '1';
+const isProduction = process.env.NODE_ENV === 'production';
+const logger = new Logger('Bootstrap');
 
 // Configuration CORS
 const allowedOrigins = [
@@ -28,272 +30,321 @@ const allowedOrigins = [
   'http://127.0.0.1:10000',
 ];
 
-// Variable pour cacher l'app initialisée (singleton)
+// Variables pour le cache (uniquement pour Vercel)
 let cachedApp: express.Application | null = null;
+let cachedNestApp: NestExpressApplication | null = null;
 let isInitializing = false;
-let initializationPromise: Promise<express.Application> | null = null;
 
-async function initializeApp(): Promise<express.Application> {
-  // Si l'app est déjà initialisée, la retourner
-  if (cachedApp) {
-    return cachedApp;
-  }
+async function bootstrapServer() {
+  try {
+    // Créer l'application Express
+    const expressApp = express();
 
-  // Si une initialisation est en cours, attendre qu'elle se termine
-  if (isInitializing && initializationPromise) {
-    return initializationPromise;
-  }
+    // ========== MIDDLEWARE GLOBAL ==========
 
-  isInitializing = true;
-  
-  initializationPromise = (async () => {
-    try {
-      // Créer l'application Express
-      const expressApp = express();
-      
-      // ========== MIDDLEWARE GLOBAL (pour toutes les requêtes) ==========
-      
-      // 1. CORS MIDDLEWARE - DOIT ÊTRE EN PREMIER
-      expressApp.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    // 1. CORS MIDDLEWARE - DOIT ÊTRE EN PREMIER
+    expressApp.use(
+      (
+        req: express.Request,
+        res: express.Response,
+        next: express.NextFunction
+      ) => {
         const origin = req.headers.origin;
-        
-        // Vérifier si l'origine est autorisée
+
         if (origin && allowedOrigins.includes(origin)) {
           res.setHeader('Access-Control-Allow-Origin', origin);
+        } else if (!origin && !isProduction) {
+          // Permettre les requêtes sans origin en dev
+          res.setHeader('Access-Control-Allow-Origin', '*');
         }
-        
-        // Toujours définir ces headers
+
         res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
-        res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization');
+        res.setHeader(
+          'Access-Control-Allow-Methods',
+          'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD'
+        );
+        res.setHeader(
+          'Access-Control-Allow-Headers',
+          'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin, X-API-Key'
+        );
+        res.setHeader(
+          'Access-Control-Expose-Headers',
+          'Set-Cookie, Authorization, X-API-Version'
+        );
         res.setHeader('Access-Control-Max-Age', '86400');
-        
-        // Gérer les préflight OPTIONS
+
         if (req.method === 'OPTIONS') {
-          res.status(204).end();
-          return;
+          return res.status(204).end();
         }
-        
+
         next();
-      });
-      
-      // 2. Body parsers
-      expressApp.use(express.json({ 
-        limit: '10mb',
-        verify: (req: any, _res: any, buf: Buffer, encoding: BufferEncoding) => {
-          try {
-            if (buf && buf.length) {
-              JSON.parse(buf.toString(encoding || 'utf8'));
-            }
-          } catch {
-            req.invalidJson = true;
-          }
-        }
-      }));
-      
-      expressApp.use(express.urlencoded({ 
-        extended: true, 
-        limit: '10mb',
-        parameterLimit: 1000,
-      }));
-      
-      // 3. Cookie parser avec configuration cross-domain
-      expressApp.use(cookieParser(process.env.COOKIE_SECRET));
-      
-      // Middleware pour configurer les cookies cross-domain
-      expressApp.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-        const origin = req.headers.origin;
-        
-        // Configuration des cookies pour cross-domain
-        if (origin && (origin.includes('panameconsulting.vercel.app') || origin.includes('paname-consulting.vercel.app'))) {
-          const originalCookie = res.cookie;
-          res.cookie = function(name: string, value: string, options?: any) {
-            const cookieOptions = {
-              ...options,
-              sameSite: 'none' as const,
-              secure: true,
-              httpOnly: true,
-              // Ne pas définir de domaine pour permettre aux deux domaines de fonctionner
-              // domain: undefined,
-            };
-            return originalCookie.call(this, name, value, cookieOptions);
-          };
-        }
-        
-        next();
-      });
-      
-      // 4. Compression (uniquement en local)
-      if (!isVercel) {
-        expressApp.use(compression());
       }
-      
-      // 5. Rate limiting
-      const limiter = rateLimit({
-        windowMs: 15 * 60 * 1000,
-        max: 1000,
-        message: {
-          status: 429,
-          message: 'Trop de requêtes depuis cette IP',
-          timestamp: new Date().toISOString(),
-        },
-        standardHeaders: true,
-        legacyHeaders: false,
-        skip: (req) => {
-          return req.path === '/';
-        },
-      });
-      
-      expressApp.use(limiter);
-      
-      // ========== CRÉATION DE L'APPLICATION NESTJS ==========
-      const app = await NestFactory.create<NestExpressApplication>(
-        AppModule,
-        new ExpressAdapter(expressApp),
-        {
-          logger: isVercel ? false : ['error', 'warn'],
-          abortOnError: false,
-        }
-      );
-      
-      // ========== CONFIGURATION NESTJS ==========
-      
-      // CORS dans NestJS (complémentaire) - AJOUT DE LA CONFIGURATION RECOMMANDÉE
-      app.enableCors({
-        origin: (origin, callback) => {
-          if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-          } else {
-            callback(null, false);
+    );
+
+    // 2. Body parsers avec validation JSON
+    expressApp.use(
+      express.json({
+        limit: '10mb',
+        verify: (
+          req: any,
+          res: express.Response,
+          buf: Buffer,
+          encoding: BufferEncoding
+        ) => {
+          if (buf && buf.length) {
+            try {
+              JSON.parse(buf.toString(encoding || 'utf8'));
+            } catch (e) {
+              if (!isVercel) {
+                logger.warn('Invalid JSON payload received');
+              }
+              // Marquer la requête comme ayant un JSON invalide
+              req.invalidJson = true;
+            }
           }
         },
-        credentials: true, // IMPORTANT: permet l'envoi des cookies
-        exposedHeaders: ['Set-Cookie'], // Expose les headers Set-Cookie
-        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie', 'X-Requested-With', 'Accept', 'Origin'],
-        maxAge: 86400,
-        optionsSuccessStatus: 204,
-        preflightContinue: false,
-      });
-      
-      // Helmet security
-      app.use(helmet({
-        contentSecurityPolicy: false, 
-        crossOriginResourcePolicy: { policy: "cross-origin" },
-        crossOriginEmbedderPolicy: false,
-      }));
-      
-      // Headers de sécurité additionnels
-      app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-        res.removeHeader('X-Powered-By');
-        res.header('X-Content-Type-Options', 'nosniff');
-        res.header('X-Frame-Options', 'DENY');
-        res.header('X-XSS-Protection', '1; mode=block');
-        res.header('Referrer-Policy', 'strict-origin-when-cross-origin');
-        
-        if (isVercel) {
-          res.header('Vercel-CDN-Cache-Control', 'public, max-age=0, must-revalidate');
+      })
+    );
+
+    expressApp.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+    // 3. Cookie parser (vérifier que COOKIE_SECRET existe en prod)
+    if (!process.env.COOKIE_SECRET && isProduction) {
+      logger.error(
+        'COOKIE_SECRET environment variable is required in production'
+      );
+      if (!isVercel) process.exit(1);
+    }
+    expressApp.use(cookieParser(process.env.COOKIE_SECRET));
+
+    // 4. Compression (éviter la double compression sur Vercel)
+    if (!isVercel) {
+      expressApp.use(compression());
+    }
+
+    // 5. Rate limiting (configuration différente pour Vercel)
+    const limiter = rateLimit({
+      windowMs: isVercel ? 60 * 1000 : 15 * 60 * 1000, // 1 min sur Vercel, 15 min en local
+      max: isVercel ? 100 : 1000, // Limite plus basse sur Vercel
+      standardHeaders: true,
+      legacyHeaders: false,
+      skipSuccessfulRequests: false,
+      message: {
+        status: 429,
+        message: 'Too many requests, please try again later.',
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    expressApp.use(limiter);
+
+    // ========== CRÉATION NESTJS ==========
+    const nestApp = await NestFactory.create<NestExpressApplication>(
+      AppModule,
+      new ExpressAdapter(expressApp),
+      {
+        logger: isVercel
+          ? ['error', 'warn'] // Sur Vercel, seulement erreurs et warnings
+          : ['log', 'error', 'warn', 'debug', 'verbose'], // Complet en local
+        abortOnError: false,
+      }
+    );
+
+    // ========== CONFIGURATION NESTJS ==========
+
+    // CORS configuration (en complément du middleware)
+    nestApp.enableCors({
+      origin: (origin, callback) => {
+        // En développement local, permettre toutes les origines
+        if (!isProduction) {
+          return callback(null, true);
         }
-        
+
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          if (!isVercel) {
+            logger.warn(`CORS blocked for origin: ${origin}`);
+          }
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+      credentials: true,
+      exposedHeaders: ['Set-Cookie', 'Authorization', 'X-API-Version'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'Cookie',
+        'Set-Cookie',
+        'X-Requested-With',
+        'Accept',
+        'Origin',
+        'X-API-Key',
+      ],
+      maxAge: 86400,
+    });
+
+    // Sécurité Helmet
+    nestApp.use(
+      helmet({
+        contentSecurityPolicy: isProduction,
+        crossOriginEmbedderPolicy: false,
+        crossOriginResourcePolicy: { policy: 'cross-origin' },
+      })
+    );
+
+    // Headers de sécurité supplémentaires
+    nestApp.use(
+      (
+        req: express.Request,
+        res: express.Response,
+        next: express.NextFunction
+      ) => {
+        res.removeHeader('X-Powered-By');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('X-Frame-Options', 'DENY');
+        res.setHeader('X-XSS-Protection', '1; mode=block');
+        res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+        if (isVercel) {
+          res.setHeader(
+            'Vercel-CDN-Cache-Control',
+            'public, max-age=0, must-revalidate'
+          );
+        }
+
         next();
-      });
-      
-      // Validation globale
-      app.useGlobalPipes(new ValidationPipe({
+      }
+    );
+
+    // Validation globale
+    nestApp.useGlobalPipes(
+      new ValidationPipe({
         transform: true,
         whitelist: true,
-        forbidNonWhitelisted: false,
+        forbidNonWhitelisted: true,
         transformOptions: {
           enableImplicitConversion: true,
         },
-        exceptionFactory: (errors) => {
+        exceptionFactory: errors => {
           const messages = errors.map(error => {
-            const constraints = error.constraints ? Object.values(error.constraints) : [];
+            const constraints = error.constraints
+              ? Object.values(error.constraints)
+              : ['Validation failed'];
             return `${error.property}: ${constraints.join(', ')}`;
           });
           return new BadRequestException({
+            statusCode: 400,
             message: 'Validation failed',
             errors: messages,
             timestamp: new Date().toISOString(),
           });
         },
-      }));
-      
-      app.setGlobalPrefix('api'); 
-      
-      // ========== INITIALISATION ==========
-      await app.init();
-      
-      // Mettre en cache l'app pour Vercel
-      if (isVercel) {
-        cachedApp = expressApp;
-      }
-      
-      isInitializing = false;
-      return expressApp;
-      
-    } catch (error) {
-      isInitializing = false;
-      initializationPromise = null;
-      throw error;
-    }
-  })();
-  
-  return initializationPromise;
+      })
+    );
+
+    // Préfixe global de l'API
+    nestApp.setGlobalPrefix('api', {
+      exclude: isVercel ? [] : ['/'], // Endpoint health en root sur Vercel
+    });
+
+    // Initialisation
+    await nestApp.init();
+
+    return { expressApp, nestApp };
+  } catch (error) {
+    logger.error('Failed to bootstrap server', error);
+    throw error;
+  }
 }
 
-// ========== POINT D'ENTRÉE ==========
+// ========== POINT D'ENTRÉE VERCEL ==========
 if (isVercel) {
-  // Pour Vercel: exporter un handler qui initialise l'app à la première requête
-  module.exports = async (req: express.Request, res: express.Response) => {
+  const handler = async (req: express.Request, res: express.Response) => {
     try {
-      const app = await initializeApp();
-      return app(req, res);
+      // Utiliser l'app en cache ou en créer une nouvelle
+      if (!cachedApp || !cachedNestApp) {
+        if (isInitializing) {
+          // Attendre si une initialisation est en cours
+          await new Promise(resolve => setTimeout(resolve, 100));
+          return handler(req, res);
+        }
+
+        isInitializing = true;
+        try {
+          const { expressApp, nestApp } = await bootstrapServer();
+          cachedApp = expressApp;
+          cachedNestApp = nestApp;
+          logger.log('Server initialized for Vercel');
+        } catch (error) {
+          logger.error('Initialization failed', error);
+          return res.status(500).json({
+            error: 'Initialization failed',
+            message: 'Server is temporarily unavailable',
+          });
+        } finally {
+          isInitializing = false;
+        }
+      }
+
+      // Exécuter la requête
+      return cachedApp!(req, res);
     } catch (error) {
-      console.error('Erreur d\'initialisation Vercel:', error);
-      
-      // En cas d'erreur, retourner une réponse appropriée
+      logger.error('Request handling failed', error);
+
       if (!res.headersSent) {
-        res.status(500).json({
+        return res.status(500).json({
           error: 'Internal Server Error',
-          message: 'Service initialization failed',
+          message: 'An unexpected error occurred',
           timestamp: new Date().toISOString(),
-          details: isVercel ? undefined : (error as Error).message,
+          ...(isProduction ? {} : { detail: error.message }),
         });
       }
     }
   };
-  
-  // Export par défaut pour Vercel
-  module.exports.default = module.exports;
-  
+
+  // Exporter le handler pour Vercel
+  module.exports = handler;
+  module.exports.default = handler;
 } else {
-  // Démarrer en mode local
+  // ========== DÉMARRAGE LOCAL ==========
   (async () => {
     try {
-      const expressApp = await initializeApp();
+      logger.log(' Starting local server...');
+
+      const { nestApp } = await bootstrapServer();
+
       const port = process.env.PORT || 10000;
       const host = process.env.HOST || '0.0.0.0';
-      
-      // En local, on utilise app.listen de NestJS
-      const httpAdapter = (expressApp as any).getHttpAdapter?.() || expressApp;
-      const server = httpAdapter.listen(port, host, () => {
-        console.log(`Serveur démarré sur http://${host}:${port}`);
-        console.log(`API disponible sur http://${host}:${port}/api`);
+
+      await nestApp.listen(port, host);
+
+      logger.log(` Server running on http://${host}:${port}`);
+      logger.log(` API available at http://${host}:${port}/api`);
+      logger.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
+
+      // Graceful shutdown
+      const gracefulShutdown = async (signal: string) => {
+        logger.log(` Received ${signal}, shutting down gracefully...`);
+        await nestApp.close();
+        logger.log(' Server closed');
+        process.exit(0);
+      };
+
+      process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+      process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+      // Error handlers
+      process.on('uncaughtException', error => {
+        logger.error('Uncaught Exception:', error);
       });
-      
-      // Gestion gracieuse de l'arrêt
-      process.on('SIGTERM', () => {
-        console.log('SIGTERM reçu, fermeture du serveur...');
-        server.close(() => {
-          console.log('Serveur fermé');
-          process.exit(0);
-        });
+
+      process.on('unhandledRejection', (reason, promise) => {
+        logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
       });
-      
     } catch (error) {
-      console.error('Erreur de démarrage local:', error);
+      logger.error('Failed to start local server', error);
       process.exit(1);
     }
   })();

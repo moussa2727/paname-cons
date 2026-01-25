@@ -89,8 +89,8 @@ importers:
         specifier: ^1.4.7
         version: 1.4.7
       date-holidays:
-        specifier: ^3.26.6
-        version: 3.26.6
+        specifier: ^3.26.7
+        version: 3.26.7
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
@@ -137,8 +137,8 @@ importers:
         specifier: ^6.0.14
         version: 6.0.14
       pnpm:
-        specifier: 10.28.0
-        version: 10.28.0
+        specifier: 10.28.1
+        version: 10.28.1
       redis:
         specifier: ^5.10.0
         version: 5.10.0
@@ -246,7 +246,7 @@ importers:
         specifier: ^5.5.5
         version: 5.5.5(@types/eslint@9.6.1)(eslint-config-prettier@10.1.8(eslint@9.39.2))(eslint@9.39.2)(prettier@3.8.1)
       globals:
-        specifier: ^17.0.0
+        specifier: ^17.1.0
         version: 17.1.0
       jest:
         specifier: ^30.2.0
@@ -2476,8 +2476,8 @@ packages:
     resolution: {integrity: sha512-lGe34o6EHj9y3Kts9R4ZYs/Gr+6N7MCaMlIFA3F1R2O5/m7K06AxfSeO5530PEERE6/WyEg3lsuyw4GHlPZHog==}
     engines: {node: ^4.5.0 || >= 5.9}
 
-  baseline-browser-mapping@2.9.17:
-    resolution: {integrity: sha512-agD0MgJFUP/4nvjqzIB29zRPUuCF7Ge6mEv9s8dHrtYD7QWXRcx75rOADE/d5ah1NI+0vkDl0yorDd5U852IQQ==}
+  baseline-browser-mapping@2.9.18:
+    resolution: {integrity: sha512-e23vBV1ZLfjb9apvfPk4rHVu2ry6RIr2Wfs+O324okSidrX7pTAnEJPCh/O5BtRlr7QtZI7ktOP3vsqr7Z5XoA==}
     hasBin: true
 
   basic-ftp@5.1.0:
@@ -2922,8 +2922,8 @@ packages:
     resolution: {integrity: sha512-h09ZEtM6u5cYM6m1bX+1Ny9f+nLO9KVZUKNPEnH7lhbXYTfqZogaGTnhONswGeIJFF91UImIftS3CdM9HLW5oQ==}
     engines: {node: '>=12.0.0'}
 
-  date-holidays@3.26.6:
-    resolution: {integrity: sha512-x0pvMFvtl49CoSjT4RqN/VVrTiGmdg8Nhc1UTZT16ICEA49ygMB19ibmxZdZF2buzvaPM4uOBMCMu5yLp0HBKA==}
+  date-holidays@3.26.7:
+    resolution: {integrity: sha512-rA0LLBgd+FDveUVwmyvlt9YItRCcbpEM6dlyt6V1QfTZ+HHroknagyqBrvDNA0BGj/S1iWylKEKAjpovpxNIeA==}
     engines: {node: '>=12.0.0'}
     hasBin: true
 
@@ -4977,8 +4977,8 @@ packages:
     engines: {node: '>=16.0.0'}
     hasBin: true
 
-  pnpm@10.28.0:
-    resolution: {integrity: sha512-Bd9x0UIfITmeBT/eVnzqNNRG+gLHZXFEG/wceVbpjjYwiJgtlARl/TRIDU2QoGaLwSNi+KqIAApk6D0LDke+SA==}
+  pnpm@10.28.1:
+    resolution: {integrity: sha512-fX27yp6ZRHt8O/enMoavqva+mSUeuUmLrvp9QGiS9nuHmts6HX5of8TMwaOIxxdfuq5WeiarRNEGe1T8sNajFg==}
     engines: {node: '>=18.12'}
     hasBin: true
 
@@ -5541,8 +5541,8 @@ packages:
     resolution: {integrity: sha512-Bh7QjT8/SuKUIfObSXNHNSK6WHo6J1tHCqJsuaFDP7gP0fkzSfTxI8y85JrppZ0h8l0maIgc2tfuZQ6/t3GtnQ==}
     engines: {node: ^14.18.0 || >=16.0.0}
 
-  systeminformation@5.30.5:
-    resolution: {integrity: sha512-DpWmpCckhwR3hG+6udb6/aQB7PpiqVnvSljrjbKxNSvTRsGsg7NVE3/vouoYf96xgwMxXFKcS4Ux+cnkFwYM7A==}
+  systeminformation@5.30.6:
+    resolution: {integrity: sha512-LEIyK1aEv5P3BhAPW3swdlIyCihxwEq/Gki+kcONieU4PIeRCSLDuGkk0Va/56PSBgjVgEksOM88dmY6YqOyfQ==}
     engines: {node: '>=8.0.0'}
     os: [darwin, linux, win32, freebsd, openbsd, netbsd, sunos, android]
     hasBin: true
@@ -8884,7 +8884,7 @@ snapshots:
 
   base64id@2.0.0: {}
 
-  baseline-browser-mapping@2.9.17: {}
+  baseline-browser-mapping@2.9.18: {}
 
   basic-ftp@5.1.0: {}
 
@@ -8947,7 +8947,7 @@ snapshots:
 
   browserslist@4.28.1:
     dependencies:
-      baseline-browser-mapping: 2.9.17
+      baseline-browser-mapping: 2.9.18
       caniuse-lite: 1.0.30001766
       electron-to-chromium: 1.5.278
       node-releases: 2.0.27
@@ -9360,7 +9360,7 @@ snapshots:
       jalaali-js: 1.2.8
       moment-timezone: 0.5.48
 
-  date-holidays@3.26.6:
+  date-holidays@3.26.7:
     dependencies:
       date-holidays-parser: 3.4.7
       js-yaml: 4.1.1
@@ -11930,7 +11930,7 @@ snapshots:
       async: 3.2.6
       debug: 4.4.3
       pidusage: 2.0.21
-      systeminformation: 5.30.5
+      systeminformation: 5.30.6
       tx2: 1.0.5
     transitivePeerDependencies:
       - supports-color
@@ -11974,7 +11974,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  pnpm@10.28.0: {}
+  pnpm@10.28.1: {}
 
   possible-typed-array-names@1.1.0: {}
 
@@ -12640,7 +12640,7 @@ snapshots:
     dependencies:
       '@pkgr/core': 0.2.9
 
-  systeminformation@5.30.5:
+  systeminformation@5.30.6:
     optional: true
 
   tapable@2.3.0: {}

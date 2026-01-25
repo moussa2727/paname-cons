@@ -1,6 +1,6 @@
 // secure-logging.middleware.ts
-import { Injectable, NestMiddleware } from "@nestjs/common";
-import { Request, Response, NextFunction } from "express";
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
 
 @Injectable()
 export class SecureLoggingMiddleware implements NestMiddleware {
@@ -13,12 +13,12 @@ export class SecureLoggingMiddleware implements NestMiddleware {
       const duration = Date.now() - startTime;
 
       //  LOGS SÉCURISÉS
-      console.log(" API Request:", {
+      console.log(' API Request:', {
         method: req.method,
         url: req.url,
         statusCode: res.statusCode,
         duration: `${duration}ms`,
-        userAgent: req.get("User-Agent")?.substring(0, 50), // Limité
+        userAgent: req.get('User-Agent')?.substring(0, 50), // Limité
       });
 
       return originalSend.call(this, body);

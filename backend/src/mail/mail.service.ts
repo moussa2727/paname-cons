@@ -18,7 +18,7 @@ export class MailService {
   /**
    * Envoi d'email générique
    */
-    async sendEmail(options: {
+  async sendEmail(options: {
     to: string;
     subject: string;
     html: string;
@@ -50,13 +50,15 @@ export class MailService {
    * Email de réinitialisation de mot de passe
    */
   async sendPasswordReset(
-    email: string, 
-    resetUrl: string, 
+    email: string,
+    resetUrl: string,
     firstName: string = ''
   ): Promise<boolean> {
     // Le resetUrl est déjà l'URL complète construite par buildResetUrl
     // Plus besoin de la reconstruire ici
-    this.logger.log(`[MailService] URL reçue pour email: ${resetUrl.substring(0, 50)}...`);
+    this.logger.log(
+      `[MailService] URL reçue pour email: ${resetUrl.substring(0, 50)}...`
+    );
 
     const html = `
       <!DOCTYPE html>
@@ -343,8 +345,8 @@ export class MailService {
    * Email de vérification d'adresse email
    */
   async sendVerificationEmail(
-    email: string, 
-    verificationToken: string, 
+    email: string,
+    verificationToken: string,
     firstName: string
   ): Promise<boolean> {
     const verifyUrl = `${this.frontendUrl}/verify-email?token=${verificationToken}`;
@@ -471,7 +473,7 @@ export class MailService {
    */
   async sendAdminAlert(subject: string, message: string): Promise<boolean> {
     const adminEmail = this.configService.get<string>('EMAIL_USER');
-    
+
     if (!adminEmail) {
       this.logger.warn(' Email admin non configuré');
       return false;

@@ -76,13 +76,11 @@ const MinimalLayout = ({ children }: { children: ReactNode }) => {
 const AccueilLayout = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
   const [showLoader, setShowLoader] = useState(true);
-  const [_hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     // Timer pour montrer le loader sur la page d'accueil seulement
     const timer = setTimeout(() => {
       setShowLoader(false);
-      setHasLoaded(true);
     }, 2000); // Durée du loader sur la page d'accueil
 
     return () => clearTimeout(timer);
@@ -353,11 +351,7 @@ function App() {
             element={
               isAuthenticated ? (
                 <Navigate
-                  to={
-                    isAdmin
-                      ? '/gestionnaire/statistiques'
-                      : '/'
-                  }
+                  to={isAdmin ? '/gestionnaire/statistiques' : '/'}
                   replace
                 />
               ) : (
@@ -373,11 +367,7 @@ function App() {
             element={
               isAuthenticated ? (
                 <Navigate
-                  to={
-                    isAdmin
-                      ? '/gestionnaire/statistiques'
-                      : '/'
-                  }
+                  to={isAdmin ? '/gestionnaire/statistiques' : '/'}
                   replace
                 />
               ) : (
@@ -393,11 +383,7 @@ function App() {
             element={
               isAuthenticated ? (
                 <Navigate
-                  to={
-                    isAdmin
-                      ? '/gestionnaire/statistiques'
-                      : '/'
-                  }
+                  to={isAdmin ? '/gestionnaire/statistiques' : '/'}
                   replace
                 />
               ) : (
@@ -412,35 +398,52 @@ function App() {
           <Route path='/gestionnaire' element={<NotFound />} />
 
           {/* Routes admin avec vérification maintenance */}
-          {['/gestionnaire/statistiques', '/gestionnaire/utilisateurs', '/gestionnaire/messages', 
-            '/gestionnaire/procedures', '/gestionnaire/profil', '/gestionnaire/destinations', 
-            '/gestionnaire/rendez-vous'].map((path) => (
+          {[
+            '/gestionnaire/statistiques',
+            '/gestionnaire/utilisateurs',
+            '/gestionnaire/messages',
+            '/gestionnaire/procedures',
+            '/gestionnaire/profil',
+            '/gestionnaire/destinations',
+            '/gestionnaire/rendez-vous',
+          ].map(path => (
             <Route
               key={path}
               path={path}
               element={
                 // Vérification maintenance avant tout
                 isMaintenanceMode && !isAdmin ? (
-                  <Navigate 
-                    to='/' 
-                    replace 
-                    state={{ 
-                      message: 'Mode maintenance activé. Accès réservé aux administrateurs.',
-                      from: location.pathname 
-                    }} 
+                  <Navigate
+                    to='/'
+                    replace
+                    state={{
+                      message:
+                        'Mode maintenance activé. Accès réservé aux administrateurs.',
+                      from: location.pathname,
+                    }}
                   />
                 ) : (
                   // Protection admin standard
                   <RequireAdmin>
                     <Suspense fallback={<Loader />}>
                       <AdminLayout>
-                        {path === '/gestionnaire/statistiques' && <AdminDashboard />}
-                        {path === '/gestionnaire/utilisateurs' && <UsersManagement />}
+                        {path === '/gestionnaire/statistiques' && (
+                          <AdminDashboard />
+                        )}
+                        {path === '/gestionnaire/utilisateurs' && (
+                          <UsersManagement />
+                        )}
                         {path === '/gestionnaire/messages' && <AdminMessages />}
-                        {path === '/gestionnaire/procedures' && <AdminProcedure />}
+                        {path === '/gestionnaire/procedures' && (
+                          <AdminProcedure />
+                        )}
                         {path === '/gestionnaire/profil' && <AdminProfile />}
-                        {path === '/gestionnaire/destinations' && <AdminDestinations />}
-                        {path === '/gestionnaire/rendez-vous' && <AdminRendezVous />}
+                        {path === '/gestionnaire/destinations' && (
+                          <AdminDestinations />
+                        )}
+                        {path === '/gestionnaire/rendez-vous' && (
+                          <AdminRendezVous />
+                        )}
                       </AdminLayout>
                     </Suspense>
                   </RequireAdmin>
@@ -454,13 +457,14 @@ function App() {
             path='/gestionnaire/*'
             element={
               isMaintenanceMode && !isAdmin ? (
-                <Navigate 
-                  to='/' 
-                  replace 
-                  state={{ 
-                    message: 'Mode maintenance activé. Accès réservé aux administrateurs.',
-                    from: location.pathname 
-                  }} 
+                <Navigate
+                  to='/'
+                  replace
+                  state={{
+                    message:
+                      'Mode maintenance activé. Accès réservé aux administrateurs.',
+                    from: location.pathname,
+                  }}
                 />
               ) : (
                 <RequireAdmin>

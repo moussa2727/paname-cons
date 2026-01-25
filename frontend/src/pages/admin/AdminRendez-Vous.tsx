@@ -1,4 +1,3 @@
-/* eslint-disable no-undef */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
@@ -110,7 +109,13 @@ const FILIERES = [
   'Commerce',
   'Autre',
 ] as const;
-const STATUTS = ['En attente', 'Confirmé', 'Terminé', 'Annulé'] as const;
+const STATUTS = [
+  'En attente',
+  'Confirmé',
+  'Terminé',
+  'Annulé',
+  'Expiré',
+] as const;
 const ADMIN_AVIS = ['Favorable', 'Défavorable'] as const;
 
 const AdminRendezVous = (): React.JSX.Element => {
@@ -119,7 +124,7 @@ const AdminRendezVous = (): React.JSX.Element => {
   const [rendezvous, setRendezvous] = useState<LocalRendezvous[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [_isLoadingDestinations, setIsLoadingDestinations] = useState(false);
+  const [, setIsLoadingDestinations] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('tous');
   const [page, setPage] = useState(1);
@@ -341,8 +346,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   };
 
-
-
   // Mise à jour du statut
   const handleUpdateStatus = async (
     id: string,
@@ -359,8 +362,7 @@ const AdminRendezVous = (): React.JSX.Element => {
       const updatedRdv = await service.updateRendezvousStatus(
         id,
         status,
-        avisAdmin,
-        user?.email
+        avisAdmin
       );
       const normalizedRdv = normalizeRendezvous(updatedRdv);
 
@@ -626,7 +628,7 @@ const AdminRendezVous = (): React.JSX.Element => {
 
     setIsSubmitting(true);
     try {
-      await service.cancelRendezvous(id, user?.email || '', true);
+      await service.cancelRendezvous(id, 'Supprimé par administrateur');
       setRendezvous(prev => prev.filter(rdv => rdv.id !== id));
       setShowDeleteModal(null);
       setShowMobileActions(null);
@@ -704,7 +706,7 @@ const AdminRendezVous = (): React.JSX.Element => {
       try {
         const slots = await service.fetchAvailableSlots(date);
         setAvailableSlots(slots);
-      } catch (error) {
+      } catch {
         setAvailableSlots([]);
       }
     } else {
@@ -723,12 +725,12 @@ const AdminRendezVous = (): React.JSX.Element => {
           fetchDestinations(),
           (async () => {
             try {
-            } catch (error) {
-            }
+              // Intentionally empty - placeholder for future async operation
+            } catch {}
           })(),
         ]);
-      } catch (error) {
-        console.error('Erreur initialisation:', error);
+      } catch {
+        console.error('Erreur initialisation:');
       }
     };
 

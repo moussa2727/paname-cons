@@ -1,6 +1,12 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateRendezvousDto } from './create-rendezvous.dto';
-import { IsOptional, IsEnum, ValidateIf, IsNotEmpty, IsEmail } from 'class-validator';
+import {
+  IsOptional,
+  IsEnum,
+  ValidateIf,
+  IsNotEmpty,
+  IsEmail,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 // Constantes pour la cohérence
@@ -9,12 +15,12 @@ const RENDEZVOUS_STATUS = {
   CONFIRMED: 'Confirmé',
   COMPLETED: 'Terminé',
   CANCELLED: 'Annulé',
-  EXPIRED: 'Expiré'
+  EXPIRED: 'Expiré',
 } as const;
 
 const ADMIN_OPINION = {
   FAVORABLE: 'Favorable',
-  UNFAVORABLE: 'Défavorable'
+  UNFAVORABLE: 'Défavorable',
 } as const;
 
 const DESTINATIONS = [
@@ -23,7 +29,7 @@ const DESTINATIONS = [
   'Belgique',
   'Suisse',
   'États-Unis',
-  'Autre'
+  'Autre',
 ] as const;
 
 const FILIERES = [
@@ -33,7 +39,7 @@ const FILIERES = [
   'Commerce',
   'Ingénierie',
   'Architecture',
-  'Autre'
+  'Autre',
 ] as const;
 
 export class UpdateRendezvousDto extends PartialType(CreateRendezvousDto) {
@@ -91,11 +97,17 @@ export class UpdateRendezvousDto extends PartialType(CreateRendezvousDto) {
   filiere?: string;
 
   // Validation conditionnelle pour les champs "Autre"
-  @ValidateIf((o) => o.destination === 'Autre')
-  @IsNotEmpty({ message: 'La destination personnalisée est obligatoire quand "Autre" est sélectionné' })
+  @ValidateIf(o => o.destination === 'Autre')
+  @IsNotEmpty({
+    message:
+      'La destination personnalisée est obligatoire quand "Autre" est sélectionné',
+  })
   destinationAutre?: string;
 
-  @ValidateIf((o) => o.filiere === 'Autre')
-  @IsNotEmpty({ message: 'La filière personnalisée est obligatoire quand "Autre" est sélectionné' })
+  @ValidateIf(o => o.filiere === 'Autre')
+  @IsNotEmpty({
+    message:
+      'La filière personnalisée est obligatoire quand "Autre" est sélectionné',
+  })
   filiereAutre?: string;
 }

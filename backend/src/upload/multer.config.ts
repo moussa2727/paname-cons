@@ -1,9 +1,9 @@
-import { diskStorage } from "multer";
-import * as fs from "fs";
-import * as path from "path";
+import { diskStorage } from 'multer';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Vérifier et créer le dossier uploads
-const uploadDir = path.join(process.cwd(), "uploads");
+const uploadDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -21,10 +21,10 @@ export const multerConfig = {
   fileFilter: (
     _req: any,
     file: { originalname: string },
-    cb: (arg0: Error | null, arg1: boolean) => void,
+    cb: (arg0: Error | null, arg1: boolean) => void
   ) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const allowed = [".webp", ".png", ".jpg", ".jpeg", ".avif"];
+    const allowed = ['.webp', '.png', '.jpg', '.jpeg', '.avif'];
 
     if (allowed.includes(ext)) {
       cb(null, true);

@@ -1,4 +1,10 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -59,6 +65,7 @@ const statusOptions = [
   { value: 'Confirmé', label: 'Confirmé' },
   { value: 'Terminé', label: 'Terminé' },
   { value: 'Annulé', label: 'Annulé' },
+  { value: 'Expiré', label: 'Expiré' },
 ];
 
 const statusColors: Record<string, string> = {
@@ -66,6 +73,7 @@ const statusColors: Record<string, string> = {
   Confirmé: 'bg-sky-100 text-sky-800 border-sky-300',
   Terminé: 'bg-emerald-100 text-emerald-800 border-emerald-300',
   Annulé: 'bg-red-100 text-red-800 border-red-300',
+  Expiré: 'bg-gray-100 text-gray-800 border-gray-300',
 };
 
 const avisColors: Record<string, string> = {

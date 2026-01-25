@@ -29,12 +29,7 @@ module.exports = [
       }],
       'prefer-const': 'error',
       'no-var': 'error',
-      '@typescript-eslint/ban-types': ['error', {
-        'extendDefaults': true,
-        'types': {
-          '{}': false
-        }
-      }]
+      '@typescript-eslint/no-empty-object-type': 'error',
     },
     ignores: ['dist/**', 'node_modules/**', '**/*.js']
   }

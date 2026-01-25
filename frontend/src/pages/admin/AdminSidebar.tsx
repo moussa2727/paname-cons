@@ -23,7 +23,7 @@ import {
   LogOut as LogOutIcon,
   UserX,
   Users as UsersIcon,
-  Wrench
+  Wrench,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
@@ -32,7 +32,14 @@ interface AdminSidebarProps {
 }
 
 const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
-  const { logout, logoutAll, user, isMaintenanceMode, toggleMaintenanceMode, checkMaintenanceStatus } = useAuth();
+  const {
+    logout,
+    logoutAll,
+    user,
+    isMaintenanceMode,
+    toggleMaintenanceMode,
+    checkMaintenanceStatus,
+  } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -190,19 +197,19 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
       }, 4000);
 
       return () => clearTimeout(autoCloseTimer);
-
     } catch (error: any) {
       console.error('Erreur lors de la déconnexion globale:', error);
-      
-      const errorMessage = error.message || 'Erreur lors de la déconnexion globale';
-      
+
+      const errorMessage =
+        error.message || 'Erreur lors de la déconnexion globale';
+
       setLogoutAllResult({
         success: false,
         message: `Échec: ${errorMessage}`,
       });
 
       setIsLogoutAllLoading(false);
-      
+
       setTimeout(() => {
         setIsLogoutAllOpen(false);
         setTimeout(() => setLogoutAllResult(null), 300);
@@ -362,7 +369,9 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                 ) : (
                   <>
                     <UserX className='w-4 h-4' />
-                    <span className='font-medium text-sm'>Déconnecter tous</span>
+                    <span className='font-medium text-sm'>
+                      Déconnecter tous
+                    </span>
                   </>
                 )}
               </button>
@@ -413,7 +422,9 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                   <Settings2 className='w-6 h-6 text-white' />
                 </Link>
                 <div>
-                  <h1 className='text-lg font-bold text-slate-800'>Gestionnaire</h1>
+                  <h1 className='text-lg font-bold text-slate-800'>
+                    Gestionnaire
+                  </h1>
                   <p className='text-xs text-slate-500'>Paname Consulting</p>
                 </div>
               </div>
@@ -426,7 +437,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                       ? 'bg-linear-to-r from-amber-500 to-yellow-600 text-white focus:ring-amber-500/30'
                       : 'bg-linear-to-r from-rose-500 to-pink-600 text-white focus:ring-rose-500/30'
                   }`}
-                  title={isMaintenanceMode ? 'Mode maintenance actif' : 'Déconnecter tous'}
+                  title={
+                    isMaintenanceMode
+                      ? 'Mode maintenance actif'
+                      : 'Déconnecter tous'
+                  }
                   disabled={isMaintenanceLoading}
                 >
                   {isMaintenanceMode ? (
@@ -540,11 +555,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
             {/* En-tête avec condition pour mode maintenance */}
             <div className='p-5 border-b border-slate-200'>
               <div className='flex items-center space-x-3'>
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  isMaintenanceMode 
-                    ? 'bg-linear-to-r from-amber-100 to-yellow-100'
-                    : 'bg-linear-to-r from-rose-100 to-pink-100'
-                }`}>
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isMaintenanceMode
+                      ? 'bg-linear-to-r from-amber-100 to-yellow-100'
+                      : 'bg-linear-to-r from-rose-100 to-pink-100'
+                  }`}
+                >
                   {isMaintenanceMode ? (
                     <Wrench className='w-5 h-5 text-amber-600' />
                   ) : (
@@ -553,10 +570,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                 </div>
                 <div>
                   <h2 className='text-lg font-bold text-slate-800'>
-                    {isMaintenanceMode ? 'Désactiver maintenance' : 'Déconnexion globale'}
+                    {isMaintenanceMode
+                      ? 'Désactiver maintenance'
+                      : 'Déconnexion globale'}
                   </h2>
                   <p className='text-xs text-slate-500'>
-                    {isMaintenanceMode ? 'Rendre accessible aux utilisateurs' : 'Action administrative'}
+                    {isMaintenanceMode
+                      ? 'Rendre accessible aux utilisateurs'
+                      : 'Action administrative'}
                   </p>
                 </div>
               </div>
@@ -579,9 +600,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                       <AlertTriangle className='w-7 h-7' />
                     )}
                   </div>
-                  
-                  <p className='font-medium text-base mb-2'>{logoutAllResult.message}</p>
-                  
+
+                  <p className='font-medium text-base mb-2'>
+                    {logoutAllResult.message}
+                  </p>
+
                   {logoutAllResult.success && logoutAllResult.stats && (
                     <div className='mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200'>
                       <div className='flex items-center justify-center space-x-2 mb-2'>
@@ -598,7 +621,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                         <div className='font-semibold text-slate-800'>
                           {logoutAllResult.stats.usersLoggedOut}
                         </div>
-                        
+
                         <div className='flex items-center space-x-2 text-slate-600'>
                           <Clock className='w-3.5 h-3.5' />
                           <span>Durée :</span>
@@ -606,7 +629,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                         <div className='font-semibold text-slate-800'>
                           {formatLogoutDuration(logoutAllResult.stats.duration)}
                         </div>
-                        
+
                         <div className='flex items-center space-x-2 text-slate-600'>
                           <Shield className='w-3.5 h-3.5' />
                           <span>Admin :</span>
@@ -631,11 +654,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
               ) : (
                 <>
                   <div className='text-center mb-4'>
-                    <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-3 ${
-                      isMaintenanceMode
-                        ? 'bg-linear-to-br from-amber-100 to-yellow-100'
-                        : 'bg-linear-to-br from-sky-100 to-blue-100'
-                    }`}>
+                    <div
+                      className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-3 ${
+                        isMaintenanceMode
+                          ? 'bg-linear-to-br from-amber-100 to-yellow-100'
+                          : 'bg-linear-to-br from-sky-100 to-blue-100'
+                      }`}
+                    >
                       {isMaintenanceMode ? (
                         <Wrench className='w-8 h-8 text-amber-600' />
                       ) : (
@@ -649,16 +674,18 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                     </h3>
                     <p className='text-sm text-slate-600'>
                       {isMaintenanceMode
-                        ? 'Les utilisateurs pourront à nouveau accéder à l\'application.'
+                        ? "Les utilisateurs pourront à nouveau accéder à l'application."
                         : 'Cette action est définitive et affectera tous les utilisateurs non-administrateurs.'}
                     </p>
                   </div>
 
-                  <div className={`rounded-lg p-3 border mb-4 ${
-                    isMaintenanceMode
-                      ? 'bg-linear-to-r from-amber-50 to-yellow-50/50 border-amber-100'
-                      : 'bg-linear-to-r from-sky-50 to-blue-50/50 border-sky-100'
-                  }`}>
+                  <div
+                    className={`rounded-lg p-3 border mb-4 ${
+                      isMaintenanceMode
+                        ? 'bg-linear-to-r from-amber-50 to-yellow-50/50 border-amber-100'
+                        : 'bg-linear-to-r from-sky-50 to-blue-50/50 border-sky-100'
+                    }`}
+                  >
                     <div className='flex items-start space-x-2'>
                       {isMaintenanceMode ? (
                         <Wrench className='w-4 h-4 text-amber-600 mt-0.5' />
@@ -666,16 +693,24 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                         <AlertTriangle className='w-4 h-4 text-sky-600 mt-0.5' />
                       )}
                       <div>
-                        <p className={`text-xs font-medium mb-1 ${
-                          isMaintenanceMode ? 'text-amber-800' : 'text-sky-800'
-                        }`}>
+                        <p
+                          className={`text-xs font-medium mb-1 ${
+                            isMaintenanceMode
+                              ? 'text-amber-800'
+                              : 'text-sky-800'
+                          }`}
+                        >
                           {isMaintenanceMode
                             ? 'Conséquences'
-                            : 'Détails de l\'action'}
+                            : "Détails de l'action"}
                         </p>
-                        <p className={`text-xs ${
-                          isMaintenanceMode ? 'text-amber-600' : 'text-sky-600'
-                        }`}>
+                        <p
+                          className={`text-xs ${
+                            isMaintenanceMode
+                              ? 'text-amber-600'
+                              : 'text-sky-600'
+                          }`}
+                        >
                           {isMaintenanceMode
                             ? '• Accès restauré pour tous les utilisateurs<br/>• Fonctionnalités disponibles<br/>• Données sécurisées'
                             : '• Les administrateurs restent connectés<br/>• Seuls les utilisateurs sont déconnectés<br/>• Blocage de 24 heures pour les non-admin<br/>• Identités confidentielles préservées'}
@@ -718,7 +753,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
                         : 'bg-linear-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 focus:ring-rose-500/30'
                     }`}
                   >
-                    {(isLogoutAllLoading || isMaintenanceLoading) ? (
+                    {isLogoutAllLoading || isMaintenanceLoading ? (
                       <div className='flex items-center justify-center space-x-1.5'>
                         <div className='w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
                         <span className='text-sm'>En cours...</span>

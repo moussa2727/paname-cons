@@ -1,5 +1,37 @@
 // Fichier de déclaration global pour les modules sans types
 
+// Globals pour le navigateur et l'environnement
+declare var window: any;
+declare var document: Document;
+declare var console: Console;
+declare var setTimeout: (
+  handler: TimerHandler,
+  timeout?: number,
+  ...arguments: any[]
+) => number;
+declare var setInterval: (
+  handler: TimerHandler,
+  timeout?: number,
+  ...arguments: any[]
+) => number;
+declare var clearTimeout: (id?: number) => void;
+declare var clearInterval: (id?: number) => void;
+declare var fetch: (
+  input: RequestInfo | URL,
+  init?: RequestInit
+) => Promise<Response>;
+declare var localStorage: Storage;
+declare var sessionStorage: Storage;
+declare var navigator: Navigator;
+declare var location: Location;
+declare var history: History;
+
+// React global
+import * as React from 'react';
+declare global {
+  var React: typeof React;
+}
+
 declare module 'react-helmet-async' {
   import { HelmetData } from 'react-helmet';
   import { ReactNode } from 'react';
@@ -25,8 +57,6 @@ declare module 'react-helmet-async' {
 }
 
 declare module 'react-toastify' {
-  import { ReactNode } from 'react';
-
   export interface ToastOptions {
     position?: string;
     autoClose?: number;

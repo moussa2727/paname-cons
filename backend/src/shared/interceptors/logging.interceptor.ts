@@ -3,10 +3,10 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-} from "@nestjs/common";
-import { Observable } from "rxjs";
-import { tap } from "rxjs/operators";
-import { Logger } from "@nestjs/common";
+} from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { tap } from 'rxjs/operators';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -20,28 +20,28 @@ export class LoggingInterceptor implements NestInterceptor {
     'credit-card',
     'auth',
     'login',
-    'register'
+    'register',
   ];
 
   // Masquer les IDs spécifiques
   private maskSensitiveInfo(url: string): string {
     let maskedUrl = url;
-    
+
     // Masquer les IDs dans l'URL (ex: /users/123 -> /users/***)
     maskedUrl = maskedUrl.replace(/\/\d+(?=\/|$)/g, '/***');
-    
+
     // Masquer les tokens JWT-like
     maskedUrl = maskedUrl.replace(/[A-Za-z0-9_-]{20,}/g, '***');
-    
+
     // Vérifier les chemins sensibles
-    const isSensitive = this.SENSITIVE_PATHS.some(path => 
+    const isSensitive = this.SENSITIVE_PATHS.some(path =>
       url.toLowerCase().includes(path)
     );
-    
+
     if (isSensitive) {
       return '[SENSITIVE PATH MASKED]';
     }
-    
+
     return maskedUrl;
   }
 
@@ -59,18 +59,18 @@ export class LoggingInterceptor implements NestInterceptor {
 
     // URLs masquées
     const maskedUrl = this.maskSensitiveInfo(url);
-    const maskedUserId = user?.userId ? this.maskUserId(user.userId) : "anonymous";
+    const maskedUserId = user?.userId
+      ? this.maskUserId(user.userId)
+      : 'anonymous';
 
-    this.logger.log(
-      `Request: ${method} ${maskedUrl} by ${maskedUserId}`,
-    );
+    this.logger.log(`Request: ${method} ${maskedUrl} by ${maskedUserId}`);
 
     return next.handle().pipe(
       tap(() => {
-        if (["POST", "PUT", "DELETE"].includes(method)) {
+        if (['POST', 'PUT', 'DELETE'].includes(method)) {
           this.logger.log(`Critical action performed: ${method} ${maskedUrl}`);
         }
-      }),
+      })
     );
   }
 }

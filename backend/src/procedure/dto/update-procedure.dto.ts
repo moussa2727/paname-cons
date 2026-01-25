@@ -79,7 +79,9 @@ export class UpdateProcedureDto extends PartialType(CreateProcedureDto) {
     required: false,
   })
   @IsOptional()
-  @IsString({ message: 'La destination autre doit être une chaîne de caractères' })
+  @IsString({
+    message: 'La destination autre doit être une chaîne de caractères',
+  })
   destinationAutre?: string;
 
   @ApiProperty({

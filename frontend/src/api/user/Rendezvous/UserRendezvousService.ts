@@ -36,6 +36,7 @@ export interface Rendezvous {
   cancelledAt?: string;
   cancelledBy?: string;
   cancellationReason?: string;
+  expiredAt?: string;
   createdAt: string;
   updatedAt?: string;
   effectiveDestination?: string;

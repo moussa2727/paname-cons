@@ -12,21 +12,21 @@ const ResetPassword: React.FC = () => {
   const rawToken = searchParams.get('token');
   const token = React.useMemo(() => {
     if (!rawToken) return null;
-    
+
     // Si le token contient une URL complète, extraire uniquement le token
     if (rawToken.includes('reset-password?token=')) {
       const tokenMatch = rawToken.match(/token=([^&]+)/);
       const cleanToken = tokenMatch ? tokenMatch[1] : rawToken;
-      
+
       // Log de débogage en développement
       if (import.meta.env.DEV) {
         console.log('Token brut reçu:', rawToken);
         console.log('Token nettoyé:', cleanToken);
       }
-      
+
       return cleanToken;
     }
-    
+
     return rawToken;
   }, [rawToken]);
 

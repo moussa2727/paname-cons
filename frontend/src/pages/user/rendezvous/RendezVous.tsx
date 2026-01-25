@@ -165,15 +165,15 @@ const RendezVous = () => {
   const validatePhone = (phone: string): boolean => {
     const cleanedPhone = phone.replace(/[\s\-()]/g, '');
     const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-    
+
     if (!phoneRegex.test(cleanedPhone)) {
       return false;
     }
-    
+
     if (cleanedPhone.startsWith('+0')) {
       return false;
     }
-    
+
     return true;
   };
 
@@ -214,11 +214,16 @@ const RendezVous = () => {
       case 2:
         if (!formData.destination) return false;
         // Vérification STRICTE: si destination est "Autre", destinationAutre est obligatoire
-        if (formData.destination === 'Autre' && !formData.destinationAutre?.trim()) return false;
+        if (
+          formData.destination === 'Autre' &&
+          !formData.destinationAutre?.trim()
+        )
+          return false;
         if (!formData.niveauEtude) return false;
         if (!formData.filiere) return false;
         // Vérification STRICTE: si filière est "Autre", filiereAutre est obligatoire
-        if (formData.filiere === 'Autre' && !formData.filiereAutre?.trim()) return false;
+        if (formData.filiere === 'Autre' && !formData.filiereAutre?.trim())
+          return false;
         return true;
       case 3:
         return !!(formData.date && formData.time);
@@ -238,19 +243,28 @@ const RendezVous = () => {
           toast.error('Prénom et nom sont obligatoires');
         } else if (!formData.email?.trim()) {
           toast.error('Email est obligatoire');
-        } else if (!formData.telephone?.trim() || !validatePhone(formData.telephone)) {
+        } else if (
+          !formData.telephone?.trim() ||
+          !validatePhone(formData.telephone)
+        ) {
           toast.error('Numéro de téléphone invalide');
         }
       } else if (currentStep === 2) {
         if (!formData.destination) {
           toast.error('La destination est obligatoire');
-        } else if (formData.destination === 'Autre' && !formData.destinationAutre?.trim()) {
+        } else if (
+          formData.destination === 'Autre' &&
+          !formData.destinationAutre?.trim()
+        ) {
           toast.error('La destination "Autre" nécessite une précision');
         } else if (!formData.niveauEtude) {
           toast.error("Le niveau d'étude est obligatoire");
         } else if (!formData.filiere) {
           toast.error('La filière est obligatoire');
-        } else if (formData.filiere === 'Autre' && !formData.filiereAutre?.trim()) {
+        } else if (
+          formData.filiere === 'Autre' &&
+          !formData.filiereAutre?.trim()
+        ) {
           toast.error('La filière "Autre" nécessite une précision');
         }
       }
@@ -362,7 +376,7 @@ const RendezVous = () => {
     }
 
     if (!formData.email?.trim()) {
-      toast.error('L\'email est obligatoire');
+      toast.error("L'email est obligatoire");
       return;
     }
 
@@ -403,7 +417,7 @@ const RendezVous = () => {
     }
 
     if (!formData.niveauEtude?.trim()) {
-      toast.error('Le niveau d\'étude est obligatoire');
+      toast.error("Le niveau d'étude est obligatoire");
       return;
     }
 
@@ -420,7 +434,14 @@ const RendezVous = () => {
       }
     } else {
       // Vérifier que la filière est valide
-      const validFilieres = ['Informatique', 'Médecine', 'Droit', 'Commerce', 'Ingénierie', 'Architecture'];
+      const validFilieres = [
+        'Informatique',
+        'Médecine',
+        'Droit',
+        'Commerce',
+        'Ingénierie',
+        'Architecture',
+      ];
       if (!validFilieres.includes(formData.filiere)) {
         toast.error('Filière invalide');
         return;
@@ -433,7 +454,7 @@ const RendezVous = () => {
     }
 
     if (!formData.time?.trim()) {
-      toast.error('L\'heure est obligatoire');
+      toast.error("L'heure est obligatoire");
       return;
     }
 
@@ -442,7 +463,10 @@ const RendezVous = () => {
       return;
     }
 
-    if (formData.date === new Date().toISOString().split('T')[0] && formData.time) {
+    if (
+      formData.date === new Date().toISOString().split('T')[0] &&
+      formData.time
+    ) {
       if (isTimePassed(formData.time, formData.date)) {
         toast.error('Vous ne pouvez pas réserver un créneau passé');
         return;
@@ -490,7 +514,7 @@ const RendezVous = () => {
       'niveauEtude',
       'filiere',
       'date',
-      'time'
+      'time',
     ];
 
     const missingFields = requiredFields.filter(field => {
@@ -535,7 +559,7 @@ const RendezVous = () => {
           } else {
             throw new Error('Session expirée');
           }
-        } catch (error) {
+        } catch {
           toast.error('Session expirée. Veuillez vous reconnecter.');
           logout();
           navigate('/connexion');
@@ -545,7 +569,7 @@ const RendezVous = () => {
 
       if (!response.ok) {
         let errorMessage = 'Erreur lors de la création du rendez-vous';
-        
+
         try {
           const errorData = await response.json();
           errorMessage = errorData.message || errorData.error || errorMessage;
@@ -559,19 +583,32 @@ const RendezVous = () => {
             return;
           }
 
-          if (errorMessage.includes('Email') && errorMessage.includes('correspondre')) {
-            toast.error("L'email doit correspondre à votre compte de connexion.");
+          if (
+            errorMessage.includes('Email') &&
+            errorMessage.includes('correspondre')
+          ) {
+            toast.error(
+              "L'email doit correspondre à votre compte de connexion."
+            );
             return;
           }
 
-          if (errorMessage.includes('créneau') || errorMessage.includes('disponible')) {
-            toast.error("Ce créneau n'est plus disponible. Veuillez choisir un autre horaire.");
+          if (
+            errorMessage.includes('créneau') ||
+            errorMessage.includes('disponible')
+          ) {
+            toast.error(
+              "Ce créneau n'est plus disponible. Veuillez choisir un autre horaire."
+            );
             if (formData.date) fetchAvailableSlots(formData.date);
             setFormData(prev => ({ ...prev, time: '' }));
             return;
           }
 
-          if (errorMessage.includes('weekend') || errorMessage.includes('week-end')) {
+          if (
+            errorMessage.includes('weekend') ||
+            errorMessage.includes('week-end')
+          ) {
             toast.error('Les réservations sont fermées le week-end');
             fetchAvailableDates();
             setFormData(prev => ({ ...prev, date: '', time: '' }));
@@ -592,16 +629,19 @@ const RendezVous = () => {
             return;
           }
 
-          if (errorMessage.includes('validation') || errorMessage.includes('invalide') || 
-              errorMessage.includes('obligatoire') || errorMessage.includes('requis')) {
+          if (
+            errorMessage.includes('validation') ||
+            errorMessage.includes('invalide') ||
+            errorMessage.includes('obligatoire') ||
+            errorMessage.includes('requis')
+          ) {
             toast.error(errorMessage);
             return;
           }
 
           toast.error(errorMessage);
           return;
-
-        } catch (parseError) {
+        } catch {
           const statusText = response.statusText || 'Erreur inconnue';
           toast.error(`Erreur serveur (${response.status}): ${statusText}`);
           return;
@@ -615,7 +655,7 @@ const RendezVous = () => {
           throw new Error('Réponse serveur vide');
         }
         result = JSON.parse(responseText);
-      } catch (parseError) {
+      } catch {
         toast.error('Erreur de traitement de la réponse du serveur');
         return;
       }
@@ -631,16 +671,24 @@ const RendezVous = () => {
       setTimeout(() => {
         navigate('/mes-rendez-vous');
       }, 2000);
-
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erreur inconnue';
 
-      if (errorMessage.includes('NetworkError') || errorMessage.includes('Failed to fetch')) {
-        toast.error('Erreur de connexion au serveur. Vérifiez votre connexion internet.');
+      if (
+        errorMessage.includes('NetworkError') ||
+        errorMessage.includes('Failed to fetch')
+      ) {
+        toast.error(
+          'Erreur de connexion au serveur. Vérifiez votre connexion internet.'
+        );
         return;
       }
 
-      if (errorMessage.includes('Session expirée') || errorMessage.includes('Token')) {
+      if (
+        errorMessage.includes('Session expirée') ||
+        errorMessage.includes('Token')
+      ) {
         toast.error('Session expirée. Redirection vers la connexion...');
         setTimeout(() => {
           logout();
@@ -650,7 +698,6 @@ const RendezVous = () => {
       }
 
       toast.error('Une erreur est survenue. Veuillez réessayer.');
-      
     } finally {
       setLoading(false);
     }
@@ -1042,7 +1089,8 @@ const RendezVous = () => {
                   weekday: 'short',
                   day: 'numeric',
                   month: 'short',
-                })} à {formData.time}
+                })}{' '}
+                à {formData.time}
               </p>
             </div>
           )}

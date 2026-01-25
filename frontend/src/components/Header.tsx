@@ -1,5 +1,3 @@
-/* eslint-disable no-undef */
-
 import {
   Calendar,
   FileText,
@@ -19,11 +17,10 @@ import {
   MessageSquare,
   Globe,
 } from 'lucide-react';
-import { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-// Définir UserRole localement (identique à AuthContext)
 const UserRole = {
   ADMIN: 'admin',
   USER: 'user',
@@ -449,12 +446,11 @@ function Header(): React.JSX.Element {
                                 <span className='ml-3 truncate'>
                                   {item.name}
                                 </span>
-                                {isAdmin &&
-                                  item.name === 'Tableau de bord' && (
-                                    <span className='ml-auto text-xs text-sky-500 font-semibold'>
-                                      ADMIN
-                                    </span>
-                                  )}
+                                {isAdmin && item.name === 'Tableau de bord' && (
+                                  <span className='ml-auto text-xs text-sky-500 font-semibold'>
+                                    ADMIN
+                                  </span>
+                                )}
                               </button>
                             ) : (
                               <button
@@ -485,7 +481,7 @@ function Header(): React.JSX.Element {
                     className='flex items-center px-3 py-1.5 md:px-4 md:py-2 text-sky-600 hover:bg-sky-50 border border-sky-200 transition-all duration-200 rounded-full font-medium text-sm md:text-base hover:border-sky-300 disabled:opacity-50 disabled:cursor-not-allowed'
                     aria-label='Se connecter'
                     state={{ from: location.pathname }}
-                    onClick={(e) => authLoading && e.preventDefault()}
+                    onClick={e => authLoading && e.preventDefault()}
                   >
                     {authLoading ? (
                       <div className='w-4 h-4 border-2 border-sky-300 border-t-transparent rounded-full animate-spin mr-2'></div>
@@ -503,7 +499,7 @@ function Header(): React.JSX.Element {
                     to='/inscription'
                     className='flex items-center px-3 py-1.5 md:px-4 md:py-2 text-white bg-sky-500 hover:bg-sky-600 transition-all duration-200 rounded-full font-medium text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed'
                     aria-label='Créer un compte'
-                    onClick={(e) => authLoading && e.preventDefault()}
+                    onClick={e => authLoading && e.preventDefault()}
                   >
                     {authLoading ? (
                       <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2'></div>
@@ -631,12 +627,11 @@ function Header(): React.JSX.Element {
                                 <span className='ml-3 flex-1 text-left font-semibold'>
                                   {item.name}
                                 </span>
-                                {isAdmin &&
-                                  item.name === 'Tableau de bord' && (
-                                    <span className='ml-2 text-xs font-bold text-white bg-sky-500 px-2 py-0.5 rounded'>
-                                      ADMIN
-                                    </span>
-                                  )}
+                                {isAdmin && item.name === 'Tableau de bord' && (
+                                  <span className='ml-2 text-xs font-bold text-white bg-sky-500 px-2 py-0.5 rounded'>
+                                    ADMIN
+                                  </span>
+                                )}
                                 <span className='ml-2 text-gray-400'>→</span>
                               </button>
                             ) : null}
@@ -706,7 +701,9 @@ function Header(): React.JSX.Element {
                           className='flex items-center justify-between w-full px-3 py-3 text-sky-600 hover:bg-sky-50 border border-sky-200 rounded-lg transition-all duration-200 font-medium hover:border-sky-300 disabled:opacity-50 disabled:cursor-not-allowed'
                           role='menuitem'
                           state={{ from: location.pathname }}
-                          onClickCapture={(e) => authLoading && e.preventDefault()}
+                          onClickCapture={e =>
+                            authLoading && e.preventDefault()
+                          }
                         >
                           <div className='flex items-center'>
                             {authLoading ? (
@@ -725,7 +722,9 @@ function Header(): React.JSX.Element {
                           onClick={() => setNav(false)}
                           className='flex items-center justify-between w-full px-3 py-3 text-white bg-sky-500 hover:bg-sky-600 rounded-lg transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed'
                           role='menuitem'
-                          onClickCapture={(e) => authLoading && e.preventDefault()}
+                          onClickCapture={e =>
+                            authLoading && e.preventDefault()
+                          }
                         >
                           <div className='flex items-center'>
                             {authLoading ? (
@@ -761,8 +760,11 @@ function Header(): React.JSX.Element {
                               <LogOut className='w-5 h-5 mr-2' />
                             )}
                             <span className='font-semibold'>
-                              {isLoggingOut ? 'Déconnexion...' : 
-                               authLoading ? 'Chargement...' : 'Déconnexion'}
+                              {isLoggingOut
+                                ? 'Déconnexion...'
+                                : authLoading
+                                  ? 'Chargement...'
+                                  : 'Déconnexion'}
                             </span>
                           </div>
                           <span className='text-xs text-white/80'>→</span>

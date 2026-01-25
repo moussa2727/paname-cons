@@ -1,22 +1,21 @@
-import { Module, Logger } from "@nestjs/common";
-import { ConfigModule, ConfigService } from "@nestjs/config";
-import { MongooseModule } from "@nestjs/mongoose";
-import { ServeStaticModule } from "@nestjs/serve-static";
-import path, { join } from "path";
-import configuration from "./config/configuration";
-import { AppController } from "./app.controller";
+import { Module, Logger } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+import configuration from './config/configuration';
+import { AppController } from './app.controller';
 
 // Modules métier
-import { AuthModule } from "./auth/auth.module";
-import { UsersModule } from "./users/users.module";
-import { ContactModule } from "./contact/contact.module";
-import { DestinationModule } from "./destination/destination.module";
-import { MailModule } from "./mail/mail.module";
-import { RendezvousModule } from "./rendez-vous/rendez-vous.module";
-import { NotificationModule } from "./notification/notification.module";
-import { ProcedureModule } from "./procedure/procedure.module";
-import { SmtpService } from "./config/smtp.service";
-
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { ContactModule } from './contact/contact.module';
+import { DestinationModule } from './destination/destination.module';
+import { MailModule } from './mail/mail.module';
+import { RendezvousModule } from './rendez-vous/rendez-vous.module';
+import { NotificationModule } from './notification/notification.module';
+import { ProcedureModule } from './procedure/procedure.module';
+import { SmtpService } from './config/smtp.service';
 
 @Module({
   imports: [
@@ -32,11 +31,15 @@ import { SmtpService } from "./config/smtp.service";
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
         const logger = new Logger('MongooseModule');
-        const uri = configService.get<string>("MONGODB_URI");
+        const uri = configService.get<string>('MONGODB_URI');
 
         if (!uri) {
-          logger.error('MONGODB_URI est non définie dans les variables d\'environnement');
-          throw new Error('MONGODB_URI is not defined in environment variables');
+          logger.error(
+            "MONGODB_URI est non définie dans les variables d'environnement"
+          );
+          throw new Error(
+            'MONGODB_URI is not defined in environment variables'
+          );
         }
 
         return {
@@ -57,8 +60,8 @@ import { SmtpService } from "./config/smtp.service";
 
     // 3. Serveur de fichiers statiques
     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, "..", "uploads"),
-      serveRoot: "/uploads",
+      rootPath: join(__dirname, '..', 'uploads'),
+      serveRoot: '/uploads',
       serveStaticOptions: {
         index: false,
         dotfiles: 'deny',
@@ -79,12 +82,12 @@ import { SmtpService } from "./config/smtp.service";
   ],
   controllers: [AppController],
   providers: [
-    SmtpService, 
+    SmtpService,
     {
       provide: 'INITIALIZE_DATABASE',
       useFactory: async (configService: ConfigService) => {
-        const uri = configService.get<string>("MONGODB_URI");
-        
+        const uri = configService.get<string>('MONGODB_URI');
+
         if (!uri && process.env.NODE_ENV !== 'production') {
           console.error('MONGODB_URI manquante au démarrage');
         }
@@ -93,8 +96,6 @@ import { SmtpService } from "./config/smtp.service";
       inject: [ConfigService],
     },
   ],
-  exports: [
-    SmtpService,
-  ],
+  exports: [SmtpService],
 })
 export class AppModule {}

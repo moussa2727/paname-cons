@@ -5,43 +5,43 @@ import {
   Logger,
   BadRequestException,
   InternalServerErrorException,
-} from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
-import { StorageService } from "../shared/storage/storage.service";
-import { CreateDestinationDto } from "./dto/create-destination.dto";
-import { UpdateDestinationDto } from "./dto/update-destination.dto";
-import { Destination } from "./entities/destination.entity";
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { StorageService } from '../shared/storage/storage.service';
+import { CreateDestinationDto } from './dto/create-destination.dto';
+import { UpdateDestinationDto } from './dto/update-destination.dto';
+import { Destination } from './entities/destination.entity';
 
 const defaultDestinations = [
   {
-    country: "Russie",
-    imagePath: "/russie.png",
+    country: 'Russie',
+    imagePath: '/russie.png',
     text: "La Russie propose un enseignement supérieur d'excellence avec des universités historiques comme MGU. Système éducatif combinant tradition et recherche de pointe dans un environnement multiculturel.",
   },
   {
-    country: "Chine",
-    imagePath: "/chine.jpg",
-    text: "La Chine développe des pôles universitaires high-tech avec des programmes innovants en IA et commerce international. Universités comme Tsinghua rivalisent avec les meilleures mondiales.",
+    country: 'Chine',
+    imagePath: '/chine.jpg',
+    text: 'La Chine développe des pôles universitaires high-tech avec des programmes innovants en IA et commerce international. Universités comme Tsinghua rivalisent avec les meilleures mondiales.',
   },
   {
-    country: "Maroc",
-    imagePath: "/maroc.webp",
+    country: 'Maroc',
+    imagePath: '/maroc.webp',
     text: "Le Maroc offre un enseignement de qualité en français/arabe avec des frais accessibles. Universités reconnues en Afrique et programmes d'échange avec l'Europe.",
   },
   {
-    country: "Algérie",
-    imagePath: "/algerie.png",
+    country: 'Algérie',
+    imagePath: '/algerie.png',
     text: "L'Algérie dispose d'universités performantes en sciences et médecine avec des coûts très abordables. Système éducatif francophone et infrastructures récentes.",
   },
   {
-    country: "Turquie",
-    imagePath: "/turquie.webp",
-    text: "La Turquie combine éducation de qualité et frais modestes avec des universités accréditées internationalement. Position géographique unique entre Europe et Asie.",
+    country: 'Turquie',
+    imagePath: '/turquie.webp',
+    text: 'La Turquie combine éducation de qualité et frais modestes avec des universités accréditées internationalement. Position géographique unique entre Europe et Asie.',
   },
   {
-    country: "France",
-    imagePath: "/france.svg",
+    country: 'France',
+    imagePath: '/france.svg',
     text: "La France maintient sa tradition d'excellence académique avec des universités historiques et grandes écoles renommées. Système éducatif diversifié offrant des formations pointues.",
   },
 ];
@@ -53,7 +53,7 @@ export class DestinationService {
   constructor(
     @InjectModel(Destination.name)
     private readonly destinationModel: Model<Destination>,
-    private readonly storageService: StorageService,
+    private readonly storageService: StorageService
   ) {
     this.initializeDefaultDestinations();
   }
@@ -66,12 +66,12 @@ export class DestinationService {
       const count = await this.destinationModel.countDocuments();
       if (count === 0) {
         await this.destinationModel.insertMany(defaultDestinations);
-        this.logger.log("Destinations par défaut insérées avec succès");
+        this.logger.log('Destinations par défaut insérées avec succès');
       }
     } catch (error) {
       this.logger.error(
         "Erreur lors de l'initialisation des destinations:",
-        error.stack,
+        error.stack
       );
     }
   }
@@ -81,18 +81,20 @@ export class DestinationService {
    */
   async create(
     createDestinationDto: CreateDestinationDto,
-    imageFile: Express.Multer.File,
+    imageFile: Express.Multer.File
   ): Promise<Destination> {
-    this.logger.log(`Tentative de création destination: ${createDestinationDto.country}`);
+    this.logger.log(
+      `Tentative de création destination: ${createDestinationDto.country}`
+    );
 
     try {
       // Validation des données d'entrée
       if (!createDestinationDto.country?.trim()) {
-        throw new BadRequestException("Le nom du pays est obligatoire");
+        throw new BadRequestException('Le nom du pays est obligatoire');
       }
 
       if (!createDestinationDto.text?.trim()) {
-        throw new BadRequestException("La description est obligatoire");
+        throw new BadRequestException('La description est obligatoire');
       }
 
       if (!imageFile) {
@@ -105,8 +107,10 @@ export class DestinationService {
       });
 
       if (existingDestination) {
-        this.logger.warn(`Destination déjà existante: ${createDestinationDto.country}`);
-        throw new ConflictException("Cette destination existe déjà");
+        this.logger.warn(
+          `Destination déjà existante: ${createDestinationDto.country}`
+        );
+        throw new ConflictException('Cette destination existe déjà');
       }
 
       // Upload de l'image
@@ -122,17 +126,22 @@ export class DestinationService {
 
       const savedDestination = await createdDestination.save();
 
-      this.logger.log(`Destination créée: ${savedDestination.country} (ID: ${savedDestination._id})`);
+      this.logger.log(
+        `Destination créée: ${savedDestination.country} (ID: ${savedDestination._id})`
+      );
       return savedDestination;
     } catch (error) {
-      this.logger.error(`Erreur création destination ${createDestinationDto.country}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Erreur création destination ${createDestinationDto.country}: ${error.message}`,
+        error.stack
+      );
 
       // Nettoyage en cas d'erreur
       if (imageFile) {
         try {
           await this.storageService.deleteFile(`uploads/${imageFile.filename}`);
         } catch (cleanupError) {
-          this.logger.error("Erreur nettoyage fichier:", cleanupError.stack);
+          this.logger.error('Erreur nettoyage fichier:', cleanupError.stack);
         }
       }
 
@@ -144,7 +153,7 @@ export class DestinationService {
       }
 
       throw new InternalServerErrorException(
-        "Erreur lors de la création de la destination",
+        'Erreur lors de la création de la destination'
       );
     }
   }
@@ -155,7 +164,7 @@ export class DestinationService {
   async findAll(
     page: number = 1,
     limit: number = 10,
-    search?: string,
+    search?: string
   ): Promise<{
     data: Destination[];
     total: number;
@@ -166,7 +175,9 @@ export class DestinationService {
     hasPrev: boolean;
   }> {
     try {
-      this.logger.debug(`Récupération destinations - Page: ${page}, Limit: ${limit}, Search: ${search || 'aucun'}`);
+      this.logger.debug(
+        `Récupération destinations - Page: ${page}, Limit: ${limit}, Search: ${search || 'aucun'}`
+      );
 
       const skip = (page - 1) * limit;
 
@@ -175,7 +186,7 @@ export class DestinationService {
       if (search && search.trim()) {
         filters.country = {
           $regex: search.trim(),
-          $options: "i",
+          $options: 'i',
         };
       }
 
@@ -183,7 +194,7 @@ export class DestinationService {
       const [data, total] = await Promise.all([
         this.destinationModel
           .find(filters)
-          .select("country imagePath text createdAt updatedAt")
+          .select('country imagePath text createdAt updatedAt')
           .skip(skip)
           .limit(limit)
           .sort({ country: 1 })
@@ -193,7 +204,9 @@ export class DestinationService {
 
       const totalPages = Math.ceil(total / limit);
 
-      this.logger.debug(`Récupération destinations réussie: ${data.length} sur ${total}`);
+      this.logger.debug(
+        `Récupération destinations réussie: ${data.length} sur ${total}`
+      );
 
       return {
         data,
@@ -207,10 +220,10 @@ export class DestinationService {
     } catch (error) {
       this.logger.error(
         `Erreur récupération destinations: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw new InternalServerErrorException(
-        "Erreur lors de la récupération des destinations",
+        'Erreur lors de la récupération des destinations'
       );
     }
   }
@@ -220,24 +233,28 @@ export class DestinationService {
    */
   async findAllWithoutPagination(): Promise<Destination[]> {
     try {
-      this.logger.debug(`Récupération de toutes les destinations sans pagination`);
-      
+      this.logger.debug(
+        `Récupération de toutes les destinations sans pagination`
+      );
+
       const destinations = await this.destinationModel
         .find()
-        .select("country imagePath text createdAt updatedAt")
+        .select('country imagePath text createdAt updatedAt')
         .sort({ country: 1 })
         .exec();
 
-      this.logger.debug(`Récupération réussie: ${destinations.length} destinations`);
-      
+      this.logger.debug(
+        `Récupération réussie: ${destinations.length} destinations`
+      );
+
       return destinations;
     } catch (error) {
       this.logger.error(
         `Erreur récupération toutes destinations: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw new InternalServerErrorException(
-        "Erreur lors de la récupération des destinations",
+        'Erreur lors de la récupération des destinations'
       );
     }
   }
@@ -250,12 +267,12 @@ export class DestinationService {
       this.logger.debug(`Recherche destination ID: ${id}`);
 
       if (!id || id.length !== 24) {
-        throw new BadRequestException("ID de destination invalide");
+        throw new BadRequestException('ID de destination invalide');
       }
 
       const destination = await this.destinationModel
         .findById(id)
-        .select("country imagePath text createdAt updatedAt")
+        .select('country imagePath text createdAt updatedAt')
         .exec();
 
       if (!destination) {
@@ -263,7 +280,9 @@ export class DestinationService {
         throw new NotFoundException(`Destination avec ID ${id} non trouvée`);
       }
 
-      this.logger.debug(`Destination trouvée: ${destination.country} (ID: ${id})`);
+      this.logger.debug(
+        `Destination trouvée: ${destination.country} (ID: ${id})`
+      );
       return destination;
     } catch (error) {
       if (
@@ -275,10 +294,10 @@ export class DestinationService {
 
       this.logger.error(
         `Erreur récupération destination ${id}: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw new InternalServerErrorException(
-        "Erreur lors de la récupération de la destination",
+        'Erreur lors de la récupération de la destination'
       );
     }
   }
@@ -289,20 +308,22 @@ export class DestinationService {
   async findByCountry(country: string): Promise<Destination | null> {
     try {
       this.logger.debug(`Recherche destination par pays: ${country}`);
-      
+
       const destination = await this.destinationModel
         .findOne({
-          country: { $regex: `^${country.trim()}$`, $options: "i" },
+          country: { $regex: `^${country.trim()}$`, $options: 'i' },
         })
         .exec();
 
-      this.logger.debug(`Recherche par pays ${country}: ${destination ? 'trouvée' : 'non trouvée'}`);
-      
+      this.logger.debug(
+        `Recherche par pays ${country}: ${destination ? 'trouvée' : 'non trouvée'}`
+      );
+
       return destination;
     } catch (error) {
       this.logger.error(
         `Erreur recherche par pays ${country}: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw error;
     }
@@ -314,14 +335,14 @@ export class DestinationService {
   async update(
     id: string,
     updateDestinationDto: UpdateDestinationDto,
-    imageFile?: Express.Multer.File,
+    imageFile?: Express.Multer.File
   ): Promise<Destination> {
     this.logger.log(`Tentative mise à jour destination: ${id}`);
 
     try {
       // Validation de l'ID
       if (!id || id.length !== 24) {
-        throw new BadRequestException("ID de destination invalide");
+        throw new BadRequestException('ID de destination invalide');
       }
 
       // Vérifier que la destination existe
@@ -335,7 +356,7 @@ export class DestinationService {
       const hasUpdateData =
         Object.keys(updateDestinationDto).length > 0 || imageFile;
       if (!hasUpdateData) {
-        throw new BadRequestException("Aucune donnée à mettre à jour fournie");
+        throw new BadRequestException('Aucune donnée à mettre à jour fournie');
       }
 
       // Vérifier la collision de nom si le pays est modifié
@@ -349,9 +370,11 @@ export class DestinationService {
         });
 
         if (countryConflict) {
-          this.logger.warn(`Conflit de nom pour la destination: ${updateDestinationDto.country}`);
+          this.logger.warn(
+            `Conflit de nom pour la destination: ${updateDestinationDto.country}`
+          );
           throw new ConflictException(
-            "Une destination avec ce nom existe déjà",
+            'Une destination avec ce nom existe déjà'
           );
         }
       }
@@ -390,13 +413,13 @@ export class DestinationService {
           new: true,
           runValidators: true,
         })
-        .select("country imagePath text createdAt updatedAt")
+        .select('country imagePath text createdAt updatedAt')
         .exec();
 
       if (!updatedDestination) {
         this.logger.error(`Destination non trouvée après mise à jour: ${id}`);
         throw new NotFoundException(
-          `Destination avec ID ${id} non trouvée après mise à jour`,
+          `Destination avec ID ${id} non trouvée après mise à jour`
         );
       }
 
@@ -407,19 +430,19 @@ export class DestinationService {
           this.logger.log(`Ancienne image supprimée: ${oldImagePath}`);
         } catch (cleanupError) {
           this.logger.warn(
-            `Impossible de supprimer l'ancienne image: ${cleanupError.message}`,
+            `Impossible de supprimer l'ancienne image: ${cleanupError.message}`
           );
         }
       }
 
       this.logger.log(
-        `Destination mise à jour: ${updatedDestination.country} (ID: ${id})`,
+        `Destination mise à jour: ${updatedDestination.country} (ID: ${id})`
       );
       return updatedDestination;
     } catch (error) {
       this.logger.error(
         `Erreur mise à jour destination ${id}: ${error.message}`,
-        error.stack,
+        error.stack
       );
 
       // Nettoyage en cas d'erreur
@@ -427,7 +450,7 @@ export class DestinationService {
         try {
           await this.storageService.deleteFile(`uploads/${imageFile.filename}`);
         } catch (cleanupError) {
-          this.logger.error("Erreur nettoyage fichier:", cleanupError.stack);
+          this.logger.error('Erreur nettoyage fichier:', cleanupError.stack);
         }
       }
 
@@ -440,7 +463,7 @@ export class DestinationService {
       }
 
       throw new InternalServerErrorException(
-        "Erreur lors de la mise à jour de la destination",
+        'Erreur lors de la mise à jour de la destination'
       );
     }
   }
@@ -449,14 +472,14 @@ export class DestinationService {
    * Supprimer une destination (Admin seulement)
    */
   async remove(
-    id: string,
+    id: string
   ): Promise<{ message: string; deletedDestination: Destination }> {
     this.logger.log(`Tentative suppression destination: ${id}`);
 
     try {
       // Validation de l'ID
       if (!id || id.length !== 24) {
-        throw new BadRequestException("ID de destination invalide");
+        throw new BadRequestException('ID de destination invalide');
       }
 
       // Récupérer la destination avec toutes les données
@@ -478,22 +501,27 @@ export class DestinationService {
         .exec();
 
       if (!deletedDestination) {
-        this.logger.error(`Destination non trouvée lors de la suppression: ${id}`);
+        this.logger.error(
+          `Destination non trouvée lors de la suppression: ${id}`
+        );
         throw new NotFoundException(
-          `Destination avec ID ${id} non trouvée lors de la suppression`,
+          `Destination avec ID ${id} non trouvée lors de la suppression`
         );
       }
 
       this.logger.log(
-        `Destination supprimée: ${destination.country} (ID: ${id})`,
+        `Destination supprimée: ${destination.country} (ID: ${id})`
       );
 
       return {
-        message: "Destination supprimée avec succès",
+        message: 'Destination supprimée avec succès',
         deletedDestination,
       };
     } catch (error) {
-      this.logger.error(`Erreur suppression destination ${id}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Erreur suppression destination ${id}: ${error.message}`,
+        error.stack
+      );
 
       if (
         error instanceof BadRequestException ||
@@ -503,7 +531,7 @@ export class DestinationService {
       }
 
       throw new InternalServerErrorException(
-        "Erreur lors de la suppression de la destination",
+        'Erreur lors de la suppression de la destination'
       );
     }
   }
@@ -513,17 +541,22 @@ export class DestinationService {
    */
   async count(filters: any = {}): Promise<number> {
     try {
-      this.logger.debug(`Comptage des destinations avec filtres: ${JSON.stringify(filters)}`);
-      
+      this.logger.debug(
+        `Comptage des destinations avec filtres: ${JSON.stringify(filters)}`
+      );
+
       const count = await this.destinationModel.countDocuments(filters).exec();
-      
+
       this.logger.debug(`Comptage terminé: ${count} destinations`);
-      
+
       return count;
     } catch (error) {
-      this.logger.error(`Erreur comptage destinations: ${error.message}`, error.stack);
+      this.logger.error(
+        `Erreur comptage destinations: ${error.message}`,
+        error.stack
+      );
       throw new InternalServerErrorException(
-        "Erreur lors du comptage des destinations",
+        'Erreur lors du comptage des destinations'
       );
     }
   }
@@ -537,7 +570,10 @@ export class DestinationService {
       const count = await this.destinationModel.countDocuments({ _id: id });
       return count > 0;
     } catch (error) {
-      this.logger.error(`Erreur vérification existence ${id}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Erreur vérification existence ${id}: ${error.message}`,
+        error.stack
+      );
       return false;
     }
   }
@@ -552,19 +588,19 @@ export class DestinationService {
   }> {
     try {
       this.logger.debug(`Calcul des statistiques des destinations`);
-      
+
       const [total, lastDestination, allDestinations] = await Promise.all([
         this.count(),
         this.destinationModel
           .findOne()
           .sort({ updatedAt: -1 })
-          .select("updatedAt")
+          .select('updatedAt')
           .exec(),
-        this.destinationModel.find().select("country").exec(),
+        this.destinationModel.find().select('country').exec(),
       ]);
 
       const uniqueCountries = new Set(
-        allDestinations.map((dest) => dest.country.toLowerCase().trim()),
+        allDestinations.map(dest => dest.country.toLowerCase().trim())
       );
 
       const stats = {
@@ -574,15 +610,15 @@ export class DestinationService {
       };
 
       this.logger.debug(`Statistiques calculées: ${JSON.stringify(stats)}`);
-      
+
       return stats;
     } catch (error) {
       this.logger.error(
         `Erreur récupération statistiques: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw new InternalServerErrorException(
-        "Erreur lors de la récupération des statistiques",
+        'Erreur lors de la récupération des statistiques'
       );
     }
   }

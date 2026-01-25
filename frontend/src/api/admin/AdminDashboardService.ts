@@ -1,4 +1,3 @@
-/* eslint-disable no-undef */
 import { useAuth } from '../../context/AuthContext';
 import React from 'react';
 
@@ -548,7 +547,10 @@ class AdminDashboardService {
    * ✅ Utilise fetchWithAuth du contexte pour la bonne URL et authentification
    */
   async getMaintenanceStatus(
-    fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>
+    fetchWithAuth: (
+      endpoint: string,
+      options?: RequestInit
+    ) => Promise<Response>
   ): Promise<any> {
     try {
       const response = await fetchWithAuth('/api/users/maintenance-status');
@@ -572,23 +574,26 @@ class AdminDashboardService {
    */
   async toggleMaintenanceMode(
     enabled: boolean,
-    fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>
+    fetchWithAuth: (
+      endpoint: string,
+      options?: RequestInit
+    ) => Promise<Response>
   ): Promise<any> {
     try {
       const response = await fetchWithAuth('/api/users/maintenance-mode', {
         method: 'POST',
         body: JSON.stringify({ enabled }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`Erreur ${response.status}: ${response.statusText}`);
       }
-      
+
       const result = await response.json();
-      
+
       // FORCER LE RAFRAÎCHISSEMENT IMMÉDIAT APRÈS LE TOGGLE
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       return result;
     } catch (error) {
       if (import.meta.env.DEV) {

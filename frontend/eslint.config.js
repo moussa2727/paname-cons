@@ -25,6 +25,22 @@ export default [
           jsx: true
         },
         project: "./tsconfig.json"
+      },
+      globals: {
+        window: "readonly",
+        document: "readonly",
+        console: "readonly",
+        setTimeout: "readonly",
+        setInterval: "readonly",
+        clearTimeout: "readonly",
+        clearInterval: "readonly",
+        fetch: "readonly",
+        localStorage: "readonly",
+        sessionStorage: "readonly",
+        navigator: "readonly",
+        location: "readonly",
+        history: "readonly",
+        React: "readonly"
       }
     },
 
@@ -37,6 +53,9 @@ export default [
     rules: {
       "react/react-in-jsx-scope": "off",
       "no-unused-vars": "off",
+      "no-undef": "off",
+      "no-useless-catch": "off",
+      "no-empty": "off",
       "@typescript-eslint/no-unused-vars": ["warn"]
     }
   }

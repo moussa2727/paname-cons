@@ -1,12 +1,12 @@
 // contact.schema.ts
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { Document, Types } from "mongoose";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
 export type ContactDocument = Contact & Document;
 
 @Schema({
   timestamps: true,
-  collection: "contacts",
+  collection: 'contacts',
   versionKey: false,
 })
 export class Contact {
@@ -40,7 +40,7 @@ export class Contact {
   @Prop()
   respondedAt?: Date;
 
-  @Prop({ type: Types.ObjectId, ref: "User" })
+  @Prop({ type: Types.ObjectId, ref: 'User' })
   respondedBy?: Types.ObjectId;
 
   // Champs timestamps automatiques

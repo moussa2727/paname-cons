@@ -4,25 +4,25 @@ import {
   NotFoundException,
   UnauthorizedException,
   BadRequestException,
-} from "@nestjs/common";
-import { JwtService } from "@nestjs/jwt";
-import { InjectModel } from "@nestjs/mongoose";
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
-import * as crypto from "crypto";
-import { Model } from "mongoose";
-import { randomUUID } from "crypto";
-import { MailService } from "../mail/mail.service";
-import { ResetToken } from "../schemas/reset-token.schema";
-import { Session } from "../schemas/session.schema";
-import { User } from "../schemas/user.schema";
-import { UserRole } from "../enums/user-role.enum";
-import { UsersService } from "../users/users.service";
-import { RegisterDto } from "./dto/register.dto";
-import { RevokedTokenService } from "./revoked-token.service";
-import { RefreshTokenService } from "./refresh-token.service";
-import { SessionService } from "./session.service";
-import { AuthConstants } from "./auth.constants";
-import { isValidObjectId } from "mongoose";
+import * as crypto from 'crypto';
+import { Model } from 'mongoose';
+import { randomUUID } from 'crypto';
+import { MailService } from '../mail/mail.service';
+import { ResetToken } from '../schemas/reset-token.schema';
+import { Session } from '../schemas/session.schema';
+import { User } from '../schemas/user.schema';
+import { UserRole } from '../enums/user-role.enum';
+import { UsersService } from '../users/users.service';
+import { RegisterDto } from './dto/register.dto';
+import { RevokedTokenService } from './revoked-token.service';
+import { RefreshTokenService } from './refresh-token.service';
+import { SessionService } from './session.service';
+import { AuthConstants } from './auth.constants';
+import { isValidObjectId } from 'mongoose';
 
 @Injectable()
 export class AuthService {
@@ -48,7 +48,7 @@ export class AuthService {
     private readonly resetTokenModel: Model<ResetToken>,
     @InjectModel(Session.name)
     private readonly sessionModel: Model<Session>,
-    @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(User.name) private userModel: Model<User>
   ) {}
 
   private getLoginAttempts(email: string): {
@@ -75,12 +75,13 @@ export class AuthService {
     current.attempts++;
     current.lastAttempt = new Date();
     current.ttl = new Date(
-      Date.now() + AuthConstants.LOGIN_ATTEMPTS_TTL_MINUTES * 60 * 1000,
+      Date.now() + AuthConstants.LOGIN_ATTEMPTS_TTL_MINUTES * 60 * 1000
     );
 
     if (this.loginAttempts.size >= this.MAX_CACHE_SIZE) {
-      const oldestKey = Array.from(this.loginAttempts.entries())
-        .sort((a, b) => a[1].ttl.getTime() - b[1].ttl.getTime())[0]?.[0];
+      const oldestKey = Array.from(this.loginAttempts.entries()).sort(
+        (a, b) => a[1].ttl.getTime() - b[1].ttl.getTime()
+      )[0]?.[0];
       if (oldestKey) {
         this.loginAttempts.delete(oldestKey);
       }
@@ -88,7 +89,7 @@ export class AuthService {
 
     this.loginAttempts.set(email, current);
     this.logger.warn(
-      `Tentative de connexion échouée pour ${this.maskEmail(email)}. Tentatives: ${current.attempts}`,
+      `Tentative de connexion échouée pour ${this.maskEmail(email)}. Tentatives: ${current.attempts}`
     );
   }
 
@@ -103,110 +104,125 @@ export class AuthService {
 
   private resetLoginAttempts(email: string): void {
     this.loginAttempts.delete(email);
-    this.logger.log(`Réinitialisation des tentatives pour ${this.maskEmail(email)}`);
+    this.logger.log(
+      `Réinitialisation des tentatives pour ${this.maskEmail(email)}`
+    );
   }
 
- async register(registerDto: RegisterDto) {
-  try {
-    const adminEmail = process.env.EMAIL_USER;
-    
-    // LOGIQUE SIMPLIFIÉE : TOUJOURS USER SAUF EMAIL_USER (premier seulement)
-    const existingAdmin = await this.usersService.findByRole(UserRole.ADMIN);
-    
-    if (registerDto.email === adminEmail) {
-      // Email admin spécifique détecté
-      if (existingAdmin) {
-        // Admin existe déjà → devient USER
-        registerDto.role = UserRole.USER;
-        this.logger.warn(`Email admin utilisé pour créer un USER (admin existe déjà)`);
-      } else {
-        // Premier admin → devient ADMIN
-        registerDto.role = UserRole.ADMIN;
-        this.logger.log(`Création du SEUL et UNIQUE admin: ${this.maskEmail(adminEmail)}`);
-      }
-    } else {
-      // Tous les autres emails sont USER
-      registerDto.role = UserRole.USER;
-      this.logger.log(`Création d'utilisateur standard: ${this.maskEmail(registerDto.email)}`);
-    }
-
-    const newUser = await this.usersService.create(registerDto);
-    const userId = newUser.id;
-
-    const jtiAccess = randomUUID();
-    const jtiRefresh = randomUUID();
-
-    const access_token = this.jwtService.sign(
-      {
-        sub: userId,
-        email: newUser.email,
-        role: newUser.role,
-        jti: jtiAccess,
-        tokenType: "access",
-      },
-      {
-        expiresIn: AuthConstants.JWT_EXPIRATION,
-      },
-    );
-
-    const refresh_token = this.jwtService.sign(
-      {
-        sub: userId,
-        email: newUser.email,
-        role: newUser.role,
-        jti: jtiRefresh,
-        tokenType: "refresh",
-      },
-      {
-        expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
-        secret: process.env.JWT_REFRESH_SECRET,
-      },
-    );
-
-    await this.sessionService.create(
-      userId,
-      access_token,
-      new Date(Date.now() + AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000),
-    );
-
-    await this.refreshTokenService.deactivateAllForUser(userId);
-    const decodedRefresh = this.jwtService.decode(refresh_token) as any;
-    const refreshExp = new Date(
-      (decodedRefresh?.exp || 0) * 1000 || Date.now() + AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000,
-    );
-    await this.refreshTokenService.create(userId, refresh_token, refreshExp);
-
+  async register(registerDto: RegisterDto) {
     try {
-      await this.mailService.sendWelcomeEmail(
-        newUser.email,
-        newUser.firstName,
+      const adminEmail = process.env.EMAIL_USER;
+
+      // LOGIQUE SIMPLIFIÉE : TOUJOURS USER SAUF EMAIL_USER (premier seulement)
+      const existingAdmin = await this.usersService.findByRole(UserRole.ADMIN);
+
+      if (registerDto.email === adminEmail) {
+        // Email admin spécifique détecté
+        if (existingAdmin) {
+          // Admin existe déjà → devient USER
+          registerDto.role = UserRole.USER;
+          this.logger.warn(
+            `Email admin utilisé pour créer un USER (admin existe déjà)`
+          );
+        } else {
+          // Premier admin → devient ADMIN
+          registerDto.role = UserRole.ADMIN;
+          this.logger.log(
+            `Création du SEUL et UNIQUE admin: ${this.maskEmail(adminEmail)}`
+          );
+        }
+      } else {
+        // Tous les autres emails sont USER
+        registerDto.role = UserRole.USER;
+        this.logger.log(
+          `Création d'utilisateur standard: ${this.maskEmail(registerDto.email)}`
+        );
+      }
+
+      const newUser = await this.usersService.create(registerDto);
+      const userId = newUser.id;
+
+      const jtiAccess = randomUUID();
+      const jtiRefresh = randomUUID();
+
+      const access_token = this.jwtService.sign(
+        {
+          sub: userId,
+          email: newUser.email,
+          role: newUser.role,
+          jti: jtiAccess,
+          tokenType: 'access',
+        },
+        {
+          expiresIn: AuthConstants.JWT_EXPIRATION,
+        }
       );
-    } catch (emailError) {
-      this.logger.warn(`Échec envoi email bienvenue: ${emailError.message}`);
+
+      const refresh_token = this.jwtService.sign(
+        {
+          sub: userId,
+          email: newUser.email,
+          role: newUser.role,
+          jti: jtiRefresh,
+          tokenType: 'refresh',
+        },
+        {
+          expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
+          secret: process.env.JWT_REFRESH_SECRET,
+        }
+      );
+
+      await this.sessionService.create(
+        userId,
+        access_token,
+        new Date(
+          Date.now() + AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000
+        )
+      );
+
+      await this.refreshTokenService.deactivateAllForUser(userId);
+      const decodedRefresh = this.jwtService.decode(refresh_token) as any;
+      const refreshExp = new Date(
+        (decodedRefresh?.exp || 0) * 1000 ||
+          Date.now() + AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000
+      );
+      await this.refreshTokenService.create(userId, refresh_token, refreshExp);
+
+      try {
+        await this.mailService.sendWelcomeEmail(
+          newUser.email,
+          newUser.firstName
+        );
+      } catch (emailError) {
+        this.logger.warn(`Échec envoi email bienvenue: ${emailError.message}`);
+      }
+
+      this.logger.log(
+        `Nouvel utilisateur enregistré: ${this.maskEmail(newUser.email)}`
+      );
+
+      return {
+        access_token,
+        refresh_token,
+        user: {
+          id: userId,
+          email: newUser.email,
+          firstName: newUser.firstName,
+          lastName: newUser.lastName,
+          telephone: newUser.telephone,
+          role: newUser.role,
+          isAdmin: newUser.role === UserRole.ADMIN,
+          isActive: newUser.isActive,
+        },
+      };
+    } catch (error) {
+      this.logger.error(
+        `Erreur lors de l'enregistrement: ${error.message}`,
+        error.stack
+      );
+      throw error;
     }
-
-    this.logger.log(`Nouvel utilisateur enregistré: ${this.maskEmail(newUser.email)}`);
-
-    return {
-      access_token,
-      refresh_token,
-      user: {
-        id: userId,
-        email: newUser.email,
-        firstName: newUser.firstName,
-        lastName: newUser.lastName,
-        telephone: newUser.telephone,
-        role: newUser.role,
-        isAdmin: newUser.role === UserRole.ADMIN,
-        isActive: newUser.isActive,
-      },
-    };
-
-  } catch (error) {
-    this.logger.error(`Erreur lors de l'enregistrement: ${error.message}`, error.stack);
-    throw error;
   }
-}
 
   async login(user: User) {
     const jtiAccess = randomUUID();
@@ -218,7 +234,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       jti: jtiAccess,
-      tokenType: "access",
+      tokenType: 'access',
     };
 
     const refreshPayload = {
@@ -226,7 +242,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       jti: jtiRefresh,
-      tokenType: "refresh",
+      tokenType: 'refresh',
     };
 
     const access_token = this.jwtService.sign(accessPayload, {
@@ -241,7 +257,9 @@ export class AuthService {
     await this.sessionService.create(
       userId,
       access_token,
-      new Date(Date.now() + AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000),
+      new Date(
+        Date.now() + AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000
+      )
     );
 
     try {
@@ -249,12 +267,12 @@ export class AuthService {
       const decodedRefresh = this.jwtService.decode(refresh_token) as any;
       const refreshExp = new Date(
         (decodedRefresh?.exp || 0) * 1000 ||
-          Date.now() + AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000,
+          Date.now() + AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000
       );
       await this.refreshTokenService.create(userId, refresh_token, refreshExp);
     } catch (error) {
       this.logger.warn(
-        `Impossible d'enregistrer le refresh token: ${error.message}`,
+        `Impossible d'enregistrer le refresh token: ${error.message}`
       );
     }
 
@@ -266,7 +284,7 @@ export class AuthService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        telephone: user.telephone, 
+        telephone: user.telephone,
         role: user.role,
       },
     };
@@ -278,13 +296,14 @@ export class AuthService {
     sessionExpired?: boolean;
   }> {
     if (!refresh_token) {
-      throw new UnauthorizedException("Refresh token manquant");
+      throw new UnauthorizedException('Refresh token manquant');
     }
 
     try {
-      const isWhitelisted = await this.refreshTokenService.isValid(refresh_token);
+      const isWhitelisted =
+        await this.refreshTokenService.isValid(refresh_token);
       if (!isWhitelisted) {
-        throw new UnauthorizedException("Refresh token non autorisé");
+        throw new UnauthorizedException('Refresh token non autorisé');
       }
 
       const payload = this.jwtService.verify(refresh_token, {
@@ -293,7 +312,7 @@ export class AuthService {
 
       const user = await this.usersService.findById(payload.sub);
       if (!user) {
-        throw new UnauthorizedException("Utilisateur non trouvé");
+        throw new UnauthorizedException('Utilisateur non trouvé');
       }
 
       const userId = user.id;
@@ -307,11 +326,11 @@ export class AuthService {
           email: user.email,
           role: user.role,
           jti: jtiAccess,
-          tokenType: "access",
+          tokenType: 'access',
         },
         {
           expiresIn: AuthConstants.JWT_EXPIRATION,
-        },
+        }
       );
 
       const new_refresh_token = this.jwtService.sign(
@@ -320,29 +339,36 @@ export class AuthService {
           email: user.email,
           role: user.role,
           jti: jtiRefresh,
-          tokenType: "refresh",
+          tokenType: 'refresh',
         },
         {
           expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
           secret: process.env.JWT_REFRESH_SECRET,
-        },
+        }
       );
 
       await this.sessionService.create(
         userId,
         new_access_token,
-        new Date(Date.now() + AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000),
+        new Date(
+          Date.now() + AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000
+        )
       );
 
-      const decodedNewRefresh = this.jwtService.decode(new_refresh_token) as any;
+      const decodedNewRefresh = this.jwtService.decode(
+        new_refresh_token
+      ) as any;
       const newExp = new Date(
-        (decodedNewRefresh?.exp || 0) * 1000 || Date.now() + AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000,
+        (decodedNewRefresh?.exp || 0) * 1000 ||
+          Date.now() + AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000
       );
       await this.refreshTokenService.create(userId, new_refresh_token, newExp);
 
       await this.refreshTokenService.deactivateByToken(refresh_token);
 
-      this.logger.log(`Tokens rafraîchis pour l'utilisateur ${this.maskUserId(userId)}`);
+      this.logger.log(
+        `Tokens rafraîchis pour l'utilisateur ${this.maskUserId(userId)}`
+      );
 
       return {
         access_token: new_access_token,
@@ -352,137 +378,156 @@ export class AuthService {
       this.logger.error(` Erreur refresh token: ${error.message}`);
 
       if (
-        error.name === "JsonWebTokenError" ||
-        error.name === "TokenExpiredError"
+        error.name === 'JsonWebTokenError' ||
+        error.name === 'TokenExpiredError'
       ) {
         try {
           await this.refreshTokenService.deactivateByToken(refresh_token);
         } catch (deactivateError) {
           this.logger.warn(
-            `Impossible de désactiver le refresh token invalide: ${deactivateError.message}`,
+            `Impossible de désactiver le refresh token invalide: ${deactivateError.message}`
           );
         }
       }
 
-      throw new UnauthorizedException("Refresh token invalide");
+      throw new UnauthorizedException('Refresh token invalide');
     }
   }
 
-async logoutAll(): Promise<{
-  success: boolean;
-  message: string;
-  stats: {
-    usersLoggedOut: number;
-    adminPreserved: boolean;
-    adminEmail: string;
-    duration: string;
-    timestamp: string;
-    userEmails: string[];
-  };
-}> {
-  const startTime = Date.now();
-  
-  try {
-    this.logger.log(" Début déconnexion temporaire (24h) des utilisateurs NON-ADMIN");
+  async logoutAll(): Promise<{
+    success: boolean;
+    message: string;
+    stats: {
+      usersLoggedOut: number;
+      adminPreserved: boolean;
+      adminEmail: string;
+      duration: string;
+      timestamp: string;
+      userEmails: string[];
+    };
+  }> {
+    try {
+      this.logger.log(
+        ' Début déconnexion temporaire (24h) des utilisateurs NON-ADMIN'
+      );
 
-    const adminEmail = process.env.EMAIL_USER;
-    
-    if (!adminEmail) {
-      this.logger.error(" EMAIL_USER non configuré");
-      throw new BadRequestException("EMAIL_USER non défini dans l'environnement");
-    }
+      const adminEmail = process.env.EMAIL_USER;
 
-    const adminUser = await this.userModel.findOne({ email: adminEmail }).exec();
-    
-    if (!adminUser) {
-      this.logger.error(" Admin non trouvé en base de données");
-      throw new BadRequestException("Administrateur principal non trouvé");
-    }
+      if (!adminEmail) {
+        this.logger.error(' EMAIL_USER non configuré');
+        throw new BadRequestException(
+          "EMAIL_USER non défini dans l'environnement"
+        );
+      }
 
-    const activeNonAdminUsers = await this.userModel
-      .find({
-        email: { $ne: adminEmail },
-        role: { $ne: UserRole.ADMIN },
-        isActive: true,
-      })
-      .select('id email firstName lastName role')
-      .lean()
-      .exec();
+      const adminUser = await this.userModel
+        .findOne({ email: adminEmail })
+        .exec();
 
-    this.logger.log(` ${activeNonAdminUsers.length} utilisateurs non-admin trouvés`);
-    this.logger.log(` Admin ${this.maskEmail(adminEmail)} (ID: ${adminUser.id}) préservé`);
+      if (!adminUser) {
+        this.logger.error(' Admin non trouvé en base de données');
+        throw new BadRequestException('Administrateur principal non trouvé');
+      }
 
-    if (activeNonAdminUsers.length === 0) {
+      const activeNonAdminUsers = await this.userModel
+        .find({
+          email: { $ne: adminEmail },
+          role: { $ne: UserRole.ADMIN },
+          isActive: true,
+        })
+        .select('id email firstName lastName role')
+        .lean()
+        .exec();
+
+      this.logger.log(
+        ` ${activeNonAdminUsers.length} utilisateurs non-admin trouvés`
+      );
+      this.logger.log(
+        ` Admin ${this.maskEmail(adminEmail)} (ID: ${adminUser.id}) préservé`
+      );
+
+      if (activeNonAdminUsers.length === 0) {
+        return {
+          success: true,
+          message: 'Aucun utilisateur non-admin à déconnecter',
+          stats: {
+            usersLoggedOut: 0,
+            adminPreserved: true,
+            adminEmail: this.maskEmail(adminEmail),
+            duration: '24h',
+            timestamp: new Date().toISOString(),
+            userEmails: [],
+          },
+        };
+      }
+
+      const userIds = activeNonAdminUsers.map(user => user.id);
+
+      const logoutUntilDate = new Date(
+        Date.now() + AuthConstants.GLOBAL_LOGOUT_DURATION
+      );
+
+      await Promise.all([
+        this.userModel
+          .updateMany(
+            {
+              id: { $in: userIds },
+              email: { $ne: adminEmail },
+            },
+            {
+              $set: {
+                logoutUntil: logoutUntilDate,
+                lastLogout: new Date(),
+              },
+            }
+          )
+          .exec(),
+
+        this.sessionModel
+          .updateMany(
+            {
+              user: { $in: userIds },
+              isActive: true,
+            },
+            {
+              isActive: false,
+              deactivatedAt: new Date(),
+              revocationReason: 'admin global logout 24h',
+            }
+          )
+          .exec(),
+
+        this.refreshTokenService.deactivateByUserIds(userIds),
+
+        this.resetTokenModel.deleteMany({ user: { $in: userIds } }).exec(),
+      ]);
+
+      this.logger.log(
+        ` DÉCONNEXION GLOBALE RÉUSSIE : ${activeNonAdminUsers.length} utilisateurs déconnectés`
+      );
+      this.logger.log(
+        ` ADMIN PRÉSERVÉ : ${this.maskEmail(adminEmail)} - ID: ${adminUser.id}`
+      );
+
       return {
         success: true,
-        message: "Aucun utilisateur non-admin à déconnecter",
+        message: `${activeNonAdminUsers.length} utilisateurs non-admin déconnectés pour 24 heures`,
         stats: {
-          usersLoggedOut: 0,
+          usersLoggedOut: activeNonAdminUsers.length,
           adminPreserved: true,
           adminEmail: this.maskEmail(adminEmail),
-          duration: "24h",
+          duration: '24 heures',
           timestamp: new Date().toISOString(),
-          userEmails: []
-        }
+          userEmails: [],
+        },
       };
+    } catch (error) {
+      this.logger.error(` ÉCHEC déconnexion globale: ${error.message}`);
+      throw new BadRequestException(
+        `Échec de la déconnexion globale: ${error.message}`
+      );
     }
-
-    const userIds = activeNonAdminUsers.map(user => user.id);
-
-    const logoutUntilDate = new Date(Date.now() + AuthConstants.GLOBAL_LOGOUT_DURATION);
-
-    await Promise.all([
-      this.userModel.updateMany(
-        { 
-          id: { $in: userIds },
-          email: { $ne: adminEmail }
-        },
-        {
-          $set: {
-            logoutUntil: logoutUntilDate,
-            lastLogout: new Date(),
-          }
-        }
-      ).exec(),
-
-      this.sessionModel.updateMany(
-        { 
-          user: { $in: userIds }, 
-          isActive: true 
-        },
-        {
-          isActive: false,
-          deactivatedAt: new Date(),
-          revocationReason: "admin global logout 24h"
-        }
-      ).exec(),
-
-      this.refreshTokenService.deactivateByUserIds(userIds),
-
-      this.resetTokenModel.deleteMany({ user: { $in: userIds } }).exec(),
-    ]);
-
-    this.logger.log(` DÉCONNEXION GLOBALE RÉUSSIE : ${activeNonAdminUsers.length} utilisateurs déconnectés`);
-    this.logger.log(` ADMIN PRÉSERVÉ : ${this.maskEmail(adminEmail)} - ID: ${adminUser.id}`);
-
-    return {
-      success: true,
-      message: `${activeNonAdminUsers.length} utilisateurs non-admin déconnectés pour 24 heures`,
-      stats: {
-        usersLoggedOut: activeNonAdminUsers.length,
-        adminPreserved: true,
-        adminEmail: this.maskEmail(adminEmail),
-        duration: "24 heures",
-        timestamp: new Date().toISOString(),
-        userEmails: []
-      }
-    };
-
-  } catch (error) {
-    this.logger.error(` ÉCHEC déconnexion globale: ${error.message}`);
-    throw new BadRequestException(`Échec de la déconnexion globale: ${error.message}`);
   }
-}
 
   async revokeToken(token: string, expiresAt: Date): Promise<void> {
     try {
@@ -490,7 +535,7 @@ async logoutAll(): Promise<{
       this.logger.log(`Token révoqué: ${this.maskToken(token)}`);
     } catch (error) {
       if (error?.code === 11000) {
-        this.logger.warn("Token déjà révoqué");
+        this.logger.warn('Token déjà révoqué');
         return;
       }
       this.logger.error(`Erreur de révocation du token: ${error.message}`);
@@ -508,20 +553,22 @@ async logoutAll(): Promise<{
     sessionsCleared: number;
   }> {
     const tokensResult = await this.revokedTokenService.revokeAllTokens();
-    
+
     await this.sessionModel.updateMany(
       { isActive: true },
-      { 
-        isActive: false, 
+      {
+        isActive: false,
         deactivatedAt: new Date(),
-        revocationReason: "admin_revoke_all"
-      },
+        revocationReason: 'admin_revoke_all',
+      }
     );
 
-    const activeSessionsCount = await this.sessionModel.countDocuments({ isActive: true });
+    const activeSessionsCount = await this.sessionModel.countDocuments({
+      isActive: true,
+    });
 
     return {
-      message: "Tokens révoqués et sessions désactivées",
+      message: 'Tokens révoqués et sessions désactivées',
       revokedCount: tokensResult.revokedCount,
       sessionsCleared: activeSessionsCount,
     };
@@ -529,98 +576,168 @@ async logoutAll(): Promise<{
 
   async logoutWithSessionDeletion(
     userId: string,
-    token: string,
+    token: string
   ): Promise<void> {
     try {
       await this.sessionModel.updateOne(
         { token, user: userId },
-        { 
-          isActive: false, 
+        {
+          isActive: false,
           deactivatedAt: new Date(),
-          revocationReason: "user_logout"
-        },
+          revocationReason: 'user_logout',
+        }
       );
-      
+
       try {
         const decoded = this.jwtService.decode(token) as any;
         if (decoded && decoded.exp) {
           await this.revokeToken(token, new Date(decoded.exp * 1000));
         }
       } catch (error) {
-        this.logger.warn(`Erreur lors de la révocation du token: ${error.message}`);
+        this.logger.warn(
+          `Erreur lors de la révocation du token: ${error.message}`
+        );
       }
-      
+
       this.loginAttempts.delete(userId);
-      this.logger.log(`Déconnexion avec désactivation de session pour l'utilisateur ${this.maskUserId(userId)}`);
+      this.logger.log(
+        `Déconnexion avec désactivation de session pour l'utilisateur ${this.maskUserId(userId)}`
+      );
     } catch (error) {
       this.logger.error(`Erreur lors de la déconnexion: ${error.message}`);
       throw error;
     }
   }
 
-async validateUser(email: string, password: string): Promise<User | null> {
-  try {
-    const attempts = this.getLoginAttempts(email);
+  async validateUser(email: string, password: string): Promise<User | null> {
+    try {
+      const attempts = this.getLoginAttempts(email);
 
-    if (attempts.attempts >= AuthConstants.MAX_LOGIN_ATTEMPTS) {
-      const timeSinceLastAttempt =
-        (Date.now() - attempts.lastAttempt.getTime()) / (1000 * 60);
-      if (timeSinceLastAttempt < AuthConstants.LOGIN_ATTEMPTS_TTL_MINUTES) {
-        throw new UnauthorizedException(
-          `Trop de tentatives. Réessayez dans ${Math.ceil(
-            AuthConstants.LOGIN_ATTEMPTS_TTL_MINUTES - timeSinceLastAttempt,
-          )} minutes`,
-        );
-      } else {
-        this.resetLoginAttempts(email);
+      if (attempts.attempts >= AuthConstants.MAX_LOGIN_ATTEMPTS) {
+        const timeSinceLastAttempt =
+          (Date.now() - attempts.lastAttempt.getTime()) / (1000 * 60);
+        if (timeSinceLastAttempt < AuthConstants.LOGIN_ATTEMPTS_TTL_MINUTES) {
+          throw new UnauthorizedException(
+            `Trop de tentatives. Réessayez dans ${Math.ceil(
+              AuthConstants.LOGIN_ATTEMPTS_TTL_MINUTES - timeSinceLastAttempt
+            )} minutes`
+          );
+        } else {
+          this.resetLoginAttempts(email);
+        }
       }
-    }
 
-    this.logger.debug(`Validation utilisateur pour: ${this.maskEmail(email)}`);
+      this.logger.debug(
+        `Validation utilisateur pour: ${this.maskEmail(email)}`
+      );
 
-    const user = await this.userModel
-      .findOne({ email: email.toLowerCase().trim() })
-      .select('+password')
-      .exec();
-    
-    if (!user) {
-      this.logger.warn(`Utilisateur non trouvé: ${this.maskEmail(email)}`);
-      this.incrementLoginAttempts(email);
-      return null;
-    }
+      const user = await this.userModel
+        .findOne({ email: email.toLowerCase().trim() })
+        .select('+password')
+        .exec();
 
-    const adminEmail = process.env.EMAIL_USER;
-    
-    if (!adminEmail) {
-      this.logger.error(' EMAIL_USER non configuré dans .env');
-      throw new UnauthorizedException("Configuration système invalide");
-    }
-
-    const isAdminEmail = user.email === adminEmail;
-    const isAdminRole = user.role === UserRole.ADMIN;
-
-    if (isAdminRole) {
-      if (!isAdminEmail) {
-        this.logger.error(` ADMIN NON AUTORISÉ DÉTECTÉ: ${this.maskEmail(user.email)} (email ne correspond pas à ${this.maskEmail(adminEmail)})`);
+      if (!user) {
+        this.logger.warn(`Utilisateur non trouvé: ${this.maskEmail(email)}`);
         this.incrementLoginAttempts(email);
-        throw new UnauthorizedException("Accès refusé");
+        return null;
       }
-      
-      this.logger.log(` ADMIN LÉGITIME DÉTECTÉ: ${this.maskEmail(user.email)}`);
-      
-      if (!user.password || user.password.trim() === '') {
-        this.logger.error(` CRITICAL: Admin ${this.maskEmail(email)} has no password in database`);
-        throw new UnauthorizedException(
-          AuthConstants.ERROR_MESSAGES.PASSWORD_RESET_REQUIRED,
-          {
-            description: "PASSWORD_RESET_REQUIRED",
-            cause: "NO_PASSWORD_IN_DB"
-          }
+
+      const adminEmail = process.env.EMAIL_USER;
+
+      if (!adminEmail) {
+        this.logger.error(' EMAIL_USER non configuré dans .env');
+        throw new UnauthorizedException('Configuration système invalide');
+      }
+
+      const isAdminEmail = user.email === adminEmail;
+      const isAdminRole = user.role === UserRole.ADMIN;
+
+      if (isAdminRole) {
+        if (!isAdminEmail) {
+          this.logger.error(
+            ` ADMIN NON AUTORISÉ DÉTECTÉ: ${this.maskEmail(user.email)} (email ne correspond pas à ${this.maskEmail(adminEmail)})`
+          );
+          this.incrementLoginAttempts(email);
+          throw new UnauthorizedException('Accès refusé');
+        }
+
+        this.logger.log(
+          ` ADMIN LÉGITIME DÉTECTÉ: ${this.maskEmail(user.email)}`
         );
+
+        if (!user.password || user.password.trim() === '') {
+          this.logger.error(
+            ` CRITICAL: Admin ${this.maskEmail(email)} has no password in database`
+          );
+          throw new UnauthorizedException(
+            AuthConstants.ERROR_MESSAGES.PASSWORD_RESET_REQUIRED,
+            {
+              description: 'PASSWORD_RESET_REQUIRED',
+              cause: 'NO_PASSWORD_IN_DB',
+            }
+          );
+        }
+
+        if (!password || password.trim() === '') {
+          this.logger.warn(
+            `Mot de passe vide fourni pour admin: ${this.maskEmail(email)}`
+          );
+          this.incrementLoginAttempts(email);
+          return null;
+        }
+
+        let isPasswordValid = false;
+        try {
+          const cleanPassword = password.trim();
+
+          if (!user.password || !cleanPassword) {
+            this.logger.error(
+              `Arguments manquants pour bcrypt.compare (admin)`
+            );
+            throw new Error('Arguments manquants pour la comparaison');
+          }
+
+          isPasswordValid = await bcrypt.compare(cleanPassword, user.password);
+        } catch (bcryptError) {
+          this.logger.error(
+            ` Erreur bcrypt.compare pour admin ${this.maskEmail(email)}: ${bcryptError.message}`
+          );
+          this.incrementLoginAttempts(email);
+          return null;
+        }
+
+        if (!isPasswordValid) {
+          this.logger.warn(
+            `Mot de passe incorrect pour admin: ${this.maskEmail(email)}`
+          );
+          this.incrementLoginAttempts(email);
+          return null;
+        }
+
+        this.logger.log(
+          ` Admin ${this.maskEmail(user.email)} - accès accordé (ignore toutes restrictions)`
+        );
+
+        this.resetLoginAttempts(email);
+
+        const userWithoutPassword = user.toObject();
+        delete userWithoutPassword.password;
+
+        return userWithoutPassword;
+      }
+
+      if (!user.password || user.password.trim() === '') {
+        this.logger.error(
+          ` CRITICAL: User ${this.maskEmail(email)} has no password in database`
+        );
+        this.incrementLoginAttempts(email);
+        return null;
       }
 
       if (!password || password.trim() === '') {
-        this.logger.warn(`Mot de passe vide fourni pour admin: ${this.maskEmail(email)}`);
+        this.logger.warn(
+          `Mot de passe vide fourni pour: ${this.maskEmail(email)}`
+        );
         this.incrementLoginAttempts(email);
         return null;
       }
@@ -628,121 +745,88 @@ async validateUser(email: string, password: string): Promise<User | null> {
       let isPasswordValid = false;
       try {
         const cleanPassword = password.trim();
-        
+
         if (!user.password || !cleanPassword) {
-          this.logger.error(`Arguments manquants pour bcrypt.compare (admin)`);
+          this.logger.error(`Arguments manquants pour bcrypt.compare`);
           throw new Error('Arguments manquants pour la comparaison');
         }
-        
+
         isPasswordValid = await bcrypt.compare(cleanPassword, user.password);
-        
       } catch (bcryptError) {
-        this.logger.error(` Erreur bcrypt.compare pour admin ${this.maskEmail(email)}: ${bcryptError.message}`);
+        this.logger.error(
+          ` Erreur bcrypt.compare pour ${this.maskEmail(email)}: ${bcryptError.message}`
+        );
+
+        if (bcryptError.message.includes('data and hash arguments required')) {
+          this.logger.error(
+            ` BCrypt arguments manquants - user.password: ${!!user.password}, password: ${!!password}`
+          );
+        }
+
         this.incrementLoginAttempts(email);
         return null;
       }
 
       if (!isPasswordValid) {
-        this.logger.warn(`Mot de passe incorrect pour admin: ${this.maskEmail(email)}`);
+        this.logger.warn(
+          `Mot de passe incorrect pour: ${this.maskEmail(email)}`
+        );
         this.incrementLoginAttempts(email);
         return null;
       }
 
-      this.logger.log(` Admin ${this.maskEmail(user.email)} - accès accordé (ignore toutes restrictions)`);
-      
+      const userId = user.id;
+
+      const accessCheck = await this.usersService.checkUserAccess(userId);
+
+      if (!accessCheck.canAccess) {
+        this.logger.warn(
+          `Accès refusé pour ${this.maskEmail(email)}: ${accessCheck.reason}`
+        );
+
+        // CORRECTION : Utiliser details.remainingHours si disponible
+        const remainingHours = accessCheck.details?.remainingHours || 24;
+
+        if (accessCheck.reason?.includes('Compte désactivé')) {
+          throw new UnauthorizedException(
+            AuthConstants.ERROR_MESSAGES.COMPTE_DESACTIVE
+          );
+        } else if (accessCheck.reason?.includes('Déconnecté temporairement')) {
+          throw new UnauthorizedException(
+            `${AuthConstants.ERROR_MESSAGES.COMPTE_TEMPORAIREMENT_DECONNECTE}:${remainingHours}`
+          );
+        } else if (accessCheck.reason?.includes('Mode maintenance')) {
+          throw new UnauthorizedException(
+            AuthConstants.ERROR_MESSAGES.MAINTENANCE_MODE
+          );
+        } else {
+          throw new UnauthorizedException(accessCheck.reason || 'Accès refusé');
+        }
+      }
+
       this.resetLoginAttempts(email);
-      
+
       const userWithoutPassword = user.toObject();
       delete userWithoutPassword.password;
-      
+
+      this.logger.log(` Connexion réussie pour: ${this.maskEmail(email)}`);
       return userWithoutPassword;
-    }
-
-    if (!user.password || user.password.trim() === '') {
-      this.logger.error(` CRITICAL: User ${this.maskEmail(email)} has no password in database`);
-      this.incrementLoginAttempts(email);
-      return null;
-    }
-
-    if (!password || password.trim() === '') {
-      this.logger.warn(`Mot de passe vide fourni pour: ${this.maskEmail(email)}`);
-      this.incrementLoginAttempts(email);
-      return null;
-    }
-
-    let isPasswordValid = false;
-    try {
-      const cleanPassword = password.trim();
-      
-      if (!user.password || !cleanPassword) {
-        this.logger.error(`Arguments manquants pour bcrypt.compare`);
-        throw new Error('Arguments manquants pour la comparaison');
-      }
-      
-      isPasswordValid = await bcrypt.compare(cleanPassword, user.password);
-      
-    } catch (bcryptError) {
-      this.logger.error(` Erreur bcrypt.compare pour ${this.maskEmail(email)}: ${bcryptError.message}`);
-      
-      if (bcryptError.message.includes('data and hash arguments required')) {
-        this.logger.error(` BCrypt arguments manquants - user.password: ${!!user.password}, password: ${!!password}`);
-      }
-      
-      this.incrementLoginAttempts(email);
-      return null;
-    }
-
-    if (!isPasswordValid) {
-      this.logger.warn(`Mot de passe incorrect pour: ${this.maskEmail(email)}`);
-      this.incrementLoginAttempts(email);
-      return null;
-    }
-
-    const userId = user.id;
-    
-    const accessCheck = await this.usersService.checkUserAccess(userId);
-    
-    if (!accessCheck.canAccess) {
-      this.logger.warn(`Accès refusé pour ${this.maskEmail(email)}: ${accessCheck.reason}`);
-      
-      // CORRECTION : Utiliser details.remainingHours si disponible
-      const remainingHours = accessCheck.details?.remainingHours || 24;
-      
-      if (accessCheck.reason?.includes('Compte désactivé')) {
-        throw new UnauthorizedException(AuthConstants.ERROR_MESSAGES.COMPTE_DESACTIVE);
-      } else if (accessCheck.reason?.includes('Déconnecté temporairement')) {
-        throw new UnauthorizedException(
-          `${AuthConstants.ERROR_MESSAGES.COMPTE_TEMPORAIREMENT_DECONNECTE}:${remainingHours}`
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        this.logger.log(
+          `Blocage connexion pour ${this.maskEmail(email)}: ${error.message}`
         );
-      } else if (accessCheck.reason?.includes('Mode maintenance')) {
-        throw new UnauthorizedException(AuthConstants.ERROR_MESSAGES.MAINTENANCE_MODE);
-      } else {
-        throw new UnauthorizedException(accessCheck.reason || "Accès refusé");
+        throw error;
       }
-    }
 
-    this.resetLoginAttempts(email);
-    
-    const userWithoutPassword = user.toObject();
-    delete userWithoutPassword.password;
-    
-    this.logger.log(` Connexion réussie pour: ${this.maskEmail(email)}`);
-    return userWithoutPassword;
+      this.logger.error(
+        ` Erreur inattendue validateUser ${this.maskEmail(email)}: ${error.message}`,
+        error.stack
+      );
 
-  } catch (error) {
-    if (error instanceof UnauthorizedException) {
-      this.logger.log(`Blocage connexion pour ${this.maskEmail(email)}: ${error.message}`);
-      throw error;
+      return null;
     }
-    
-    this.logger.error(
-      ` Erreur inattendue validateUser ${this.maskEmail(email)}: ${error.message}`,
-      error.stack
-    );
-    
-    return null;
   }
-}
 
   async validateToken(token: string): Promise<boolean> {
     try {
@@ -763,13 +847,17 @@ async validateUser(email: string, password: string): Promise<User | null> {
     try {
       let cleanToken = token;
       if (token.includes('reset-password?token=')) {
-        this.logger.log('Détection d\'URL dans le token de reset, extraction en cours...');
+        this.logger.log(
+          "Détection d'URL dans le token de reset, extraction en cours..."
+        );
         const tokenMatch = token.match(/token=([^&]+)/);
         if (tokenMatch) {
           cleanToken = tokenMatch[1];
-          this.logger.log(`Token extrait pour reset: ${cleanToken.substring(0, 20)}...`);
+          this.logger.log(
+            `Token extrait pour reset: ${cleanToken.substring(0, 20)}...`
+          );
         } else {
-          this.logger.warn('Échec de l\'extraction du token de reset de l\'URL');
+          this.logger.warn("Échec de l'extraction du token de reset de l'URL");
         }
       }
 
@@ -779,19 +867,21 @@ async validateUser(email: string, password: string): Promise<User | null> {
       });
 
       if (!resetToken) {
-        throw new UnauthorizedException("Token invalide ou expiré");
+        throw new UnauthorizedException('Token invalide ou expiré');
       }
 
       const user = await this.usersService.findById(resetToken.user.toString());
       if (!user) {
-        throw new NotFoundException("Utilisateur non trouvé");
+        throw new NotFoundException('Utilisateur non trouvé');
       }
 
       const userId = user.id;
       await this.usersService.resetPassword(userId, newPassword);
 
       await this.resetTokenModel.deleteOne({ id: resetToken.id });
-      this.logger.log(`Mot de passe réinitialisé pour ${this.maskEmail(user.email)}`);
+      this.logger.log(
+        `Mot de passe réinitialisé pour ${this.maskEmail(user.email)}`
+      );
     } catch (error) {
       this.logger.error(`Erreur de réinitialisation: ${error.message}`);
       throw error;
@@ -800,20 +890,21 @@ async validateUser(email: string, password: string): Promise<User | null> {
 
   private getFrontendUrl(): string {
     let url = process.env.FRONTEND_URL;
-    const nodeEnv = process.env.NODE_ENV || "development";
+    const nodeEnv = process.env.NODE_ENV || 'development';
 
-    if (url && url.includes(",")) {
-      this.logger.warn(" URL frontend malformée détectée, nettoyage en cours");
-      url = url.split(",")[0].trim();
+    if (url && url.includes(',')) {
+      this.logger.warn(' URL frontend malformée détectée, nettoyage en cours');
+      url = url.split(',')[0].trim();
     }
 
     if (!url) {
-      url = nodeEnv === "production"
-        ? "https://panameconsulting.vercel.app"
-        : "http://localhost:5173";
+      url =
+        nodeEnv === 'production'
+          ? 'https://panameconsulting.vercel.app'
+          : 'http://localhost:5173';
     }
 
-    return url.replace(/\/$/, "");
+    return url.replace(/\/$/, '');
   }
 
   private buildResetUrl(token: string): string {
@@ -821,31 +912,33 @@ async validateUser(email: string, password: string): Promise<User | null> {
 
     this.logger.log(` URL frontend nettoyée: ${baseUrl}`);
 
-    if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
+    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
       throw new Error(
-        `URL frontend invalide: "${baseUrl}" - doit commencer par http:// ou https://`,
+        `URL frontend invalide: "${baseUrl}" - doit commencer par http:// ou https://`
       );
     }
 
     let cleanToken = token;
-    
+
     this.logger.log(`Token original: ${token.substring(0, 100)}...`);
-    
+
     if (token.includes('reset-password?token=')) {
-      this.logger.log('Détection d\'URL dans le token, extraction en cours...');
+      this.logger.log("Détection d'URL dans le token, extraction en cours...");
       const tokenMatch = token.match(/token=([^&]+)/);
       if (tokenMatch) {
         cleanToken = tokenMatch[1];
         this.logger.log(`Token extrait: ${cleanToken.substring(0, 50)}...`);
       } else {
-        this.logger.warn('Échec de l\'extraction du token de l\'URL');
+        this.logger.warn("Échec de l'extraction du token de l'URL");
       }
     } else {
-      this.logger.log('Token simple détecté, pas d\'extraction nécessaire');
+      this.logger.log("Token simple détecté, pas d'extraction nécessaire");
     }
-    
+
     const resetUrl = `${baseUrl}/reset-password?token=${cleanToken}`;
-    this.logger.log(` URL de reset finale résolue: ${resetUrl.substring(0, 50)}...`);
+    this.logger.log(
+      ` URL de reset finale résolue: ${resetUrl.substring(0, 50)}...`
+    );
 
     return resetUrl;
   }
@@ -854,14 +947,16 @@ async validateUser(email: string, password: string): Promise<User | null> {
     try {
       const user = await this.usersService.findByEmail(email);
       if (!user) {
-        this.logger.warn(`Demande de réinitialisation pour un email inexistant: ${this.maskEmail(email)}`);
+        this.logger.warn(
+          `Demande de réinitialisation pour un email inexistant: ${this.maskEmail(email)}`
+        );
         return;
       }
 
-      const resetToken = crypto.randomBytes(32).toString("hex");
+      const resetToken = crypto.randomBytes(32).toString('hex');
       this.logger.log(`Token brut généré: ${resetToken.substring(0, 20)}...`);
       const expiresAt = new Date(
-        Date.now() + AuthConstants.RESET_TOKEN_EXPIRATION_MS,
+        Date.now() + AuthConstants.RESET_TOKEN_EXPIRATION_MS
       );
 
       await this.resetTokenModel.deleteMany({
@@ -875,29 +970,44 @@ async validateUser(email: string, password: string): Promise<User | null> {
       });
 
       const resetUrl = this.buildResetUrl(resetToken);
-    this.logger.log(`URL avant envoi email: ${resetUrl}`);
+      this.logger.log(`URL avant envoi email: ${resetUrl}`);
 
-    this.logger.log(` URL de reset générée pour ${this.maskEmail(email)}`);
+      this.logger.log(` URL de reset générée pour ${this.maskEmail(email)}`);
 
       try {
         await this.mailService.sendPasswordReset(user.email, resetUrl);
-        this.logger.log(`Email de réinitialisation envoyé à ${this.maskEmail(email)}`);
+        this.logger.log(
+          `Email de réinitialisation envoyé à ${this.maskEmail(email)}`
+        );
       } catch (emailError) {
-        this.logger.error(`Échec envoi email pour ${this.maskEmail(email)}: ${emailError.message}`);
-        this.logger.warn(`Token de réinitialisation généré pour ${this.maskEmail(email)}`);
+        this.logger.error(
+          `Échec envoi email pour ${this.maskEmail(email)}: ${emailError.message}`
+        );
+        this.logger.warn(
+          `Token de réinitialisation généré pour ${this.maskEmail(email)}`
+        );
       }
     } catch (error) {
-      this.logger.error(` Erreur lors de la demande de réinitialisation: ${error.message}`);
+      this.logger.error(
+        ` Erreur lors de la demande de réinitialisation: ${error.message}`
+      );
     }
   }
 
   async getProfile(userId: string): Promise<User> {
     try {
-      this.logger.log(` getProfile appelé avec userId: ${this.maskUserId(userId)}`);
+      this.logger.log(
+        ` getProfile appelé avec userId: ${this.maskUserId(userId)}`
+      );
 
-      if (!userId || userId === "undefined" || userId === "null" || userId === "") {
-        this.logger.warn(" userId manquant ou invalide dans getProfile");
-        throw new BadRequestException("ID utilisateur manquant");
+      if (
+        !userId ||
+        userId === 'undefined' ||
+        userId === 'null' ||
+        userId === ''
+      ) {
+        this.logger.warn(' userId manquant ou invalide dans getProfile');
+        throw new BadRequestException('ID utilisateur manquant');
       }
 
       const cleanUserId = userId.trim();
@@ -906,42 +1016,57 @@ async validateUser(email: string, password: string): Promise<User | null> {
         const user = await this.usersService.findById(cleanUserId);
 
         if (!user) {
-          this.logger.warn(`Utilisateur non trouvé pour l'ID: ${this.maskUserId(cleanUserId)}`);
-          throw new NotFoundException("Utilisateur non trouvé");
+          this.logger.warn(
+            `Utilisateur non trouvé pour l'ID: ${this.maskUserId(cleanUserId)}`
+          );
+          throw new NotFoundException('Utilisateur non trouvé');
         }
 
-        this.logger.log(` Profil récupéré avec succès pour l'ID: ${this.maskUserId(cleanUserId)}`);
+        this.logger.log(
+          ` Profil récupéré avec succès pour l'ID: ${this.maskUserId(cleanUserId)}`
+        );
         return user;
       }
 
       this.logger.log(` Recherche par email: ${this.maskEmail(cleanUserId)}`);
 
-      if (cleanUserId.includes("@")) {
+      if (cleanUserId.includes('@')) {
         const userByEmail = await this.usersService.findByEmail(cleanUserId);
         if (userByEmail) {
-          this.logger.log(` Utilisateur trouvé par email: ${this.maskEmail(cleanUserId)}`);
+          this.logger.log(
+            ` Utilisateur trouvé par email: ${this.maskEmail(cleanUserId)}`
+          );
           return userByEmail;
         }
       }
 
-      this.logger.error(` Aucun utilisateur trouvé avec l'identifiant: ${this.maskUserId(cleanUserId)}`);
-      throw new NotFoundException("Utilisateur non trouvé");
+      this.logger.error(
+        ` Aucun utilisateur trouvé avec l'identifiant: ${this.maskUserId(cleanUserId)}`
+      );
+      throw new NotFoundException('Utilisateur non trouvé');
     } catch (error) {
-      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
         throw error;
       }
 
-      this.logger.error(`Erreur critique dans getProfile: ${error.message}`, error.stack);
-      throw new BadRequestException("Erreur lors de la récupération du profil");
+      this.logger.error(
+        `Erreur critique dans getProfile: ${error.message}`,
+        error.stack
+      );
+      throw new BadRequestException('Erreur lors de la récupération du profil');
     }
   }
 
   async logoutUser(
     userId: string,
-    reason: string = "Logout automatique",
+    reason: string = 'Logout automatique'
   ): Promise<void> {
     try {
-      const activeSessions = await this.sessionService.getActiveSessionsByUser(userId);
+      const activeSessions =
+        await this.sessionService.getActiveSessionsByUser(userId);
 
       for (const session of activeSessions) {
         try {
@@ -950,24 +1075,30 @@ async validateUser(email: string, password: string): Promise<User | null> {
             await this.revokeToken(session.token, new Date(decoded.exp * 1000));
           }
         } catch (error) {
-          this.logger.warn(`Erreur lors de la révocation du token: ${error.message}`);
+          this.logger.warn(
+            `Erreur lors de la révocation du token: ${error.message}`
+          );
         }
       }
 
       await this.sessionModel.updateMany(
         { user: userId, isActive: true },
-        { 
-          isActive: false, 
+        {
+          isActive: false,
           deactivatedAt: new Date(),
-          revocationReason: reason 
-        },
+          revocationReason: reason,
+        }
       );
-      
+
       this.loginAttempts.delete(userId);
 
-      this.logger.log(`Logout complet pour l'utilisateur ${this.maskUserId(userId)}: ${reason}`);
+      this.logger.log(
+        `Logout complet pour l'utilisateur ${this.maskUserId(userId)}: ${reason}`
+      );
     } catch (error) {
-      this.logger.error(`Erreur lors du logout pour ${this.maskUserId(userId)}: ${error.message}`);
+      this.logger.error(
+        `Erreur lors du logout pour ${this.maskUserId(userId)}: ${error.message}`
+      );
       throw error;
     }
   }
@@ -983,22 +1114,28 @@ async validateUser(email: string, password: string): Promise<User | null> {
             await this.revokeToken(session.token, new Date(decoded.exp * 1000));
           }
         } catch (error) {
-          this.logger.warn(`Erreur lors de la révocation du token expiré: ${error.message}`);
+          this.logger.warn(
+            `Erreur lors de la révocation du token expiré: ${error.message}`
+          );
         }
       }
 
       await this.sessionModel.updateMany(
         { expiresAt: { $lt: new Date() }, isActive: true },
-        { 
-          isActive: false, 
+        {
+          isActive: false,
           deactivatedAt: new Date(),
-          revocationReason: "session_expired" 
-        },
+          revocationReason: 'session_expired',
+        }
       );
-      
-      this.logger.log(`Nettoyage de ${expiredSessions.length} sessions expirées`);
+
+      this.logger.log(
+        `Nettoyage de ${expiredSessions.length} sessions expirées`
+      );
     } catch (error) {
-      this.logger.error(`Erreur lors du nettoyage des sessions: ${error.message}`);
+      this.logger.error(
+        `Erreur lors du nettoyage des sessions: ${error.message}`
+      );
       throw error;
     }
   }
@@ -1007,53 +1144,61 @@ async validateUser(email: string, password: string): Promise<User | null> {
     try {
       await this.sessionModel.updateMany(
         { user: userId, isActive: true },
-        { 
-          isActive: false, 
+        {
+          isActive: false,
           deactivatedAt: new Date(),
-          revocationReason: "admin_cleanup" 
-        },
+          revocationReason: 'admin_cleanup',
+        }
       );
-      
-      this.logger.log(`Sessions désactivées pour l'utilisateur ${this.maskUserId(userId)}`);
+
+      this.logger.log(
+        `Sessions désactivées pour l'utilisateur ${this.maskUserId(userId)}`
+      );
     } catch (error) {
-      this.logger.error(`Erreur lors du nettoyage des sessions pour ${this.maskUserId(userId)}: ${error.message}`);
+      this.logger.error(
+        `Erreur lors du nettoyage des sessions pour ${this.maskUserId(userId)}: ${error.message}`
+      );
       throw error;
     }
   }
 
- private maskEmail(email: string): string {
-  if (!email || typeof email !== 'string') return '***@***';
-  
-  const trimmedEmail = email.trim();
-  const [name, domain] = trimmedEmail.split('@');
-  
-  if (!name || !domain || name.length === 0 || domain.length === 0) {
-    return '***@***';
-  }
-  
-  const maskedName = name.length <= 2 
-    ? name.charAt(0) + '*'
-    : name.charAt(0) + '***' + (name.length > 1 ? name.charAt(name.length - 1) : '');
-  
-  const domainParts = domain.split('.');
-  if (domainParts.length < 2) return `${maskedName}@***`;
-  
-  const maskedDomain = domainParts.length === 2 
-    ? '***.' + domainParts[1]
-    : '***.' + domainParts.slice(-2).join('.');
-  
-  return `${maskedName}@${maskedDomain}`;
+  private maskEmail(email: string): string {
+    if (!email || typeof email !== 'string') return '***@***';
+
+    const trimmedEmail = email.trim();
+    const [name, domain] = trimmedEmail.split('@');
+
+    if (!name || !domain || name.length === 0 || domain.length === 0) {
+      return '***@***';
+    }
+
+    const maskedName =
+      name.length <= 2
+        ? name.charAt(0) + '*'
+        : name.charAt(0) +
+          '***' +
+          (name.length > 1 ? name.charAt(name.length - 1) : '');
+
+    const domainParts = domain.split('.');
+    if (domainParts.length < 2) return `${maskedName}@***`;
+
+    const maskedDomain =
+      domainParts.length === 2
+        ? '***.' + domainParts[1]
+        : '***.' + domainParts.slice(-2).join('.');
+
+    return `${maskedName}@${maskedDomain}`;
   }
 
   private maskUserId(userId: string): string {
     if (!userId || typeof userId !== 'string' || userId.length === 0) {
       return 'user_***';
     }
-    
+
     if (userId.length <= 6) {
       return 'user_***';
     }
-    
+
     return `user_${userId.substring(0, 3)}***${userId.substring(userId.length - 3)}`;
   }
 
@@ -1061,7 +1206,7 @@ async validateUser(email: string, password: string): Promise<User | null> {
     if (!token || typeof token !== 'string' || token.length < 10) {
       return 'token_***';
     }
-    
+
     return `token_${token.substring(0, 4)}***${token.substring(token.length - 4)}`;
   }
 }

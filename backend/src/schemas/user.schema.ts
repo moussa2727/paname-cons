@@ -1,67 +1,66 @@
-
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { Document, Model } from "mongoose";
-import { UserRole } from "../enums/user-role.enum";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Model } from 'mongoose';
+import { UserRole } from '../enums/user-role.enum';
 
 export interface UserModel extends Model<User> {
   findByEmailSafe(email: string): Promise<User | null>;
   existsById(userId: string): Promise<boolean>;
 }
 
-@Schema({ 
+@Schema({
   timestamps: true,
-  collection: "users",
-  toJSON: { 
-    virtuals: true
+  collection: 'users',
+  toJSON: {
+    virtuals: true,
   },
-  toObject: { 
-    virtuals: true
-  }
+  toObject: {
+    virtuals: true,
+  },
 })
 export class User extends Document {
-  @Prop({ 
+  @Prop({
     type: String,
-    required: true, 
+    required: true,
     trim: true,
     minlength: 2,
-    maxlength: 50
+    maxlength: 50,
   })
   firstName: string;
 
-  @Prop({ 
+  @Prop({
     type: String,
-    required: true, 
+    required: true,
     trim: true,
     minlength: 2,
-    maxlength: 50
+    maxlength: 50,
   })
   lastName: string;
 
-  @Prop({ 
+  @Prop({
     type: String,
-    required: true, 
-    unique: true, 
+    required: true,
+    unique: true,
     index: true,
     lowercase: true,
     trim: true,
     match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-    maxlength: 100
+    maxlength: 100,
   })
   email: string;
 
-  @Prop({ 
+  @Prop({
     type: String,
     required: true,
-    select: false
+    select: false,
   })
   password: string;
 
-  @Prop({ 
+  @Prop({
     type: String,
     required: true,
     index: true,
     match: /^\+?[1-9]\d{1,14}$/,
-    maxlength: 20
+    maxlength: 20,
   })
   telephone: string;
 
@@ -69,21 +68,21 @@ export class User extends Document {
     type: String,
     enum: Object.values(UserRole),
     default: UserRole.USER,
-    index: true
+    index: true,
   })
   role: UserRole;
 
-  @Prop({ 
+  @Prop({
     type: Boolean,
     default: true,
-    index: true 
+    index: true,
   })
   isActive: boolean;
 
-  @Prop({ 
+  @Prop({
     type: Date,
     index: true,
-    expires: 86400 
+    expires: 86400,
   })
   logoutUntil?: Date;
 
@@ -110,6 +109,10 @@ export class User extends Document {
 
   @Prop({ type: Date })
   updatedAt?: Date;
+
+  @Prop({ type: String })
+  tokenType?: string;
+
   id: any;
 
   // Virtuals
@@ -127,6 +130,10 @@ export class User extends Document {
     if (this.isTemporarilyLoggedOut) return false;
     return true;
   }
+
+  public get sub(): string {
+    return this._id.toString();
+  }
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
@@ -140,17 +147,17 @@ UserSchema.index({ email: 1, role: 1 });
 UserSchema.index({ isActive: 1, role: 1, logoutUntil: 1 });
 
 // Middleware
-UserSchema.pre("save", function() {
+UserSchema.pre('save', function () {
   this.updatedAt = new Date();
 });
 
-UserSchema.pre("save", async function() {
+UserSchema.pre('save', async function () {
   if (this.isModified('email')) {
     const UserModel = this.constructor as Model<User>;
-    const existingUser = await UserModel.findOne({ 
-      email: this.email 
+    const existingUser = await UserModel.findOne({
+      email: this.email,
     }).exec();
-    
+
     if (existingUser && existingUser._id.toString() !== this._id.toString()) {
       throw new Error('Email already exists');
     }
@@ -158,13 +165,13 @@ UserSchema.pre("save", async function() {
 });
 
 // Méthodes statiques
-UserSchema.statics.findByEmailSafe = async function(email: string) {
+UserSchema.statics.findByEmailSafe = async function (email: string) {
   return this.findOne({ email: email.toLowerCase().trim() })
     .select('-password')
     .exec();
 };
 
-UserSchema.statics.existsById = async function(userId: string) {
+UserSchema.statics.existsById = async function (userId: string) {
   const count = await this.countDocuments({ _id: userId }).exec();
   return count > 0;
 };

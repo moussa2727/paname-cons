@@ -12,6 +12,8 @@
 - [Démarrage](#démarrage)
 - [Documentation](#documentation)
 - [Pages Légales](#pages-légales)
+- [Système d'Annulation](#système-dannulation)
+- [Mode Maintenance](#mode-maintenance)
 - [Support](#support)
 
 ---
@@ -37,6 +39,7 @@ Paname Consulting est une plateforme complète permettant aux utilisateurs de :
 - ✅ Interface responsive (mobile-first)
 - ✅ Pages légales conformes (RGPD)
 - ✅ SEO optimisé avec meta tags
+- ✅ Système d'annulation avec confirmation améliorée
 - ✅ Système de routage avancé
 
 ---
@@ -161,16 +164,54 @@ Les pages incluent :
 ### Variables d'environnement
 
 #### Backend (.env)
+Copiez `.env.example` vers `.env` et configurez les variables :
+
 ```env
-NODE_ENV=development
+# ===== DATABASE =====
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/DATABASE_NAME
+
+# ===== SERVER =====
 PORT=10000
-MONGODB_URI=mongodb://localhost:27017/panameconsultingDb
-RESEND_API_KEY=your_api_key
-EMAIL_USER=your_email@gmail.com
-EMAIL_PASS=your_app_password
+NODE_ENV=development
+HOST=0.0.0.0
+
+# ===== JWT =====
+JWT_SECRET=votre_secret_jwt_tres_securise_minimum_32_caracteres
+JWT_EXPIRES_IN=24h
+COOKIE_SECRET=votre_cookie_secret_pour_la_securite
+
+# ===== EMAIL/SMTP =====
+SMTP_USER=votre_email@gmail.com
+SMTP_PASS=votre_mot_de_passe_application_gmail
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
-JWT_SECRET=your_jwt_secret
+
+# ===== ADMIN CONFIGURATION =====
+EMAIL_USER=admin@panameconsulting.com
+
+# ===== MAINTENANCE MODE =====
+MAINTENANCE_MODE=false
+
+# ===== FRONTEND =====
+FRONTEND_URL=http://localhost:5173
+BASE_URL=http://localhost:10000
+
+# ===== FILE UPLOAD =====
+UPLOAD_DIR=./uploads
+LOAD_DIR=./uploads
+
+# ===== LOGGING =====
+LOG_DIR=./logs
+LOG_RETENTION_DAYS=3
+
+# ===== REDIS (Optionnel) =====
+REDIS_URL=redis://localhost:6379
+
+# ===== SECURITY =====
+CORS_ORIGIN=http://localhost:5173
+
+# ===== NOTIFICATIONS =====
+RESEND_API_KEY=votre_cle_api_resend
 ```
 
 #### Frontend (.env)
@@ -332,6 +373,9 @@ Gérable depuis le tableau de bord admin :
 - Endpoint : `PATCH /api/users/maintenance-mode/toggle`
 - Logs dans les fichiers centralisés
 - Accessible pour les admins uniquement
+- **Admin principal protégé** : L'admin avec `EMAIL_USER` a un accès illimité
+- **Détection en temps réel** : `AdminSidebar` et `AdminDashboard` affichent l'état
+- **Contrôle utilisateur** : Bloque les utilisateurs normaux, épargne les admins
 
 #### Pages Légales
 
@@ -341,6 +385,62 @@ Conformité légale complète :
 - Mentions légales complètes
 - SEO optimisé avec meta tags
 - Layout minimal pour lecture optimale
+
+---
+
+## Système d'Annulation
+
+### Fonctionnalités
+
+- **Annulation en cascade** : Les étapes en cours sont automatiquement annulées
+- **Confirmation améliorée** : Résumé de l'impact avant validation
+- **Animation de traitement** : Feedback visuel pendant l'annulation
+- **Historique préservé** : Les procédures annulées restent consultables
+
+### Flux d'annulation
+
+1. **Clic sur "Annuler"** → Calcul des étapes impactées
+2. **Modal de résumé** → Affichage des étapes qui seront annulées
+3. **Confirmation finale** → Raison optionnelle et validation
+4. **Traitement avec animation** → Mise à jour en cascade
+5. **Notification** → Confirmation du nombre d'étapes affectées
+
+### Règles d'annulation
+
+- ✅ Utilisateurs ne peuvent annuler que leurs propres procédures
+- ✅ Les procédures terminées/annulées/rejetées ne peuvent plus être modifiées
+- ✅ Les étapes `IN_PROGRESS` et `PENDING` deviennent `CANCELLED`
+- ✅ Les étapes `COMPLETED` restent `COMPLETED`
+- ✅ Email de notification envoyé à l'utilisateur
+
+---
+
+## Mode Maintenance
+
+### Protection administrative
+
+Le mode maintenance est conçu pour protéger l'accès administrateur tout en bloquant les utilisateurs :
+
+#### **Admin principal (EMAIL_USER)**
+- ✅ **Accès illimité** : Contourne toutes les restrictions
+- ✅ **Accès permanent** : Jamais affecté par le mode maintenance
+- ✅ **Contrôle total** : Peut activer/désactiver le mode maintenance
+
+#### **Autres administrateurs**
+- ⚠️ **Accès limité** : Peuvent être affectés selon la configuration
+- 🔧 **Contrôle partagé** : Peuvent gérer le mode maintenance si autorisés
+
+#### **Utilisateurs normaux**
+- ❌ **Accès bloqué** : Redirection vers page d'accueil
+- 📱 **Message clair** : Notification de maintenance
+- 🔄 **État préservé** : Session maintenue
+
+### Interface de contrôle
+
+- **AdminSidebar** : Bouton toggle avec indicateur visuel
+- **AdminDashboard** : Carte de statistique avec état temps réel
+- **Confirmation** : Modal de validation avant changement
+- **Logging** : Traçabilité complète des actions
 
 ---
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { UserHeader, usePageConfig } from '../../components/user/UserHeader';
 import { useAuth } from '../../context/AuthContext';
@@ -84,8 +84,8 @@ const UserProfile = () => {
       return true;
     }
 
-    const phoneRegex = /^[+]?[0-9\s\-\(\)\.]{8,20}$/;
-    const cleanedPhone = telephone.replace(/[\s\-\(\)\.]/g, '');
+    const phoneRegex = /^[+]?[0-9\s\-.()]{8,20}$/;
+    const cleanedPhone = telephone.replace(/[\s\-.()]/g, '');
     const hasMinDigits = cleanedPhone.length >= 8;
 
     const isValid = phoneRegex.test(telephone) && hasMinDigits;
@@ -688,12 +688,6 @@ const UserProfile = () => {
                   <div className='w-1.5 h-1.5 bg-sky-500 rounded-full mt-2 shrink-0' />
                   <span className='text-sm text-gray-600'>
                     Déconnectez-vous des appareils publics après utilisation
-                  </span>
-                </li>
-                <li className='flex items-start gap-2'>
-                  <div className='w-1.5 h-1.5 bg-sky-500 rounded-full mt-2 shrink-0' />
-                  <span className='text-sm text-gray-600'>
-                    Activez l'authentification à deux facteurs si disponible
                   </span>
                 </li>
               </ul>

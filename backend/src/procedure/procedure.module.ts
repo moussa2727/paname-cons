@@ -14,7 +14,9 @@ import { RendezvousModule } from '../rendez-vous/rendez-vous.module';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Procedure.name, schema: ProcedureSchema }]),
+    MongooseModule.forFeature([
+      { name: Procedure.name, schema: ProcedureSchema },
+    ]),
     forwardRef(() => RendezvousModule),
   ],
   controllers: [ProcedureController],

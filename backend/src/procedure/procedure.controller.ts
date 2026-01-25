@@ -18,7 +18,10 @@ import { JwtAuthGuard } from '../shared/guards/jwt-auth.guard';
 import { RolesGuard } from '../shared/guards/roles.guard';
 import { Roles } from '../shared/decorators/roles.decorator';
 import { ProcedureService } from './procedure.service';
-import { CreateProcedureDto, CancelProcedureDto } from './dto/create-procedure.dto';
+import {
+  CreateProcedureDto,
+  CancelProcedureDto,
+} from './dto/create-procedure.dto';
 import { UpdateProcedureDto } from './dto/update-procedure.dto';
 import { UpdateStepDto } from './dto/update-step.dto';
 import { UserRole } from '../schemas/user.schema';
@@ -56,7 +59,7 @@ export class ProcedureController {
   })
   async createFromRendezvous(@Body() createDto: CreateProcedureDto) {
     this.logger.log(
-      `Création procédure depuis rendez-vous ID: ${this.maskId(createDto.rendezVousId)}`,
+      `Création procédure depuis rendez-vous ID: ${this.maskId(createDto.rendezVousId)}`
     );
     return this.procedureService.createFromRendezvous(createDto);
   }
@@ -69,8 +72,14 @@ export class ProcedureController {
   })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  async getAllProcedures(@Query('page') page: number = 1, @Query('limit') limit: number = 10) {
-    if (page < 1) throw new BadRequestException('Le numéro de page doit être supérieur à 0');
+  async getAllProcedures(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10
+  ) {
+    if (page < 1)
+      throw new BadRequestException(
+        'Le numéro de page doit être supérieur à 0'
+      );
     if (limit < 1 || limit > 100)
       throw new BadRequestException('La limite doit être entre 1 et 100');
 
@@ -82,23 +91,30 @@ export class ProcedureController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Rejeter une procédure (Admin)' })
-  async rejectProcedure(@Param('id') id: string, @Body('reason') reason: string) {
+  async rejectProcedure(
+    @Param('id') id: string,
+    @Body('reason') reason: string
+  ) {
     this.logger.log(`Rejet procédure - ID: ${this.maskId(id)}`);
-    
+
     // ==================== VALIDATION COUCHE CONTROLLER ====================
     if (!reason || reason.trim() === '') {
       throw new BadRequestException('La raison du rejet est obligatoire');
     }
-    
+
     if (reason.trim().length < 5) {
-      throw new BadRequestException('La raison doit contenir au moins 5 caractères');
+      throw new BadRequestException(
+        'La raison doit contenir au moins 5 caractères'
+      );
     }
-    
+
     if (reason.length > 500) {
-      throw new BadRequestException('La raison ne doit pas dépasser 500 caractères');
+      throw new BadRequestException(
+        'La raison ne doit pas dépasser 500 caractères'
+      );
     }
     // ==================== FIN VALIDATION ====================
-    
+
     return this.procedureService.rejectProcedure(id, reason);
   }
 
@@ -106,7 +122,10 @@ export class ProcedureController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Modifier une procédure (Admin)' })
-  async updateProcedure(@Param('id') id: string, @Body() updateDto: UpdateProcedureDto) {
+  async updateProcedure(
+    @Param('id') id: string,
+    @Body() updateDto: UpdateProcedureDto
+  ) {
     this.logger.log(`Modification procédure - ID: ${this.maskId(id)}`);
     return this.procedureService.updateProcedure(id, updateDto);
   }
@@ -118,28 +137,34 @@ export class ProcedureController {
   async updateProcedureStep(
     @Param('id') id: string,
     @Param('stepName') stepName: string,
-    @Body() updateDto: UpdateStepDto,
+    @Body() updateDto: UpdateStepDto
   ) {
-    this.logger.log(`Modification étape - Procédure: ${this.maskId(id)}, Étape: ${stepName}`);
-    
+    this.logger.log(
+      `Modification étape - Procédure: ${this.maskId(id)}, Étape: ${stepName}`
+    );
+
     // ==================== VALIDATION PRÉLIMINAIRE ====================
     if (updateDto.statut === StepStatus.REJECTED) {
       if (!updateDto.raisonRefus || updateDto.raisonRefus.trim() === '') {
         throw new BadRequestException(
-          'La raison du refus est obligatoire lorsque le statut est "Rejeté"',
+          'La raison du refus est obligatoire lorsque le statut est "Rejeté"'
         );
       }
-      
+
       if (updateDto.raisonRefus.trim().length < 5) {
-        throw new BadRequestException('La raison doit contenir au moins 5 caractères');
+        throw new BadRequestException(
+          'La raison doit contenir au moins 5 caractères'
+        );
       }
-      
+
       if (updateDto.raisonRefus.length > 500) {
-        throw new BadRequestException('La raison ne doit pas dépasser 500 caractères');
+        throw new BadRequestException(
+          'La raison ne doit pas dépasser 500 caractères'
+        );
       }
     }
     // ==================== FIN VALIDATION ====================
-    
+
     return this.procedureService.updateStep(id, stepName, updateDto);
   }
 
@@ -147,7 +172,10 @@ export class ProcedureController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Supprimer une procédure (Soft Delete)' })
-  async deleteProcedure(@Param('id') id: string, @Body('reason') reason?: string) {
+  async deleteProcedure(
+    @Param('id') id: string,
+    @Body('reason') reason?: string
+  ) {
     this.logger.log(`Suppression procédure - ID: ${this.maskId(id)}`);
     return this.procedureService.softDelete(id, reason);
   }
@@ -172,7 +200,7 @@ export class ProcedureController {
   async getMyProcedures(
     @Req() req: AuthenticatedRequest,
     @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
+    @Query('limit') limit: number = 10
   ) {
     if (!req.user?.email) {
       throw new UnauthorizedException('Utilisateur non authentifié');
@@ -180,7 +208,7 @@ export class ProcedureController {
 
     const maskedEmail = this.maskEmail(req.user.email);
     this.logger.log(
-      `Liste procédures utilisateur - Page: ${page}, Limit: ${limit}, User: ${maskedEmail}`,
+      `Liste procédures utilisateur - Page: ${page}, Limit: ${limit}, User: ${maskedEmail}`
     );
 
     return this.procedureService.getUserProcedures(req.user.email, page, limit);
@@ -190,7 +218,10 @@ export class ProcedureController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.USER, UserRole.ADMIN)
   @ApiOperation({ summary: "Détails d'une procédure" })
-  async getProcedureDetails(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+  async getProcedureDetails(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest
+  ) {
     this.logger.log(`Détails procédure - ID: ${this.maskId(id)}`);
     return this.procedureService.getProcedureDetails(id, req.user);
   }
@@ -202,11 +233,17 @@ export class ProcedureController {
   async cancelMyProcedure(
     @Param('id') id: string,
     @Req() req: AuthenticatedRequest,
-    @Body() cancelDto: CancelProcedureDto,
+    @Body() cancelDto: CancelProcedureDto
   ) {
     const maskedEmail = this.maskEmail(req.user.email);
-    this.logger.log(`Annulation procédure - ID: ${this.maskId(id)}, User: ${maskedEmail}`);
-    return this.procedureService.cancelProcedure(id, req.user.email, cancelDto.reason);
+    this.logger.log(
+      `Annulation procédure - ID: ${this.maskId(id)}, User: ${maskedEmail}`
+    );
+    return this.procedureService.cancelProcedure(
+      id,
+      req.user.email,
+      cancelDto.reason
+    );
   }
 
   // ==================== UTILITY METHODS ====================

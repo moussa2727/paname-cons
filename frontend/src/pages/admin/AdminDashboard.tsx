@@ -1,4 +1,3 @@
-/* eslint-disable no-undef */
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Users,
@@ -17,7 +16,7 @@ import {
   MessageSquare,
   MoreHorizontal,
 } from 'lucide-react';
-import { useDashboardData, useAdminDashboard } from '../../api/admin/AdminDashboardService';
+import { useDashboardData } from '../../api/admin/AdminDashboardService';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
@@ -39,9 +38,15 @@ const ActivityIcon = ({ type }: { type: string }) => {
 };
 
 const AdminDashboard = () => {
-  const { user, isAuthenticated } = useAuth();
-  const { stats, activities, loading, error, refresh, forceRefresh } = useDashboardData();
-  const { maintenanceStatus, checkMaintenanceStatusFromContext, toggleMaintenanceModeFromContext } = useAdminDashboard();
+  const {
+    user,
+    isAuthenticated,
+    isMaintenanceMode,
+    checkMaintenanceStatus,
+    toggleMaintenanceMode,
+  } = useAuth();
+  const { stats, activities, loading, error, refresh, forceRefresh } =
+    useDashboardData();
   const [isTogglingMaintenance, setIsTogglingMaintenance] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<string>('');
@@ -317,13 +322,15 @@ const AdminDashboard = () => {
     },
     {
       title: 'Maintenance',
-      value: maintenanceStatus?.isActive ? 'ACTIF' : 'INACTIF',
+      value: isMaintenanceMode ? 'ACTIF' : 'INACTIF',
       icon: AlertTriangle,
-      color: maintenanceStatus?.isActive ? 'from-red-500 to-red-600' : 'from-green-500 to-green-600',
-      iconBg: maintenanceStatus?.isActive ? 'bg-red-100' : 'bg-green-100',
-      iconColor: maintenanceStatus?.isActive ? 'text-red-600' : 'text-green-600',
-      description: maintenanceStatus?.isActive ? 'Mode activé' : 'Mode désactivé',
-      trend: maintenanceStatus?.isActive ? 'attention' : 'positive',
+      color: isMaintenanceMode
+        ? 'from-red-500 to-red-600'
+        : 'from-green-500 to-green-600',
+      iconBg: isMaintenanceMode ? 'bg-red-100' : 'bg-green-100',
+      iconColor: isMaintenanceMode ? 'text-red-600' : 'text-green-600',
+      description: isMaintenanceMode ? 'Mode activé' : 'Mode désactivé',
+      trend: isMaintenanceMode ? 'attention' : 'positive',
       detail: 'Cliquez pour basculer',
       isMaintenance: true,
     },
@@ -438,30 +445,28 @@ const AdminDashboard = () => {
     if (!isAuthenticated) return;
 
     // Récupérer le statut maintenance au chargement
-    checkMaintenanceStatusFromContext();
-  }, [isAuthenticated, checkMaintenanceStatusFromContext]);
+    checkMaintenanceStatus();
+  }, [isAuthenticated, checkMaintenanceStatus]);
 
   // GÉRER LE TOGGLE DE MAINTENANCE VIA LE SERVICE
   const handleToggleMaintenance = async () => {
-    if (!maintenanceStatus) return;
-
     setIsTogglingMaintenance(true);
     try {
-      const newState = !maintenanceStatus.isActive;
-      await toggleMaintenanceModeFromContext(newState);
-      
+      const newState = !isMaintenanceMode;
+      await toggleMaintenanceMode(newState);
+
       // FORCER LE RAFRAÎCHISSEMENT IMMÉDIAT DU STATUT
       setTimeout(() => {
-        checkMaintenanceStatusFromContext();
+        checkMaintenanceStatus();
       }, 500);
-      
+
       toast.success(
-        newState 
-          ? 'Mode maintenance activé' 
-          : 'Mode maintenance désactivé'
+        newState ? 'Mode maintenance activé' : 'Mode maintenance désactivé'
       );
     } catch (err: any) {
-      toast.error(err.message || 'Erreur lors du changement du mode maintenance');
+      toast.error(
+        err.message || 'Erreur lors du changement du mode maintenance'
+      );
     } finally {
       setIsTogglingMaintenance(false);
     }
@@ -470,28 +475,30 @@ const AdminDashboard = () => {
   // AFFICHAGE CONDITIONNEL
   if (!isAuthenticated) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">Veuillez vous connecter pour accéder au tableau de bord</p>
+      <div className='text-center py-12'>
+        <p className='text-gray-500'>
+          Veuillez vous connecter pour accéder au tableau de bord
+        </p>
       </div>
     );
   }
 
   if (loading && !stats) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className='flex items-center justify-center min-h-screen'>
+        <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600'></div>
       </div>
     );
   }
 
   if (error && !stats) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-        <h3 className="text-red-800 font-semibold">Erreur</h3>
-        <p className="text-red-700 mt-2">{error}</p>
+      <div className='bg-red-50 border border-red-200 rounded-lg p-6'>
+        <h3 className='text-red-800 font-semibold'>Erreur</h3>
+        <p className='text-red-700 mt-2'>{error}</p>
         <button
           onClick={forceRefresh}
-          className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          className='mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700'
         >
           Réessayer
         </button>
@@ -601,7 +608,11 @@ const AdminDashboard = () => {
                   className={`bg-white rounded-2xl shadow-sm border p-4 md:p-5 hover:shadow-md transition-all duration-200 group border-gray-200 hover:border-gray-300 ${
                     card.isMaintenance ? 'cursor-pointer' : ''
                   } ${card.isMaintenance && isTogglingMaintenance ? 'opacity-50 pointer-events-none' : ''}`}
-                  onClick={card.isMaintenance && !isTogglingMaintenance ? handleToggleMaintenance : undefined}
+                  onClick={
+                    card.isMaintenance && !isTogglingMaintenance
+                      ? handleToggleMaintenance
+                      : undefined
+                  }
                 >
                   <div className='flex items-start justify-between mb-3'>
                     <div className={`p-2 md:p-2.5 rounded-xl ${card.iconBg}`}>
@@ -637,7 +648,9 @@ const AdminDashboard = () => {
                       {card.description}
                     </p>
                     {card.detail && (
-                      <p className={`text-xs ${card.isMaintenance ? 'text-blue-600 font-medium' : 'text-gray-400'} truncate`}>
+                      <p
+                        className={`text-xs ${card.isMaintenance ? 'text-blue-600 font-medium' : 'text-gray-400'} truncate`}
+                      >
                         {card.detail}
                       </p>
                     )}

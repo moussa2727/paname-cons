@@ -169,29 +169,36 @@ export const useContactService = () => {
           } else {
             return await response.blob();
           }
-        } catch (parseError) {
+        } catch {
           throw new Error('Erreur lors de la lecture de la réponse');
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         globalThis.clearTimeout(timeoutId);
 
         // Gestion des erreurs spécifiques
-        if (err.name === 'AbortError') {
+        if (err instanceof Error && err.name === 'AbortError') {
           throw new Error('La requête a expiré (timeout de 15s)');
         }
 
-        if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+        if (
+          err instanceof Error &&
+          (err.message === 'Failed to fetch' || err.name === 'TypeError')
+        ) {
           throw new Error(
             'Impossible de joindre le serveur. Vérifiez votre connexion internet.'
           );
         }
 
-        if (err.message.includes('URL invalide')) {
+        if (err instanceof Error && err.message.includes('URL invalide')) {
           throw err;
         }
 
         // Si l'erreur a déjà un message, la propager
-        if (err.message && err.message !== 'FetchError') {
+        if (
+          err instanceof Error &&
+          err.message &&
+          err.message !== 'FetchError'
+        ) {
           throw err;
         }
 

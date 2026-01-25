@@ -1,14 +1,14 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { Document } from "mongoose";
-import { ApiProperty } from "@nestjs/swagger";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
+import { ApiProperty } from '@nestjs/swagger';
 
 @Schema({
   timestamps: true,
-  collection: "destinations",
+  collection: 'destinations',
   versionKey: false,
 })
 export class Destination extends Document {
-  @ApiProperty({ example: "France", description: "Nom du pays" })
+  @ApiProperty({ example: 'France', description: 'Nom du pays' })
   @Prop({
     type: String,
     required: true,
@@ -19,7 +19,7 @@ export class Destination extends Document {
   country: string;
 
   @ApiProperty({
-    example: "/france.webp",
+    example: '/france.webp',
     description: "Chemin de l'image",
   })
   @Prop({
@@ -29,8 +29,8 @@ export class Destination extends Document {
   imagePath: string;
 
   @ApiProperty({
-    example: "Procédure complète pour visa étudiant",
-    description: "Description de la destination",
+    example: 'Procédure complète pour visa étudiant',
+    description: 'Description de la destination',
   })
   @Prop({
     type: String,

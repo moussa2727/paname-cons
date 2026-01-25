@@ -10,11 +10,11 @@ export const AuthConstants = {
   REFRESH_TOKEN_EXPIRATION_SECONDS: 30 * 60, // 30 minutes = 1800 secondes
   SESSION_EXPIRATION_SECONDS: 30 * 60, // 30 minutes
   SESSION_EXPIRATION_MS: 30 * 60 * 1000,
-  REVOCATION_REASONS:{
-        SESSION_EXPIRED: "SESSION EXPIRED",
-        MANUAL_REVOKE: "MANUAL REVOKE",
-        ADMIN_CLEANUP: "ADMIN CLEANUP",
-        REVOKE_ALL: "REVOKE ALL"
+  REVOCATION_REASONS: {
+    SESSION_EXPIRED: 'SESSION EXPIRED',
+    MANUAL_REVOKE: 'MANUAL REVOKE',
+    ADMIN_CLEANUP: 'ADMIN CLEANUP',
+    REVOKE_ALL: 'REVOKE ALL',
   },
   // Token Configuration
   RESET_TOKEN_EXPIRATION_MS: 20 * 60 * 1000, // 20 minutes
@@ -24,7 +24,7 @@ export const AuthConstants = {
   LOGIN_ATTEMPTS_TTL_MINUTES: 30, // 30 minutes
   MIN_PASSWORD_LENGTH: 8,
   BCRYPT_SALT_ROUNDS: 12,
-GLOBAL_LOGOUT_DURATION: 24 * 60 * 60 * 1000, // 24h en millisecondes
+  GLOBAL_LOGOUT_DURATION: 24 * 60 * 60 * 1000, // 24h en millisecondes
 
   // Cleanup Intervals - Valeurs 15, 20, 30 minutes
   TOKEN_BLACKLIST_CLEANUP_INTERVAL: 30 * 60 * 1000, // 30 minutes
@@ -36,16 +36,16 @@ GLOBAL_LOGOUT_DURATION: 24 * 60 * 60 * 1000, // 24h en millisecondes
 
   // Messages d'erreur standardisés
   ERROR_MESSAGES: {
-    COMPTE_DESACTIVE: "COMPTE DESACTIVE",
-    COMPTE_TEMPORAIREMENT_DECONNECTE: "COMPTE TEMPORAIREMENT DECONNECTE",
-    MAINTENANCE_MODE: "MAINTENANCE MODE",
-    PASSWORD_RESET_REQUIRED: "PASSWORD RESET REQUIRED"
+    COMPTE_DESACTIVE: 'COMPTE DESACTIVE',
+    COMPTE_TEMPORAIREMENT_DECONNECTE: 'COMPTE TEMPORAIREMENT DECONNECTE',
+    MAINTENANCE_MODE: 'MAINTENANCE MODE',
+    PASSWORD_RESET_REQUIRED: 'PASSWORD RESET REQUIRED',
   } as const,
 
   // Configuration sessions
   MAX_ACTIVE_SESSIONS_PER_USER: 5,
   SESSION_CLEANUP_BATCH_SIZE: 1000,
-  
+
   // Configuration des cookies
   COOKIE_OPTIONS: {
     ACCESS_TOKEN: {
@@ -59,13 +59,13 @@ GLOBAL_LOGOUT_DURATION: 24 * 60 * 60 * 1000, // 24h en millisecondes
       secure: true,
       sameSite: 'none' as const,
       maxAge: 30 * 60 * 1000, // 30 minutes
-    }
-  }
+    },
+  },
 } as const;
 
 export const COOKIE_NAMES = {
   ACCESS_TOKEN: 'access_token',
-  REFRESH_TOKEN: 'refresh_token'
+  REFRESH_TOKEN: 'refresh_token',
 } as const;
 
 export const COOKIE_CONFIG = {
@@ -84,5 +84,5 @@ export const COOKIE_CONFIG = {
     sameSite: 'none' as const,
     maxAge: 30 * 60 * 1000, // 30 minutes
     path: '/',
-  }
+  },
 } as const;

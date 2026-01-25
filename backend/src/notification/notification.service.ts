@@ -2,7 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SmtpService } from '../config/smtp.service';
 import { Rendezvous } from '../schemas/rendezvous.schema';
-import { Procedure, ProcedureStatus, StepStatus } from '../schemas/procedure.schema';
+import {
+  Procedure,
+  ProcedureStatus,
+  StepStatus,
+} from '../schemas/procedure.schema';
 import { Contact } from '../schemas/contact.schema';
 
 @Injectable()
@@ -18,11 +22,10 @@ export class NotificationService {
     this.frontendUrl = this.configService.get<string>('FRONTEND_URL');
   }
 
-
- private async sendEmail(
-    to: string, 
-    subject: string, 
-    html: string, 
+  private async sendEmail(
+    to: string,
+    subject: string,
+    html: string,
     context: string,
     from?: string,
     fromName?: string
@@ -38,15 +41,17 @@ export class NotificationService {
         from, // Optionnel: email expéditeur personnalisé
         fromName, // Optionnel: nom expéditeur personnalisé
         subject,
-        html
+        html,
       });
-      
+
       if (result.success) {
         this.logger.log(`Notification envoyée (${context})`);
       } else {
-        this.logger.error(`Échec envoi notification (${context}): ${result.error || 'Erreur inconnue'}`);
+        this.logger.error(
+          `Échec envoi notification (${context}): ${result.error || 'Erreur inconnue'}`
+        );
       }
-      
+
       return result.success;
     } catch (error: any) {
       this.logger.error(`Erreur "${context}": ${error.message}`);
@@ -54,7 +59,11 @@ export class NotificationService {
     }
   }
 
-  private getBaseTemplate(header: string, content: string, firstName: string): string {
+  private getBaseTemplate(
+    header: string,
+    content: string,
+    firstName: string
+  ): string {
     return `
       <!DOCTYPE html>
       <html>
@@ -171,12 +180,15 @@ export class NotificationService {
   // ==================== RENDEZ-VOUS NOTIFICATIONS ====================
 
   async sendConfirmation(rendezvous: Rendezvous): Promise<boolean> {
-    const dateFormatted = new Date(rendezvous.date).toLocaleDateString("fr-FR", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric"
-    });
+    const dateFormatted = new Date(rendezvous.date).toLocaleDateString(
+      'fr-FR',
+      {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }
+    );
 
     const content = `
       <div class="details">
@@ -204,9 +216,13 @@ export class NotificationService {
 
     return await this.sendEmail(
       rendezvous.email,
-      "Confirmation de votre rendez-vous - Paname Consulting",
-      this.getBaseTemplate("Rendez-vous Confirmé", content, rendezvous.firstName),
-      "confirmation-rendezvous"
+      'Confirmation de votre rendez-vous - Paname Consulting',
+      this.getBaseTemplate(
+        'Rendez-vous Confirmé',
+        content,
+        rendezvous.firstName
+      ),
+      'confirmation-rendezvous'
     );
   }
 
@@ -232,19 +248,84 @@ export class NotificationService {
     return await this.sendEmail(
       rendezvous.email,
       "Rappel - Rendez-vous aujourd'hui - Paname Consulting",
-      this.getBaseTemplate("Rappel de Rendez-vous", content, rendezvous.firstName),
-      "rappel-rendezvous"
+      this.getBaseTemplate(
+        'Rappel de Rendez-vous',
+        content,
+        rendezvous.firstName
+      ),
+      'rappel-rendezvous'
+    );
+  }
+
+  async sendNextDayReminder(rendezvous: Rendezvous): Promise<boolean> {
+    const content = `
+      <div class="details">
+        <p>Rappel : Vous avez un rendez-vous demain.</p>
+        
+        <div class="info-box">
+          <h3 style="margin-top: 0; color: #10b981;">Rendez-vous de demain</h3>
+          <div class="detail-item">
+            <span class="detail-label">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Heure :</span> ${rendezvous.time}
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Lieu :</span> ${this.appName} - Kalaban Coura
+          </div>
+        </div>
+        
+        <p>Pensez à préparer vos documents.</p>
+      </div>
+    `;
+
+    return await this.sendEmail(
+      rendezvous.email,
+      'Rappel - Rendez-vous demain - Paname Consulting',
+      this.getBaseTemplate(
+        'Rappel de Rendez-vous',
+        content,
+        rendezvous.firstName
+      ),
+      'rappel-veille-rendezvous'
+    );
+  }
+
+  async sendTwoHourReminder(rendezvous: Rendezvous): Promise<boolean> {
+    const content = `
+      <div class="details">
+        <p><strong>RAPPELEZ-VOUS : Votre rendez-vous dans 2 heures !</strong></p>
+        
+        <div class="info-box" style="background-color: #fef3c7; border-color: #f59e0b;">
+          <h3 style="margin-top: 0; color: #d97706;">⏰ Rendez-vous imminent</h3>
+          <div class="detail-item">
+            <span class="detail-label">Heure :</span> ${rendezvous.time}
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Lieu :</span> ${this.appName} - Kalaban Coura
+          </div>
+        </div>
+        
+        <p>Nous vous attendons dans 2 heures !</p>
+      </div>
+    `;
+
+    return await this.sendEmail(
+      rendezvous.email,
+      '🔔 RAPPEL - Rendez-vous dans 2h - Paname Consulting',
+      this.getBaseTemplate('Rappel Urgent', content, rendezvous.firstName),
+      'rappel-2h-rendezvous'
     );
   }
 
   async sendStatusUpdate(rendezvous: Rendezvous): Promise<boolean> {
-    let content = "";
-    let subject = "";
-    let header = "Mise à jour de Rendez-vous";
+    let content = '';
+    let subject = '';
+    let header = 'Mise à jour de Rendez-vous';
 
     switch (rendezvous.status) {
-      case "Confirmé":
-        subject = "Rendez-vous Confirmé - Paname Consulting";
+      case 'Confirmé':
+        subject = 'Rendez-vous Confirmé - Paname Consulting';
         content = `
           <div class="details">
             <p>Votre rendez-vous a été confirmé.</p>
@@ -252,7 +333,7 @@ export class NotificationService {
             <div class="info-box">
               <h3 style="margin-top: 0; color: #0ea5e9;">Rendez-vous confirmé</h3>
               <div class="detail-item">
-                <span class="detail-label">Date :</span> ${new Date(rendezvous.date).toLocaleDateString("fr-FR")}
+                <span class="detail-label">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}
               </div>
               <div class="detail-item">
                 <span class="detail-label">Heure :</span> ${rendezvous.time}
@@ -262,10 +343,13 @@ export class NotificationService {
         `;
         break;
 
-      case "Annulé":
-        subject = "Rendez-vous Annulé - Paname Consulting";
-        header = "Rendez-vous Annulé";
-        const cancelledBy = rendezvous.cancelledBy === 'admin' ? 'par notre équipe' : 'à votre demande';
+      case 'Annulé': {
+        subject = 'Rendez-vous Annulé - Paname Consulting';
+        header = 'Rendez-vous Annulé';
+        const cancelledBy =
+          rendezvous.cancelledBy === 'admin'
+            ? 'par notre équipe'
+            : 'à votre demande';
         content = `
           <div class="details">
             <p>Votre rendez-vous a été annulé ${cancelledBy}.</p>
@@ -273,16 +357,20 @@ export class NotificationService {
             <div class="info-box">
               <h3 style="margin-top: 0; color: #0ea5e9;">Rendez-vous annulé</h3>
               <div class="detail-item">
-                <span class="detail-label">Date prévue :</span> ${new Date(rendezvous.date).toLocaleDateString("fr-FR")}
+                <span class="detail-label">Date prévue :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}
               </div>
               <div class="detail-item">
                 <span class="detail-label">Heure prévue :</span> ${rendezvous.time}
               </div>
-              ${rendezvous.cancellationReason ? `
+              ${
+                rendezvous.cancellationReason
+                  ? `
                 <div class="detail-item">
                   <span class="detail-label">Raison :</span> ${rendezvous.cancellationReason}
                 </div>
-              ` : ""}
+              `
+                  : ''
+              }
             </div>
             
             <div style="text-align: center; margin-top: 30px;">
@@ -291,11 +379,12 @@ export class NotificationService {
           </div>
         `;
         break;
+      }
 
-      case "Terminé":
-        header = "Rendez-vous Terminé";
-        if (rendezvous.avisAdmin === "Favorable") {
-          subject = "Rendez-vous Terminé - Avis Favorable - Paname Consulting";
+      case 'Terminé':
+        header = 'Rendez-vous Terminé';
+        if (rendezvous.avisAdmin === 'Favorable') {
+          subject = 'Rendez-vous Terminé - Avis Favorable - Paname Consulting';
           content = `
             <div class="details">
               <p>Votre rendez-vous s'est déroulé avec succès.</p>
@@ -309,8 +398,8 @@ export class NotificationService {
               <p>Félicitations pour cette première étape réussie.</p>
             </div>
           `;
-        } else if (rendezvous.avisAdmin === "Défavorable") {
-          subject = "Rendez-vous Terminé - Paname Consulting";
+        } else if (rendezvous.avisAdmin === 'Défavorable') {
+          subject = 'Rendez-vous Terminé - Paname Consulting';
           content = `
             <div class="details">
               <p>Votre rendez-vous est maintenant terminé.</p>
@@ -326,9 +415,9 @@ export class NotificationService {
         }
         break;
 
-      case "En attente":
-        subject = "Statut Modifié - En Attente - Paname Consulting";
-        header = "Rendez-vous en Attente";
+      case 'En attente':
+        subject = 'Statut Modifié - En Attente - Paname Consulting';
+        header = 'Rendez-vous en Attente';
         content = `
           <div class="details">
             <p>Votre demande de rendez-vous est en attente de confirmation.</p>
@@ -357,14 +446,18 @@ export class NotificationService {
   // ==================== PROCEDURE NOTIFICATIONS ====================
 
   async sendProcedureUpdate(procedure: Procedure): Promise<boolean> {
-    const currentStep = procedure.steps.find(s => s.statut === StepStatus.IN_PROGRESS);
-    const completedSteps = procedure.steps.filter(s => s.statut === StepStatus.COMPLETED).length;
+    const currentStep = procedure.steps.find(
+      s => s.statut === StepStatus.IN_PROGRESS
+    );
+    const completedSteps = procedure.steps.filter(
+      s => s.statut === StepStatus.COMPLETED
+    ).length;
     const totalSteps = procedure.steps.length;
     const progress = Math.round((completedSteps / totalSteps) * 100);
 
-    let content = "";
-    let header = "Mise à jour de Procédure";
-    let subject = "Mise à jour de votre procédure - Paname Consulting";
+    let content = '';
+    let header = 'Mise à jour de Procédure';
+    let subject = 'Mise à jour de votre procédure - Paname Consulting';
 
     if (currentStep) {
       content = `
@@ -395,8 +488,8 @@ export class NotificationService {
         </div>
       `;
     } else if (procedure.statut === ProcedureStatus.COMPLETED) {
-      subject = "Procédure Terminée - Paname Consulting";
-      header = "Procédure Finalisée";
+      subject = 'Procédure Terminée - Paname Consulting';
+      header = 'Procédure Finalisée';
       content = `
         <div class="details">
           <p>Votre procédure d'admission est maintenant terminée avec succès.</p>
@@ -418,8 +511,8 @@ export class NotificationService {
         </div>
       `;
     } else if (procedure.statut === ProcedureStatus.REJECTED) {
-      subject = "Procédure Rejetée - Paname Consulting";
-      header = "Procédure Rejetée";
+      subject = 'Procédure Rejetée - Paname Consulting';
+      header = 'Procédure Rejetée';
       content = `
         <div class="details">
           <p>Votre procédure d'admission a été rejetée.</p>
@@ -432,11 +525,15 @@ export class NotificationService {
             <div class="detail-item">
               <span class="detail-label">Destination :</span> ${procedure.destination}
             </div>
-            ${procedure.raisonRejet ? `
+            ${
+              procedure.raisonRejet
+                ? `
               <div class="detail-item">
                 <span class="detail-label">Raison :</span> ${procedure.raisonRejet}
               </div>
-            ` : ""}
+            `
+                : ''
+            }
           </div>
           
           <p>Notre équipe reste à votre disposition pour discuter des alternatives.</p>
@@ -473,7 +570,7 @@ export class NotificationService {
             <span class="detail-label">Filière :</span> ${procedure.filiere}
           </div>
           <div class="detail-item">
-            <span class="detail-label">Date du rendez-vous :</span> ${new Date(rendezvous.date).toLocaleDateString("fr-FR")}
+            <span class="detail-label">Date du rendez-vous :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}
           </div>
         </div>
         
@@ -483,9 +580,9 @@ export class NotificationService {
 
     return await this.sendEmail(
       procedure.email,
-      "Votre procédure est lancée - Paname Consulting",
-      this.getBaseTemplate("Procédure Créée", content, procedure.prenom),
-      "création-procédure"
+      'Votre procédure est lancée - Paname Consulting',
+      this.getBaseTemplate('Procédure Créée', content, procedure.prenom),
+      'création-procédure'
     );
   }
 
@@ -499,11 +596,15 @@ export class NotificationService {
           <div class="detail-item">
             <span class="detail-label">Destination :</span> ${procedure.destination}
           </div>
-          ${procedure.deletionReason ? `
+          ${
+            procedure.deletionReason
+              ? `
             <div class="detail-item">
               <span class="detail-label">Raison :</span> ${procedure.deletionReason}
             </div>
-          ` : ""}
+          `
+              : ''
+          }
         </div>
         
         <p>Notre équipe reste à votre disposition pour toute question.</p>
@@ -512,9 +613,9 @@ export class NotificationService {
 
     return await this.sendEmail(
       procedure.email,
-      "Annulation de votre procédure - Paname Consulting",
-      this.getBaseTemplate("Procédure Annulée", content, procedure.prenom),
-      "annulation-procédure"
+      'Annulation de votre procédure - Paname Consulting',
+      this.getBaseTemplate('Procédure Annulée', content, procedure.prenom),
+      'annulation-procédure'
     );
   }
 
@@ -535,20 +636,24 @@ export class NotificationService {
 
     return await this.sendEmail(
       contact.email,
-      "Réponse à votre message - Paname Consulting",
-      this.getBaseTemplate("Réponse de notre équipe", content, contact.firstName || "Cher client"),
-      "réponse-contact"
+      'Réponse à votre message - Paname Consulting',
+      this.getBaseTemplate(
+        'Réponse de notre équipe',
+        content,
+        contact.firstName || 'Cher client'
+      ),
+      'réponse-contact'
     );
   }
 
- async sendContactNotification(contact: Contact): Promise<boolean> {
-  const adminEmail = this.configService.get<string>('EMAIL_USER');
-  if (!adminEmail) {
-    this.logger.warn("Email admin non configuré");
-    return false;
-  }
+  async sendContactNotification(contact: Contact): Promise<boolean> {
+    const adminEmail = this.configService.get<string>('EMAIL_USER');
+    if (!adminEmail) {
+      this.logger.warn('Email admin non configuré');
+      return false;
+    }
 
-  const content = `
+    const content = `
     <div class="details">
       <p>Nouveau message de contact reçu :</p>
       
@@ -561,7 +666,7 @@ export class NotificationService {
           <span class="detail-label">Email :</span> ${contact.email}
         </div>
         <div class="detail-item">
-          <span class="detail-label">Date :</span> ${new Date().toLocaleString("fr-FR")}
+          <span class="detail-label">Date :</span> ${new Date().toLocaleString('fr-FR')}
         </div>
       </div>
       
@@ -574,22 +679,23 @@ export class NotificationService {
     </div>
   `;
 
-  // Envoyer à l'admin avec l'expéditeur dynamique (email du formulaire)
-  const result = await this.smtpService.sendEmail({
-    from: contact.email, // Email de l'expéditeur du formulaire
-    fromName: `${contact.firstName} ${contact.lastName}`.trim() || 'Contact Formulaire',
-    to: adminEmail, // Destinataire fixe: admin
-    subject: 'Nouveau message de contact - Paname Consulting',
-    html: this.getBaseTemplate("Nouveau Message Contact", content, "Équipe"),
-    replyTo: contact.email, // Pour répondre à l'utilisateur
-  });
-  
-  return result.success;
-}
+    // Envoyer à l'admin avec l'expéditeur dynamique (email du formulaire)
+    const result = await this.smtpService.sendEmail({
+      from: contact.email, // Email de l'expéditeur du formulaire
+      fromName:
+        `${contact.firstName} ${contact.lastName}`.trim() ||
+        'Contact Formulaire',
+      to: adminEmail, // Destinataire fixe: admin
+      subject: 'Nouveau message de contact - Paname Consulting',
+      html: this.getBaseTemplate('Nouveau Message Contact', content, 'Équipe'),
+      replyTo: contact.email, // Pour répondre à l'utilisateur
+    });
 
+    return result.success;
+  }
 
   async sendContactConfirmation(contact: Contact): Promise<boolean> {
-  const content = `
+    const content = `
     <div class="details">
       <p>Nous accusons réception de votre message.</p>
       
@@ -604,16 +710,20 @@ export class NotificationService {
     </div>
   `;
 
-  // Envoyer la confirmation avec notre email officiel comme expéditeur
-  return await this.sendEmail(
-    contact.email,
-    'Confirmation de votre message - Paname Consulting',
-    this.getBaseTemplate("Confirmation de Réception", content, contact.firstName || "Cher client"),
-    'confirmation-contact',
-    'panameconsulting906@gmail.com',
-    'Paname Consulting'
-  );
-}
+    // Envoyer la confirmation avec notre email officiel comme expéditeur
+    return await this.sendEmail(
+      contact.email,
+      'Confirmation de votre message - Paname Consulting',
+      this.getBaseTemplate(
+        'Confirmation de Réception',
+        content,
+        contact.firstName || 'Cher client'
+      ),
+      'confirmation-contact',
+      'panameconsulting906@gmail.com',
+      'Paname Consulting'
+    );
+  }
 
   // ==================== UTILITY METHODS ====================
 

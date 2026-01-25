@@ -174,7 +174,7 @@ class UserProfileService {
         let errorData;
         try {
           errorData = JSON.parse(errorText);
-        } catch (e) {
+        } catch {
           console.error('Erreur lors du parsing de la réponse:', errorText);
         }
 
@@ -436,8 +436,8 @@ class UserProfileService {
       return { isValid: true }; // Téléphone optionnel
     }
 
-    const phoneRegex = /^[+]?[0-9\s\-\(\)\.]{8,20}$/;
-    const cleanedPhone = telephone.replace(/[\s\-\(\)\.]/g, '');
+    const phoneRegex = /^[+]?[0-9\s\-.()]{8,20}$/;
+    const cleanedPhone = telephone.replace(/[\s\-.()]/g, '');
     const hasMinDigits = cleanedPhone.length >= 8;
 
     const isValid = phoneRegex.test(telephone) && hasMinDigits;

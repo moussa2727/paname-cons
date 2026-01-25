@@ -58,7 +58,11 @@ export interface ProcedureMethods {
 }
 
 // Interface pour les méthodes statiques
-export interface ProcedureModel extends Model<Procedure, object, ProcedureMethods> {
+export interface ProcedureModel extends Model<
+  Procedure,
+  object,
+  ProcedureMethods
+> {
   findByRendezvousId(rendezVousId: Types.ObjectId): Promise<Procedure>;
   findByUserEmail(email: string): Promise<Procedure[]>;
 }
@@ -150,18 +154,25 @@ ProcedureSchema.methods.updateGlobalStatus = function (): void {
     return;
   }
 
-  const allCompleted = procedure.steps.every((step: Step) => step.statut === StepStatus.COMPLETED);
-  const anyRejected = procedure.steps.some((step: Step) => step.statut === StepStatus.REJECTED);
-  const anyCancelled = procedure.steps.some((step: Step) => step.statut === StepStatus.CANCELLED);
+  const allCompleted = procedure.steps.every(
+    (step: Step) => step.statut === StepStatus.COMPLETED
+  );
+  const anyRejected = procedure.steps.some(
+    (step: Step) => step.statut === StepStatus.REJECTED
+  );
+  const anyCancelled = procedure.steps.some(
+    (step: Step) => step.statut === StepStatus.CANCELLED
+  );
 
   // RÈGLE STRICTE : Si la demande d'admission est rejetée ou annulée, TOUTES les autres étapes le sont aussi
   const admissionStep = procedure.steps.find(
-    (step: Step) => step.nom === StepName.DEMANDE_ADMISSION,
+    (step: Step) => step.nom === StepName.DEMANDE_ADMISSION
   );
 
   if (
     admissionStep &&
-    (admissionStep.statut === StepStatus.REJECTED || admissionStep.statut === StepStatus.CANCELLED)
+    (admissionStep.statut === StepStatus.REJECTED ||
+      admissionStep.statut === StepStatus.CANCELLED)
   ) {
     // Marquer toutes les autres étapes avec le même statut et la même raison
     procedure.steps.forEach((step: Step) => {
@@ -186,7 +197,9 @@ ProcedureSchema.methods.updateGlobalStatus = function (): void {
 
   if (anyRejected) {
     procedure.statut = ProcedureStatus.REJECTED;
-    const rejectedStep = procedure.steps.find((step: Step) => step.statut === StepStatus.REJECTED);
+    const rejectedStep = procedure.steps.find(
+      (step: Step) => step.statut === StepStatus.REJECTED
+    );
     procedure.raisonRejet = rejectedStep?.raisonRefus;
   } else if (anyCancelled) {
     procedure.statut = ProcedureStatus.CANCELLED;
@@ -200,7 +213,9 @@ ProcedureSchema.methods.updateGlobalStatus = function (): void {
 
 ProcedureSchema.methods.addStep = function (stepName: StepName): void {
   const procedure = this as ProcedureDocument;
-  const existingStep = procedure.steps.find((step: Step) => step.nom === stepName);
+  const existingStep = procedure.steps.find(
+    (step: Step) => step.nom === stepName
+  );
 
   if (!existingStep) {
     procedure.steps.push({
@@ -213,9 +228,14 @@ ProcedureSchema.methods.addStep = function (stepName: StepName): void {
   }
 };
 
-ProcedureSchema.methods.updateStep = function (stepName: StepName, updates: Partial<Step>): void {
+ProcedureSchema.methods.updateStep = function (
+  stepName: StepName,
+  updates: Partial<Step>
+): void {
   const procedure = this as ProcedureDocument;
-  const stepIndex = procedure.steps.findIndex((step: Step) => step.nom === stepName);
+  const stepIndex = procedure.steps.findIndex(
+    (step: Step) => step.nom === stepName
+  );
 
   if (stepIndex !== -1) {
     procedure.steps[stepIndex] = {
@@ -224,7 +244,10 @@ ProcedureSchema.methods.updateStep = function (stepName: StepName, updates: Part
       dateMaj: new Date(),
     };
 
-    if (updates.statut === StepStatus.COMPLETED || updates.statut === StepStatus.REJECTED) {
+    if (
+      updates.statut === StepStatus.COMPLETED ||
+      updates.statut === StepStatus.REJECTED
+    ) {
       procedure.steps[stepIndex].dateCompletion = new Date();
     }
 
@@ -235,15 +258,20 @@ ProcedureSchema.methods.updateStep = function (stepName: StepName, updates: Part
 // ==================== MÉTHODES STATIQUES ====================
 
 ProcedureSchema.statics.findByRendezvousId = function (
-  rendezVousId: Types.ObjectId,
+  rendezVousId: Types.ObjectId
 ): Promise<ProcedureDocument | null> {
-  return this.findOne({ rendezVousId, isDeleted: false }) as Promise<ProcedureDocument | null>;
+  return this.findOne({
+    rendezVousId,
+    isDeleted: false,
+  }) as Promise<ProcedureDocument | null>;
 };
 
-ProcedureSchema.statics.findByUserEmail = function (email: string): Promise<ProcedureDocument[]> {
-  return this.find({ email, isDeleted: false }).sort({ createdAt: -1 }) as Promise<
-    ProcedureDocument[]
-  >;
+ProcedureSchema.statics.findByUserEmail = function (
+  email: string
+): Promise<ProcedureDocument[]> {
+  return this.find({ email, isDeleted: false }).sort({
+    createdAt: -1,
+  }) as Promise<ProcedureDocument[]>;
 };
 
 // ==================== MIDDLEWARES ====================
@@ -253,13 +281,20 @@ ProcedureSchema.pre('save', async function () {
   procedure.dateDerniereModification = new Date();
 
   // CORRECTION: Ignorer la validation stricte si la procédure est annulée ou rejetée
-  if ([ProcedureStatus.CANCELLED, ProcedureStatus.REJECTED].includes(procedure.statut)) {
+  if (
+    [ProcedureStatus.CANCELLED, ProcedureStatus.REJECTED].includes(
+      procedure.statut
+    )
+  ) {
     return; // Sortir tôt, pas de validation stricte pour les procédures finalisées
   }
 
   // TRAITEMENT STRICTE DES CHAMPS "AUTRE"
   if (procedure.destination === 'Autre') {
-    if (!procedure.destinationAutre || procedure.destinationAutre.trim() === '') {
+    if (
+      !procedure.destinationAutre ||
+      procedure.destinationAutre.trim() === ''
+    ) {
       throw new Error('Veuillez préciser votre destination');
     }
     procedure.destination = procedure.destinationAutre.trim();
@@ -273,7 +308,10 @@ ProcedureSchema.pre('save', async function () {
   }
 
   // Nettoyer les champs *_Autre
-  if (procedure.destinationAutre && procedure.destinationAutre === procedure.destination) {
+  if (
+    procedure.destinationAutre &&
+    procedure.destinationAutre === procedure.destination
+  ) {
     procedure.destinationAutre = undefined;
   }
 
@@ -288,13 +326,17 @@ ProcedureSchema.pre('save', async function () {
     StepName.PREPARATIF_VOYAGE,
   ];
 
-  requiredSteps.forEach((stepName) => {
-    const existingStep = procedure.steps.find((step: Step) => step.nom === stepName);
+  requiredSteps.forEach(stepName => {
+    const existingStep = procedure.steps.find(
+      (step: Step) => step.nom === stepName
+    );
     if (!existingStep) {
       procedure.steps.push({
         nom: stepName,
         statut:
-          stepName === StepName.DEMANDE_ADMISSION ? StepStatus.IN_PROGRESS : StepStatus.PENDING,
+          stepName === StepName.DEMANDE_ADMISSION
+            ? StepStatus.IN_PROGRESS
+            : StepStatus.PENDING,
         dateCreation: new Date(),
         dateMaj: new Date(),
       });

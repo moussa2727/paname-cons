@@ -1,5 +1,3 @@
-/* eslint-disable no-undef */
-
 import { useAuth } from '../../context/AuthContext';
 import React, { useState } from 'react';
 import { FiAlertCircle, FiMail } from 'react-icons/fi';

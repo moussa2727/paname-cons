@@ -1,16 +1,16 @@
-import { Module} from "@nestjs/common";
-import { NotificationService } from "./notification.service";
-import {  SmtpService, } from "../config/smtp.service";
-import { ConfigModule } from "@nestjs/config";
+import { Module } from '@nestjs/common';
+import { NotificationService } from './notification.service';
+import { SmtpService } from '../config/smtp.service';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
-      ConfigModule.forRoot({
-          isGlobal: true,
-        }),
-    ],
-    
- providers: [NotificationService,SmtpService],
-  exports: [NotificationService,SmtpService],
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+  ],
+
+  providers: [NotificationService, SmtpService],
+  exports: [NotificationService, SmtpService],
 })
 export class NotificationModule {}

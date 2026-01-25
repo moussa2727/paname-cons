@@ -1,5 +1,3 @@
-/* eslint-disable no-undef */
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';

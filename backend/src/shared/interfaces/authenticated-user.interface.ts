@@ -1,8 +1,8 @@
 // src/shared/interfaces/authenticated-user.interface.ts
 export interface AuthenticatedUser {
-  id: string;           
-  sub?: string;         
-  userId?: string;     
+  id: string;
+  sub?: string;
+  userId?: string;
   email: string;
   role: string;
   firstName?: string;

@@ -171,7 +171,7 @@ export const useAdminUserService = () => {
   const cleanData = (data: any): any => {
     return Object.fromEntries(
       Object.entries(data).filter(
-        ([_, value]) => value !== undefined && value !== null && value !== ''
+        ([value]) => value !== undefined && value !== null && value !== ''
       )
     );
   };

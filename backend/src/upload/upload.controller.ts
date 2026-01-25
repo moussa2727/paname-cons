@@ -6,38 +6,40 @@ import {
   Post,
   UploadedFile,
   UseInterceptors,
-} from "@nestjs/common";
-import { FileInterceptor } from "@nestjs/platform-express";
-import { multerConfig } from "./multer.config";
-import { UploadService } from "./upload.service";
-import path from "path";
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { multerConfig } from './multer.config';
+import { UploadService } from './upload.service';
+import path from 'path';
 
-@Controller("/upload")
+@Controller('/upload')
 export class UploadController {
   private readonly logger = new Logger(UploadController.name);
 
   constructor(private readonly uploadService: UploadService) {}
 
   @Post()
-  @UseInterceptors(FileInterceptor("image", multerConfig))
+  @UseInterceptors(FileInterceptor('image', multerConfig))
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
     const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     try {
-      this.logger.log(`[${requestId}] Début de l'upload - Taille: ${file?.size || 0} bytes`);
+      this.logger.log(
+        `[${requestId}] Début de l'upload - Taille: ${file?.size || 0} bytes`
+      );
 
       // Validation renforcée
       if (!file) {
         this.logger.warn(`[${requestId}] Aucun fichier reçu`);
         throw new HttpException(
-          "Aucun fichier téléchargé ou format invalide",
-          HttpStatus.BAD_REQUEST,
+          'Aucun fichier téléchargé ou format invalide',
+          HttpStatus.BAD_REQUEST
         );
       }
 
       // Log sécurisé des informations du fichier
       this.logger.log(
-        `[${requestId}] Upload réussi - Nom original: ${this.maskFilename(file.originalname)}, Nouveau nom: ${this.maskFilename(file.filename)}, Type: ${file.mimetype}, Taille: ${file.size} bytes`,
+        `[${requestId}] Upload réussi - Nom original: ${this.maskFilename(file.originalname)}, Nouveau nom: ${this.maskFilename(file.filename)}, Type: ${file.mimetype}, Taille: ${file.size} bytes`
       );
 
       return {
@@ -56,33 +58,34 @@ export class UploadController {
       );
 
       throw new HttpException(
-        error.message || "Erreur lors du traitement du fichier",
-        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+        error.message || 'Erreur lors du traitement du fichier',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }
 
   private maskFilename(filename: string): string {
     if (!filename) return 'fichier_inconnu';
-    
+
     const ext = path.extname(filename);
     const nameWithoutExt = filename.replace(ext, '');
-    
+
     // Garde seulement les premiers et derniers caractères du nom
     if (nameWithoutExt.length <= 2) {
       return nameWithoutExt + '***' + ext;
     }
-    
-    const maskedName = nameWithoutExt.charAt(0) + 
-                      '***' + 
-                      nameWithoutExt.charAt(nameWithoutExt.length - 1);
-    
+
+    const maskedName =
+      nameWithoutExt.charAt(0) +
+      '***' +
+      nameWithoutExt.charAt(nameWithoutExt.length - 1);
+
     return maskedName + ext;
   }
 
   private cleanErrorStack(stack: string): string {
     if (!stack) return 'stack_trace_non_disponible';
-    
+
     // Nettoie les chemins absolus qui pourraient révéler la structure du serveur
     return stack
       .split('\n')

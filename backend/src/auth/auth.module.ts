@@ -1,35 +1,35 @@
-import { Module } from "@nestjs/common";
-import { ConfigModule, ConfigService } from "@nestjs/config";
-import { JwtModule } from "@nestjs/jwt";
-import { MongooseModule } from "@nestjs/mongoose";
-import { PassportModule } from "@nestjs/passport";
-import { ScheduleModule } from "@nestjs/schedule";
-import { MailModule } from "../mail/mail.module";
-import { UsersModule } from "../users/users.module";
-import { ResetToken, ResetTokenSchema } from "../schemas/reset-token.schema";
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
+import { MongooseModule } from '@nestjs/mongoose';
+import { PassportModule } from '@nestjs/passport';
+import { ScheduleModule } from '@nestjs/schedule';
+import { MailModule } from '../mail/mail.module';
+import { UsersModule } from '../users/users.module';
+import { ResetToken, ResetTokenSchema } from '../schemas/reset-token.schema';
 import {
   RefreshToken,
   RefreshTokenSchema,
-} from "../schemas/refresh-token.schema";
+} from '../schemas/refresh-token.schema';
 import {
   RevokedToken,
   RevokedTokenSchema,
-} from "../schemas/revoked-token.schema";
-import { Session, SessionSchema } from "../schemas/session.schema";
-import { AuthController } from "./auth.controller";
-import { AuthService } from "./auth.service";
-import { RefreshTokenService } from "./refresh-token.service";
-import { RevokedTokenService } from "./revoked-token.service";
-import { SessionService } from "./session.service";
-import { LocalStrategy } from "./strategies/local.strategy";
-import { User, UserSchema } from "../schemas/user.schema";
-import { JwtStrategy } from "./strategies/jwt.strategy";
-import { CleanupService } from "./cleanup.service";
+} from '../schemas/revoked-token.schema';
+import { Session, SessionSchema } from '../schemas/session.schema';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+import { RefreshTokenService } from './refresh-token.service';
+import { RevokedTokenService } from './revoked-token.service';
+import { SessionService } from './session.service';
+import { LocalStrategy } from './strategies/local.strategy';
+import { User, UserSchema } from '../schemas/user.schema';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { CleanupService } from './cleanup.service';
 
 @Module({
   imports: [
     UsersModule,
-    PassportModule.register({ defaultStrategy: "jwt" }),
+    PassportModule.register({ defaultStrategy: 'jwt' }),
     MailModule,
     ScheduleModule.forRoot(),
     MongooseModule.forFeature([
@@ -42,11 +42,11 @@ import { CleanupService } from "./cleanup.service";
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>("JWT_SECRET"),
+        secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: configService.get("JWT_EXPIRES_IN", "15m"),
-          issuer: configService.get("APP_NAME", "panameconsulting"),
-          algorithm: "HS256",
+          expiresIn: configService.get('JWT_EXPIRES_IN', '15m'),
+          issuer: configService.get('APP_NAME', 'panameconsulting'),
+          algorithm: 'HS256',
         },
       }),
       inject: [ConfigService],
@@ -61,7 +61,7 @@ import { CleanupService } from "./cleanup.service";
     RevokedTokenService,
     CleanupService,
     LocalStrategy,
-    JwtStrategy
+    JwtStrategy,
   ],
   exports: [
     AuthService,

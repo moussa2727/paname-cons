@@ -1,29 +1,30 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { Document, Types } from "mongoose";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
-@Schema({ 
+@Schema({
   timestamps: true,
-  collection: "refresh_tokens",
+  collection: 'refresh_tokens',
   toJSON: {
     virtuals: true,
-    transform: function(doc: any, ret: any) {
+    transform: function (doc: any, ret: any) {
       ret.id = ret._id.toString();
       delete ret._id;
       delete ret.__v;
       return ret;
-    }
+    },
   },
   toObject: {
     virtuals: true,
-    transform: function(doc: any, ret: any) {
+    transform: function (doc: any, ret: any) {
       ret.id = ret._id.toString();
       delete ret._id;
       delete ret.__v;
       return ret;
-    }
-  }
-})export class RefreshToken extends Document {
-  @Prop({ type: Types.ObjectId, ref: "User", required: true })
+    },
+  },
+})
+export class RefreshToken extends Document {
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   user: Types.ObjectId;
 
   @Prop({ required: true, unique: true })

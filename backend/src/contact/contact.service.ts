@@ -3,13 +3,13 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
-} from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
-import { Contact } from "../schemas/contact.schema";
-import { CreateContactDto } from "./dto/create-contact.dto";
-import { NotificationService } from "../notification/notification.service";
-import { UserRole } from "../schemas/user.schema";
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Contact } from '../schemas/contact.schema';
+import { CreateContactDto } from './dto/create-contact.dto';
+import { NotificationService } from '../notification/notification.service';
+import { UserRole } from '../schemas/user.schema';
 
 @Injectable()
 export class ContactService {
@@ -17,11 +17,10 @@ export class ContactService {
 
   constructor(
     @InjectModel(Contact.name) private contactModel: Model<Contact>,
-    private notificationService: NotificationService,
+    private notificationService: NotificationService
   ) {}
 
- async create(createContactDto: CreateContactDto): Promise<Contact> {
-    const contactId = "CONTACT_" + Date.now();
+  async create(createContactDto: CreateContactDto): Promise<Contact> {
     try {
       this.logger.log(`Création d'un nouveau message de contact.`);
 
@@ -36,21 +35,25 @@ export class ContactService {
       const savedContact = await createdContact.save();
 
       const maskedEmail = this.maskEmail(savedContact.email);
-      this.logger.log(`Message de contact créé avec succès pour l'Email: ${maskedEmail}`);
+      this.logger.log(
+        `Message de contact créé avec succès pour l'Email: ${maskedEmail}`
+      );
 
       // Envoyer les notifications après la sauvegarde
       try {
         // 1. Notification à l'admin (expéditeur = email du formulaire)
         await this.notificationService.sendContactNotification(savedContact);
-        
+
         // 2. Confirmation à l'utilisateur (expéditeur = notre email officiel)
         await this.notificationService.sendContactConfirmation(savedContact);
-        
-        this.logger.log(`Notifications envoyées pour le contact ${maskedEmail}`);
+
+        this.logger.log(
+          `Notifications envoyées pour le contact ${maskedEmail}`
+        );
       } catch (notificationError) {
         this.logger.error(
           `Erreur lors de l'envoi des notifications pour le contact ${maskedEmail}`,
-          notificationError.stack,
+          notificationError.stack
         );
         // Ne pas propager l'erreur des notifications
       }
@@ -59,16 +62,16 @@ export class ContactService {
     } catch (error) {
       this.logger.error(
         `Erreur lors de la création du contact: ${error.message}`,
-        error.stack,
+        error.stack
       );
-      
+
       if (error.name === 'ValidationError') {
         throw new BadRequestException({
-          message: "Erreur de validation",
+          message: 'Erreur de validation',
           errors: error.errors,
         });
       }
-      
+
       throw new BadRequestException("Erreur lors de l'envoi du message");
     }
   }
@@ -77,20 +80,22 @@ export class ContactService {
     page: number = 1,
     limit: number = 10,
     isRead?: boolean,
-    search?: string,
+    search?: string
   ) {
     try {
       // Masquer les termes de recherche dans les logs
-      const maskedSearch = search ? "[FILTRE_RECHERCHE]" : undefined;
-      this.logger.debug(`Récupération des contacts - Page: ${page}, Limit: ${limit}, Filtres: ${JSON.stringify({ isRead, search: maskedSearch })}`);
+      const maskedSearch = search ? '[FILTRE_RECHERCHE]' : undefined;
+      this.logger.debug(
+        `Récupération des contacts - Page: ${page}, Limit: ${limit}, Filtres: ${JSON.stringify({ isRead, search: maskedSearch })}`
+      );
 
       // Valider les paramètres
       if (page < 1)
         throw new BadRequestException(
-          "Le numéro de page doit être supérieur à 0",
+          'Le numéro de page doit être supérieur à 0'
         );
       if (limit < 1 || limit > 100)
-        throw new BadRequestException("La limite doit être entre 1 et 100");
+        throw new BadRequestException('La limite doit être entre 1 et 100');
 
       const skip = (page - 1) * limit;
 
@@ -98,10 +103,10 @@ export class ContactService {
       if (isRead !== undefined) filters.isRead = isRead;
       if (search?.trim()) {
         filters.$or = [
-          { email: { $regex: search.trim(), $options: "i" } },
-          { firstName: { $regex: search.trim(), $options: "i" } },
-          { lastName: { $regex: search.trim(), $options: "i" } },
-          { message: { $regex: search.trim(), $options: "i" } },
+          { email: { $regex: search.trim(), $options: 'i' } },
+          { firstName: { $regex: search.trim(), $options: 'i' } },
+          { lastName: { $regex: search.trim(), $options: 'i' } },
+          { message: { $regex: search.trim(), $options: 'i' } },
         ];
       }
 
@@ -115,7 +120,9 @@ export class ContactService {
         this.contactModel.countDocuments(filters),
       ]);
 
-      this.logger.debug(`Récupération réussie: ${data.length} contacts sur ${total} total`);
+      this.logger.debug(
+        `Récupération réussie: ${data.length} contacts sur ${total} total`
+      );
 
       return {
         data,
@@ -126,7 +133,7 @@ export class ContactService {
     } catch (error) {
       this.logger.error(
         `Erreur lors de la récupération des contacts: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw error;
     }
@@ -136,13 +143,13 @@ export class ContactService {
   async findOne(id: string): Promise<Contact> {
     try {
       this.logger.debug(`Recherche du contact [ID: ${id}]`);
-      
+
       const contact = await this.contactModel.findById(id).exec();
       if (!contact) {
         this.logger.warn(`Contact non trouvé [ID: ${id}]`);
-        throw new NotFoundException("Message de contact non trouvé");
+        throw new NotFoundException('Message de contact non trouvé');
       }
-      
+
       // Masquer l'email avant de logger
       const maskedEmail = this.maskEmail(contact.email);
       this.logger.debug(`Contact trouvé [ID: ${id}, Email: ${maskedEmail}]`);
@@ -150,7 +157,7 @@ export class ContactService {
     } catch (error) {
       this.logger.error(
         `Erreur lors de la récupération du contact [ID: ${id}]: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw error;
     }
@@ -160,14 +167,16 @@ export class ContactService {
   async markAsRead(id: string): Promise<Contact> {
     try {
       this.logger.log(`Marquage comme lu du contact [ID: ${id}]`);
-      
+
       const contact = await this.contactModel
         .findByIdAndUpdate(id, { isRead: true }, { new: true })
         .exec();
 
       if (!contact) {
-        this.logger.warn(`Contact non trouvé pour marquage comme lu [ID: ${id}]`);
-        throw new NotFoundException("Message de contact non trouvé");
+        this.logger.warn(
+          `Contact non trouvé pour marquage comme lu [ID: ${id}]`
+        );
+        throw new NotFoundException('Message de contact non trouvé');
       }
 
       this.logger.log(`Message marqué comme lu avec succès [ID: ${id}]`);
@@ -175,7 +184,7 @@ export class ContactService {
     } catch (error) {
       this.logger.error(
         `Erreur lors du marquage comme lu du contact [ID: ${id}]: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw error;
     }
@@ -184,24 +193,30 @@ export class ContactService {
   // Répondre à un message (admin seulement)
   async replyToMessage(id: string, reply: string, user: any): Promise<Contact> {
     try {
-      const adminId = user?.userId ? `[ADMIN_${user.userId}]` : '[ADMIN_INCONNU]';
+      const adminId = user?.userId
+        ? `[ADMIN_${user.userId}]`
+        : '[ADMIN_INCONNU]';
       this.logger.log(`Envoi de réponse au contact [ID: ${id}] par ${adminId}`);
 
       // Vérification des droits admin
       if (!user || user.role !== UserRole.ADMIN) {
-        this.logger.warn(`Tentative d'accès non autorisée pour répondre au contact [ID: ${id}]`);
-        throw new BadRequestException("Accès refusé : admin requis");
+        this.logger.warn(
+          `Tentative d'accès non autorisée pour répondre au contact [ID: ${id}]`
+        );
+        throw new BadRequestException('Accès refusé : admin requis');
       }
 
       if (!reply || reply.trim().length < 1) {
-        this.logger.warn(`Tentative d'envoi de réponse vide pour le contact [ID: ${id}]`);
-        throw new BadRequestException("La réponse ne peut pas être vide");
+        this.logger.warn(
+          `Tentative d'envoi de réponse vide pour le contact [ID: ${id}]`
+        );
+        throw new BadRequestException('La réponse ne peut pas être vide');
       }
 
       const contact = await this.contactModel.findById(id).exec();
       if (!contact) {
         this.logger.warn(`Contact non trouvé pour réponse [ID: ${id}]`);
-        throw new NotFoundException("Message de contact non trouvé");
+        throw new NotFoundException('Message de contact non trouvé');
       }
 
       // Mise à jour du message avec la réponse
@@ -214,24 +229,28 @@ export class ContactService {
             respondedBy: user._id,
             isRead: true,
           },
-          { new: true },
+          { new: true }
         )
         .exec();
 
       if (!updatedContact) {
-        this.logger.error(`Erreur lors de la mise à jour du contact [ID: ${id}]`);
-        throw new NotFoundException("Erreur lors de la mise à jour du message");
+        this.logger.error(
+          `Erreur lors de la mise à jour du contact [ID: ${id}]`
+        );
+        throw new NotFoundException('Erreur lors de la mise à jour du message');
       }
 
       // Envoyer la réponse par email
       await this.notificationService.sendContactReply(updatedContact, reply);
 
-      this.logger.log(`Réponse envoyée avec succès au contact [ID: ${id}] par ${adminId}`);
+      this.logger.log(
+        `Réponse envoyée avec succès au contact [ID: ${id}] par ${adminId}`
+      );
       return updatedContact;
     } catch (error) {
       this.logger.error(
         `Erreur lors de l'envoi de la réponse au contact [ID: ${id}]: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw error;
     }
@@ -241,18 +260,18 @@ export class ContactService {
   async remove(id: string): Promise<void> {
     try {
       this.logger.log(`Suppression du contact [ID: ${id}]`);
-      
+
       const result = await this.contactModel.findByIdAndDelete(id).exec();
       if (!result) {
         this.logger.warn(`Contact non trouvé pour suppression [ID: ${id}]`);
-        throw new NotFoundException("Message de contact non trouvé");
+        throw new NotFoundException('Message de contact non trouvé');
       }
 
       this.logger.log(`Message de contact supprimé avec succès [ID: ${id}]`);
     } catch (error) {
       this.logger.error(
         `Erreur lors de la suppression du contact [ID: ${id}]: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw error;
     }
@@ -269,13 +288,13 @@ export class ContactService {
   }> {
     try {
       this.logger.debug(`Calcul des statistiques des contacts`);
-      
+
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const startOfLastMonth = new Date(
         now.getFullYear(),
         now.getMonth() - 1,
-        1,
+        1
       );
       const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
@@ -295,7 +314,9 @@ export class ContactService {
           }),
         ]);
 
-      this.logger.debug(`Statistiques calculées: Total=${total}, Non lus=${unread}, Répondus=${responded}`);
+      this.logger.debug(
+        `Statistiques calculées: Total=${total}, Non lus=${unread}, Répondus=${responded}`
+      );
 
       return {
         total,
@@ -308,7 +329,7 @@ export class ContactService {
     } catch (error) {
       this.logger.error(
         `Erreur lors de la récupération des statistiques: ${error.message}`,
-        error.stack,
+        error.stack
       );
       throw error;
     }
@@ -317,15 +338,16 @@ export class ContactService {
   // Méthode privée pour masquer les emails dans les logs
   private maskEmail(email: string): string {
     if (!email) return '[EMAIL_NON_DEFINI]';
-    
+
     const [localPart, domain] = email.split('@');
     if (!localPart || !domain) return '[EMAIL_MAL_FORMATE]';
-    
+
     // Garde les 2 premiers caractères du local part, masque le reste
-    const maskedLocal = localPart.length > 2 
-      ? localPart.substring(0, 2) + '*'.repeat(localPart.length - 2)
-      : '*'.repeat(localPart.length);
-    
+    const maskedLocal =
+      localPart.length > 2
+        ? localPart.substring(0, 2) + '*'.repeat(localPart.length - 2)
+        : '*'.repeat(localPart.length);
+
     return `${maskedLocal}@${domain}`;
   }
 
@@ -333,7 +355,7 @@ export class ContactService {
   private maskSensitiveId(id: string): string {
     if (!id) return '[ID_NON_DEFINI]';
     if (id.length <= 8) return `[ID_${id}]`;
-    
+
     // Garde les 4 premiers et 4 derniers caractères
     const firstPart = id.substring(0, 4);
     const lastPart = id.substring(id.length - 4);

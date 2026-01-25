@@ -21,17 +21,17 @@ const EDUCATION_LEVELS = [
   'Licence',
   'Master I',
   'Master II',
-  'Doctorat'
+  'Doctorat',
 ] as const;
 
 const DESTINATIONS = [
   'France',
-   'Chypre',
-  'Chine', 
+  'Chypre',
+  'Chine',
   'Maroc',
   'Algérie',
   'Turquie',
-  'Autre'
+  'Autre',
 ] as const;
 
 const FILIERES = [
@@ -41,7 +41,7 @@ const FILIERES = [
   'Commerce',
   'Ingénierie',
   'Architecture',
-  'Autre'
+  'Autre',
 ] as const;
 
 export class CreateRendezvousDto {
@@ -89,9 +89,10 @@ export class CreateRendezvousDto {
   })
   @IsOptional()
   @IsString({ message: 'La destination personnalisée doit être une chaîne' })
-  @ValidateIf((o) => o.destination === 'Autre')
-  @IsNotEmpty({ 
-    message: 'La destination personnalisée est obligatoire quand "Autre" est sélectionné' 
+  @ValidateIf(o => o.destination === 'Autre')
+  @IsNotEmpty({
+    message:
+      'La destination personnalisée est obligatoire quand "Autre" est sélectionné',
   })
   @MaxLength(100, {
     message: 'La destination personnalisée ne peut pas dépasser 100 caractères',
@@ -105,7 +106,7 @@ export class CreateRendezvousDto {
   })
   @IsNotEmpty({ message: "Le niveau d'étude est obligatoire" })
   @IsString({ message: "Le niveau d'étude doit être une chaîne de caractères" })
-  @IsEnum(EDUCATION_LEVELS, { message: 'Niveau d\'étude invalide' })
+  @IsEnum(EDUCATION_LEVELS, { message: "Niveau d'étude invalide" })
   niveauEtude: string;
 
   @ApiProperty({
@@ -125,9 +126,10 @@ export class CreateRendezvousDto {
   })
   @IsOptional()
   @IsString({ message: 'La filière personnalisée doit être une chaîne' })
-  @ValidateIf((o) => o.filiere === 'Autre')
-  @IsNotEmpty({ 
-    message: 'La filière personnalisée est obligatoire quand "Autre" est sélectionné' 
+  @ValidateIf(o => o.filiere === 'Autre')
+  @IsNotEmpty({
+    message:
+      'La filière personnalisée est obligatoire quand "Autre" est sélectionné',
   })
   @MaxLength(100, {
     message: 'La filière personnalisée ne peut pas dépasser 100 caractères',
@@ -146,7 +148,8 @@ export class CreateRendezvousDto {
 
   @ApiProperty({
     example: '10:00',
-    description: 'Heure du rendez-vous (HH:MM) entre 09:00 et 16:30 par pas de 30min',
+    description:
+      'Heure du rendez-vous (HH:MM) entre 09:00 et 16:30 par pas de 30min',
   })
   @IsNotEmpty({ message: "L'heure est obligatoire" })
   @Matches(TIME_SLOT_REGEX, {

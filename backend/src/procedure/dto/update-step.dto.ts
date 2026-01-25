@@ -34,8 +34,11 @@ export class UpdateStepDto {
     example: 'Documents incomplets',
     description: 'Raison du refus (si applicable)',
   })
-  @ValidateIf((dto) => dto.statut === StepStatus.REJECTED)
-  @IsNotEmpty({ message: "La raison du refus est obligatoire lorsque le statut est 'Rejeté'" })
+  @ValidateIf(dto => dto.statut === StepStatus.REJECTED)
+  @IsNotEmpty({
+    message:
+      "La raison du refus est obligatoire lorsque le statut est 'Rejeté'",
+  })
   @IsString({ message: 'La raison doit être une chaîne de caractères' })
   @MinLength(5, { message: 'La raison doit contenir au moins 5 caractères' })
   @MaxLength(500, { message: 'La raison ne doit pas dépasser 500 caractères' })

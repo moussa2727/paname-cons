@@ -1,17 +1,17 @@
-import { Controller, Get } from "@nestjs/common";
-import { ApiTags, ApiOperation } from "@nestjs/swagger";
+import { Controller, Get } from '@nestjs/common';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 
-@ApiTags("Health")
+@ApiTags('Health')
 @Controller()
 export class AppController {
   @Get()
-  @ApiOperation({ summary: "Health check" })
+  @ApiOperation({ summary: 'Health check' })
   getHealth() {
     return {
-      message: "Paname Consulting API is running",
-      status: "OK",
+      message: 'Paname Consulting API is running',
+      status: 'OK',
       timestamp: new Date().toISOString(),
-      version: "1.0.0",
+      version: '1.0.0',
     };
   }
 }

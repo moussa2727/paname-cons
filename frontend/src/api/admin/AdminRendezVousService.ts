@@ -331,9 +331,7 @@ export class AdminRendezVousService {
     });
   }
 
-  private async handleResponse<T>(
-    response: Response
-  ): Promise<T> {
+  private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       let errorMessage = ERROR_MESSAGES.SERVER_ERROR;
 
@@ -473,9 +471,8 @@ export class AdminRendezVousService {
           `/api/rendezvous${queryString}`
         );
 
-        const data = await this.handleResponse<RendezvousListResponse>(
-          response
-        );
+        const data =
+          await this.handleResponse<RendezvousListResponse>(response);
 
         return data;
       } catch (error) {
@@ -567,9 +564,7 @@ export class AdminRendezVousService {
           body: JSON.stringify(data),
         });
 
-        const result = await this.handleResponse<Rendezvous>(
-          response
-        );
+        const result = await this.handleResponse<Rendezvous>(response);
 
         toast.success(ERROR_MESSAGES.CREATE_SUCCESS, {
           autoClose: 3000,
@@ -600,9 +595,8 @@ export class AdminRendezVousService {
           `/api/rendezvous/user${queryString}`
         );
 
-        const data = await this.handleResponse<RendezvousListResponse>(
-          response
-        );
+        const data =
+          await this.handleResponse<RendezvousListResponse>(response);
 
         return data;
       } catch (error) {
@@ -628,9 +622,7 @@ export class AdminRendezVousService {
       try {
         const response = await this.rateLimitedFetch(`/api/rendezvous/${id}`);
 
-        const data = await this.handleResponse<Rendezvous>(
-          response
-        );
+        const data = await this.handleResponse<Rendezvous>(response);
 
         // Vérifier les permissions d'accès
         if (!isAdmin && userEmail) {
@@ -743,9 +735,7 @@ export class AdminRendezVousService {
           body: JSON.stringify(data),
         });
 
-        const result = await this.handleResponse<Rendezvous>(
-          response
-        );
+        const result = await this.handleResponse<Rendezvous>(response);
 
         toast.success(ERROR_MESSAGES.UPDATE_SUCCESS, {
           autoClose: 3000,
@@ -763,8 +753,7 @@ export class AdminRendezVousService {
   async updateRendezvousStatus(
     id: string,
     status: RendezvousStatus,
-    avisAdmin?: AdminOpinion,
-    _userEmail?: string
+    avisAdmin?: AdminOpinion
   ): Promise<Rendezvous> {
     return this.queueRequest(async () => {
       if (!id || id.trim() === '' || id === 'undefined') {
@@ -798,9 +787,7 @@ export class AdminRendezVousService {
           }
         );
 
-        const result = await this.handleResponse<Rendezvous>(
-          response
-        );
+        const result = await this.handleResponse<Rendezvous>(response);
 
         toast.success(ERROR_MESSAGES.STATUS_UPDATE_SUCCESS, {
           autoClose: 3000,
@@ -817,8 +804,6 @@ export class AdminRendezVousService {
   // Méthode pour annuler un rendez-vous (admin ou utilisateur)
   async cancelRendezvous(
     id: string,
-    _userEmail: string,
-    _isAdmin: boolean = false,
     cancellationReason?: string
   ): Promise<Rendezvous> {
     return this.queueRequest(async () => {
@@ -840,9 +825,7 @@ export class AdminRendezVousService {
             : undefined,
         });
 
-        const result = await this.handleResponse<Rendezvous>(
-          response
-        );
+        const result = await this.handleResponse<Rendezvous>(response);
 
         toast.success(ERROR_MESSAGES.DELETE_SUCCESS, {
           autoClose: 3000,
@@ -877,9 +860,7 @@ export class AdminRendezVousService {
           }
         );
 
-        const result = await this.handleResponse<Rendezvous>(
-          response
-        );
+        const result = await this.handleResponse<Rendezvous>(response);
 
         toast.success(ERROR_MESSAGES.CONFIRM_SUCCESS, {
           autoClose: 3000,
@@ -917,9 +898,7 @@ export class AdminRendezVousService {
           `/api/rendezvous/available-slots?date=${encodeURIComponent(date)}`
         );
 
-        const data = await this.handleResponse<string[]>(
-          response
-        );
+        const data = await this.handleResponse<string[]>(response);
 
         return data;
       } catch (error) {
@@ -939,9 +918,7 @@ export class AdminRendezVousService {
           '/api/rendezvous/available-dates'
         );
 
-        const data = await this.handleResponse<string[]>(
-          response
-        );
+        const data = await this.handleResponse<string[]>(response);
 
         return data;
       } catch (error) {

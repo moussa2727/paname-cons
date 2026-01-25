@@ -1,5 +1,3 @@
-/* eslint-disable no-undef */
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -168,9 +166,9 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
       // Réinitialiser et rafraîchir
       handleCancelEdit();
       fetchDestinations();
-    } catch (error: any) {
+    } catch {
       if (import.meta.env.DEV) {
-        console.error('Erreur détaillée:', error);
+        console.error('Erreur détaillée:');
       }
       // Le message d'erreur est déjà géré par le service
     } finally {
@@ -192,11 +190,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
       showPopover('Destination supprimée avec succès', 'success');
       setShowDeleteConfirm(null);
       fetchDestinations();
-    } catch (error: any) {
-      // if (import.meta.env.DEV) {
-      //   console.error('Erreur détaillée:', error);
-      // }
-      // Le message d'erreur est déjà géré par le service
+    } catch {
     } finally {
       setLoading(false);
     }
