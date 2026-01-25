@@ -265,7 +265,9 @@ const ProcedureModal: React.FC<ProcedureModalProps> = ({
                 </h3>
                 <p className='text-gray-600 flex items-center gap-2 mt-1 text-sm sm:text-base'>
                   <GraduationCap className='w-4 h-4 flex-shrink-0' />
-                  <span className='truncate'>{getDisplayFiliere(procedure)} • {procedure.niveauEtude}</span>
+                  <span className='truncate'>
+                    {getDisplayFiliere(procedure)} • {procedure.niveauEtude}
+                  </span>
                 </p>
               </div>
             </div>
@@ -335,7 +337,11 @@ const ProcedureModal: React.FC<ProcedureModalProps> = ({
           <button
             onClick={toggleAllSteps}
             className='text-sm text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1 self-start sm:self-auto touch-manipulation'
-            aria-label={Object.values(expandedSteps).every(Boolean) ? 'Réduire toutes les étapes' : 'Développer toutes les étapes'}
+            aria-label={
+              Object.values(expandedSteps).every(Boolean)
+                ? 'Réduire toutes les étapes'
+                : 'Développer toutes les étapes'
+            }
           >
             {Object.values(expandedSteps).every(Boolean)
               ? 'Tout réduire'
@@ -367,7 +373,9 @@ const ProcedureModal: React.FC<ProcedureModalProps> = ({
                 onClick={() => toggleStepExpansion(step.nom)}
                 role='button'
                 tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && toggleStepExpansion(step.nom)}
+                onKeyDown={e =>
+                  e.key === 'Enter' && toggleStepExpansion(step.nom)
+                }
               >
                 <div className='flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-white border shadow-sm flex-shrink-0'>
                   {getStepStatusIcon(step.statut)}
@@ -827,7 +835,6 @@ const UserProcedureComponent = (): React.JSX.Element => {
       toast.error((error as Error).message || "Erreur lors de l'annulation");
     }
   };
-
 
   const handleViewRendezvous = () => {
     if (selectedProcedure?.rendezVousId) {
