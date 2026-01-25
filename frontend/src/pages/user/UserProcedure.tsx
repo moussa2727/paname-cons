@@ -41,8 +41,6 @@ import {
   Mail,
   Calendar,
   AlertTriangle,
-  Download,
-  Printer,
   Eye,
   Trash2,
   ChevronDown,
@@ -167,20 +165,18 @@ const LoadingScreen = ({ message = 'Chargement...' }: { message?: string }) => (
   </div>
 );
 
-interface ProcedureDetailsProps {
+interface ProcedureModalProps {
   procedure: UserProcedure;
   onClose: () => void;
   onCancel: (procedureId: string) => void;
-  onDownload: () => void;
   onViewRendezvous: () => void;
   isLoading?: boolean;
 }
 
-const ProcedureDetailsContent: React.FC<ProcedureDetailsProps> = ({
+const ProcedureModal: React.FC<ProcedureModalProps> = ({
   procedure,
   onClose,
   onCancel,
-  onDownload,
   onViewRendezvous,
   isLoading = false,
 }) => {
@@ -232,63 +228,50 @@ const ProcedureDetailsContent: React.FC<ProcedureDetailsProps> = ({
 
   return (
     <div className='space-y-6'>
-      {/* En-tête avec actions */}
-      <div className='flex items-center justify-between pb-4 border-b border-gray-200'>
+      {/* En-tête avec actions - Mobile First */}
+      <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200'>
         <div className='flex-1'>
-          <h2 className='text-xl font-bold text-gray-900'>
+          <h2 className='text-lg sm:text-xl font-bold text-gray-900'>
             Détails de la procédure
           </h2>
           <p className='text-sm text-gray-500 mt-1 flex items-center gap-2'>
-            <Info className='w-3 h-3' />
-            ID: {procedure._id.slice(-8)}
+            <Info className='w-3 h-3 flex-shrink-0' />
+            <span className='truncate'>ID: {procedure._id.slice(-8)}</span>
           </p>
         </div>
         <div className='flex items-center gap-2'>
           <button
-            onClick={onDownload}
-            className='p-2.5 text-gray-500 hover:text-sky-600 transition-colors bg-gray-100 hover:bg-gray-200 rounded-lg'
-            title='Télécharger les détails'
-          >
-            <Download className='w-5 h-5' />
-          </button>
-          <button
-            onClick={() => window.print()}
-            className='p-2.5 text-gray-500 hover:text-sky-600 transition-colors bg-gray-100 hover:bg-gray-200 rounded-lg'
-            title='Imprimer'
-          >
-            <Printer className='w-5 h-5' />
-          </button>
-          <button
             onClick={onClose}
-            className='p-2.5 text-gray-500 hover:text-gray-700 transition-colors bg-gray-100 hover:bg-gray-200 rounded-lg'
+            className='p-2.5 text-gray-500 hover:text-gray-700 transition-colors bg-gray-100 hover:bg-gray-200 rounded-lg touch-manipulation'
             title='Fermer'
+            aria-label='Fermer'
           >
             <X className='w-5 h-5' />
           </button>
         </div>
       </div>
 
-      {/* Titre et statut */}
-      <div className='bg-gradient-to-r from-sky-50 to-blue-50 rounded-2xl p-5 border border-sky-100'>
-        <div className='flex items-start justify-between'>
+      {/* Carte principale - Mobile First */}
+      <div className='bg-gradient-to-r from-sky-50 to-blue-50 rounded-2xl p-4 sm:p-5 border border-sky-100'>
+        <div className='flex flex-col lg:flex-row lg:items-start justify-between gap-4'>
           <div className='flex-1'>
-            <div className='flex items-center gap-3 mb-3'>
-              <div className='p-2.5 bg-white rounded-xl shadow-sm border border-sky-200'>
+            <div className='flex items-start gap-3 mb-3'>
+              <div className='p-2.5 bg-white rounded-xl shadow-sm border border-sky-200 flex-shrink-0'>
                 <MapPin className='w-6 h-6 text-sky-500' />
               </div>
-              <div>
-                <h3 className='text-2xl font-bold text-gray-900'>
+              <div className='flex-1 min-w-0'>
+                <h3 className='text-xl sm:text-2xl font-bold text-gray-900 break-words'>
                   {getDisplayDestination(procedure)}
                 </h3>
-                <p className='text-gray-600 flex items-center gap-2 mt-1'>
-                  <GraduationCap className='w-4 h-4' />
-                  {getDisplayFiliere(procedure)} • {procedure.niveauEtude}
+                <p className='text-gray-600 flex items-center gap-2 mt-1 text-sm sm:text-base'>
+                  <GraduationCap className='w-4 h-4 flex-shrink-0' />
+                  <span className='truncate'>{getDisplayFiliere(procedure)} • {procedure.niveauEtude}</span>
                 </p>
               </div>
             </div>
           </div>
           <span
-            className={`px-4 py-2 rounded-full text-sm font-bold border ${getProcedureStatusColor(procedure.statut).bg} ${getProcedureStatusColor(procedure.statut).text} ${getProcedureStatusColor(procedure.statut).border}`}
+            className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-bold border whitespace-nowrap ${getProcedureStatusColor(procedure.statut).bg} ${getProcedureStatusColor(procedure.statut).text} ${getProcedureStatusColor(procedure.statut).border}`}
           >
             {getProcedureDisplayStatus(procedure.statut)}
           </span>
@@ -321,27 +304,16 @@ const ProcedureDetailsContent: React.FC<ProcedureDetailsProps> = ({
               Suivi de l'avancement de votre dossier
             </p>
           </div>
-          <div className='text-right'>
-            <div className='text-2xl font-bold text-gray-900'>
-              {progress.percentage}%
-            </div>
-            <div className='text-sm text-gray-500'>
-              {progress.completed}/{progress.total} étapes
-            </div>
-          </div>
-        </div>
-
-        <div className='space-y-2'>
-          <div className='w-full bg-gray-200 rounded-full h-3'>
+          <div className='w-full bg-gray-200 rounded-full h-2 sm:h-3 overflow-hidden'>
             <div
-              className='bg-gradient-to-r from-sky-500 to-blue-500 h-3 rounded-full transition-all duration-700'
+              className='bg-gradient-to-r from-sky-500 to-blue-500 h-full rounded-full transition-all duration-700'
               style={{ width: `${progress.percentage}%` }}
             ></div>
           </div>
           {progress.currentStep && (
-            <div className='flex items-center justify-between text-sm'>
+            <div className='flex flex-col sm:flex-row sm:items-center justify-between text-sm mt-3 gap-1'>
               <span className='text-gray-600'>Étape actuelle :</span>
-              <span className='font-medium text-sky-600'>
+              <span className='font-medium text-sky-600 text-right break-words'>
                 {getStepDisplayName(progress.currentStep.nom)}
               </span>
             </div>
@@ -349,11 +321,11 @@ const ProcedureDetailsContent: React.FC<ProcedureDetailsProps> = ({
         </div>
       </div>
 
-      {/* Étapes détaillées */}
-      <div className='bg-white rounded-2xl p-5 shadow-sm border border-gray-200'>
-        <div className='flex items-center justify-between mb-4'>
+      {/* Étapes détaillées - Mobile First */}
+      <div className='bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-200'>
+        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4'>
           <div>
-            <h4 className='font-semibold text-gray-800'>
+            <h4 className='font-semibold text-gray-800 text-lg'>
               Étapes de la procédure
             </h4>
             <p className='text-sm text-gray-500'>
@@ -362,7 +334,8 @@ const ProcedureDetailsContent: React.FC<ProcedureDetailsProps> = ({
           </div>
           <button
             onClick={toggleAllSteps}
-            className='text-sm text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1'
+            className='text-sm text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1 self-start sm:self-auto touch-manipulation'
+            aria-label={Object.values(expandedSteps).every(Boolean) ? 'Réduire toutes les étapes' : 'Développer toutes les étapes'}
           >
             {Object.values(expandedSteps).every(Boolean)
               ? 'Tout réduire'
@@ -390,19 +363,22 @@ const ProcedureDetailsContent: React.FC<ProcedureDetailsProps> = ({
               } ${expandedSteps[step.nom] ? 'shadow-sm' : ''}`}
             >
               <div
-                className='flex items-center gap-3 p-4 cursor-pointer hover:bg-white/50 transition-colors'
+                className='flex items-center gap-3 p-3 sm:p-4 cursor-pointer hover:bg-white/50 transition-colors touch-manipulation'
                 onClick={() => toggleStepExpansion(step.nom)}
+                role='button'
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && toggleStepExpansion(step.nom)}
               >
-                <div className='flex items-center justify-center w-10 h-10 rounded-lg bg-white border shadow-sm'>
+                <div className='flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-white border shadow-sm flex-shrink-0'>
                   {getStepStatusIcon(step.statut)}
                 </div>
                 <div className='flex-1 min-w-0'>
-                  <div className='flex items-center justify-between'>
+                  <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-2'>
                     <div>
-                      <h5 className='font-semibold text-gray-800 text-sm'>
+                      <h5 className='font-semibold text-gray-800 text-sm sm:text-base break-words'>
                         Étape {index + 1} • {getStepDisplayName(step.nom)}
                       </h5>
-                      <div className='text-xs text-gray-500 mt-1 flex items-center gap-3'>
+                      <div className='text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-2 sm:gap-3'>
                         <span className='flex items-center gap-1'>
                           <Calendar className='w-3 h-3' />
                           Début: {formatShortDate(step.dateCreation)}
@@ -487,14 +463,14 @@ const ProcedureDetailsContent: React.FC<ProcedureDetailsProps> = ({
         </div>
       </div>
 
-      {/* Informations personnelles */}
-      <div className='bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-5 shadow-sm border border-gray-300'>
+      {/* Informations personnelles - Mobile First */}
+      <div className='bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-300'>
         <div className='flex items-center gap-3 mb-4'>
-          <div className='p-2.5 bg-white rounded-xl shadow-sm border border-gray-300'>
+          <div className='p-2.5 bg-white rounded-xl shadow-sm border border-gray-300 flex-shrink-0'>
             <User className='w-6 h-6 text-gray-600' />
           </div>
-          <div>
-            <h4 className='font-semibold text-gray-800'>
+          <div className='flex-1 min-w-0'>
+            <h4 className='font-semibold text-gray-800 text-lg'>
               Informations personnelles
             </h4>
             <p className='text-sm text-gray-500'>
@@ -503,7 +479,7 @@ const ProcedureDetailsContent: React.FC<ProcedureDetailsProps> = ({
           </div>
         </div>
 
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+        <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
           <div className='bg-white rounded-xl p-4 border border-gray-200'>
             <div className='flex items-center gap-2 mb-3'>
               <User className='w-4 h-4 text-gray-500' />
@@ -546,13 +522,13 @@ const ProcedureDetailsContent: React.FC<ProcedureDetailsProps> = ({
 
       {/* Informations rendez-vous associé */}
       {hasRendezvousInfo(procedure) && (
-        <div className='bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-5 shadow-sm border border-blue-200'>
+        <div className='bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-4 sm:p-5 shadow-sm border border-blue-200'>
           <div className='flex items-center gap-3 mb-4'>
-            <div className='p-2.5 bg-white rounded-xl shadow-sm border border-blue-200'>
+            <div className='p-2.5 bg-white rounded-xl shadow-sm border border-blue-200 flex-shrink-0'>
               <Calendar className='w-6 h-6 text-blue-500' />
             </div>
-            <div>
-              <h4 className='font-semibold text-gray-800'>
+            <div className='flex-1 min-w-0'>
+              <h4 className='font-semibold text-gray-800 text-lg'>
                 Rendez-vous associé
               </h4>
               <p className='text-sm text-gray-500'>
@@ -563,19 +539,20 @@ const ProcedureDetailsContent: React.FC<ProcedureDetailsProps> = ({
 
           <div className='bg-white/80 rounded-xl p-4 border border-blue-200'>
             <div className='flex items-center justify-between mb-3'>
-              <div>
-                <p className='text-sm font-medium text-gray-700'>
+              <div className='flex-1 min-w-0'>
+                <p className='text-sm font-medium text-gray-700 truncate'>
                   Rendez-vous initial
                 </p>
                 <p className='text-xs text-gray-500'>
                   Tous les détails sont disponibles
                 </p>
               </div>
-              <ExternalLink className='w-5 h-5 text-blue-500' />
+              <ExternalLink className='w-5 h-5 text-blue-500 flex-shrink-0' />
             </div>
             <button
               onClick={onViewRendezvous}
-              className='w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all font-medium shadow-sm flex items-center justify-center gap-2'
+              className='w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all font-medium shadow-sm flex items-center justify-center gap-2 touch-manipulation'
+              aria-label='Consulter le rendez-vous associé'
             >
               <Eye className='w-4 h-4' />
               Consulter le rendez-vous
@@ -616,9 +593,9 @@ const ProcedureDetailsContent: React.FC<ProcedureDetailsProps> = ({
       {/* Actions */}
       <div className='space-y-4'>
         {canCancelProc && (
-          <div className='bg-gradient-to-r from-red-50 to-rose-50 rounded-2xl p-5 shadow-sm border border-red-200'>
+          <div className='bg-gradient-to-r from-red-50 to-rose-50 rounded-2xl p-4 sm:p-5 shadow-sm border border-red-200'>
             <div className='flex items-center gap-3 mb-4'>
-              <div className='p-2.5 bg-white rounded-xl shadow-sm border border-red-200'>
+              <div className='p-2.5 bg-white rounded-xl shadow-sm border border-red-200 flex-shrink-0'>
                 <Trash2 className='w-6 h-6 text-red-500' />
               </div>
               <div>
@@ -851,52 +828,6 @@ const UserProcedureComponent = (): React.JSX.Element => {
     }
   };
 
-  const handleDownloadDetails = () => {
-    if (!selectedProcedure) return;
-
-    const procedureData = {
-      'Détails de la procédure': {
-        ID: selectedProcedure._id,
-        Destination: getDisplayDestination(selectedProcedure),
-        Filière: getDisplayFiliere(selectedProcedure),
-        "Niveau d'étude": selectedProcedure.niveauEtude,
-        Statut: getProcedureDisplayStatus(selectedProcedure.statut),
-        'Date de création': formatProcedureDate(selectedProcedure.createdAt),
-        'Date de dernière modification': formatProcedureDate(
-          selectedProcedure.updatedAt
-        ),
-        'Date de complétion': selectedProcedure.dateCompletion
-          ? formatProcedureDate(selectedProcedure.dateCompletion)
-          : 'Non complétée',
-      },
-      'Informations personnelles': {
-        'Nom complet': getUserFullName(selectedProcedure),
-        Email: selectedProcedure.email,
-        Téléphone: selectedProcedure.telephone || 'Non renseigné',
-      },
-      Étapes: selectedProcedure.steps.map(step => ({
-        Étape: getStepDisplayName(step.nom),
-        Statut: getStepDisplayStatus(step.statut),
-        'Date de création': formatProcedureDate(step.dateCreation),
-        'Date de dernière modification': formatProcedureDate(step.dateMaj),
-        'Raison du refus': step.raisonRefus || 'N/A',
-      })),
-    };
-
-    const blob = new Blob([JSON.stringify(procedureData, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `procedure-${selectedProcedure._id.slice(-6)}-${formatShortDate(new Date())}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    toast.success('Détails téléchargés au format JSON');
-  };
 
   const handleViewRendezvous = () => {
     if (selectedProcedure?.rendezVousId) {
@@ -1353,11 +1284,10 @@ const UserProcedureComponent = (): React.JSX.Element => {
               {selectedProcedure && (
                 <div className='hidden lg:block lg:col-span-1'>
                   <div className='bg-white rounded-2xl shadow-xl border border-gray-300 p-6 sticky top-6 max-h-[calc(100vh-140px)] overflow-y-auto'>
-                    <ProcedureDetailsContent
+                    <ProcedureModal
                       procedure={selectedProcedure}
                       onClose={handleCloseDetails}
                       onCancel={handleInitiateCancel}
-                      onDownload={handleDownloadDetails}
                       onViewRendezvous={handleViewRendezvous}
                       isLoading={detailsLoading}
                     />
@@ -1429,11 +1359,10 @@ const UserProcedureComponent = (): React.JSX.Element => {
             <div className='w-10'></div>
           </div>
           <div className='p-4 pb-8'>
-            <ProcedureDetailsContent
+            <ProcedureModal
               procedure={selectedProcedure}
               onClose={handleCloseDetails}
               onCancel={handleInitiateCancel}
-              onDownload={handleDownloadDetails}
               onViewRendezvous={handleViewRendezvous}
               isLoading={detailsLoading}
             />
