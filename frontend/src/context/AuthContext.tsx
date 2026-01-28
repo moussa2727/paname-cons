@@ -195,14 +195,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
 
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = window.localStorage?.getItem(STORAGE_KEYS.USER_DATA);
-    try {
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState<User | null>(null);
 
   const [access_token, setAccessToken] = useState<string | null>(() => {
     return window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
@@ -223,10 +216,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // ==================== FONCTIONS ESSENTIELLES ====================
   const cleanupAuthData = useCallback((): void => {
-    Object.values(STORAGE_KEYS).forEach(key => {
-      window.localStorage?.removeItem(key);
-    });
-
+    // Retirer uniquement les données utilisateur du localStorage
+    window.localStorage?.removeItem(STORAGE_KEYS.USER_DATA);
+    
     setAccessToken(null);
     setUser(null);
     setError(null);
@@ -368,23 +360,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
 
         setUser(mappedUser);
-        window.localStorage?.setItem(
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify(mappedUser)
-        );
       } else if (response.status === 401) {
         cleanupAuthData();
       }
     } catch {
-      // Fallback vers localStorage en cas d'erreur
-      const storedUser = window.localStorage?.getItem(STORAGE_KEYS.USER_DATA);
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch {
-          // Ignorer les erreurs de parsing
-        }
-      }
+      // Erreur silencieuse - ne plus utiliser localStorage pour l'utilisateur
     }
   }, [access_token, cleanupAuthData, fetchWithAuth]);
 
@@ -637,14 +617,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
 
         setUser(userData);
-        window.localStorage?.setItem(
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify(userData)
-        );
-        window.localStorage?.setItem(
-          STORAGE_KEYS.SESSION_START,
-          Date.now().toString()
-        );
 
         // Configurer le refresh automatique
         setupTokenRefresh(data.access_token);
@@ -730,14 +702,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
 
         setUser(userData);
-        window.localStorage?.setItem(
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify(userData)
-        );
-        window.localStorage?.setItem(
-          STORAGE_KEYS.SESSION_START,
-          Date.now().toString()
-        );
 
         const redirectPath =
           userData.role === UserRole.ADMIN

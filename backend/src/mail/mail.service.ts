@@ -54,8 +54,7 @@ export class MailService {
     resetUrl: string,
     firstName: string = ''
   ): Promise<boolean> {
-    // Le resetUrl est déjà l'URL complète construite par buildResetUrl
-    // Plus besoin de la reconstruire ici
+   
     this.logger.log(
       `[MailService] URL reçue pour email: ${resetUrl.substring(0, 50)}...`
     );
