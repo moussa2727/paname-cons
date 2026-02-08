@@ -1,13 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import {
-  destinationService,
-  type Destination,
-  type CreateDestinationData,
-  type UpdateDestinationData,
-} from '../../api/admin/AdminDestionService';
+
 import { Helmet } from 'react-helmet-async';
 import RequireAdmin from '../../context/RequireAdmin';
+import useDestinationService, { CreateDestinationData, Destination, UpdateDestinationData } from '../../api/admin/AdminDestionService';
 
 interface DataSourceInfo {
   count: number;
@@ -21,6 +17,15 @@ const initialForm = {
 
 const AdminDestinations: React.FC = (): React.JSX.Element => {
   const { access_token, user, isAuthenticated } = useAuth();
+  const {
+    getAllDestinationsWithoutPagination,
+    getStatistics,
+    createDestination,
+    updateDestination,
+    deleteDestination,
+    validateImageFile,
+    getFullImageUrl,
+  } = useDestinationService();
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -51,23 +56,18 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
   const fetchDestinations = async (): Promise<void> => {
     setLoading(true);
     try {
-      const data =
-        await destinationService.getAllDestinationsWithoutPagination();
+      const data = await getAllDestinationsWithoutPagination();
 
       // Transformer les données pour inclure les URLs complètes des images
       const transformedData = data.map((dest: Destination) => ({
         ...dest,
-        imagePath: destinationService.getFullImageUrl(dest.imagePath), // ← Utiliser le service
+        imagePath: getFullImageUrl(dest.imagePath),
       }));
 
       setDestinations(transformedData);
 
       // Mettre à jour les informations de source de données
-      const stats = await destinationService.getStatistics();
-
-      // if (import.meta.env.DEV) {
-      //   console.log('Stats:', stats);
-      // }
+      const stats = await getStatistics();
 
       setDataSourceInfo({
         count: data.length,
@@ -140,11 +140,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           ...(imageFile && { imageFile }),
         };
 
-        await destinationService.updateDestination(
-          editingId,
-          updateData,
-          access_token!
-        );
+        await updateDestination(editingId, updateData);
         showPopover('Destination modifiée avec succès', 'success');
       } else {
         // Création nouvelle destination
@@ -159,7 +155,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           imageFile,
         };
 
-        await destinationService.createDestination(createData, access_token!);
+        await createDestination(createData);
         showPopover('Destination ajoutée avec succès', 'success');
       }
 
@@ -186,7 +182,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
 
     setLoading(true);
     try {
-      await destinationService.deleteDestination(id, access_token!);
+      await deleteDestination(id);
       showPopover('Destination supprimée avec succès', 'success');
       setShowDeleteConfirm(null);
       fetchDestinations();
@@ -209,7 +205,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
       const file = e.target.files[0];
 
       // Validation via le service
-      const validation = destinationService.validateImageFile(file);
+      const validation = validateImageFile(file);
       if (!validation.isValid) {
         showPopover(validation.error!, 'error');
         e.target.value = '';
