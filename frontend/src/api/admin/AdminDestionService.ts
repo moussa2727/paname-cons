@@ -1,5 +1,4 @@
 import { toast } from 'react-toastify';
-import { useAuth } from '../../context/AuthContext';
 
 const API_URL = (import.meta as any).env.VITE_API_URL;
 
@@ -8,7 +7,7 @@ export interface Destination {
   country: string;
   text: string;
   imagePath: string;
-  createdAt?: string | Date;
+  createdAt?: string | Date;  
   updatedAt?: string | Date;
 }
 
@@ -18,6 +17,8 @@ export interface PaginatedResponse {
   page: number;
   limit: number;
   totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
 }
 
 export interface CreateDestinationData {
@@ -38,38 +39,29 @@ export interface Statistics {
   lastUpdated: string | null;
 }
 
-/**
- * Hook personnalisé pour les services admin des destinations
- * Utilise l'AuthContext pour l'authentification et les permissions
- */
-export const useDestinationService = () => {
-  const auth = useAuth();
-  const baseUrl = `${API_URL}/api/destinations`;
+class DestinationService {
+  private baseUrl: string;
+
+  constructor() {
+    this.baseUrl = `${API_URL}/api/destinations`;
+  }
 
   /**
-   * Vérifier que l'utilisateur est bien admin
+   * Headers communs pour les requêtes authentifiées
    */
-  const checkAdminPermissions = (): void => {
-    if (!auth.user || !auth.access_token) {
-      throw new Error('Utilisateur non authentifié');
-    }
-
-    if (auth.user.role !== 'admin' && !auth.user.isAdmin) {
-      throw new Error('Droits administrateur requis');
-    }
-  };
+  private getAuthHeaders(token: string) {
+    return {
+      Authorization: `Bearer ${token}`,
+    };
+  }
 
   /**
-   * Gestion centralisée des erreurs avec AuthContext
+   * Gestion centralisée des erreurs
    */
-  const handleError = (error: any, defaultMessage: string): never => {
-    // Laisser l'AuthContext gérer les erreurs d'authentification
-    if (error.message === 'SESSION_EXPIRED') {
-      throw error; // L'AuthContext gère déjà la redirection
-    }
-
+  private handleError(error: any, defaultMessage: string): never {
+    // Gestion d'erreur silencieuse en développement uniquement
     if (import.meta.env.DEV) {
-      globalThis.console.error('Erreur DestinationService:', error);
+      globalThis.console.error('❌ Erreur DestinationService:', error);
     }
 
     if (error.name === 'AbortError') {
@@ -93,16 +85,16 @@ export const useDestinationService = () => {
     }
 
     throw new Error(defaultMessage);
-  };
+  }
 
   /**
    * Récupérer toutes les destinations avec pagination
    */
-  const getAllDestinations = async (
+  async getAllDestinations(
     page = 1,
     limit = 10,
     search?: string
-  ): Promise<PaginatedResponse> => {
+  ): Promise<PaginatedResponse> {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -110,7 +102,7 @@ export const useDestinationService = () => {
         ...(search && { search }),
       });
 
-      const response = await globalThis.fetch(`${baseUrl}?${params}`, {
+      const response = await globalThis.fetch(`${this.baseUrl}?${params}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -124,16 +116,16 @@ export const useDestinationService = () => {
 
       return await response.json();
     } catch (error: any) {
-      throw handleError(error, 'Erreur lors du chargement des destinations');
+      this.handleError(error, 'Erreur lors du chargement des destinations');
     }
-  };
+  }
 
   /**
    * Récupérer toutes les destinations sans pagination
    */
-  const getAllDestinationsWithoutPagination = async (): Promise<Destination[]> => {
+  async getAllDestinationsWithoutPagination(): Promise<Destination[]> {
     try {
-      const response = await globalThis.fetch(`${baseUrl}/all`, {
+      const response = await globalThis.fetch(`${this.baseUrl}/all`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -147,20 +139,20 @@ export const useDestinationService = () => {
 
       return await response.json();
     } catch (error: any) {
-      throw handleError(error, 'Erreur lors du chargement des destinations');
+      this.handleError(error, 'Erreur lors du chargement des destinations');
     }
-  };
+  }
 
   /**
    * Récupérer une destination par ID
    */
-  const getDestinationById = async (id: string): Promise<Destination> => {
+  async getDestinationById(id: string): Promise<Destination> {
     try {
       if (!id) {
         throw new Error('ID de destination requis');
       }
 
-      const response = await globalThis.fetch(`${baseUrl}/${id}`, {
+      const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -177,23 +169,21 @@ export const useDestinationService = () => {
 
       return await response.json();
     } catch (error: any) {
-      throw handleError(
+      this.handleError(
         error,
         'Erreur lors de la récupération de la destination'
       );
     }
-  };
+  }
 
   /**
    * Créer une nouvelle destination (Admin seulement)
    */
-  const createDestination = async (
-    data: CreateDestinationData
-  ): Promise<Destination> => {
+  async createDestination(
+    data: CreateDestinationData,
+    token: string
+  ): Promise<Destination> {
     try {
-      // Vérification permissions admin
-      checkAdminPermissions();
-
       // Validation des données
       if (!data.country?.trim()) {
         throw new Error('Le nom du pays est obligatoire');
@@ -219,8 +209,9 @@ export const useDestinationService = () => {
       formData.append('text', data.text.trim());
       formData.append('image', data.imageFile);
 
-      const response = await auth.fetchWithAuth(baseUrl, {
+      const response = await globalThis.fetch(this.baseUrl, {
         method: 'POST',
+        headers: this.getAuthHeaders(token),
         body: formData,
       });
 
@@ -247,21 +238,19 @@ export const useDestinationService = () => {
       return result;
     } catch (error: any) {
       toast.error(error.message);
-      throw handleError(error, 'Erreur lors de la création de la destination');
+      this.handleError(error, 'Erreur lors de la création de la destination');
     }
-  };
+  }
 
   /**
    * Mettre à jour une destination (Admin seulement)
    */
-  const updateDestination = async (
+  async updateDestination(
     id: string,
-    data: UpdateDestinationData
-  ): Promise<Destination> => {
+    data: UpdateDestinationData,
+    token: string
+  ): Promise<Destination> {
     try {
-      // Vérification permissions admin
-      checkAdminPermissions();
-
       if (!id) {
         throw new Error('ID de destination requis');
       }
@@ -292,8 +281,9 @@ export const useDestinationService = () => {
         formData.append('image', data.imageFile);
       }
 
-      const response = await auth.fetchWithAuth(`${baseUrl}/${id}`, {
+      const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
         method: 'PUT',
+        headers: this.getAuthHeaders(token),
         body: formData,
       });
 
@@ -324,28 +314,26 @@ export const useDestinationService = () => {
       return result;
     } catch (error: any) {
       toast.error(error.message);
-      throw handleError(
+      this.handleError(
         error,
         'Erreur lors de la modification de la destination'
       );
     }
-  };
+  }
 
   /**
    * Supprimer une destination (Admin seulement)
    */
-  const deleteDestination = async (id: string): Promise<void> => {
+  async deleteDestination(id: string, token: string): Promise<void> {
     try {
-      // Vérification permissions admin
-      checkAdminPermissions();
-
       if (!id) {
         throw new Error('ID de destination requis');
       }
 
-      const response = await auth.fetchWithAuth(`${baseUrl}/${id}`, {
+      const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
         method: 'DELETE',
         headers: {
+          ...this.getAuthHeaders(token),
           'Content-Type': 'application/json',
         },
       });
@@ -371,19 +359,21 @@ export const useDestinationService = () => {
       toast.success('Destination supprimée avec succès');
     } catch (error: any) {
       toast.error(error.message);
-      throw handleError(
+      this.handleError(
         error,
         'Erreur lors de la suppression de la destination'
       );
     }
-  };
+  }
 
   /**
    * Récupérer les statistiques des destinations
    */
-  const getStatistics = async (): Promise<Statistics> => {
+  async getStatistics(): Promise<Statistics> {
     try {
-      const destinations = await getAllDestinationsWithoutPagination();
+      // Pour l'instant, on utilise la liste complète pour calculer les stats
+      // Vous pourriez ajouter un endpoint spécifique /api/destinations/stats dans le backend
+      const destinations = await this.getAllDestinationsWithoutPagination();
 
       const uniqueCountries = new Set(
         destinations.map(dest => dest.country.toLowerCase().trim())
@@ -408,33 +398,34 @@ export const useDestinationService = () => {
         lastUpdated,
       };
     } catch (error: any) {
-      throw handleError(
+      this.handleError(
         error,
         'Erreur lors de la récupération des statistiques'
       );
     }
-  };
+  }
 
   /**
    * Rechercher des destinations
    */
-  const searchDestinations = async (query: string): Promise<Destination[]> => {
+  async searchDestinations(query: string): Promise<Destination[]> {
     try {
       if (!query.trim()) {
-        return getAllDestinationsWithoutPagination();
+        return this.getAllDestinationsWithoutPagination();
       }
 
-      const response = await getAllDestinations(1, 50, query.trim());
+      const response = await this.getAllDestinations(1, 50, query.trim());
       return response.data;
     } catch (error: any) {
-      throw handleError(error, 'Erreur lors de la recherche des destinations');
+      this.handleError(error, 'Erreur lors de la recherche des destinations');
     }
-  };
+  }
 
   /**
    * Valider une image avant upload
    */
-  const validateImageFile = (file: File): { isValid: boolean; error?: string } => {
+  validateImageFile(file: File): { isValid: boolean; error?: string } {
+    // Taille max: 5MB
     const maxSize = 5 * 1024 * 1024;
 
     if (file.size > maxSize) {
@@ -444,59 +435,53 @@ export const useDestinationService = () => {
       };
     }
 
+    // Types MIME autorisés
     const allowedTypes = [
       'image/jpeg',
       'image/png',
       'image/webp',
       'image/svg+xml',
-      'image/avif',
     ];
     if (!allowedTypes.includes(file.type)) {
       return {
         isValid: false,
-        error: "Format d'image non supporté. Utilisez JPEG, PNG, WEBP, AVIF ou SVG",
+        error: "Format d'image non supporté. Utilisez JPEG, PNG, WEBP ou SVG",
       };
     }
 
     return { isValid: true };
-  };
+  }
 
   /**
    * Générer l'URL complète d'une image
    */
-  const getFullImageUrl = (imagePath: string): string => {
+ 
+  getFullImageUrl = (imagePath: string) => {
     if (!imagePath) return '/paname-consulting.jpg';
 
+    // URLs déjà complètes
     if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
       return imagePath;
     }
 
+    // Images dans public (par défaut)
     if (imagePath.startsWith('/')) {
       return imagePath;
     }
 
+    const baseUrl = (import.meta as any).env.VITE_API_URL;
+
+    // Images uploadées
     let cleanPath = imagePath;
     if (!cleanPath.startsWith('uploads/')) {
       cleanPath = `uploads/${cleanPath}`;
     }
     cleanPath = cleanPath.replace(/\/\//g, '/');
 
-    return `${API_URL}/${cleanPath}`;
+    return `${baseUrl}/${cleanPath}`;
   };
+}
 
-  return {
-    getAllDestinations,
-    getAllDestinationsWithoutPagination,
-    getDestinationById,
-    createDestination,
-    updateDestination,
-    deleteDestination,
-    getStatistics,
-    searchDestinations,
-    validateImageFile,
-    getFullImageUrl,
-  };
-};
-
-// Exporter le hook par défaut
-export default useDestinationService;
+// Export singleton
+export const destinationService = new DestinationService();
+export default DestinationService;

@@ -220,7 +220,7 @@ const AdminRendezVous = (): React.JSX.Element => {
     try {
       const dests =
         await destinationService.getAllDestinationsWithoutPagination();
-      const compatibleDestinations: Destination[] = dests.map(dest => ({
+      const compatibleDestinations: Destination[] = dests.map((dest) => ({
         _id: dest._id,
         country: dest.country,
         imagePath: dest.imagePath,

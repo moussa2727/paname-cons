@@ -1,14 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-
-import { Helmet } from 'react-helmet-async';
-import RequireAdmin from '../../context/RequireAdmin';
 import {
-  useDestinationService,
+  destinationService,
   type Destination,
   type CreateDestinationData,
   type UpdateDestinationData,
 } from '../../api/admin/AdminDestionService';
+import { Helmet } from 'react-helmet-async';
+import RequireAdmin from '../../context/RequireAdmin';
 
 interface DataSourceInfo {
   count: number;
@@ -22,15 +21,6 @@ const initialForm = {
 
 const AdminDestinations: React.FC = (): React.JSX.Element => {
   const { access_token, user, isAuthenticated } = useAuth();
-  const {
-    getAllDestinationsWithoutPagination,
-    getStatistics,
-    createDestination,
-    updateDestination,
-    deleteDestination,
-    validateImageFile,
-    getFullImageUrl,
-  } = useDestinationService();
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -61,18 +51,19 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
   const fetchDestinations = async (): Promise<void> => {
     setLoading(true);
     try {
-      const data = await getAllDestinationsWithoutPagination();
+      const data =
+        await destinationService.getAllDestinationsWithoutPagination();
 
       // Transformer les données pour inclure les URLs complètes des images
       const transformedData = data.map((dest: Destination) => ({
         ...dest,
-        imagePath: getFullImageUrl(dest.imagePath),
+        imagePath: destinationService.getFullImageUrl(dest.imagePath), // ← Utiliser le service
       }));
 
       setDestinations(transformedData);
 
       // Mettre à jour les informations de source de données
-      const stats = await getStatistics();
+      const stats = await destinationService.getStatistics();
 
       setDataSourceInfo({
         count: data.length,
@@ -145,7 +136,11 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           ...(imageFile && { imageFile }),
         };
 
-        await updateDestination(editingId, updateData);
+        await destinationService.updateDestination(
+          editingId,
+          updateData,
+          access_token!
+        );
         showPopover('Destination modifiée avec succès', 'success');
       } else {
         // Création nouvelle destination
@@ -160,7 +155,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           imageFile,
         };
 
-        await createDestination(createData);
+        await destinationService.createDestination(createData, access_token!);
         showPopover('Destination ajoutée avec succès', 'success');
       }
 
@@ -187,7 +182,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
 
     setLoading(true);
     try {
-      await deleteDestination(id);
+      await destinationService.deleteDestination(id, access_token!);
       showPopover('Destination supprimée avec succès', 'success');
       setShowDeleteConfirm(null);
       fetchDestinations();
@@ -210,7 +205,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
       const file = e.target.files[0];
 
       // Validation via le service
-      const validation = validateImageFile(file);
+      const validation = destinationService.validateImageFile(file);
       if (!validation.isValid) {
         showPopover(validation.error!, 'error');
         e.target.value = '';
@@ -539,14 +534,14 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                     id='image'
                     name='image'
                     type='file'
-                    accept='image/jpeg,image/png,image/webp,image/avif,image/svg+xml'
+                    accept='image/*'
                     ref={fileInputRef}
                     onChange={handleImageChange}
                     disabled={!isAdmin}
                     className='w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed'
                   />
                   <p className='text-xs text-slate-500 mt-1'>
-                    JPG, PNG, WEBP, AVIF, SVG - Max 5MB
+                    JPG, PNG, WEBP, SVG - Max 5MB
                   </p>
 
                   {imageFile && (
