@@ -223,7 +223,7 @@ const AdminRendezVous = (): React.JSX.Element => {
       const compatibleDestinations: Destination[] = dests.map((dest) => ({
         _id: dest._id,
         country: dest.country,
-        imagePath: destinationService.getFullImageUrl(dest.imagePath),
+        imagePath: dest.imagePath,
         text: dest.text,
         createdAt: dest.createdAt?.toString(),
         updatedAt: dest.updatedAt?.toString(),
