@@ -61,7 +61,7 @@ class DestinationService {
   private handleError(error: any, defaultMessage: string): never {
     // Gestion d'erreur silencieuse en développement uniquement
     if (import.meta.env.DEV) {
-      globalThis.console.error('❌ Erreur DestinationService:', error);
+      globalThis.console.error('Erreur DestinationService:', error);
     }
 
     if (error.name === 'AbortError') {

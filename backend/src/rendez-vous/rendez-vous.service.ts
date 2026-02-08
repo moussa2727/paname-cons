@@ -15,7 +15,7 @@ import { Rendezvous } from '../schemas/rendezvous.schema';
 import { CreateRendezvousDto } from './dto/create-rendezvous.dto';
 import { UpdateRendezvousDto } from './dto/update-rendezvous.dto';
 import { CreateProcedureDto } from '../procedure/dto/create-procedure.dto';
-import Holidays from 'date-holidays';
+const Holidays = require('date-holidays');
 
 // Constantes pour la cohérence
 const RENDEZVOUS_STATUS = {
@@ -45,7 +45,7 @@ type AdminOpinion = (typeof ADMIN_OPINION)[keyof typeof ADMIN_OPINION];
 @Injectable()
 export class RendezvousService {
   private readonly logger = new Logger(RendezvousService.name);
-  private holidays: any;
+  private holidays: any | null;
   private cachedHolidays: Map<string, string[]> = new Map();
 
   constructor(
@@ -62,8 +62,11 @@ export class RendezvousService {
   private initializeHolidays(): void {
     try {
       this.holidays = new Holidays('ML');
-      this.logger.log('Bibliothèque date-holidays initialisée pour le Mali');
-    } catch {
+      const holidays = this.getHolidaysForYear(new Date().getFullYear());
+      this.logger.log(
+        `Bibliothèque date-holidays initialisée pour le Mali avec succès.`
+      );
+    } catch (error) {
       this.logger.error("Erreur d'initialisation de date-holidays");
       this.holidays = null;
     }

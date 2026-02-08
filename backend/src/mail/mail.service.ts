@@ -54,7 +54,6 @@ export class MailService {
     resetUrl: string,
     firstName: string = ''
   ): Promise<boolean> {
-   
     this.logger.log(
       `[MailService] URL reçue pour email: ${resetUrl.substring(0, 50)}...`
     );

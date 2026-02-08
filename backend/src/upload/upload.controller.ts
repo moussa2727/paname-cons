@@ -6,12 +6,19 @@ import {
   Post,
   UploadedFile,
   UseInterceptors,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiResponse, ApiConsumes } from '@nestjs/swagger';
+import { UserRole } from '../schemas/user.schema';
+import { Roles } from '../shared/decorators/roles.decorator';
+import { JwtAuthGuard } from '../shared/guards/jwt-auth.guard';
+import { RolesGuard } from '../shared/guards/roles.guard';
 import { multerConfig } from './multer.config';
 import { UploadService } from './upload.service';
 import path from 'path';
 
+@ApiTags('Upload')
 @Controller('/upload')
 export class UploadController {
   private readonly logger = new Logger(UploadController.name);
@@ -19,7 +26,14 @@ export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @UseInterceptors(FileInterceptor('image', multerConfig))
+  @ApiOperation({ summary: 'Uploader une image (Admin seulement)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: 201, description: 'Image uploadée avec succès' })
+  @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Droits administrateur requis' })
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
     const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -65,7 +79,7 @@ export class UploadController {
   }
 
   private maskFilename(filename: string): string {
-    if (!filename) return 'fichier_inconnu';
+    if (!filename) return 'fichier inconnu';
 
     const ext = path.extname(filename);
     const nameWithoutExt = filename.replace(ext, '');
