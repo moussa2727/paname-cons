@@ -39,7 +39,7 @@ export class CreateDestinationDto {
   @ApiPropertyOptional({
     type: 'string',
     format: 'binary',
-    description: 'Image de la destination (JPEG, PNG, WEBP) - Max 5MB',
+    description: 'Image de la destination (JPEG, PNG, WEBP, AVIF, SVG) - Max 5MB',
   })
   @IsOptional()
   image?: any;

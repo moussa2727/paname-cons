@@ -53,7 +53,9 @@ export class DestinationController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          new FileTypeValidator({ fileType: 'image/*' }),
+          new FileTypeValidator({ 
+            fileType: /(jpeg|jpg|png|webp|avif|svg\+xml)$/ 
+          }),
         ],
       })
     )
@@ -141,7 +143,9 @@ export class DestinationController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: 'image/*' }),
+          new FileTypeValidator({ 
+            fileType: /(jpeg|jpg|png|webp|avif|svg\+xml)$/ 
+          }),
         ],
         fileIsRequired: false,
       })
