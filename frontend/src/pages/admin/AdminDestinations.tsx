@@ -3,7 +3,12 @@ import { useAuth } from '../../context/AuthContext';
 
 import { Helmet } from 'react-helmet-async';
 import RequireAdmin from '../../context/RequireAdmin';
-import useDestinationService, { CreateDestinationData, Destination, UpdateDestinationData } from '../../api/admin/AdminDestionService';
+import {
+  useDestinationService,
+  type Destination,
+  type CreateDestinationData,
+  type UpdateDestinationData,
+} from '../../api/admin/AdminDestionService';
 
 interface DataSourceInfo {
   count: number;
@@ -534,14 +539,14 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                     id='image'
                     name='image'
                     type='file'
-                    accept='image/*'
+                    accept='image/jpeg,image/png,image/webp,image/avif,image/svg+xml'
                     ref={fileInputRef}
                     onChange={handleImageChange}
                     disabled={!isAdmin}
                     className='w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed'
                   />
                   <p className='text-xs text-slate-500 mt-1'>
-                    JPG, PNG, WEBP, SVG - Max 5MB
+                    JPG, PNG, WEBP, AVIF, SVG - Max 5MB
                   </p>
 
                   {imageFile && (

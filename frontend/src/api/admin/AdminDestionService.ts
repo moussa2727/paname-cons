@@ -449,11 +449,12 @@ export const useDestinationService = () => {
       'image/png',
       'image/webp',
       'image/svg+xml',
+      'image/avif',
     ];
     if (!allowedTypes.includes(file.type)) {
       return {
         isValid: false,
-        error: "Format d'image non supporté. Utilisez JPEG, PNG, WEBP ou SVG",
+        error: "Format d'image non supporté. Utilisez JPEG, PNG, WEBP, AVIF ou SVG",
       };
     }
 
