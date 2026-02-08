@@ -75,11 +75,6 @@ export interface PaginatedUserProcedures {
   totalPages: number;
 }
 
-export interface CancelProcedureParams {
-  procedureId: string;
-  reason?: string;
-}
-
 export interface ProcedureFilterOptions {
   searchTerm?: string;
   status?: ProcedureStatus | 'ALL';
@@ -115,89 +110,141 @@ class ProcedureApiService {
     limit: number = 10,
     filters?: Partial<ProcedureFilterOptions>
   ): Promise<PaginatedUserProcedures> {
-    // Construction des paramètres de requête
-    const queryParams = new URLSearchParams({
-      page: page.toString(),
-      limit: limit.toString(),
-    });
+    try {
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
 
-    // Ajout des filtres optionnels
-    if (filters?.searchTerm) {
-      queryParams.append('search', filters.searchTerm);
-    }
-    if (filters?.status && filters.status !== 'ALL') {
-      queryParams.append('status', filters.status);
-    }
-    if (filters?.destination) {
-      queryParams.append('destination', filters.destination);
-    }
-    if (filters?.filiere) {
-      queryParams.append('filiere', filters.filiere);
-    }
-    if (filters?.sortBy) {
-      queryParams.append('sortBy', filters.sortBy);
-    }
-    if (filters?.sortOrder) {
-      queryParams.append('sortOrder', filters.sortOrder);
-    }
+      if (filters?.searchTerm) {
+        queryParams.append('search', filters.searchTerm);
+      }
+      if (filters?.status && filters.status !== 'ALL') {
+        queryParams.append('status', filters.status);
+      }
+      if (filters?.destination) {
+        queryParams.append('destination', filters.destination);
+      }
+      if (filters?.filiere) {
+        queryParams.append('filiere', filters.filiere);
+      }
+      if (filters?.sortBy) {
+        queryParams.append('sortBy', filters.sortBy);
+      }
+      if (filters?.sortOrder) {
+        queryParams.append('sortOrder', filters.sortOrder);
+      }
 
-    const response = await this.fetchWithAuth(
-      `/api/procedures/user?${queryParams.toString()}`
-    );
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('SESSION_EXPIRED');
-      }
-      if (response.status === 403) {
-        throw new Error('Accès non autorisé. Vérifiez vos permissions.');
-      }
-      if (response.status === 400) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Paramètres de requête invalides');
-      }
-      throw new Error(
-        `Erreur ${response.status}: Impossible de charger vos procédures`
+      const response = await this.fetchWithAuth(
+        `/api/procedures/user?${queryParams.toString()}`
       );
-    }
 
-    return response.json();
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('SESSION_EXPIRED');
+        }
+        if (response.status === 403) {
+          throw new Error('Accès non autorisé. Vérifiez vos permissions.');
+        }
+        
+        // Vérifier si la réponse est vide
+        const responseText = await response.text();
+        if (!responseText) {
+          throw new Error(`Réponse vide du serveur (${response.status})`);
+        }
+        
+        throw new Error(
+          `Erreur ${response.status}: Impossible de charger vos procédures`
+        );
+      }
+
+      // Vérifier que la réponse contient du JSON valide
+      const responseText = await response.text();
+      if (!responseText) {
+        return {
+          data: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        };
+      }
+
+      const data = JSON.parse(responseText);
+      
+      // Vérifier la structure de la réponse
+      if (!data || typeof data !== 'object') {
+        throw new Error('Format de réponse invalide');
+      }
+
+      return {
+        data: Array.isArray(data.data) ? data.data.map((procedure: any) =>
+          this.normalizeProcedureData(procedure)
+        ) : [],
+        total: data.total || 0,
+        page: data.page || page,
+        limit: data.limit || limit,
+        totalPages: data.totalPages || Math.ceil((data.total || 0) / limit),
+      };
+    } catch (error: any) {
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      
+      console.error('Erreur fetchUserProcedures:', error);
+      throw new Error(`Erreur réseau: ${error.message}`);
+    }
   }
 
   /**
    * Récupérer les détails d'une procédure (GET /api/procedures/:id)
    */
   async fetchProcedureDetails(procedureId: string): Promise<UserProcedure> {
-    if (!procedureId || typeof procedureId !== 'string') {
-      throw new Error('ID de procédure invalide ou manquant');
-    }
+    try {
+      if (!procedureId || typeof procedureId !== 'string') {
+        throw new Error('ID de procédure invalide ou manquant');
+      }
 
-    const response = await this.fetchWithAuth(`/api/procedures/${procedureId}`);
+      const response = await this.fetchWithAuth(`/api/procedures/${procedureId}`);
 
-    if (!response.ok) {
-      if (response.status === 404) {
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Procédure non trouvée');
+        }
+        if (response.status === 403) {
+          throw new Error("Accès interdit");
+        }
+        if (response.status === 401) {
+          throw new Error('SESSION_EXPIRED');
+        }
+        
+        // Vérifier si la réponse est vide
+        const responseText = await response.text();
+        if (!responseText) {
+          throw new Error(`Réponse vide du serveur (${response.status})`);
+        }
+        
         throw new Error(
-          'Procédure non trouvée. Elle a peut-être été supprimée.'
+          `Erreur ${response.status}: Impossible de charger les détails`
         );
       }
-      if (response.status === 403) {
-        throw new Error(
-          "Accès interdit. Vous ne pouvez accéder qu'à vos propres procédures."
-        );
-      }
-      if (response.status === 400) {
-        throw new Error('ID de procédure invalide');
-      }
-      if (response.status === 401) {
-        throw new Error('SESSION_EXPIRED');
-      }
-      throw new Error(
-        `Erreur ${response.status}: Impossible de charger les détails de la procédure`
-      );
-    }
 
-    const data = await response.json();
-    return this.normalizeProcedureData(data);
+      // Vérifier que la réponse contient du JSON valide
+      const responseText = await response.text();
+      if (!responseText) {
+        throw new Error('Réponse vide du serveur');
+      }
+
+      const data = JSON.parse(responseText);
+      return this.normalizeProcedureData(data);
+    } catch (error: any) {
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      
+      console.error('Erreur fetchProcedureDetails:', error);
+      throw new Error(`Erreur de chargement: ${error.message}`);
+    }
   }
 
   /**
@@ -207,379 +254,277 @@ class ProcedureApiService {
     procedureId: string,
     reason?: string
   ): Promise<UserProcedure> {
-    if (!procedureId) {
-      throw new Error('ID de procédure manquant');
-    }
-
-    // Validation de la raison côté frontend
-    if (reason && reason.trim() !== '') {
-      const trimmedReason = reason.trim();
-      if (trimmedReason.length < 5) {
-        throw new Error('La raison doit contenir au moins 5 caractères');
+    try {
+      if (!procedureId) {
+        throw new Error('ID de procédure manquant');
       }
-      if (trimmedReason.length > 500) {
-        throw new Error('La raison ne doit pas dépasser 500 caractères');
-      }
-    }
 
-    const response = await this.fetchWithAuth(
-      `/api/procedures/${procedureId}/cancel`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({ reason: reason?.trim() }),
-      }
-    );
+      const response = await this.fetchWithAuth(
+        `/api/procedures/${procedureId}/cancel`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ reason: reason?.trim() }),
+        }
+      );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const errorMessage = errorData.message || `Erreur ${response.status}`;
-
-      switch (response.status) {
-        case 401:
-          throw new Error('SESSION_EXPIRED');
-        case 403:
-          throw new Error('Vous ne pouvez annuler que vos propres procédures');
-        case 404:
-          throw new Error('Procédure non trouvée');
-        case 400:
-          if (errorMessage.includes('déjà finalisée')) {
-            throw new Error(
-              'Cette procédure est déjà terminée, annulée ou rejetée'
-            );
+      if (!response.ok) {
+        const responseText = await response.text();
+        let errorMessage = `Erreur ${response.status}`;
+        
+        if (responseText) {
+          try {
+            const errorData = JSON.parse(responseText);
+            errorMessage = errorData.message || errorMessage;
+          } catch {
+            errorMessage = responseText;
           }
-          if (errorMessage.includes('5 caractères')) {
-            throw new Error('La raison doit contenir au moins 5 caractères');
-          }
-          throw new Error(`Requête invalide: ${errorMessage}`);
-        default:
-          throw new Error(`Erreur serveur: ${errorMessage}`);
+        }
+
+        switch (response.status) {
+          case 401:
+            throw new Error('SESSION_EXPIRED');
+          case 403:
+            throw new Error('Vous ne pouvez annuler que vos propres procédures');
+          case 404:
+            throw new Error('Procédure non trouvée');
+          case 400:
+            throw new Error(`Requête invalide: ${errorMessage}`);
+          default:
+            throw new Error(`Erreur serveur: ${errorMessage}`);
+        }
       }
-    }
 
-    const data = await response.json();
-    return this.normalizeProcedureData(data);
-  }
-
-  /**
-   * Rechercher des procédures avec filtres avancés
-   */
-  async searchProcedures(
-    filters: ProcedureFilterOptions
-  ): Promise<PaginatedUserProcedures> {
-    const queryParams = new URLSearchParams();
-
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        queryParams.append(key, String(value));
+      // Vérifier que la réponse contient du JSON valide
+      const responseText = await response.text();
+      if (!responseText) {
+        throw new Error('Réponse vide du serveur');
       }
-    });
 
-    const response = await this.fetchWithAuth(
-      `/api/procedures/user/search?${queryParams.toString()}`
-    );
-
-    if (!response.ok) {
-      if (response.status === 401) throw new Error('SESSION_EXPIRED');
-      throw new Error(`Erreur ${response.status}: Recherche échouée`);
+      const data = JSON.parse(responseText);
+      return this.normalizeProcedureData(data);
+    } catch (error: any) {
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      
+      console.error('Erreur cancelProcedure:', error);
+      throw new Error(`Erreur d'annulation: ${error.message}`);
     }
-
-    const data = await response.json();
-    return {
-      ...data,
-      data: data.data.map((procedure: any) =>
-        this.normalizeProcedureData(procedure)
-      ),
-    };
   }
 
   /**
-   * Exporter les données d'une procédure au format JSON
-   */
-  async exportProcedureData(procedureId: string): Promise<Blob> {
-    const procedure = await this.fetchProcedureDetails(procedureId);
-
-    const exportData = {
-      metadata: {
-        exportDate: new Date().toISOString(),
-        format: 'JSON',
-        version: '1.0',
-      },
-      procedure: this.prepareProcedureForExport(procedure),
-    };
-
-    return new Blob([JSON.stringify(exportData, null, 2)], {
-      type: 'application/json',
-    });
-  }
-
-  /**
-   * Vérifier le statut d'une procédure
-   */
-  async checkProcedureStatus(procedureId: string): Promise<{
-    status: ProcedureStatus;
-    lastUpdated: Date;
-    canCancel: boolean;
-    progress: number;
-  }> {
-    const procedure = await this.fetchProcedureDetails(procedureId);
-    const progress = this.calculateProgress(procedure);
-
-    return {
-      status: procedure.statut,
-      lastUpdated: procedure.updatedAt,
-      canCancel: this.canCancelProcedure(procedure),
-      progress: progress.percentage,
-    };
-  }
-
-  /**
-   * Récupérer les statistiques des procédures de l'utilisateur
+   * Statistiques simplifiées pour l'utilisateur
    */
   async getUserProcedureStats(): Promise<{
     total: number;
-    byStatus: Record<ProcedureStatus, number>;
-    byDestination: Record<string, number>;
     activeCount: number;
-    averageProgress: number;
+    completedCount: number;
+    cancelledCount: number;
+    rejectedCount: number;
   }> {
     try {
-      // Récupérer toutes les procédures pour calculer les stats
-      const allProcedures = await this.fetchAllUserProcedures();
+      // Récupérer seulement la première page pour calculer les stats
+      const response = await this.fetchUserProcedures(1, 50);
+      const allProcedures = response.data;
 
       const stats = {
         total: allProcedures.length,
-        byStatus: {} as Record<ProcedureStatus, number>,
-        byDestination: {} as Record<string, number>,
         activeCount: 0,
-        averageProgress: 0,
+        completedCount: 0,
+        cancelledCount: 0,
+        rejectedCount: 0,
       };
 
-      // Initialiser les compteurs
-      Object.values(ProcedureStatus).forEach(status => {
-        stats.byStatus[status] = 0;
-      });
-
-      let totalProgress = 0;
-
       allProcedures.forEach(procedure => {
-        // Comptage par statut
-        stats.byStatus[procedure.statut]++;
-
-        // Comptage par destination
-        const destination = this.getDisplayDestination(procedure);
-        stats.byDestination[destination] =
-          (stats.byDestination[destination] || 0) + 1;
-
-        // Compter les procédures actives
-        if ([ProcedureStatus.IN_PROGRESS].includes(procedure.statut)) {
-          stats.activeCount++;
+        switch (procedure.statut) {
+          case ProcedureStatus.IN_PROGRESS:
+            stats.activeCount++;
+            break;
+          case ProcedureStatus.COMPLETED:
+            stats.completedCount++;
+            break;
+          case ProcedureStatus.CANCELLED:
+            stats.cancelledCount++;
+            break;
+          case ProcedureStatus.REJECTED:
+            stats.rejectedCount++;
+            break;
         }
-
-        // Calculer la progression moyenne
-        const progress = this.calculateProgress(procedure);
-        totalProgress += progress.percentage;
       });
-
-      stats.averageProgress =
-        allProcedures.length > 0
-          ? Math.round(totalProgress / allProcedures.length)
-          : 0;
 
       return stats;
     } catch (error) {
-      console.error('Erreur lors du calcul des statistiques:', error);
-      throw new Error('Impossible de récupérer les statistiques');
-    }
-  }
-
-  /**
-   * Marquer une procédure comme vue
-   */
-  async markProcedureAsViewed(procedureId: string): Promise<void> {
-    try {
-      // Stocker localement la date de visualisation
-      const viewedProcedures = JSON.parse(
-        localStorage.getItem('viewedProcedures') || '{}'
-      );
-
-      viewedProcedures[procedureId] = new Date().toISOString();
-      localStorage.setItem(
-        'viewedProcedures',
-        JSON.stringify(viewedProcedures)
-      );
-    } catch (error) {
-      console.warn(
-        'Impossible de sauvegarder la date de visualisation:',
-        error
-      );
+      console.error('Erreur getUserProcedureStats:', error);
+      // Retourner des stats par défaut en cas d'erreur
+      return {
+        total: 0,
+        activeCount: 0,
+        completedCount: 0,
+        cancelledCount: 0,
+        rejectedCount: 0,
+      };
     }
   }
 
   // ==================== MÉTHODES PRIVÉES ====================
 
-  private async fetchAllUserProcedures(): Promise<UserProcedure[]> {
-    const allProcedures: UserProcedure[] = [];
-    let page = 1;
-    const limit = 50; // Nombre maximal par page
-    let hasMore = true;
-
-    while (hasMore) {
-      try {
-        const response = await this.fetchUserProcedures(page, limit);
-        allProcedures.push(...response.data);
-
-        hasMore = page < response.totalPages;
-        page++;
-      } catch (error) {
-        console.error('Erreur lors de la récupération des procédures:', error);
-        hasMore = false;
-      }
-    }
-
-    return allProcedures.map(procedure =>
-      this.normalizeProcedureData(procedure)
-    );
-  }
-
   private normalizeProcedureData(data: any): UserProcedure {
-    return {
-      _id: data._id || data.id,
-      prenom: data.prenom || data.firstName || '',
-      nom: data.nom || data.lastName || '',
-      email: data.email || '',
-      telephone: data.telephone || data.phone || undefined,
-      destination: data.destination || '',
-      destinationAutre: data.destinationAutre || undefined,
-      filiere: data.filiere || '',
-      filiereAutre: data.filiereAutre || undefined,
-      niveauEtude: data.niveauEtude || '',
-      statut: data.statut || ProcedureStatus.IN_PROGRESS,
-      steps: Array.isArray(data.steps)
-        ? data.steps.map((step: any) => ({
-            nom: step.nom || step.name || StepName.DEMANDE_ADMISSION,
-            statut: step.statut || step.status || StepStatus.PENDING,
-            raisonRefus: step.raisonRefus || step.rejectionReason || undefined,
-            dateCreation: new Date(
-              step.dateCreation || step.createdAt || new Date()
-            ),
-            dateMaj: new Date(step.dateMaj || step.updatedAt || new Date()),
-            dateCompletion: step.dateCompletion
-              ? new Date(step.dateCompletion)
-              : undefined,
-          }))
-        : [],
-      raisonRejet: data.raisonRejet || data.rejectionReason || undefined,
-      dateCompletion: data.dateCompletion
-        ? new Date(data.dateCompletion)
+    // Vérifier que les données sont valides
+    if (!data || typeof data !== 'object') {
+      throw new Error('Données de procédure invalides');
+    }
+
+    try {
+      return {
+        _id: data._id || data.id || '',
+        prenom: data.prenom || data.firstName || '',
+        nom: data.nom || data.lastName || '',
+        email: data.email || '',
+        telephone: data.telephone || data.phone || undefined,
+        destination: data.destination || '',
+        destinationAutre: data.destinationAutre || undefined,
+        filiere: data.filiere || '',
+        filiereAutre: data.filiereAutre || undefined,
+        niveauEtude: data.niveauEtude || '',
+        statut: this.normalizeProcedureStatus(data.statut),
+        steps: this.normalizeSteps(data.steps),
+        raisonRejet: data.raisonRejet || data.rejectionReason || undefined,
+        dateCompletion: data.dateCompletion
+          ? new Date(data.dateCompletion)
+          : undefined,
+        createdAt: new Date(data.createdAt || new Date()),
+        updatedAt: new Date(data.updatedAt || new Date()),
+        rendezVousId: data.rendezVousId || undefined,
+        isDeleted: data.isDeleted || false,
+        deletedAt: data.deletedAt ? new Date(data.deletedAt) : undefined,
+        deletionReason: data.deletionReason || undefined,
+        dateDerniereModification: data.dateDerniereModification
+          ? new Date(data.dateDerniereModification)
+          : undefined,
+      };
+    } catch (error) {
+      console.error('Erreur normalization:', error, data);
+      throw new Error('Impossible de normaliser les données de la procédure');
+    }
+  }
+
+  private normalizeProcedureStatus(status: any): ProcedureStatus {
+    if (typeof status !== 'string') {
+      return ProcedureStatus.IN_PROGRESS;
+    }
+
+    // Vérifier si le statut correspond à une valeur de l'enum
+    const normalizedStatus = status as ProcedureStatus;
+    if (Object.values(ProcedureStatus).includes(normalizedStatus)) {
+      return normalizedStatus;
+    }
+
+    // Fallback pour les valeurs possibles
+    const statusMap: Record<string, ProcedureStatus> = {
+      'En cours': ProcedureStatus.IN_PROGRESS,
+      'Terminée': ProcedureStatus.COMPLETED,
+      'Refusée': ProcedureStatus.REJECTED,
+      'Annulée': ProcedureStatus.CANCELLED,
+      'en_cours': ProcedureStatus.IN_PROGRESS,
+      'terminee': ProcedureStatus.COMPLETED,
+      'refusee': ProcedureStatus.REJECTED,
+      'annulee': ProcedureStatus.CANCELLED,
+    };
+
+    return statusMap[status] || ProcedureStatus.IN_PROGRESS;
+  }
+
+  private normalizeSteps(steps: any): Step[] {
+    if (!Array.isArray(steps)) {
+      // Retourner des étapes par défaut si aucune n'est fournie
+      return [
+        {
+          nom: StepName.DEMANDE_ADMISSION,
+          statut: StepStatus.IN_PROGRESS,
+          dateCreation: new Date(),
+          dateMaj: new Date(),
+        },
+        {
+          nom: StepName.DEMANDE_VISA,
+          statut: StepStatus.PENDING,
+          dateCreation: new Date(),
+          dateMaj: new Date(),
+        },
+        {
+          nom: StepName.PREPARATIF_VOYAGE,
+          statut: StepStatus.PENDING,
+          dateCreation: new Date(),
+          dateMaj: new Date(),
+        },
+      ];
+    }
+
+    return steps.map((step: any) => ({
+      nom: this.normalizeStepName(step.nom || step.name),
+      statut: this.normalizeStepStatus(step.statut || step.status),
+      raisonRefus: step.raisonRefus || step.rejectionReason || undefined,
+      dateCreation: new Date(step.dateCreation || step.createdAt || new Date()),
+      dateMaj: new Date(step.dateMaj || step.updatedAt || new Date()),
+      dateCompletion: step.dateCompletion
+        ? new Date(step.dateCompletion)
         : undefined,
-      createdAt: new Date(data.createdAt || new Date()),
-      updatedAt: new Date(data.updatedAt || new Date()),
-      rendezVousId: data.rendezVousId || undefined,
-      isDeleted: data.isDeleted || false,
-      deletedAt: data.deletedAt ? new Date(data.deletedAt) : undefined,
-      deletionReason: data.deletionReason || undefined,
-      dateDerniereModification: data.dateDerniereModification
-        ? new Date(data.dateDerniereModification)
-        : undefined,
+    }));
+  }
+
+  private normalizeStepName(name: any): StepName {
+    if (typeof name !== 'string') {
+      return StepName.DEMANDE_ADMISSION;
+    }
+
+    const normalizedName = name as StepName;
+    if (Object.values(StepName).includes(normalizedName)) {
+      return normalizedName;
+    }
+
+    // Fallback pour les noms d'étape
+    const nameMap: Record<string, StepName> = {
+      'DEMANDE ADMISSION': StepName.DEMANDE_ADMISSION,
+      'DEMANDE_VISA': StepName.DEMANDE_VISA,
+      'PREPARATIF VOYAGE': StepName.PREPARATIF_VOYAGE,
+      'demande_admission': StepName.DEMANDE_ADMISSION,
+      'demande_visa': StepName.DEMANDE_VISA,
+      'preparatif_voyage': StepName.PREPARATIF_VOYAGE,
     };
+
+    return nameMap[name] || StepName.DEMANDE_ADMISSION;
   }
 
-  private prepareProcedureForExport(procedure: UserProcedure): any {
-    return {
-      id: procedure._id,
-      personalInfo: {
-        fullName: `${procedure.prenom} ${procedure.nom}`,
-        email: procedure.email,
-        phone: procedure.telephone,
-      },
-      academicInfo: {
-        destination: procedure.destination,
-        alternativeDestination: procedure.destinationAutre,
-        field: procedure.filiere,
-        alternativeField: procedure.filiereAutre,
-        educationLevel: procedure.niveauEtude,
-      },
-      procedureStatus: {
-        current: procedure.statut,
-        rejectionReason: procedure.raisonRejet,
-        creationDate: procedure.createdAt,
-        completionDate: procedure.dateCompletion,
-        lastUpdate: procedure.updatedAt,
-      },
-      steps: procedure.steps.map(step => ({
-        name: step.nom,
-        status: step.statut,
-        rejectionReason: step.raisonRefus,
-        startDate: step.dateCreation,
-        lastUpdate: step.dateMaj,
-        completionDate: step.dateCompletion,
-      })),
-      additionalInfo: {
-        hasRendezvous: !!procedure.rendezVousId,
-        isDeleted: procedure.isDeleted,
-        deletionDate: procedure.deletedAt,
-        deletionReason: procedure.deletionReason,
-      },
+  private normalizeStepStatus(status: any): StepStatus {
+    if (typeof status !== 'string') {
+      return StepStatus.PENDING;
+    }
+
+    const normalizedStatus = status as StepStatus;
+    if (Object.values(StepStatus).includes(normalizedStatus)) {
+      return normalizedStatus;
+    }
+
+    // Fallback pour les statuts d'étape
+    const statusMap: Record<string, StepStatus> = {
+      'En attente': StepStatus.PENDING,
+      'En cours': StepStatus.IN_PROGRESS,
+      'Terminé': StepStatus.COMPLETED,
+      'Rejeté': StepStatus.REJECTED,
+      'Annulé': StepStatus.CANCELLED,
+      'pending': StepStatus.PENDING,
+      'in_progress': StepStatus.IN_PROGRESS,
+      'completed': StepStatus.COMPLETED,
+      'rejected': StepStatus.REJECTED,
+      'cancelled': StepStatus.CANCELLED,
     };
+
+    return statusMap[status] || StepStatus.PENDING;
   }
 
-  private calculateProgress(procedure: UserProcedure): {
-    percentage: number;
-    completed: number;
-    total: number;
-  } {
-    const totalSteps = procedure.steps.length;
-    const completedSteps = procedure.steps.filter(
-      step => step.statut === StepStatus.COMPLETED
-    ).length;
 
-    return {
-      percentage:
-        totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0,
-      completed: completedSteps,
-      total: totalSteps,
-    };
-  }
-
-  private canCancelProcedure(procedure: UserProcedure): boolean {
-    const finalStatuses = [
-      ProcedureStatus.COMPLETED,
-      ProcedureStatus.CANCELLED,
-      ProcedureStatus.REJECTED,
-    ];
-
-    // Ne peut pas annuler si déjà dans un état final
-    if (finalStatuses.includes(procedure.statut)) {
-      return false;
-    }
-
-    // Vérifier si la procédure est supprimée logiquement
-    if (procedure.isDeleted) {
-      return false;
-    }
-
-    // Vérifier si toutes les étapes sont déjà terminées
-    const allStepsCompleted = procedure.steps.every(
-      step => step.statut === StepStatus.COMPLETED
-    );
-
-    if (allStepsCompleted) {
-      return false;
-    }
-
-    return true;
-  }
-
-  private getDisplayDestination(procedure: UserProcedure): string {
-    if (procedure.destinationAutre && procedure.destination === 'Autre') {
-      return procedure.destinationAutre;
-    }
-    return procedure.destination;
-  }
 }
 
 // ==================== HOOKS USER ====================
@@ -608,7 +553,6 @@ export const useUserProcedures = (
         return;
       }
 
-      // Validation des paramètres
       if (page < 1) {
         setError('Le numéro de page doit être supérieur à 0');
         setLoading(false);
@@ -633,13 +577,14 @@ export const useUserProcedures = (
         const data = await apiService.fetchUserProcedures(page, limit, filters);
         setProcedures(data);
       } catch (err: any) {
-        setError(err.message);
+        const errorMessage = err.message || 'Erreur inconnue';
+        setError(errorMessage);
 
-        if (err.message === 'SESSION_EXPIRED') {
+        if (errorMessage === 'SESSION_EXPIRED') {
           toast.error('Votre session a expiré. Veuillez vous reconnecter.');
           setTimeout(() => logout(), 2000);
-        } else if (!err.message.includes('SESSION_EXPIRED')) {
-          toast.error(`Erreur: ${err.message}`);
+        } else if (!errorMessage.includes('SESSION_EXPIRED')) {
+          toast.error(`Erreur: ${errorMessage}`);
         }
       } finally {
         setLoading(false);
@@ -676,7 +621,6 @@ export const useProcedureDetails = (procedureId: string | null) => {
   const [procedure, setProcedure] = useState<UserProcedure | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewed, setViewed] = useState<boolean>(false);
 
   const fetchDetails = useCallback(async () => {
     if (!procedureId || !isAuthenticated) {
@@ -693,40 +637,46 @@ export const useProcedureDetails = (procedureId: string | null) => {
       const apiService = new ProcedureApiService(fetchWithAuth);
       const data = await apiService.fetchProcedureDetails(procedureId);
       setProcedure(data);
-
-      // Marquer comme vue
-      if (!viewed) {
-        await apiService.markProcedureAsViewed(procedureId);
-        setViewed(true);
-      }
     } catch (err: any) {
-      setError(err.message);
+      const errorMessage = err.message || 'Erreur inconnue';
+      setError(errorMessage);
 
-      if (err.message === 'SESSION_EXPIRED') {
+      if (errorMessage === 'SESSION_EXPIRED') {
         toast.error('Session expirée. Veuillez vous reconnecter.');
         logout();
-      } else if (!err.message.includes('SESSION_EXPIRED')) {
-        toast.error(`Erreur: ${err.message}`);
+      } else if (!errorMessage.includes('SESSION_EXPIRED')) {
+        toast.error(`Erreur: ${errorMessage}`);
       }
     } finally {
       setLoading(false);
     }
-  }, [procedureId, fetchWithAuth, isAuthenticated, logout, viewed]);
+  }, [procedureId, fetchWithAuth, isAuthenticated, logout]);
 
   useEffect(() => {
     fetchDetails();
   }, [fetchDetails]);
 
   const canCancel = procedure
-    ? (new ProcedureApiService(fetchWithAuth) as any).canCancelProcedure(
-        procedure
-      )
+    ? ![
+        ProcedureStatus.COMPLETED,
+        ProcedureStatus.CANCELLED,
+        ProcedureStatus.REJECTED,
+      ].includes(procedure.statut)
     : false;
 
   const progress = procedure
-    ? (new ProcedureApiService(fetchWithAuth) as any).calculateProgress(
-        procedure
-      )
+    ? {
+        percentage: Math.round(
+          (procedure.steps.filter(s => s.statut === StepStatus.COMPLETED)
+            .length /
+            procedure.steps.length) *
+            100
+        ),
+        completed: procedure.steps.filter(
+          s => s.statut === StepStatus.COMPLETED
+        ).length,
+        total: procedure.steps.length,
+      }
     : null;
 
   return {
@@ -736,8 +686,6 @@ export const useProcedureDetails = (procedureId: string | null) => {
     refetch: fetchDetails,
     canCancel,
     progress,
-    markAsViewed: () => setViewed(true),
-    isViewed: viewed,
   };
 };
 
@@ -785,18 +733,19 @@ export const useCancelProcedure = () => {
           procedureId,
         };
       } catch (err: any) {
-        setError(err.message);
+        const errorMessage = err.message || 'Erreur inconnue';
+        setError(errorMessage);
 
-        if (err.message === 'SESSION_EXPIRED') {
+        if (errorMessage === 'SESSION_EXPIRED') {
           toast.error('Session expirée. Veuillez vous reconnecter.');
           logout();
         } else {
-          toast.error(`Erreur: ${err.message}`);
+          toast.error(`Erreur: ${errorMessage}`);
         }
 
         return {
           success: false,
-          error: err.message,
+          error: errorMessage,
           procedureId,
         };
       } finally {
@@ -813,54 +762,6 @@ export const useCancelProcedure = () => {
     success,
     resetError: () => setError(null),
     resetSuccess: () => setSuccess(false),
-  };
-};
-
-/**
- * Hook pour rechercher des procédures avec filtres
- */
-export const useProcedureSearch = () => {
-  const { fetchWithAuth, isAuthenticated } = useAuth();
-  const [results, setResults] = useState<PaginatedUserProcedures | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const searchProcedures = useCallback(
-    async (
-      filters: ProcedureFilterOptions
-    ): Promise<PaginatedUserProcedures | null> => {
-      if (!isAuthenticated) {
-        setError('Authentification requise');
-        return null;
-      }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const apiService = new ProcedureApiService(fetchWithAuth);
-        const data = await apiService.searchProcedures(filters);
-        setResults(data);
-        return data;
-      } catch (err: any) {
-        setError(err.message);
-        if (err.message !== 'SESSION_EXPIRED') {
-          toast.error(`Erreur de recherche: ${err.message}`);
-        }
-        return null;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [fetchWithAuth, isAuthenticated]
-  );
-
-  return {
-    results,
-    loading,
-    error,
-    searchProcedures,
-    clearResults: () => setResults(null),
   };
 };
 
@@ -888,8 +789,8 @@ export const useProcedureStats = () => {
       setStats(data);
       return data;
     } catch (err: any) {
-      setError(err.message);
-      console.error('Erreur stats:', err);
+      const errorMessage = err.message || 'Erreur inconnue';
+      setError(errorMessage);
       return null;
     } finally {
       setLoading(false);
@@ -912,105 +813,7 @@ export const useProcedureStats = () => {
 };
 
 /**
- * Hook pour exporter une procédure
- */
-export const useProcedureExport = () => {
-  const { fetchWithAuth, isAuthenticated } = useAuth();
-  const [exporting, setExporting] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const exportProcedure = useCallback(
-    async (procedureId: string, fileName?: string): Promise<boolean> => {
-      if (!procedureId || !isAuthenticated) {
-        setError('Authentification requise');
-        return false;
-      }
-
-      setExporting(true);
-      setError(null);
-
-      try {
-        const apiService = new ProcedureApiService(fetchWithAuth);
-        const blob = await apiService.exportProcedureData(procedureId);
-
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download =
-          fileName ||
-          `procedure-${procedureId.slice(-6)}-${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        toast.success('Procédure exportée avec succès');
-        return true;
-      } catch (err: any) {
-        setError(err.message);
-        toast.error(`Erreur d'export: ${err.message}`);
-        return false;
-      } finally {
-        setExporting(false);
-      }
-    },
-    [fetchWithAuth, isAuthenticated]
-  );
-
-  return {
-    exportProcedure,
-    exporting,
-    error,
-    resetError: () => setError(null),
-  };
-};
-
-/**
- * Hook pour vérifier le statut d'une procédure
- */
-export const useProcedureStatus = (procedureId?: string) => {
-  const { fetchWithAuth, isAuthenticated } = useAuth();
-  const [status, setStatus] = useState<any>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const checkStatus = useCallback(
-    async (id?: string) => {
-      const targetId = id || procedureId;
-      if (!targetId || !isAuthenticated) {
-        setError('Paramètres invalides');
-        return null;
-      }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const apiService = new ProcedureApiService(fetchWithAuth);
-        const data = await apiService.checkProcedureStatus(targetId);
-        setStatus(data);
-        return data;
-      } catch (err: any) {
-        setError(err.message);
-        return null;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [procedureId, fetchWithAuth, isAuthenticated]
-  );
-
-  return {
-    status,
-    loading,
-    error,
-    checkStatus,
-    refetch: () => checkStatus(),
-  };
-};
-
-/**
- * Hook complet pour gérer l'annulation avec confirmation
+ * Hook pour gérer l'annulation avec confirmation
  */
 export const useCancelProcedureWithConfirmation = () => {
   const { cancelProcedure, loading, error, success, resetError, resetSuccess } =
@@ -1020,32 +823,10 @@ export const useCancelProcedureWithConfirmation = () => {
     null
   );
   const [cancelReason, setCancelReason] = useState('');
-  const [validationError, setValidationError] = useState<string | null>(null);
-
-  const validateReason = (reason: string): boolean => {
-    if (reason.trim() === '') {
-      setValidationError(null);
-      return true; // Raison optionnelle
-    }
-
-    if (reason.trim().length < 5) {
-      setValidationError('La raison doit contenir au moins 5 caractères');
-      return false;
-    }
-
-    if (reason.length > 500) {
-      setValidationError('La raison ne doit pas dépasser 500 caractères');
-      return false;
-    }
-
-    setValidationError(null);
-    return true;
-  };
 
   const startCancel = (procedureId: string, currentReason?: string) => {
     setProcedureToCancel(procedureId);
     setCancelReason(currentReason || '');
-    setValidationError(null);
     resetError();
     resetSuccess();
     setIsConfirming(true);
@@ -1058,10 +839,6 @@ export const useCancelProcedureWithConfirmation = () => {
   }> => {
     if (!procedureToCancel) {
       return { success: false, error: 'Aucune procédure sélectionnée' };
-    }
-
-    if (!validateReason(cancelReason)) {
-      return { success: false, error: validationError || 'Raison invalide' };
     }
 
     const result = await cancelProcedure(
@@ -1082,7 +859,6 @@ export const useCancelProcedureWithConfirmation = () => {
     setIsConfirming(false);
     setProcedureToCancel(null);
     setCancelReason('');
-    setValidationError(null);
     resetError();
     resetSuccess();
   };
@@ -1095,14 +871,10 @@ export const useCancelProcedureWithConfirmation = () => {
     procedureToCancel,
     cancelReason,
     setCancelReason,
-    validationError,
     loading,
     error,
     success,
-    resetError: () => {
-      resetError();
-      setValidationError(null);
-    },
+    resetError: () => resetError(),
   };
 };
 
@@ -1118,26 +890,7 @@ export const canCancelProcedure = (procedure: UserProcedure): boolean => {
     ProcedureStatus.REJECTED,
   ];
 
-  // Ne peut pas annuler si déjà dans un état final
-  if (finalStatuses.includes(procedure.statut)) {
-    return false;
-  }
-
-  // Ne peut pas annuler si supprimée logiquement
-  if (procedure.isDeleted) {
-    return false;
-  }
-
-  // Vérifier si toutes les étapes sont terminées
-  const allStepsCompleted = procedure.steps.every(
-    step => step.statut === StepStatus.COMPLETED
-  );
-
-  if (allStepsCompleted) {
-    return false;
-  }
-
-  return true;
+  return !finalStatuses.includes(procedure.statut);
 };
 
 /**
@@ -1158,12 +911,10 @@ export const getProgressStatus = (
     step => step.statut === StepStatus.COMPLETED
   ).length;
 
-  // Trouver l'étape actuelle
   const currentStep = procedure.steps.find(
     step => step.statut === StepStatus.IN_PROGRESS
   );
 
-  // Trouver la prochaine étape
   const currentIndex = currentStep
     ? procedure.steps.findIndex(step => step.nom === currentStep.nom)
     : -1;
@@ -1173,7 +924,6 @@ export const getProgressStatus = (
       ? procedure.steps[currentIndex + 1]
       : undefined;
 
-  // Déterminer le statut global
   let status: 'not-started' | 'in-progress' | 'completed' | 'blocked' =
     'in-progress';
 
@@ -1258,27 +1008,13 @@ export const getStepDisplayName = (stepName: StepName): string => {
 export const getStepDescription = (stepName: StepName): string => {
   const descriptions: Record<StepName, string> = {
     [StepName.DEMANDE_ADMISSION]:
-      "Soumission et suivi de votre demande d'admission auprès de l'établissement d'accueil. Cette étape inclut la vérification des pré-requis académiques.",
+      "Soumission et suivi de votre demande d'admission",
     [StepName.DEMANDE_VISA]:
-      'Traitement de votre demande de visa étudiant auprès des autorités consulaires. Suivi des documents requis et des délais de traitement.',
+      'Traitement de votre demande de visa étudiant',
     [StepName.PREPARATIF_VOYAGE]:
-      "Préparation de votre départ : recherche de logement, réservation de billet d'avion, souscription d'assurance santé, ouverture de compte bancaire, etc.",
+      "Préparation de votre départ",
   };
   return descriptions[stepName] || '';
-};
-
-/**
- * Obtient le statut d'affichage d'une procédure
- */
-export const getProcedureDisplayStatus = (status: ProcedureStatus): string => {
-  return status.toString();
-};
-
-/**
- * Obtient le statut d'affichage d'une étape
- */
-export const getStepDisplayStatus = (status: StepStatus): string => {
-  return status.toString();
 };
 
 /**
@@ -1432,182 +1168,6 @@ export const getRendezvousInfo = (
     return procedure.rendezVousId as RendezvousInfo;
   }
   return null;
-};
-
-/**
- * Filtre les procédures par critères multiples
- */
-export const filterProcedures = (
-  procedures: UserProcedure[],
-  filters: {
-    searchTerm?: string;
-    status?: ProcedureStatus | 'ALL';
-    destination?: string;
-    filiere?: string;
-    minDate?: Date;
-    maxDate?: Date;
-  }
-): UserProcedure[] => {
-  return procedures.filter(procedure => {
-    // Filtre par recherche
-    if (filters.searchTerm) {
-      const searchLower = filters.searchTerm.toLowerCase();
-      const matchesSearch =
-        procedure.destination.toLowerCase().includes(searchLower) ||
-        procedure.nom.toLowerCase().includes(searchLower) ||
-        procedure.prenom.toLowerCase().includes(searchLower) ||
-        procedure.email.toLowerCase().includes(searchLower) ||
-        (procedure.destinationAutre?.toLowerCase() || '').includes(
-          searchLower
-        ) ||
-        (procedure.filiere?.toLowerCase() || '').includes(searchLower);
-
-      if (!matchesSearch) return false;
-    }
-
-    // Filtre par statut
-    if (filters.status && filters.status !== 'ALL') {
-      if (procedure.statut !== filters.status) return false;
-    }
-
-    // Filtre par destination
-    if (filters.destination) {
-      if (procedure.destination !== filters.destination) return false;
-    }
-
-    // Filtre par filière
-    if (filters.filiere) {
-      if (procedure.filiere !== filters.filiere) return false;
-    }
-
-    // Filtre par date
-    if (filters.minDate) {
-      const procedureDate = new Date(procedure.createdAt);
-      if (procedureDate < filters.minDate) return false;
-    }
-
-    if (filters.maxDate) {
-      const procedureDate = new Date(procedure.createdAt);
-      if (procedureDate > filters.maxDate) return false;
-    }
-
-    return true;
-  });
-};
-
-/**
- * Trie les procédures
- */
-export const sortProcedures = (
-  procedures: UserProcedure[],
-  sortBy: 'date' | 'status' | 'destination' | 'updatedAt' = 'date',
-  order: 'asc' | 'desc' = 'desc'
-): UserProcedure[] => {
-  return [...procedures].sort((a, b) => {
-    let comparison = 0;
-
-    switch (sortBy) {
-      case 'date':
-        comparison =
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        break;
-      case 'updatedAt':
-        comparison =
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-        break;
-      case 'status': {
-        const statusOrder = {
-          [ProcedureStatus.IN_PROGRESS]: 1,
-          [ProcedureStatus.COMPLETED]: 2,
-          [ProcedureStatus.REJECTED]: 3,
-          [ProcedureStatus.CANCELLED]: 4,
-        };
-        comparison =
-          (statusOrder[a.statut] || 5) - (statusOrder[b.statut] || 5);
-        break;
-      }
-      case 'destination':
-        comparison = getDisplayDestination(a).localeCompare(
-          getDisplayDestination(b)
-        );
-        break;
-    }
-
-    return order === 'asc' ? comparison : -comparison;
-  });
-};
-
-/**
- * Calcule les statistiques d'un ensemble de procédures
- */
-export const calculateProceduresStats = (procedures: UserProcedure[]) => {
-  const stats = {
-    total: procedures.length,
-    byStatus: {} as Record<ProcedureStatus, number>,
-    byDestination: {} as Record<string, number>,
-    activeCount: 0,
-    averageProgress: 0,
-    completedCount: 0,
-    cancelledCount: 0,
-    rejectedCount: 0,
-  };
-
-  // Initialiser les compteurs
-  Object.values(ProcedureStatus).forEach(status => {
-    stats.byStatus[status] = 0;
-  });
-
-  let totalProgress = 0;
-
-  procedures.forEach(procedure => {
-    // Comptage par statut
-    stats.byStatus[procedure.statut]++;
-
-    // Comptage spécifique
-    if (procedure.statut === ProcedureStatus.IN_PROGRESS) {
-      stats.activeCount++;
-    } else if (procedure.statut === ProcedureStatus.COMPLETED) {
-      stats.completedCount++;
-    } else if (procedure.statut === ProcedureStatus.CANCELLED) {
-      stats.cancelledCount++;
-    } else if (procedure.statut === ProcedureStatus.REJECTED) {
-      stats.rejectedCount++;
-    }
-
-    // Comptage par destination
-    const destination = getDisplayDestination(procedure);
-    stats.byDestination[destination] =
-      (stats.byDestination[destination] || 0) + 1;
-
-    // Calculer la progression
-    const progress = getProgressStatus(procedure);
-    totalProgress += progress.percentage;
-  });
-
-  stats.averageProgress =
-    procedures.length > 0 ? Math.round(totalProgress / procedures.length) : 0;
-
-  return stats;
-};
-
-/**
- * Génère un résumé textuel du statut d'une procédure
- */
-export const getProcedureSummary = (procedure: UserProcedure): string => {
-  const progress = getProgressStatus(procedure);
-
-  switch (procedure.statut) {
-    case ProcedureStatus.IN_PROGRESS:
-      return `En cours (${progress.percentage}% complété) - ${progress.completed}/${progress.total} étapes`;
-    case ProcedureStatus.COMPLETED:
-      return `Terminée le ${formatShortDate(procedure.dateCompletion!)}`;
-    case ProcedureStatus.CANCELLED:
-      return `Annulée${procedure.raisonRejet ? `: ${procedure.raisonRejet}` : ''}`;
-    case ProcedureStatus.REJECTED:
-      return `Refusée${procedure.raisonRejet ? `: ${procedure.raisonRejet}` : ''}`;
-    default:
-      return 'Statut inconnu';
-  }
 };
 
 export default ProcedureApiService;
