@@ -120,15 +120,15 @@ interface AuthContextType {
 // ==================== CONSTANTS ALIGNÉES AVEC BACKEND ====================
 const AUTH_CONSTANTS = {
   // Durées strictes : 15, 20, 30 minutes (alignées avec auth.constants.ts)
-  ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000, // ✅ 15 minutes exactement
-  ACCESS_TOKEN_EXPIRATION_SECONDS: 15 * 60, // ✅ 15 minutes en secondes
-  REFRESH_TOKEN_EXPIRATION_MS: 30 * 60 * 1000, // ✅ 30 minutes
-  MAX_SESSION_DURATION_MS: 30 * 60 * 1000, // ✅ 30 minutes maximum
-  SESSION_EXPIRATION_MS: 30 * 60 * 1000, // ✅ 30 minutes en ms
+  ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000, //  15 minutes exactement
+  ACCESS_TOKEN_EXPIRATION_SECONDS: 15 * 60, // 15 minutes en secondes
+  REFRESH_TOKEN_EXPIRATION_MS: 30 * 60 * 1000, // 30 minutes
+  MAX_SESSION_DURATION_MS: 30 * 60 * 1000, // 30 minutes maximum
+  SESSION_EXPIRATION_MS: 30 * 60 * 1000, // 30 minutes en ms
 
   // Configuration rafraîchissement
-  PREVENTIVE_REFRESH_MS: 5 * 60 * 1000, // ✅ 5 minutes avant expiration (au lieu de 1)
-  SESSION_CHECK_INTERVAL: 60 * 1000, // ✅ 1 minute (check toutes les minutes)
+  PREVENTIVE_REFRESH_MS: 5 * 60 * 1000, //  5 minutes avant expiration (au lieu de 1)
+  SESSION_CHECK_INTERVAL: 60 * 1000, // 1 minute (check toutes les minutes)
 
   // Codes d'erreur (alignés avec backend)
   ERROR_CODES: {
@@ -143,17 +143,23 @@ const AUTH_CONSTANTS = {
 
 const STORAGE_KEYS = {
   ACCESS_TOKEN: 'access_token',
-  USER_DATA: 'user_data',
+  REFRESH_TOKEN: 'refresh_token',
   SESSION_START: 'session_start',
   LAST_REFRESH_TIME: 'last_refresh_time',
   MAINTENANCE_STATUS: 'maintenance_status',
 } as const;
 
+// ==================== UTILITAIRES COOKIES ====================
+
+const deleteCookie = (name: string): void => {
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+};
+
 const REDIRECT_PATHS = {
   LOGIN: '/connexion',
   HOME: '/',
   ADMIN_DASHBOARD: '/gestionnaire/statistiques',
-  RESET_PASSWORD_REQUIRED: '/reset-password-required',
+  RESET_PASSWORD_REQUIRED: '/reset-password',
 } as const;
 
 const TOAST_MESSAGES = {
@@ -199,14 +205,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
 
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = window.localStorage?.getItem(STORAGE_KEYS.USER_DATA);
-    try {
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState<User | null>(null);
 
   const [access_token, setAccessToken] = useState<string | null>(() => {
     return window.localStorage?.getItem(STORAGE_KEYS.ACCESS_TOKEN);
@@ -230,20 +229,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // ==================== FONCTIONS ESSENTIELLES ====================
   const cleanupAuthData = useCallback((): void => {
+    // Supprimer les cookies
+    deleteCookie(STORAGE_KEYS.ACCESS_TOKEN);
+    deleteCookie(STORAGE_KEYS.REFRESH_TOKEN);
+    
+    // Supprimer le localStorage restant
     Object.values(STORAGE_KEYS).forEach(key => {
-      window.localStorage?.removeItem(key);
+      if (key !== STORAGE_KEYS.ACCESS_TOKEN && key !== STORAGE_KEYS.REFRESH_TOKEN) {
+        window.localStorage?.removeItem(key);
+      }
     });
 
     setAccessToken(null);
     setUser(null);
     setError(null);
-    setMaintenanceStatus(null);
-    isRefreshingRef.current = false;
-
-    if (refreshTimeoutRef.current) {
-      window.clearTimeout(refreshTimeoutRef.current);
-      refreshTimeoutRef.current = null;
-    }
+    setIsLoading(false);
 
     if (sessionCheckIntervalRef.current) {
       window.clearInterval(sessionCheckIntervalRef.current);
@@ -456,10 +456,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
 
         setUser(mappedUser);
-        window.localStorage?.setItem(
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify(mappedUser)
-        );
 
         // Vérifier le statut maintenance après connexion admin
         if (mappedUser.role === UserRole.ADMIN) {
@@ -665,10 +661,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         setUser(userData);
         window.localStorage?.setItem(
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify(userData)
-        );
-        window.localStorage?.setItem(
           STORAGE_KEYS.SESSION_START,
           Date.now().toString()
         );
@@ -762,10 +754,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
 
         setUser(userData);
-        window.localStorage?.setItem(
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify(userData)
-        );
         window.localStorage?.setItem(
           STORAGE_KEYS.SESSION_START,
           Date.now().toString()
