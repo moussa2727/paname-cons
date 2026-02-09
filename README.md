@@ -84,22 +84,33 @@ panameconsulting/
 ### Stack technique
 
 **Backend:**
-- NestJS 10+
-- MongoDB avec Mongoose
-- Nodemailer (SMTP)
-- JWT (Authentification)
-- Bcrypt (Hachage mots de passe)
-- Logs centralisés
+- NestJS 11.1.13
+- MongoDB avec Mongoose 9.1.6
+- JWT 11.0.2 (Authentification)
+- Bcryptjs 3.0.3 (Hachage mots de passe)
+- Nodemailer 7.0.13 (SMTP)
+- Passport 0.7.0 (Stratégies d'authentification)
+- Redis 5.10.0 (Cache)
+- Winston 3.19.0 (Logs centralisés)
+- Socket.io 4.8.3 (WebSockets)
+- Resend 6.9.1 (Notifications email)
+- Date-holidays 3.26.8 (Jours fériés)
+- Rate limiting (Express-rate-limit 8.2.1)
+- Compression, Helmet, CORS
 
 **Frontend:**
-- React 19+ avec TypeScript
-- Tailwind CSS 4.1.18
-- Vite 7.3.0
-- Axios 1.13.2
-- React Router DOM 7.11.0
-- React Helmet Async (SEO)
-- Framer Motion (Animations)
-- AOS (Animations on scroll)
+- React 19.2.4 avec TypeScript 5.9.3
+- Vite 7.3.1 (Build tool)
+- Tailwind CSS 4.1.18 (Styling)
+- React Router DOM 7.13.0 (Routing)
+- Axios 1.13.4 (Appels API)
+- React Helmet Async 2.0.5 (SEO)
+- Framer Motion 12.33.0 (Animations)
+- AOS 2.3.4 (Animations on scroll)
+- React Toastify 11.0.5 (Notifications)
+- JWT-decode 4.0.0 (Token parsing)
+- Lucide React 0.563.0 (Icônes)
+- Date-fns 4.1.0 (Manipulation dates)
 - Context API (Gestion d'état)
 
 **DevOps:**
@@ -346,12 +357,37 @@ npm run dev
 
 ### Points clés
 
-#### Authentification
+### Système d'authentification
 
-L'application utilise JWT pour l'authentification :
-- Tokens stockés dans les cookies HTTP-only
-- Refresh token pour renouvellement automatique
-- Rôles : `USER`, `ADMIN`
+L'application utilise un système JWT complet avec :
+- **Tokens d'accès** : 15 minutes de durée de vie
+- **Tokens de rafraîchissement** : 30 minutes de durée de vie
+- **Session maximum** : 30 minutes inactivity
+- **Déconnexion automatique** : Après 30 minutes d'inactivité
+- **Gestion des sessions** : Tracking en base de données MongoDB
+- **Rate limiting** : Protection contre les attaques brute force
+- **Rôles** : `USER`, `ADMIN`
+- **Cookies HTTP-only** : Sécurité renforcée
+- **Refresh automatique** : 5 minutes avant expiration
+- **Nettoyage des sessions expirées** : Toutes les 15 minutes
+
+#### Sécurité des tokens
+- Stockage dans localStorage et cookies HTTP-only
+- Masquage des données sensibles dans les logs
+- Révocation des tokens lors de la déconnexion
+- Protection CSRF avec sameSite=none
+- Support des environnements de production HTTPS
+
+#### Gestion des sessions
+
+Système complet de gestion des sessions :
+- **Durée de session** : 30 minutes maximum
+- **Check d'inactivité** : Toutes les minutes
+- **Déconnexion automatique** : Après expiration
+- **Sessions simultanées** : Maximum 5 par utilisateur
+- **Nettoyage automatique** : Sessions expirées toutes les 15 minutes
+- **Tracking d'activité** : Dernière activité enregistrée
+- **Révocation manuelle** : Admin peut révoquer des sessions
 
 #### Service SMTP
 
@@ -359,6 +395,8 @@ Configuration email via Gmail SMTP :
 - Supporté : Bienvenue, Réinitialisation mot de passe, Vérification email
 - Logs centralisés dans `./backend/logs/`
 - Masquage automatique des données sensibles
+- Template emails HTML personnalisés
+- Gestion des erreurs d'envoi
 
 #### Logs
 
@@ -366,6 +404,9 @@ Tous les logs sont centralisés dans `backend/logs/` :
 - Fichiers datés : `YYYY-MM-DD-app.log`
 - Rétention automatique : 3 jours par défaut
 - Suppression des fichiers anciens au démarrage
+- Niveaux de log : ERROR, WARN, LOG, DEBUG
+- Masquage des données sensibles (tokens, emails)
+- Rotation automatique avec Winston Daily Rotate
 
 #### Mode Maintenance
 
@@ -388,7 +429,7 @@ Conformité légale complète :
 
 ---
 
-## Système d'Annulation
+### Système d'Annulation
 
 ### Fonctionnalités
 
@@ -396,6 +437,7 @@ Conformité légale complète :
 - **Confirmation améliorée** : Résumé de l'impact avant validation
 - **Animation de traitement** : Feedback visuel pendant l'annulation
 - **Historique préservé** : Les procédures annulées restent consultables
+- **Email de notification** : Utilisateur informé des changements
 
 ### Flux d'annulation
 
@@ -412,6 +454,37 @@ Conformité légale complète :
 - ✅ Les étapes `IN_PROGRESS` et `PENDING` deviennent `CANCELLED`
 - ✅ Les étapes `COMPLETED` restent `COMPLETED`
 - ✅ Email de notification envoyé à l'utilisateur
+
+### Déconnexion Automatique
+
+#### Fonctionnalités
+
+- **Session timeout** : 30 minutes d'inactivité maximum
+- **Check régulier** : Vérification toutes les minutes
+- **Notification utilisateur** : Toast informant de l'expiration
+- **Redirection automatique** : Vers page de connexion
+- **Nettoyage complet** : Suppression des données locales
+- **Protection admin** : Même les admins sont déconnectés après timeout
+
+#### Implémentation
+
+```typescript
+// Frontend - AuthContext.tsx
+const SESSION_CHECK_INTERVAL = 60 * 1000; // 1 minute
+const MAX_SESSION_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+
+// Vérification régulière de la session
+sessionCheckIntervalRef.current = window.setInterval(() => {
+  const sessionStart = localStorage.getItem('session_start');
+  if (sessionStart) {
+    const sessionAge = Date.now() - parseInt(sessionStart);
+    if (sessionAge > MAX_SESSION_DURATION_MS) {
+      cleanupAuthData();
+      toast.info('Session expirée après 30 minutes. Veuillez vous reconnecter.');
+    }
+  }
+}, SESSION_CHECK_INTERVAL);
+```
 
 ---
 
@@ -592,6 +665,63 @@ Le frontend est configuré pour Vercel :
 
 ---
 
+## Améliorations Possibles
+
+### À court terme (1-2 semaines)
+
+#### Sécurité renforcée
+- **2FA/MFA** : Authentification à deux facteurs
+- **Password policies** : Complexité renforcée avec historique
+- **IP whitelisting** : Restriction par adresse IP
+- **Device fingerprinting** : Détection d'appareils inhabituels
+
+#### Performance
+- **Caching Redis** : Mise en cache des requêtes fréquentes
+- **Database indexing** : Optimisation des requêtes MongoDB
+- **Image optimization** : Compression et WebP
+- **Code splitting** : Chargement progressif des composants
+
+#### UX/UI
+- **Dark mode** : Thème sombre/clair
+- **Language switch** : Support multilingue (FR/EN)
+- **Accessibility** : WCAG 2.1 AA compliance
+- **Mobile PWA** : Application mobile progressive
+
+### À moyen terme (1-2 mois)
+
+#### Fonctionnalités avancées
+- **File management** : Upload/Download de documents
+- **Calendar integration** : Google Calendar/Outlook sync
+- **Payment system** : Stripe/PayPal integration
+- **Video conferencing** : Zoom/Teams integration
+- **Chat system** : Messaging temps réel avec Socket.io
+
+#### Analytics & Monitoring
+- **User analytics** : Tracking comportement utilisateur
+- **Error monitoring** : Sentry integration
+- **Performance monitoring** : APM (New Relic/DataDog)
+- **Business intelligence** : Tableaux de bord analytiques
+
+### À long terme (3-6 mois)
+
+#### Architecture
+- **Microservices** : Découpage en services indépendants
+- **GraphQL** : Alternative à REST API
+- **Event sourcing** : Architecture événementielle
+- **CQRS pattern** : Séparation lecture/écriture
+
+#### DevOps & Scalabilité
+- **Kubernetes** : Orchestration conteneurs
+- **CI/CD pipeline** : GitHub Actions complet
+- **Load balancing** : HAProxy/Nginx
+- **Auto-scaling** : Scaling automatique
+
+#### IA & Machine Learning
+- **Recommendation engine** : Suggestions personnalisées
+- **Chatbot** : Support client automatisé
+- **Sentiment analysis** : Analyse feedback utilisateurs
+- **Predictive analytics** : Prédictions comportement
+
 ## Support
 
 ### Resources
@@ -601,6 +731,10 @@ Le frontend est configuré pour Vercel :
 - 🎨 [Documentation Tailwind](https://tailwindcss.com/docs)
 - 🐳 [Documentation Docker](https://docs.docker.com)
 - 🌐 [Documentation Vercel](https://vercel.com/docs)
+- 🔐 [Documentation JWT](https://jwt.io)
+- 📧 [Documentation Nodemailer](https://nodemailer.com)
+- 🗄️ [Documentation MongoDB](https://docs.mongodb.com)
+- ⚡ [Documentation Redis](https://redis.io/docs)
 
 ### Contact
 
@@ -613,6 +747,6 @@ Pour les questions ou bugs, créez une issue sur GitHub.
 
 ---
 
-**Dernière mise à jour** : Janvier 2026
-**Version** : 1.0.0
+**Dernière mise à jour** : Février 2026
+**Version** : 2.0.0
 **Licence** : MIT
