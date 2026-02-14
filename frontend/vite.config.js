@@ -67,10 +67,10 @@ export default defineConfig(({ mode }) => ({
     include: [
       'date-fns',
       'date-fns/locale/fr',
-      '@heroicons/react/24/outline', 
       'react-icons/fi',
       'lucide-react',     
-      'react-toastify'
+      'react-toastify',
+      '@heroicons/react/24/outline'
     ],
     exclude: ['date-fns-tz']
   },
