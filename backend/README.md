@@ -230,7 +230,7 @@ GET    /api/rendezvous/user     # Mes rendez-vous
 GET    /api/rendezvous/:id      # Détails
 PUT    /api/rendezvous/:id      # Modifier
 PUT    /api/rendezvous/:id/status          # Changer statut
-DELETE /api/rendezvous/:id      # Annuler
+DELETE /api/rendezvous/:id      # Supprimer
 
 # Admin only
 GET    /api/rendezvous          # Tous RDV

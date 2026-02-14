@@ -3,13 +3,12 @@ import mongoose, { Document, Model } from 'mongoose';
 import { Transform } from 'class-transformer';
 import { BadRequestException } from '@nestjs/common';
 
-// Constantes pour la cohérence
+// Constantes pour la cohérence - RETIRÉ MISSED
 const RENDEZVOUS_STATUS = {
   PENDING: 'En attente',
   CONFIRMED: 'Confirmé',
   COMPLETED: 'Terminé',
   CANCELLED: 'Annulé',
-  EXPIRED: 'Expiré',
 } as const;
 
 const ADMIN_OPINION = {
@@ -73,7 +72,6 @@ export interface RendezvousMethods {
   getEffectiveDestination(): string;
   getEffectiveFiliere(): string;
   isPast(): boolean;
-  isExpired(): boolean;
   canBeCancelled(byAdmin?: boolean): boolean;
   canBeModified(): boolean;
   canBeMarkedAsCompleted(): boolean;
@@ -88,7 +86,6 @@ export interface RendezvousModel extends Model<
   RendezvousMethods
 > {
   findActiveByEmail(email: string): Promise<Rendezvous[]>;
-  findExpired(): Promise<Rendezvous[]>;
   countDailyBookings(date: string): Promise<number>;
 }
 
@@ -235,11 +232,6 @@ export class Rendezvous {
   cancellationReason?: string;
 
   @Prop({
-    required: false,
-  })
-  expiredAt?: Date;
-
-  @Prop({
     default: Date.now,
   })
   createdAt: Date;
@@ -310,38 +302,20 @@ export class Rendezvous {
   })
   dateTime?: Date;
 
-  // Virtual pour la date d'expiration (heure + 10 minutes)
+  // Virtual pour la disponibilité du rendez-vous
   @Prop({
     virtual: true,
     get: function () {
       const rendezvous = this as any;
       if (!rendezvous.dateTime) return null;
 
-      const expirationTime = new Date(
+      const availabilityTime = new Date(
         rendezvous.dateTime.getTime() + 10 * 60000
       );
-      return expirationTime;
+      return availabilityTime;
     },
   })
-  expirationTime?: Date;
-
-  // Virtual pour vérifier si le rendez-vous est en retard
-  @Prop({
-    virtual: true,
-    get: function () {
-      const rendezvous = this as any;
-      if (!rendezvous.dateTime) return false;
-
-      const now = new Date();
-      const lateTime = new Date(rendezvous.dateTime.getTime() + 10 * 60000);
-      return (
-        now > lateTime &&
-        (rendezvous.status === RENDEZVOUS_STATUS.PENDING ||
-          rendezvous.status === RENDEZVOUS_STATUS.CONFIRMED)
-      );
-    },
-  })
-  isLate?: boolean;
+  availabilityTime?: Date;
 }
 
 export const RendezvousSchema = SchemaFactory.createForClass(Rendezvous);
@@ -372,7 +346,6 @@ RendezvousSchema.pre('save', async function () {
     'Algérie',
     'Turquie',
     'France',
-    'Canada',
   ];
 
   // Validation destination "Autre"
@@ -393,16 +366,12 @@ RendezvousSchema.pre('save', async function () {
 
   // Validation filière "Autre"
   const validFilieres = [
-    'Médecine',
-    'Ingénierie',
     'Informatique',
-    'Gestion',
+    'Médecine',
     'Droit',
+    'Commerce',
+    'Ingénierie',
     'Architecture',
-    'Journalisme',
-    'Tourisme',
-    'Art',
-    'Agriculture',
   ];
 
   if (rendezvous.filiere === 'Autre') {
@@ -447,21 +416,6 @@ RendezvousSchema.pre('save', async function () {
     }
   }
 
-  // Vérifier si le rendez-vous est expiré
-  if (
-    rendezvous.dateTime &&
-    (rendezvous.status === RENDEZVOUS_STATUS.PENDING ||
-      rendezvous.status === RENDEZVOUS_STATUS.CONFIRMED)
-  ) {
-    const now = new Date();
-    const expirationTime = new Date(rendezvous.dateTime.getTime() + 10 * 60000);
-
-    if (now > expirationTime) {
-      rendezvous.status = RENDEZVOUS_STATUS.EXPIRED;
-      rendezvous.expiredAt = new Date();
-    }
-  }
-
   // Marquer la date de mise à jour
   rendezvous.updatedAt = new Date();
 });
@@ -495,27 +449,6 @@ RendezvousSchema.methods.isPast = function (): boolean {
   return rendezvous.dateTime < now;
 };
 
-RendezvousSchema.methods.isExpired = function (): boolean {
-  const rendezvous = this as any;
-
-  if (rendezvous.status === RENDEZVOUS_STATUS.EXPIRED) {
-    return true;
-  }
-
-  if (!rendezvous.dateTime || isNaN(rendezvous.dateTime.getTime())) {
-    return false;
-  }
-
-  const now = new Date();
-  const expirationTime = new Date(rendezvous.dateTime.getTime() + 10 * 60000);
-
-  return (
-    now > expirationTime &&
-    (rendezvous.status === RENDEZVOUS_STATUS.PENDING ||
-      rendezvous.status === RENDEZVOUS_STATUS.CONFIRMED)
-  );
-};
-
 RendezvousSchema.methods.canBeCancelled = function (
   byAdmin: boolean = false
 ): boolean {
@@ -523,8 +456,7 @@ RendezvousSchema.methods.canBeCancelled = function (
 
   if (
     rendezvous.status === RENDEZVOUS_STATUS.CANCELLED ||
-    rendezvous.status === RENDEZVOUS_STATUS.COMPLETED ||
-    rendezvous.status === RENDEZVOUS_STATUS.EXPIRED
+    rendezvous.status === RENDEZVOUS_STATUS.COMPLETED
   ) {
     return false;
   }
@@ -553,9 +485,7 @@ RendezvousSchema.methods.canBeModified = function (): boolean {
 
   return (
     rendezvous.status !== RENDEZVOUS_STATUS.COMPLETED &&
-    rendezvous.status !== RENDEZVOUS_STATUS.EXPIRED &&
-    rendezvous.status !== RENDEZVOUS_STATUS.CANCELLED &&
-    !rendezvous.isExpired()
+    rendezvous.status !== RENDEZVOUS_STATUS.CANCELLED
   );
 };
 
@@ -564,8 +494,7 @@ RendezvousSchema.methods.canBeMarkedAsCompleted = function (): boolean {
 
   if (
     rendezvous.status === RENDEZVOUS_STATUS.COMPLETED ||
-    rendezvous.status === RENDEZVOUS_STATUS.CANCELLED ||
-    rendezvous.status === RENDEZVOUS_STATUS.EXPIRED
+    rendezvous.status === RENDEZVOUS_STATUS.CANCELLED
   ) {
     return false;
   }
@@ -612,21 +541,19 @@ RendezvousSchema.methods.toSafeJSON = function () {
   obj.effectiveDestination = rendezvous.getEffectiveDestination();
   obj.effectiveFiliere = rendezvous.getEffectiveFiliere();
   obj.isPast = rendezvous.isPast();
-  obj.isExpired = rendezvous.isExpired();
   obj.canBeCancelledByUser = rendezvous.canBeCancelled(false);
   obj.canBeModified = rendezvous.canBeModified();
   obj.canBeMarkedAsCompleted = rendezvous.canBeMarkedAsCompleted();
   obj.isToday = rendezvous.isToday();
 
-  // Ajouter les informations de retard
+  // Ajouter les informations de disponibilité
   if (rendezvous.dateTime) {
     const now = new Date();
-    const expirationTime = new Date(rendezvous.dateTime.getTime() + 10 * 60000);
-    obj.minutesUntilExpiration = Math.max(
+    const availabilityTime = new Date(rendezvous.dateTime.getTime() + 10 * 60000);
+    obj.minutesUntilAvailability = Math.max(
       0,
-      Math.round((expirationTime.getTime() - now.getTime()) / 60000)
+      Math.round((availabilityTime.getTime() - now.getTime()) / 60000)
     );
-    obj.isLate = now > expirationTime;
   }
 
   return obj;
@@ -641,22 +568,10 @@ RendezvousSchema.statics.findActiveByEmail = async function (
 
   return this.find({
     email: normalizedEmail,
-    status: { $nin: [RENDEZVOUS_STATUS.CANCELLED, RENDEZVOUS_STATUS.EXPIRED] },
+    status: { $nin: [RENDEZVOUS_STATUS.CANCELLED] },
   })
     .sort({ date: -1, time: 1 })
     .exec();
-};
-
-RendezvousSchema.statics.findExpired = async function (): Promise<
-  Rendezvous[]
-> {
-  const now = new Date();
-  const today = now.toISOString().split('T')[0];
-
-  return this.find({
-    status: { $in: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.CONFIRMED] },
-    date: { $lte: today },
-  }).exec();
 };
 
 RendezvousSchema.statics.countDailyBookings = async function (
@@ -664,20 +579,20 @@ RendezvousSchema.statics.countDailyBookings = async function (
 ): Promise<number> {
   return this.countDocuments({
     date,
-    status: { $nin: [RENDEZVOUS_STATUS.CANCELLED, RENDEZVOUS_STATUS.EXPIRED] },
+    status: { $nin: [RENDEZVOUS_STATUS.CANCELLED] },
   }).exec();
 };
 
 // ==================== INDEXES ====================
 
-// Index unique pour éviter les doublons de créneaux (sauf annulés/expirés)
+// Index unique pour éviter les doublons de créneaux (sauf annulés)
 RendezvousSchema.index(
   { date: 1, time: 1 },
   {
     unique: true,
     partialFilterExpression: {
       status: {
-        $nin: [RENDEZVOUS_STATUS.CANCELLED, RENDEZVOUS_STATUS.EXPIRED],
+        $nin: [RENDEZVOUS_STATUS.CANCELLED],
       },
     },
   }

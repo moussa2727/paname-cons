@@ -4,7 +4,6 @@ const RENDEZVOUS_STATUS = {
   CONFIRMED: 'Confirmé' as const,
   COMPLETED: 'Terminé' as const,
   CANCELLED: 'Annulé' as const,
-  EXPIRED: 'Expiré' as const,
 } as const;
 
 const ADMIN_OPINION = {
@@ -36,7 +35,7 @@ export interface Rendezvous {
   cancelledAt?: string;
   cancelledBy?: string;
   cancellationReason?: string;
-  expiredAt?: string;
+  missedAt?: string;
   createdAt: string;
   updatedAt?: string;
   effectiveDestination?: string;
@@ -464,8 +463,6 @@ export class UserRendezvousService {
         return 'bg-emerald-100 text-emerald-800 border-emerald-300';
       case RENDEZVOUS_STATUS.CANCELLED:
         return 'bg-red-100 text-red-800 border-red-300';
-      case RENDEZVOUS_STATUS.EXPIRED:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-300';
     }

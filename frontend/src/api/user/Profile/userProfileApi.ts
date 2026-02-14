@@ -63,7 +63,7 @@ const API_ENDPOINTS = {
 } as const;
 
 const ERROR_MESSAGES = {
-  SESSION_EXPIRED: 'SESSION_EXPIRED',
+  SESSION_EXPIRED: 'Session expirée. Veuillez vous reconnecter.',
   INVALID_DATA: 'Données invalides',
   NETWORK_ERROR: 'Erreur réseau. Vérifiez votre connexion.',
   UNKNOWN_ERROR: 'Une erreur est survenue',

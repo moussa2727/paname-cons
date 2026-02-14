@@ -357,6 +357,53 @@ npm run dev
 
 ### Points clés
 
+### Système de Rendez-vous
+
+L'application gère les rendez-vous avec un système complet :
+
+#### **Statuts des rendez-vous**
+- **En attente** : Rendez-vous créé en attente de confirmation
+- **Confirmé** : Rendez-vous validé par l'administrateur
+- **Terminé** : Rendez-vous terminé avec avis administratif
+- **Annulé** : Rendez-vous annulé (soft delete)
+
+#### **Gestion des créneaux**
+- **Horaires** : 9h00 à 16h30 par créneaux de 30 minutes
+- **Jours ouvrés** : Lundi au vendredi (week-end fermé)
+- **Jours fériés** : Jours fériés du Mali automatiquement exclus
+- **Limite quotidienne** : Maximum 24 rendez-vous par jour
+- **Disponibilité** : Vérification en temps réel des créneaux
+
+#### **Permissions**
+- **Utilisateurs** : Peuvent créer/modifier leurs propres rendez-vous
+- **Administrateurs** : Gestion complète de tous les rendez-vous
+- **Confirmation** : Réservée aux administrateurs
+- **Terminaison** : Réservée aux administrateurs avec avis obligatoire
+
+#### **Restrictions**
+- **Compte requis** : Un utilisateur doit avoir un compte pour prendre RDV
+- **Email unique** : Un seul rendez-vous confirmé par utilisateur
+- **Annulation** : Possible jusqu'à 2 heures avant le RDV
+- **Modification** : Impossible pour les rendez-vous terminés
+
+#### **Avis administratif**
+- **Favorable** : Permet de créer automatiquement une procédure
+- **Défavorable** : Refus de la demande
+- **Obligatoire** : Pour tout rendez-vous terminé
+
+#### **Notifications**
+- **Email de confirmation** : À la création du RDV
+- **Rappel quotidien** : 9h le jour du RDV
+- **Rappel veille** : 18h la veille du RDV
+- **Rappel 2h** : 2 heures avant le RDV
+- **Changement de statut** : Notification des mises à jour
+
+#### **Validation des données**
+- **Destinations** : Russie, Chypre, Chine, Maroc, Algérie, Turquie, France, ou "Autre"
+- **Filières** : Informatique, Médecine, Droit, Commerce, Ingénierie, Architecture, ou "Autre"
+- **Niveaux d'étude** : Bac à Doctorat
+- **Format téléphone** : International (+228...)
+
 ### Système d'authentification
 
 L'application utilise un système JWT complet avec :
@@ -429,27 +476,28 @@ Conformité légale complète :
 
 ---
 
-### Système d'Annulation
+
+### Système de Suppression
 
 ### Fonctionnalités
 
-- **Annulation en cascade** : Les étapes en cours sont automatiquement annulées
+- **Suppression en cascade** : Les étapes en cours sont automatiquement annulées
 - **Confirmation améliorée** : Résumé de l'impact avant validation
 - **Animation de traitement** : Feedback visuel pendant l'annulation
 - **Historique préservé** : Les procédures annulées restent consultables
 - **Email de notification** : Utilisateur informé des changements
 
-### Flux d'annulation
+### Flux de suppression
 
-1. **Clic sur "Annuler"** → Calcul des étapes impactées
+1. **Clic sur "Supprimer"** → Calcul des étapes impactées
 2. **Modal de résumé** → Affichage des étapes qui seront annulées
 3. **Confirmation finale** → Raison optionnelle et validation
 4. **Traitement avec animation** → Mise à jour en cascade
 5. **Notification** → Confirmation du nombre d'étapes affectées
 
-### Règles d'annulation
+### Règles de suppression
 
-- ✅ Utilisateurs ne peuvent annuler que leurs propres procédures
+- ✅ Utilisateurs ne peuvent supprimer que leurs propres procédures
 - ✅ Les procédures terminées/annulées/rejetées ne peuvent plus être modifiées
 - ✅ Les étapes `IN_PROGRESS` et `PENDING` deviennent `CANCELLED`
 - ✅ Les étapes `COMPLETED` restent `COMPLETED`

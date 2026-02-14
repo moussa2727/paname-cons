@@ -17,13 +17,12 @@ import { UpdateRendezvousDto } from './dto/update-rendezvous.dto';
 import { CreateProcedureDto } from '../procedure/dto/create-procedure.dto';
 const Holidays = require('date-holidays');
 
-// Constantes pour la cohérence
+// Constantes pour la cohérence - RETIRÉ MISSED
 const RENDEZVOUS_STATUS = {
   PENDING: 'En attente',
   CONFIRMED: 'Confirmé',
   COMPLETED: 'Terminé',
   CANCELLED: 'Annulé',
-  EXPIRED: 'Expiré',
 } as const;
 
 const ADMIN_OPINION = {
@@ -35,9 +34,8 @@ const MAX_SLOTS_PER_DAY = 24;
 const WORKING_HOURS = { start: 9, end: 16.5 };
 const CANCELLATION_THRESHOLD_HOURS = 2;
 const AUTO_CANCEL_PENDING_HOURS = 5;
-const EXPIRATION_BUFFER_MINUTES = 10; // 10 minutes après l'horaire
 
-// Types pour la cohérence
+// Types pour la cohérence - RETIRÉ MISSED
 type RendezvousStatus =
   (typeof RENDEZVOUS_STATUS)[keyof typeof RENDEZVOUS_STATUS];
 type AdminOpinion = (typeof ADMIN_OPINION)[keyof typeof ADMIN_OPINION];
@@ -62,7 +60,6 @@ export class RendezvousService {
   private initializeHolidays(): void {
     try {
       this.holidays = new Holidays('ML');
-      const holidays = this.getHolidaysForYear(new Date().getFullYear());
       this.logger.log(
         `Bibliothèque date-holidays initialisée pour le Mali avec succès.`
       );
@@ -165,25 +162,6 @@ export class RendezvousService {
     const now = new Date();
     const slotDateTime = new Date(`${dateStr}T${timeStr}:00`);
     return slotDateTime < now;
-  }
-
-  private isExpiredRendezvous(rendezvous: Rendezvous): boolean {
-    if (rendezvous.status === RENDEZVOUS_STATUS.EXPIRED) {
-      return true;
-    }
-
-    // Vérifier si le rendez-vous a dépassé son horaire + 10 minutes
-    const now = new Date();
-    const rdvDateTime = new Date(`${rendezvous.date}T${rendezvous.time}:00`);
-    const expirationTime = new Date(
-      rdvDateTime.getTime() + EXPIRATION_BUFFER_MINUTES * 60000
-    );
-
-    return (
-      now > expirationTime &&
-      (rendezvous.status === RENDEZVOUS_STATUS.PENDING ||
-        rendezvous.status === RENDEZVOUS_STATUS.CONFIRMED)
-    );
   }
 
   private isFutureRendezvous(rendezvous: Rendezvous): boolean {
@@ -321,7 +299,7 @@ export class RendezvousService {
     const dayCount = await this.rendezvousModel.countDocuments({
       date: processedData.date,
       status: {
-        $nin: [RENDEZVOUS_STATUS.CANCELLED, RENDEZVOUS_STATUS.EXPIRED],
+        $nin: [RENDEZVOUS_STATUS.CANCELLED],
       },
     });
 
@@ -402,6 +380,7 @@ export class RendezvousService {
 
     return saved;
   }
+
   async findAll(
     page: number = 1,
     limit: number = 10,
@@ -417,9 +396,15 @@ export class RendezvousService {
   }> {
     const skip = (page - 1) * limit;
 
-    const filters: any = {};
+    // Si date non fournie, utiliser la date du jour par défaut
+    const today = new Date().toISOString().split('T')[0];
+    const filterDate = date || today;
+
+    const filters: any = {
+      date: filterDate, // Filtre par date par défaut
+    };
+    
     if (status) filters.status = status;
-    if (date) filters.date = date;
     if (search) {
       const normalizedSearch = search.trim();
       filters.$or = [
@@ -430,10 +415,15 @@ export class RendezvousService {
       ];
     }
 
-    // Exclure les rendez-vous expirés et annulés côté backend
-    filters.status = {
-      $nin: [RENDEZVOUS_STATUS.EXPIRED, RENDEZVOUS_STATUS.CANCELLED],
-    };
+    // Exclure les rendez-vous annulés
+    filters.status = filters.status || {};
+    if (filters.status.$nin) {
+      filters.status.$nin = [...(filters.status.$nin || []), RENDEZVOUS_STATUS.CANCELLED];
+    } else if (filters.status !== RENDEZVOUS_STATUS.CANCELLED) {
+      filters.status = {
+        $ne: RENDEZVOUS_STATUS.CANCELLED
+      };
+    }
 
     const [data, total] = await Promise.all([
       this.rendezvousModel
@@ -467,7 +457,7 @@ export class RendezvousService {
     totalPages: number;
   }> {
     const maskedEmail = this.maskEmail(email);
-    this.logger.log(`Recherche rendez-vous pour: ${maskedEmail}`);
+    this.logger.log(`Recherche tous les rendez-vous pour: ${maskedEmail}`);
 
     // Vérifier que l'email a un compte
     const user = await this.usersService.findByEmail(email);
@@ -480,8 +470,8 @@ export class RendezvousService {
     const filters: any = {
       email: normalizedEmail,
       status: {
-        $nin: [RENDEZVOUS_STATUS.EXPIRED, RENDEZVOUS_STATUS.CANCELLED],
-      }, // Exclure expirés/annulés
+        $ne: RENDEZVOUS_STATUS.CANCELLED, // Exclure annulés
+      },
     };
 
     if (status) {
@@ -493,14 +483,14 @@ export class RendezvousService {
         .find(filters)
         .skip((page - 1) * limit)
         .limit(limit)
-        .sort({ date: -1, time: 1 })
+        .sort({ date: -1, time: 1 }) // Tri du plus récent au plus ancien
         .lean()
         .exec(),
       this.rendezvousModel.countDocuments(filters).exec(),
     ]);
 
     this.logger.log(
-      `Résultats pour ${maskedEmail}: ${data.length} rendez-vous trouvés`
+      `Résultats pour ${maskedEmail}: ${data.length} rendez-vous trouvés (toutes dates confondues)`
     );
 
     return {
@@ -553,16 +543,6 @@ export class RendezvousService {
     const rdv = await this.rendezvousModel.findById(id);
     if (!rdv) {
       throw new NotFoundException('Rendez-vous non trouvé');
-    }
-
-    // Vérifier si le rendez-vous est expiré
-    if (
-      this.isExpiredRendezvous(rdv) ||
-      rdv.status === RENDEZVOUS_STATUS.EXPIRED
-    ) {
-      throw new BadRequestException(
-        'Impossible de modifier un rendez-vous expiré'
-      );
     }
 
     // Vérifier si le rendez-vous est terminé
@@ -680,16 +660,6 @@ export class RendezvousService {
       throw new NotFoundException('Rendez-vous non trouvé');
     }
 
-    // Vérifier si le rendez-vous est expiré
-    if (
-      this.isExpiredRendezvous(rdv) ||
-      rdv.status === RENDEZVOUS_STATUS.EXPIRED
-    ) {
-      throw new BadRequestException(
-        "Impossible de modifier le statut d'un rendez-vous expiré"
-      );
-    }
-
     if (
       !Object.values(RENDEZVOUS_STATUS).includes(status as RendezvousStatus)
     ) {
@@ -761,7 +731,6 @@ export class RendezvousService {
     return updated;
   }
 
-  // Dans rendez-vous.service.ts
   async getStats(): Promise<{
     total: number;
     byStatus: { _id: string; count: number }[];
@@ -773,7 +742,6 @@ export class RendezvousService {
       confirmed: number;
       completed: number;
       cancelled: number;
-      expired: number;
     };
     recentActivities: {
       hour: string;
@@ -793,7 +761,7 @@ export class RendezvousService {
         lastAppointment: Date;
       }>;
     };
-    popularSlots: Array<{ time: string; count: number }>; // AJOUTER CETTE LIGNE
+    popularSlots: Array<{ time: string; count: number }>;
   }> {
     this.logger.log('Calcul des statistiques des rendez-vous');
 
@@ -811,7 +779,7 @@ export class RendezvousService {
         recentActivities,
         uniqueUsers,
         mostActiveUsers,
-        popularSlots, // AJOUTER CETTE VARIABLE
+        popularSlots,
       ] = await Promise.all([
         // Total des rendez-vous
         this.rendezvousModel.countDocuments(),
@@ -905,7 +873,7 @@ export class RendezvousService {
           },
         ]),
 
-        // Créneaux horaires populaires (AJOUTER CET APPEL)
+        // Créneaux horaires populaires
         this.rendezvousModel.aggregate([
           {
             $group: {
@@ -949,7 +917,6 @@ export class RendezvousService {
         confirmed: statusMap['Confirmé'] || 0,
         completed: statusMap['Terminé'] || 0,
         cancelled: statusMap['Annulé'] || 0,
-        expired: statusMap['Expiré'] || 0,
       };
 
       this.logger.log(`Statistiques calculées: ${total} rendez-vous au total`);
@@ -966,7 +933,7 @@ export class RendezvousService {
           uniqueUsers,
           mostActiveUsers,
         },
-        popularSlots: popularSlots || [], // AJOUTER CETTE PROPRIÉTÉ
+        popularSlots: popularSlots || [],
       };
     } catch (error) {
       this.logger.error(
@@ -986,19 +953,18 @@ export class RendezvousService {
           confirmed: 0,
           completed: 0,
           cancelled: 0,
-          expired: 0,
         },
         recentActivities: [],
         userStats: {
           uniqueUsers: 0,
           mostActiveUsers: [],
         },
-        popularSlots: [], // AJOUTER CETTE PROPRIÉTÉ DANS LE RETOUR D'ERREUR
+        popularSlots: [],
       };
     }
   }
 
-  async removeWithPolicy(
+  async delete(
     id: string,
     userEmail: string,
     isAdmin: boolean = false
@@ -1006,16 +972,6 @@ export class RendezvousService {
     const rdv = await this.rendezvousModel.findById(id);
     if (!rdv) {
       throw new NotFoundException('Rendez-vous non trouvé');
-    }
-
-    // Vérifier si le rendez-vous est expiré
-    if (
-      this.isExpiredRendezvous(rdv) ||
-      rdv.status === RENDEZVOUS_STATUS.EXPIRED
-    ) {
-      throw new BadRequestException(
-        "Impossible d'annuler un rendez-vous expiré"
-      );
     }
 
     // Vérifier si le rendez-vous est terminé
@@ -1106,13 +1062,6 @@ export class RendezvousService {
       );
     }
 
-    // Vérifier que le rendez-vous n'est pas expiré
-    if (this.isExpiredRendezvous(rdv)) {
-      throw new BadRequestException(
-        'Impossible de confirmer un rendez-vous expiré'
-      );
-    }
-
     const updated = await this.rendezvousModel.findByIdAndUpdate(
       id,
       { status: RENDEZVOUS_STATUS.CONFIRMED },
@@ -1175,7 +1124,7 @@ export class RendezvousService {
       const dayCount = await this.rendezvousModel.countDocuments({
         date: dateStr,
         status: {
-          $nin: [RENDEZVOUS_STATUS.CANCELLED, RENDEZVOUS_STATUS.EXPIRED],
+          $nin: [RENDEZVOUS_STATUS.CANCELLED],
         },
       });
 
@@ -1604,7 +1553,7 @@ export class RendezvousService {
       date,
       time,
       status: {
-        $nin: [RENDEZVOUS_STATUS.CANCELLED, RENDEZVOUS_STATUS.EXPIRED],
+        $nin: [RENDEZVOUS_STATUS.CANCELLED],
       },
     };
 
@@ -1621,7 +1570,7 @@ export class RendezvousService {
       .find({
         date,
         status: {
-          $nin: [RENDEZVOUS_STATUS.CANCELLED, RENDEZVOUS_STATUS.EXPIRED],
+          $nin: [RENDEZVOUS_STATUS.CANCELLED],
         },
       })
       .select('time -_id')
@@ -1655,17 +1604,14 @@ export class RendezvousService {
       [RENDEZVOUS_STATUS.PENDING]: [
         RENDEZVOUS_STATUS.CONFIRMED,
         RENDEZVOUS_STATUS.CANCELLED,
-        RENDEZVOUS_STATUS.EXPIRED,
       ],
       [RENDEZVOUS_STATUS.CONFIRMED]: [
         RENDEZVOUS_STATUS.PENDING,
         RENDEZVOUS_STATUS.COMPLETED,
         RENDEZVOUS_STATUS.CANCELLED,
-        RENDEZVOUS_STATUS.EXPIRED,
-      ], // ← Ajouter "En attente"
+      ],
       [RENDEZVOUS_STATUS.COMPLETED]: [],
       [RENDEZVOUS_STATUS.CANCELLED]: [],
-      [RENDEZVOUS_STATUS.EXPIRED]: [],
     };
 
     const allowedTransitions = transitions[currentStatus] || [];
@@ -1812,51 +1758,7 @@ export class RendezvousService {
     }
   }
 
-  @Cron('*/10 * * * *') // Toutes les 10 minutes
-  async updateExpiredRendezvous(): Promise<void> {
-    const now = new Date();
-
-    // Chercher les rendez-vous qui devraient être expirés
-    const rendezvousToExpire = await this.rendezvousModel.find({
-      status: { $in: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.CONFIRMED] },
-    });
-
-    let expiredCount = 0;
-
-    for (const rdv of rendezvousToExpire) {
-      const rdvDateTime = new Date(`${rdv.date}T${rdv.time}:00`);
-      const expirationTime = new Date(
-        rdvDateTime.getTime() + EXPIRATION_BUFFER_MINUTES * 60000
-      );
-
-      // Un rendez-vous est expiré si:
-      // 1. Date du rendez-vous = aujourd'hui
-      // 2. Heure + 10 minutes ≤ maintenant
-      // 3. Statut = "En attente" ou "Confirmé"
-      const isToday = this.isToday(rdv.date);
-
-      if (isToday && now > expirationTime) {
-        await this.rendezvousModel.updateOne(
-          { _id: rdv._id },
-          { $set: { status: RENDEZVOUS_STATUS.EXPIRED } }
-        );
-        expiredCount++;
-
-        // Notification d'expiration
-        try {
-          await this.sendNotification(rdv, 'status');
-        } catch {
-          this.logger.error('Erreur notification expiration');
-        }
-      }
-    }
-
-    if (expiredCount > 0) {
-      this.logger.log(`${expiredCount} rendez-vous automatiquement expirés`);
-    }
-  }
-
-  @Cron('0 * * * *')
+  @Cron('0 * * * *') // Toutes les heures
   async autoCancelPendingRendezvous(): Promise<void> {
     // Annuler les "En attente" après 5h
     const fiveHoursAgo = new Date();
@@ -1924,27 +1826,20 @@ export class RendezvousService {
       .exec();
   }
 
-  // ==================== MÉTHODES D'EXPIRATION MANUELLE ====================
+  // ==================== MÉTHODES POUR OBTENIR LES RENDEZ-VOUS DU JOUR ====================
 
-  async manuallyExpireOldRendezvous(): Promise<number> {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-
-    const result = await this.rendezvousModel.updateMany(
-      {
-        status: {
-          $in: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.CONFIRMED],
-        },
-        date: { $lt: today },
-      },
-      {
-        $set: { status: RENDEZVOUS_STATUS.EXPIRED },
-      }
-    );
-
-    this.logger.log(
-      `${result.modifiedCount} anciens rendez-vous marqués comme expirés`
-    );
-    return result.modifiedCount;
+  async getTodayRendezvous(
+    page: number = 1,
+    limit: number = 10,
+    status?: string
+  ): Promise<{
+    data: Rendezvous[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const today = new Date().toISOString().split('T')[0];
+    return this.findAll(page, limit, status, today);
   }
 }

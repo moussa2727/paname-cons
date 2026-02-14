@@ -6,8 +6,7 @@ export type RendezvousStatus =
   | 'En attente'
   | 'Confirmé'
   | 'Terminé'
-  | 'Annulé'
-  | 'Expiré';
+  | 'Annulé';
 export type AdminOpinion = 'Favorable' | 'Défavorable';
 
 export interface Rendezvous {
@@ -89,7 +88,6 @@ const RENDEZVOUS_STATUS = {
   CONFIRMED: 'Confirmé' as const,
   COMPLETED: 'Terminé' as const,
   CANCELLED: 'Annulé' as const,
-  EXPIRED: 'Expiré' as const, // Ajouter
 };
 
 const ADMIN_OPINION = {
@@ -160,7 +158,7 @@ interface ErrorMessages {
   FILIERE_REQUIRED: string;
   NO_ACCOUNT_FOUND: string;
   CANT_UPDATE_OTHERS: string;
-  EXPIRED_NO_EDIT: string;
+  MISSED_NO_EDIT: string;
   // Messages de succès
   CREATE_SUCCESS: string;
   UPDATE_SUCCESS: string;
@@ -181,7 +179,7 @@ const ERROR_MESSAGES: ErrorMessages = {
   NOT_FOUND: 'Rendez-vous non trouvé.',
   VALIDATION_ERROR: 'Données invalides.',
   RATE_LIMIT: 'Trop de requêtes. Veuillez patienter.',
-  EXPIRED_NO_EDIT: 'Impossible de modifier un rendez-vous expiré',
+  MISSED_NO_EDIT: 'Impossible de modifier un rendez-vous manqué',
   FUTURE_CANT_BE_COMPLETED:
     'Impossible de marquer comme terminé un rendez-vous futur',
   // Messages spécifiques au rendez-vous

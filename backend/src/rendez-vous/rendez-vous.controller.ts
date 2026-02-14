@@ -32,13 +32,12 @@ import {
 } from '@nestjs/swagger';
 import { CacheKey, CacheTTL } from '@nestjs/cache-manager';
 
-// Constantes pour la cohérence
+// Constantes pour la cohérence - RETIRÉ EXPIRED
 const RENDEZVOUS_STATUS = {
   PENDING: 'En attente',
   CONFIRMED: 'Confirmé',
   COMPLETED: 'Terminé',
   CANCELLED: 'Annulé',
-  EXPIRED: 'Expiré',
 } as const;
 
 const ADMIN_OPINION = {
@@ -227,7 +226,7 @@ export class RendezvousController {
   @ApiOperation({
     summary: 'Lister tous les rendez-vous (admin)',
     description:
-      'Récupérer tous les rendez-vous avec pagination et filtres (admin uniquement)',
+      'Récupérer tous les rendez-vous avec pagination et filtres (admin uniquement). Par défaut, filtre les rendez-vous du jour.',
   })
   @ApiQuery({
     name: 'page',
@@ -254,7 +253,7 @@ export class RendezvousController {
     name: 'date',
     required: false,
     type: String,
-    description: 'Filtrer par date (format: YYYY-MM-DD)',
+    description: 'Filtrer par date (format: YYYY-MM-DD). Si non fourni, utilise la date du jour.',
     example: '2024-12-25',
   })
   @ApiQuery({
@@ -327,116 +326,116 @@ export class RendezvousController {
 
     const maskedSearch = search ? this.maskEmail(search) : search;
     this.logger.log(
-      `Liste rendez-vous admin - Page: ${page}, Limite: ${limit}, Statut: ${status}, Date: ${date}, Recherche: ${maskedSearch}`
+      `Liste rendez-vous admin - Page: ${page}, Limite: ${limit}, Statut: ${status}, Date: ${date || 'aujourd\'hui'}, Recherche: ${maskedSearch}`
     );
 
     return this.rendezvousService.findAll(page, limit, status, date, search);
   }
 
-  @Get('user')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({
-    summary: "Lister les rendez-vous de l'utilisateur connecté",
-    description:
-      "Récupérer les rendez-vous de l'utilisateur connecté par son email (compte requis)",
-  })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Numéro de page (défaut: 1)',
-    example: 1,
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Limite par page (défaut: 10, max: 100)',
-    example: 10,
-  })
-  @ApiQuery({
-    name: 'status',
-    required: false,
-    type: String,
-    description: `Filtrer par statut: ${Object.values(RENDEZVOUS_STATUS).join(', ')}`,
-    example: 'Confirmé',
-  })
-  @ApiResponse({
-    status: 200,
-    description: "Liste des rendez-vous de l'utilisateur",
-    schema: {
-      example: {
-        data: [
-          {
-            _id: '507f1f77bcf86cd799439011',
-            firstName: 'Jean',
-            lastName: 'Dupont',
-            email: 'jean.dupont@example.com',
-            telephone: '+22812345678',
-            destination: 'France',
-            niveauEtude: 'Licence',
-            filiere: 'Informatique',
-            date: '2024-12-25',
-            time: '10:00',
-            status: 'Confirmé',
-            createdAt: '2024-01-01T10:00:00.000Z',
-          },
-        ],
-        total: 1,
-        page: 1,
-        limit: 10,
-        totalPages: 1,
-      },
+ @Get('user')
+@UseGuards(JwtAuthGuard)
+@ApiOperation({
+  summary: "Lister les rendez-vous de l'utilisateur connecté",
+  description:
+    "Récupérer les rendez-vous de l'utilisateur connecté par son email (compte requis). Par défaut, retourne tous les rendez-vous (passés et futurs) de l'utilisateur.",
+})
+@ApiQuery({
+  name: 'page',
+  required: false,
+  type: Number,
+  description: 'Numéro de page (défaut: 1)',
+  example: 1,
+})
+@ApiQuery({
+  name: 'limit',
+  required: false,
+  type: Number,
+  description: 'Limite par page (défaut: 10, max: 100)',
+  example: 10,
+})
+@ApiQuery({
+  name: 'status',
+  required: false,
+  type: String,
+  description: `Filtrer par statut: ${Object.values(RENDEZVOUS_STATUS).join(', ')}`,
+  example: 'Confirmé',
+})
+@ApiResponse({
+  status: 200,
+  description: "Liste des rendez-vous de l'utilisateur",
+  schema: {
+    example: {
+      data: [
+        {
+          _id: '507f1f77bcf86cd799439011',
+          firstName: 'Jean',
+          lastName: 'Dupont',
+          email: 'jean.dupont@example.com',
+          telephone: '+22812345678',
+          destination: 'France',
+          niveauEtude: 'Licence',
+          filiere: 'Informatique',
+          date: '2024-12-25',
+          time: '10:00',
+          status: 'Confirmé',
+          createdAt: '2024-01-01T10:00:00.000Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 10,
+      totalPages: 1,
     },
-  })
-  @ApiResponse({ status: 401, description: 'Non authentifié' })
-  @ApiResponse({ status: 403, description: 'Pas de compte pour cet email' })
-  async findByUser(
-    @Req() req: AuthenticatedRequest,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('status') status?: string
-  ) {
-    // Récupérer l'email de l'utilisateur depuis le token JWT
-    const userEmail = req.user?.email;
-    const maskedUserEmail = this.maskEmail(userEmail || '');
+  },
+})
+@ApiResponse({ status: 401, description: 'Non authentifié' })
+@ApiResponse({ status: 403, description: 'Pas de compte pour cet email' })
+async findByUser(
+  @Req() req: AuthenticatedRequest,
+  @Query('page') page: number = 1,
+  @Query('limit') limit: number = 10,
+  @Query('status') status?: string
+) {
+  // Récupérer l'email de l'utilisateur depuis le token JWT
+  const userEmail = req.user?.email;
+  const maskedUserEmail = this.maskEmail(userEmail || '');
 
-    this.logger.log(
-      `Recherche rendez-vous pour utilisateur: ${maskedUserEmail}`
+  this.logger.log(
+    `Recherche tous les rendez-vous pour utilisateur: ${maskedUserEmail}`
+  );
+
+  if (!userEmail) {
+    this.logger.error('Email utilisateur non trouvé dans le token');
+    throw new BadRequestException(
+      'Email utilisateur non trouvé dans le token'
     );
-
-    if (!userEmail) {
-      this.logger.error('Email utilisateur non trouvé dans le token');
-      throw new BadRequestException(
-        'Email utilisateur non trouvé dans le token'
-      );
-    }
-
-    // Validation des paramètres
-    if (page < 1) {
-      this.logger.warn(
-        `Page invalide: ${page} pour utilisateur: ${maskedUserEmail}`
-      );
-      throw new BadRequestException('Page invalide');
-    }
-    if (limit < 1 || limit > 100) {
-      this.logger.warn(
-        `Limite invalide: ${limit} pour utilisateur: ${maskedUserEmail}`
-      );
-      throw new BadRequestException('Limite invalide');
-    }
-
-    if (status && !Object.values(RENDEZVOUS_STATUS).includes(status as any)) {
-      this.logger.warn(
-        `Statut invalide: ${status} pour utilisateur: ${maskedUserEmail}`
-      );
-      throw new BadRequestException(
-        `Statut invalide. Valeurs autorisées: ${Object.values(RENDEZVOUS_STATUS).join(', ')}`
-      );
-    }
-
-    return this.rendezvousService.findByEmail(userEmail, page, limit, status);
   }
+
+  // Validation des paramètres
+  if (page < 1) {
+    this.logger.warn(
+      `Page invalide: ${page} pour utilisateur: ${maskedUserEmail}`
+    );
+    throw new BadRequestException('Page invalide');
+  }
+  if (limit < 1 || limit > 100) {
+    this.logger.warn(
+      `Limite invalide: ${limit} pour utilisateur: ${maskedUserEmail}`
+    );
+    throw new BadRequestException('Limite invalide');
+  }
+
+  if (status && !Object.values(RENDEZVOUS_STATUS).includes(status as any)) {
+    this.logger.warn(
+      `Statut invalide: ${status} pour utilisateur: ${maskedUserEmail}`
+    );
+    throw new BadRequestException(
+      `Statut invalide. Valeurs autorisées: ${Object.values(RENDEZVOUS_STATUS).join(', ')}`
+    );
+  }
+
+  return this.rendezvousService.findByEmail(userEmail, page, limit, status);
+}
 
   @Get('available-slots')
   @ApiOperation({
@@ -802,7 +801,7 @@ export class RendezvousController {
       `Suppression rendez-vous ID: ${maskedId} par ${isAdmin ? 'admin' : 'utilisateur'}: ${maskedUserEmail}`
     );
 
-    return this.rendezvousService.removeWithPolicy(id, userEmail, isAdmin);
+    return this.rendezvousService.delete(id, userEmail, isAdmin);
   }
 
   @Put(':id/confirm')

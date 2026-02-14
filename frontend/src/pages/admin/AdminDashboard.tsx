@@ -284,7 +284,7 @@ const AdminDashboard = () => {
       iconColor: 'text-emerald-600',
       description: `${stats?.rendezvousStats?.confirmed || 0} confirmés`,
       trend: 'neutral',
-      detail: `${stats?.rendezvousStats?.pending || 0} en attente, ${stats?.rendezvousStats?.expired || 0} expirés`,
+      detail: `${stats?.rendezvousStats?.pending || 0} en attente`,
     },
     {
       title: 'Procédures',
@@ -422,12 +422,7 @@ const AdminDashboard = () => {
       value: stats?.rendezvousStats?.cancelled || 0,
       color: 'red',
     },
-    {
-      status: 'Expirés',
-      value: stats?.rendezvousStats?.expired || 0,
-      color: 'gray',
-    },
-  ];
+      ];
 
   // Fonction pour faire défiler les activités horizontalement
   const scrollActivities = (direction: 'left' | 'right') => {

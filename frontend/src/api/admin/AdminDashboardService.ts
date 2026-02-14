@@ -16,7 +16,6 @@ export interface DashboardStats {
     confirmed: number;
     completed: number;
     cancelled: number;
-    expired: number;
   };
   totalContacts: number;
   unreadContacts: number;
@@ -233,7 +232,6 @@ class AdminDashboardService {
         confirmed: 0,
         completed: 0,
         cancelled: 0,
-        expired: 0,
       },
       totalContacts: 0,
       unreadContacts: 0,
@@ -331,7 +329,6 @@ class AdminDashboardService {
             confirmed: statusMap['Confirmé'] || 0,
             completed: statusMap['Terminé'] || 0,
             cancelled: statusMap['Annulé'] || 0,
-            expired: statusMap['Expiré'] || 0,
           };
         } else if (rdvData.stats) {
           // Ou si le backend retourne directement un objet stats
@@ -340,7 +337,6 @@ class AdminDashboardService {
             confirmed: rdvData.stats.confirmed || 0,
             completed: rdvData.stats.completed || 0,
             cancelled: rdvData.stats.cancelled || 0,
-            expired: rdvData.stats.expired || 0,
           };
         }
       }

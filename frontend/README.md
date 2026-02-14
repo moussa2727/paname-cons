@@ -229,9 +229,24 @@ useEffect(() => {
 
 - Dashboard personnel
 - Mes procédures
-- Mes rendez-vous
+- Mes rendez-vous (gestion complète avec statuts)
 - Profil
 - Contact
+
+### Système de rendez-vous
+
+#### **Statuts disponibles**
+- **En attente** : Création en attente de confirmation admin
+- **Confirmé** : Validé et programmé
+- **Terminé** : Effectué avec avis administratif
+- **Annulé** : Supprimé (soft delete)
+
+#### **Fonctionnalités**
+- **Prise de RDV** : Créneaux disponibles en temps réel
+- **Gestion** : Modification/annulation selon permissions
+- **Notifications** : Emails automatiques de confirmation/rappel
+- **Validation** : Vérification disponibilité et règles métier
+- **Avis admin** : Obligatoire pour terminer un RDV
 
 ### Pages admin
 

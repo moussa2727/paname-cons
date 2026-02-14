@@ -114,7 +114,6 @@ const STATUTS = [
   'Confirmé',
   'Terminé',
   'Annulé',
-  'Expiré',
 ] as const;
 const ADMIN_AVIS = ['Favorable', 'Défavorable'] as const;
 
