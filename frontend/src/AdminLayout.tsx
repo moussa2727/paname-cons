@@ -1,6 +1,6 @@
 import React, { ReactNode } from 'react';
 import { Outlet } from 'react-router-dom';
-import AdminSidebar from './pages/admin/AdminSidebar';
+import AdminSidebar from './components/admin/AdminSidebar';
 
 const AdminLayout: React.FC<{ children?: ReactNode }> = ({ children }) => (
   <AdminSidebar>

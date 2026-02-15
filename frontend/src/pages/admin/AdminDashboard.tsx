@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Users,
   Calendar,
@@ -37,6 +37,21 @@ const ActivityIcon = ({ type }: { type: string }) => {
   }
 };
 
+// Interface pour les cartes de statistiques
+interface StatCard {
+  title: string;
+  value: number | string;
+  icon: React.ElementType;
+  color: string;
+  iconBg: string;
+  iconColor: string;
+  description: string;
+  trend: string;
+  detail: string;
+  isAdmin?: boolean;
+  isMaintenance?: boolean;
+}
+
 const AdminDashboard = () => {
   const {
     user,
@@ -45,7 +60,7 @@ const AdminDashboard = () => {
     checkMaintenanceStatus,
     toggleMaintenanceMode,
   } = useAuth();
-  const { stats, activities, loading, error, refresh, forceRefresh } =
+  const { stats, activities, loading, error, refresh } =
     useDashboardData();
   const [isTogglingMaintenance, setIsTogglingMaintenance] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -140,7 +155,6 @@ const AdminDashboard = () => {
       if (import.meta.env.DEV) {
         console.error('Erreur lors du rafraîchissement:', err);
       }
-      // Les erreurs sont gérées par le service
     } finally {
       setIsRefreshing(false);
     }
@@ -173,19 +187,16 @@ const AdminDashboard = () => {
       (now.getTime() - activityDate.getTime()) / (1000 * 60 * 60);
 
     if (diffInHours < 24) {
-      // Aujourd'hui
       return `Aujourd'hui ${activityDate.toLocaleTimeString('fr-FR', {
         hour: '2-digit',
         minute: '2-digit',
       })}`;
     } else if (diffInHours < 48) {
-      // Hier
       return `Hier ${activityDate.toLocaleTimeString('fr-FR', {
         hour: '2-digit',
         minute: '2-digit',
       })}`;
     } else {
-      // Date complète
       return activityDate.toLocaleDateString('fr-FR', {
         day: '2-digit',
         month: 'short',
@@ -205,6 +216,36 @@ const AdminDashboard = () => {
       return `${localPart}***@${domain}`;
     }
     return `${localPart.substring(0, 3)}...@${domain}`;
+  };
+
+  // Récupérer et gérer le statut du mode maintenance
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    checkMaintenanceStatus();
+  }, [isAuthenticated, checkMaintenanceStatus]);
+
+  // Gérer le toggle de maintenance
+  const handleToggleMaintenance = async () => {
+    setIsTogglingMaintenance(true);
+    try {
+      const newState = !isMaintenanceMode;
+      await toggleMaintenanceMode(newState);
+
+      setTimeout(() => {
+        checkMaintenanceStatus();
+      }, 500);
+
+      toast.success(
+        newState ? 'Mode maintenance activé' : 'Mode maintenance désactivé'
+      );
+    } catch (err: any) {
+      toast.error(
+        err.message || 'Erreur lors du changement du mode maintenance'
+      );
+    } finally {
+      setIsTogglingMaintenance(false);
+    }
   };
 
   // Vérification des permissions
@@ -263,7 +304,7 @@ const AdminDashboard = () => {
   }
 
   // Configuration des cartes de statistiques
-  const statCards = [
+  const statCards: StatCard[] = [
     {
       title: 'Utilisateurs',
       value: stats?.totalUsers || 0,
@@ -336,14 +377,24 @@ const AdminDashboard = () => {
     },
   ];
 
-  // Statistiques des procédures - avec compatibilité de casse
+  // Fonction pour faire défiler les activités horizontalement
+  const scrollActivities = (direction: 'left' | 'right') => {
+    if (activitiesContainerRef.current) {
+      const scrollAmount = isMobile ? 250 : 350;
+      activitiesContainerRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+      });
+    }
+  };
+
+  // Statistiques des procédures
   const procedureStatusStats = [
     {
       status: 'En cours',
       value:
         safeFind(stats?.proceduresByStatus, 'En cours') ||
         safeFind(stats?.proceduresByStatus, 'en cours') ||
-        safeFind(stats?.proceduresByStatus, 'En Cours') ||
         0,
       icon: Clock,
       color: 'text-yellow-600',
@@ -355,7 +406,6 @@ const AdminDashboard = () => {
       value:
         safeFind(stats?.proceduresByStatus, 'Terminée') ||
         safeFind(stats?.proceduresByStatus, 'terminée') ||
-        safeFind(stats?.proceduresByStatus, 'Terminee') ||
         0,
       icon: CheckCircle,
       color: 'text-emerald-600',
@@ -367,9 +417,6 @@ const AdminDashboard = () => {
       value:
         safeFind(stats?.proceduresByStatus, 'Refusée') ||
         safeFind(stats?.proceduresByStatus, 'refusée') ||
-        safeFind(stats?.proceduresByStatus, 'Refusee') ||
-        safeFind(stats?.proceduresByStatus, 'Rejetée') ||
-        safeFind(stats?.proceduresByStatus, 'rejetée') ||
         0,
       icon: AlertTriangle,
       color: 'text-red-600',
@@ -381,8 +428,6 @@ const AdminDashboard = () => {
       value:
         safeFind(stats?.proceduresByStatus, 'Annulée') ||
         safeFind(stats?.proceduresByStatus, 'annulée') ||
-        safeFind(stats?.proceduresByStatus, 'Annulee') ||
-        safeFind(stats?.proceduresByStatus, 'Canceled') ||
         0,
       icon: AlertTriangle,
       color: 'text-orange-600',
@@ -390,15 +435,6 @@ const AdminDashboard = () => {
       borderColor: 'border-orange-200',
     },
   ];
-
-  // Destinations populaires
-  const popularDestinations = (stats?.proceduresByDestination || [])
-    .slice(0, 5)
-    .map(dest => ({
-      name: dest._id,
-      count: dest.count,
-      percentage: getProcedurePercentage(dest.count),
-    }));
 
   // Statut des rendez-vous
   const rendezvousStatuses = [
@@ -422,81 +458,21 @@ const AdminDashboard = () => {
       value: stats?.rendezvousStats?.cancelled || 0,
       color: 'red',
     },
-      ];
+  ];
 
-  // Fonction pour faire défiler les activités horizontalement
-  const scrollActivities = (direction: 'left' | 'right') => {
-    if (activitiesContainerRef.current) {
-      const scrollAmount = isMobile ? 250 : 350;
-      activitiesContainerRef.current.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
-        behavior: 'smooth',
-      });
-    }
-  };
-
-  // Récupérer et gérer le statut du mode maintenance
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    // Récupérer le statut maintenance au chargement
-    checkMaintenanceStatus();
-  }, [isAuthenticated, checkMaintenanceStatus]);
-
-  // GÉRER LE TOGGLE DE MAINTENANCE VIA LE SERVICE
-  const handleToggleMaintenance = async () => {
-    setIsTogglingMaintenance(true);
-    try {
-      const newState = !isMaintenanceMode;
-      await toggleMaintenanceMode(newState);
-
-      // FORCER LE RAFRAÎCHISSEMENT IMMÉDIAT DU STATUT
-      setTimeout(() => {
-        checkMaintenanceStatus();
-      }, 500);
-
-      toast.success(
-        newState ? 'Mode maintenance activé' : 'Mode maintenance désactivé'
-      );
-    } catch (err: any) {
-      toast.error(
-        err.message || 'Erreur lors du changement du mode maintenance'
-      );
-    } finally {
-      setIsTogglingMaintenance(false);
-    }
-  };
-
-  // AFFICHAGE CONDITIONNEL
-  if (!isAuthenticated) {
-    return (
-      <div className='text-center py-12'>
-        <p className='text-gray-500'>
-          Veuillez vous connecter pour accéder au tableau de bord
-        </p>
-      </div>
-    );
-  }
+  // Destinations populaires
+  const popularDestinations = (stats?.proceduresByDestination || [])
+    .slice(0, 5)
+    .map(dest => ({
+      name: dest._id,
+      count: dest.count,
+      percentage: getProcedurePercentage(dest.count),
+    }));
 
   if (loading && !stats) {
     return (
       <div className='flex items-center justify-center min-h-screen'>
         <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600'></div>
-      </div>
-    );
-  }
-
-  if (error && !stats) {
-    return (
-      <div className='bg-red-50 border border-red-200 rounded-lg p-6'>
-        <h3 className='text-red-800 font-semibold'>Erreur</h3>
-        <p className='text-red-700 mt-2'>{error}</p>
-        <button
-          onClick={forceRefresh}
-          className='mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700'
-        >
-          Réessayer
-        </button>
       </div>
     );
   }
@@ -519,10 +495,9 @@ const AdminDashboard = () => {
         <meta name='seznam' content='noindex, nofollow' />
       </Helmet>
 
-      {/* Interface principale */}
       <div className='min-h-screen bg-gray-50'>
         <div className='p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto'>
-          {/* En-tête amélioré */}
+          {/* En-tête */}
           <div className='bg-white rounded-2xl shadow-lg p-4 md:p-6 lg:p-8 border border-gray-200'>
             <div className='flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6'>
               <div className='space-y-3'>
@@ -593,7 +568,7 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Cartes de statistiques - Mobile first */}
+          {/* Cartes de statistiques */}
           <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4'>
             {statCards.map((card, index) => {
               const Icon = card.icon;
@@ -802,7 +777,7 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Troisième ligne - Adaptée pour mobile-first */}
+          {/* Troisième ligne */}
           <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6'>
             {/* Destinations */}
             <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-4 md:p-6'>
@@ -839,7 +814,7 @@ const AdminDashboard = () => {
                       </div>
                       <div className='h-2 bg-gray-200 rounded-full overflow-hidden'>
                         <div
-                          className='h-full bg-lineart-to-r from-violet-500 to-violet-600 rounded-full'
+                          className='h-full bg-linear-to-r from-violet-500 to-violet-600 rounded-full'
                           style={{ width: `${destination.percentage}%` }}
                         />
                       </div>
@@ -859,7 +834,7 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Activités - DISPOSITION HORIZONTALE POUR MOBILE */}
+            {/* Activités */}
             <div className='bg-white rounded-2xl shadow-sm border border-gray-200 p-4 md:p-6'>
               <div className='flex items-center justify-between mb-4 md:mb-6'>
                 <div className='flex items-center space-x-2'>
@@ -920,7 +895,6 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Conteneur d'activités avec défilement horizontal sur mobile */}
               <div
                 ref={activitiesContainerRef}
                 className={`${
@@ -1001,7 +975,6 @@ const AdminDashboard = () => {
                 )}
               </div>
 
-              {/* Indicateur de défilement pour mobile */}
               {isMobile && activities.length > 0 && (
                 <div className='flex justify-center items-center gap-1 mt-4 pt-4 border-t border-gray-100'>
                   <div className='w-2 h-2 bg-gray-300 rounded-full'></div>

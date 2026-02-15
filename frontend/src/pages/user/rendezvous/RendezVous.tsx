@@ -33,7 +33,8 @@ import { UserRendezvousService } from '../../../api/user/Rendezvous/UserRendezvo
 // Utiliser les constantes centralisées pour la cohérence
 const {
   FILIERES,
-  EDUCATION_LEVELS
+  EDUCATION_LEVELS,
+  DESTINATIONS
 } = UserRendezvousService;
 
 interface Destination {
@@ -105,7 +106,6 @@ const RendezVous = () => {
         throw new Error(`Erreur ${response.status}`);
       }
       const data: Destination[] = await response.json();
-      // NE PAS AJOUTER "Autre" ici - "Autre" est une option spéciale, pas une destination
       setDestinations(data);
     } catch (error) {
       console.error('Erreur destinations:', error);
@@ -187,6 +187,15 @@ const RendezVous = () => {
     return selectedTime < today;
   };
 
+  // Vérifier si une destination est valide
+  const isValidDestination = (destination: string): boolean => {
+    const validDestinations = [
+      ...destinations.map(d => d.country),
+      ...DESTINATIONS
+    ];
+    return validDestinations.includes(destination) || destination === 'Autre';
+  };
+
   // Validation de chaque étape
   const isStepValid = (step: number): boolean => {
     switch (step) {
@@ -200,7 +209,7 @@ const RendezVous = () => {
         );
       case 2:
         if (!formData.destination) return false;
-        // Vérification STRICTE: si destination est "Autre", destinationAutre est obligatoire
+        if (!isValidDestination(formData.destination)) return false;
         if (
           formData.destination === 'Autre' &&
           !formData.destinationAutre?.trim()
@@ -208,7 +217,6 @@ const RendezVous = () => {
           return false;
         if (!formData.niveauEtude) return false;
         if (!formData.filiere) return false;
-        // Vérification STRICTE: si filière est "Autre", filiereAutre est obligatoire
         if (formData.filiere === 'Autre' && !formData.filiereAutre?.trim())
           return false;
         return true;
@@ -239,6 +247,8 @@ const RendezVous = () => {
       } else if (currentStep === 2) {
         if (!formData.destination) {
           toast.error('La destination est obligatoire');
+        } else if (!isValidDestination(formData.destination)) {
+          toast.error('Destination invalide');
         } else if (
           formData.destination === 'Autre' &&
           !formData.destinationAutre?.trim()
@@ -388,17 +398,14 @@ const RendezVous = () => {
       return;
     }
 
-    // VÉRIFICATION STRICTE: destination "Autre" nécessite destinationAutre
+    if (!isValidDestination(formData.destination)) {
+      toast.error('Destination invalide');
+      return;
+    }
+
     if (formData.destination === 'Autre') {
       if (!formData.destinationAutre?.trim()) {
         toast.error('La destination "Autre" nécessite une précision');
-        return;
-      }
-    } else {
-      // Vérifier que la destination est valide
-      const validDestinations = destinations.map(d => d.country);
-      if (!validDestinations.includes(formData.destination)) {
-        toast.error('Destination invalide');
         return;
       }
     }
@@ -413,16 +420,9 @@ const RendezVous = () => {
       return;
     }
 
-    // VÉRIFICATION STRICTE: filière "Autre" nécessite filiereAutre
     if (formData.filiere === 'Autre') {
       if (!formData.filiereAutre?.trim()) {
         toast.error('La filière "Autre" nécessite une précision');
-        return;
-      }
-    } else {
-      // Vérifier que la filière est valide
-      if (!FILIERES.includes(formData.filiere as any)) {
-        toast.error('Filière invalide');
         return;
       }
     }
@@ -465,7 +465,7 @@ const RendezVous = () => {
       time: formData.time,
     };
 
-    // Gestion destination "Autre" - STRICTE
+    // Gestion destination "Autre"
     if (formData.destination === 'Autre') {
       if (!formData.destinationAutre?.trim()) {
         toast.error('La destination "Autre" nécessite une précision');
@@ -474,7 +474,7 @@ const RendezVous = () => {
       submitData.destinationAutre = formData.destinationAutre.trim();
     }
 
-    // Gestion filière "Autre" - STRICTE
+    // Gestion filière "Autre"
     if (formData.filiere === 'Autre') {
       if (!formData.filiereAutre?.trim()) {
         toast.error('La filière "Autre" nécessite une précision');
@@ -483,7 +483,7 @@ const RendezVous = () => {
       submitData.filiereAutre = formData.filiereAutre.trim();
     }
 
-    // VALIDATION FINALE - Tous les champs requis
+    // VALIDATION FINALE
     const requiredFields: (keyof typeof submitData)[] = [
       'firstName',
       'lastName',
@@ -838,7 +838,6 @@ const RendezVous = () => {
                   {dest.country}
                 </option>
               ))}
-              {/* Option "Autre" comme choix séparé */}
               <option value='Autre'>Autre (précisez ci-dessous)</option>
             </select>
 
@@ -956,7 +955,7 @@ const RendezVous = () => {
     </div>
   );
 
-  // Rendu étape 3: Choix du créneau (inchangé)
+  // Rendu étape 3: Choix du créneau
   const renderStep3 = () => (
     <div data-aos='fade-up' className='space-y-3'>
       <h2 className='text-md font-semibold text-sky-600'>
@@ -1078,7 +1077,7 @@ const RendezVous = () => {
     </div>
   );
 
-  // Indicateur de progression (inchangé)
+  // Indicateur de progression
   const renderProgressSteps = () => (
     <div className='mb-6'>
       <div className='flex items-center justify-between'>
@@ -1114,7 +1113,7 @@ const RendezVous = () => {
     </div>
   );
 
-  // Message de succès (inchangé)
+  // Message de succès
   const renderSuccessMessage = () => (
     <div data-aos='zoom-in' className='text-center'>
       <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100'>
@@ -1153,6 +1152,8 @@ const RendezVous = () => {
           rel='canonical'
           href='https://panameconsulting.vercel.app/rendez-vous'
         />
+        {/* noindex, nofollow */}
+        <meta name='robots' content='noindex, nofollow' />
       </Helmet>
 
       <div className='min-h-screen bg-linear-to-b from-sky-50 to-white py-6'>

@@ -387,6 +387,8 @@ const MesRendezvous = () => {
       <Helmet>
         <title>{currentPage.pageTitle}</title>
         <meta name='description' content={currentPage.description} />
+        {/* noindex, nofollow */}
+        <meta name='robots' content='noindex, nofollow' />
       </Helmet>
 
       <UserHeader

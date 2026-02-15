@@ -61,6 +61,7 @@ const Connexion = () => {
         />
         <link rel='manifest' href='/manifest.json' />
         <meta name='theme-color' content='#0369a1' />
+        
       </Helmet>
 
       <main className='min-h-screen flex flex-col'>

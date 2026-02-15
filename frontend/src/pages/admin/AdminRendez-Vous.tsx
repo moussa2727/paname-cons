@@ -38,7 +38,6 @@ import {
   RendezvousStatus,
   AdminOpinion,
   Rendezvous,
-  // Importer les constantes centralisées
   EDUCATION_LEVELS as CENTRAL_EDUCATION_LEVELS,
   FILIERES as CENTRAL_FILIERES,
   DESTINATIONS as CENTRAL_DESTINATIONS,
@@ -47,7 +46,6 @@ import {
 } from '../../api/admin/AdminRendezVousService';
 import { destinationService } from '../../api/admin/AdminDestionService';
 
-// Interface pour les destinations de l'API
 interface Destination {
   _id: string;
   country: string;
@@ -57,7 +55,6 @@ interface Destination {
   updatedAt?: string;
 }
 
-// Interface locale pour les rendez-vous (plus simple que celle du service)
 interface LocalRendezvous {
   id: string;
   firstName: string;
@@ -82,7 +79,6 @@ interface LocalRendezvous {
   isPast?: boolean;
 }
 
-// Interface pour la création de rendez-vous
 interface CreateRendezVousData {
   firstName: string;
   lastName: string;
@@ -97,7 +93,6 @@ interface CreateRendezVousData {
   filiereAutre?: string;
 }
 
-// Constantes
 const EDUCATION_LEVELS = CENTRAL_EDUCATION_LEVELS;
 const FILIERES = CENTRAL_FILIERES;
 const STATUTS = Object.values(RENDEZVOUS_STATUS);
@@ -136,7 +131,6 @@ const AdminRendezVous = (): React.JSX.Element => {
   const modalRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
 
-  // États pour la création d'un rendez-vous
   const [newRendezVous, setNewRendezVous] = useState<CreateRendezVousData>({
     firstName: '',
     lastName: '',
@@ -151,12 +145,10 @@ const AdminRendezVous = (): React.JSX.Element => {
     filiereAutre: '',
   });
 
-  // Fonction pour basculer les actions mobiles
   const toggleMobileActions = useCallback((id: string) => {
     setShowMobileActions(prev => (prev === id ? null : id));
   }, []);
 
-  // Fermer les menus au clic extérieur
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -179,7 +171,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Mettre à jour le service quand le token change
   useEffect(() => {
     if (access_token) {
       const fetchWithAuth = async (endpoint: string, options?: RequestInit) => {
@@ -199,7 +190,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   }, [access_token]);
 
-  // Récupérer les destinations depuis l'API
   const fetchDestinations = async () => {
     setIsLoadingDestinations(true);
     try {
@@ -225,7 +215,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   };
 
-  // Normaliser les données du backend vers le format local
   const normalizeRendezvous = (rdv: Rendezvous): LocalRendezvous => ({
     id: rdv.id || (rdv as any)._id || '',
     firstName: rdv.firstName || '',
@@ -240,7 +229,7 @@ const AdminRendezVous = (): React.JSX.Element => {
     niveauEtude: rdv.niveauEtude || '',
     filiere: rdv.filiere || '',
     filiereAutre: rdv.filiereAutre,
-    avisAdmin: rdv.avisAdmin,
+    avisAdmin: rdv.avisAdmin as AdminOpinion,
     createdAt: rdv.createdAt || new Date().toISOString(),
     updatedAt: rdv.updatedAt || new Date().toISOString(),
     cancellationReason: rdv.cancellationReason,
@@ -250,7 +239,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     isPast: rdv.isPast,
   });
 
-  // Vérifier si un rendez-vous peut être supprimé
   const canDeleteRendezvous = useCallback(
     (rdv: LocalRendezvous): { canDelete: boolean; message?: string } => {
       const isAdmin = user?.role === 'admin';
@@ -279,7 +267,6 @@ const AdminRendezVous = (): React.JSX.Element => {
         };
       }
 
-      // Calcul manuel si la propriété n'est pas disponible
       if (rdv.date && rdv.time) {
         const rdvDateTime = new Date(`${rdv.date}T${rdv.time}:00`);
         const now = new Date();
@@ -300,7 +287,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     [user?.role]
   );
 
-  // Récupération des rendez-vous
   const loadRendezvous = async () => {
     if (!service) return;
 
@@ -331,7 +317,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   };
 
-  // Mise à jour du statut
   const handleUpdateStatus = async (
     id: string,
     status: RendezvousStatus,
@@ -400,8 +385,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   };
 
-  // Mise à jour complète d'un rendez-vous
-  // Mise à jour complète d'un rendez-vous
   const handleUpdateRendezvous = async (id: string) => {
     if (!service || !id) {
       toast.error('Service non disponible ou ID invalide');
@@ -410,7 +393,6 @@ const AdminRendezVous = (): React.JSX.Element => {
 
     setIsSubmitting(true);
     try {
-      // Validation des champs "Autre"
       if (
         editingForm.destination === 'Autre' &&
         (!editingForm.destinationAutre ||
@@ -428,80 +410,30 @@ const AdminRendezVous = (): React.JSX.Element => {
         return;
       }
 
-      // Récupérer le rendez-vous original pour les champs non modifiés
       const originalRdv = rendezvous.find(rdv => rdv.id === id);
       if (!originalRdv) {
         toast.error('Rendez-vous non trouvé');
         return;
       }
 
-      // CORRECTION ICI : Inclure tous les champs requis pour le DTO backend
-      const updateData = {
+      const updateData: any = {
         firstName: editingForm.firstName || originalRdv.firstName,
         lastName: editingForm.lastName || originalRdv.lastName,
         email: editingForm.email || originalRdv.email,
         telephone: editingForm.telephone || originalRdv.telephone,
         destination: editingForm.destination || originalRdv.destination,
-        destinationAutre:
-          editingForm.destination === 'Autre'
-            ? editingForm.destinationAutre || originalRdv.destinationAutre
-            : undefined,
         niveauEtude: editingForm.niveauEtude || originalRdv.niveauEtude,
         filiere: editingForm.filiere || originalRdv.filiere,
-        filiereAutre:
-          editingForm.filiere === 'Autre'
-            ? editingForm.filiereAutre || originalRdv.filiereAutre
-            : undefined,
-        // Inclure date et time si nécessaire
-        date: originalRdv.date, // Conserver la date originale
-        time: originalRdv.time, // Conserver l'heure originale
       };
 
-      // Nettoyer les données : supprimer les champs undefined
-      Object.keys(updateData).forEach(key => {
-        if (updateData[key as keyof typeof updateData] === undefined) {
-          delete updateData[key as keyof typeof updateData];
-        }
-      });
-
-      // Valider que tous les champs requis sont présents
-      const requiredFields = [
-        'firstName',
-        'lastName',
-        'email',
-        'telephone',
-        'destination',
-        'niveauEtude',
-        'filiere',
-      ];
-      const missingFields = requiredFields.filter(
-        field => !updateData[field as keyof typeof updateData]
-      );
-
-      if (missingFields.length > 0) {
-        toast.error(`Champs requis manquants: ${missingFields.join(', ')}`);
-        return;
+      if (editingForm.destination === 'Autre' && editingForm.destinationAutre) {
+        updateData.destinationAutre = editingForm.destinationAutre;
       }
 
-      // Validation supplémentaire pour les champs "Autre"
-      if (
-        updateData.destination === 'Autre' &&
-        (!updateData.destinationAutre ||
-          updateData.destinationAutre.trim() === '')
-      ) {
-        toast.error('La destination "Autre" nécessite une précision');
-        return;
+      if (editingForm.filiere === 'Autre' && editingForm.filiereAutre) {
+        updateData.filiereAutre = editingForm.filiereAutre;
       }
 
-      if (
-        updateData.filiere === 'Autre' &&
-        (!updateData.filiereAutre || updateData.filiereAutre.trim() === '')
-      ) {
-        toast.error('La filière "Autre" nécessite une précision');
-        return;
-      }
-
-      // CORRECTION ICI : Valider les données avant l'envoi
       const validationErrors = service.validateRendezvousData(updateData);
       if (validationErrors.length > 0) {
         validationErrors.forEach(error => toast.error(error));
@@ -528,7 +460,6 @@ const AdminRendezVous = (): React.JSX.Element => {
       const errorMessage =
         error instanceof Error ? error.message : 'Une erreur est survenue';
 
-      // Message plus détaillé pour les erreurs de validation
       if (
         errorMessage.includes('Validation failed') ||
         errorMessage.includes('Données invalides')
@@ -544,7 +475,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   };
 
-  // Gestion du changement de statut via select
   const handleStatusChange = useCallback(
     (id: string, newStatus: string) => {
       if (!id) {
@@ -558,28 +488,22 @@ const AdminRendezVous = (): React.JSX.Element => {
         return;
       }
 
-      // Règles spéciales pour admin
       const isAdmin = user?.role === 'admin';
 
       if (newStatus === RENDEZVOUS_STATUS.COMPLETED) {
-        // Pour "Terminé", toujours demander l'avis admin
         setPendingStatusUpdate({ id, status: newStatus as RendezvousStatus });
         setShowAvisModal(true);
       } else if (newStatus === RENDEZVOUS_STATUS.PENDING && isAdmin) {
-        // Pour "En attente", pas besoin d'avis
         handleUpdateStatus(id, newStatus as RendezvousStatus);
       } else if (newStatus === RENDEZVOUS_STATUS.CANCELLED) {
-        // Pour "Annulé", demander confirmation
         setShowDeleteModal(id);
       } else {
-        // Pour les autres statuts (Confirmé)
         handleUpdateStatus(id, newStatus as RendezvousStatus);
       }
     },
     [rendezvous, user?.role]
   );
 
-  // Gestion de la sélection d'avis
   const handleAvisSelection = (avis: AdminOpinion) => {
     if (!pendingStatusUpdate) {
       toast.error('Erreur: Aucune mise à jour en cours');
@@ -598,7 +522,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     );
   };
 
-  // Suppression
   const handleDelete = async (id: string) => {
     if (!service || !id) {
       toast.error('Service non disponible ou ID invalide');
@@ -613,8 +536,12 @@ const AdminRendezVous = (): React.JSX.Element => {
 
     setIsSubmitting(true);
     try {
-      await service.cancelRendezvous(id, 'Supprimé par administrateur');
-      setRendezvous(prev => prev.filter(rdv => rdv.id !== id));
+      const updatedRdv = await service.cancelRendezvous(id, 'Supprimé par administrateur');
+      
+      setRendezvous(prev => 
+        prev.map(rdv => rdv.id === id ? normalizeRendezvous(updatedRdv) : rdv)
+      );
+      
       setShowDeleteModal(null);
       setShowMobileActions(null);
       toast.success('Rendez-vous annulé avec succès');
@@ -627,7 +554,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   };
 
-  // Création d'un nouveau rendez-vous
   const handleCreateRendezVous = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!service) {
@@ -637,7 +563,6 @@ const AdminRendezVous = (): React.JSX.Element => {
 
     setIsSubmitting(true);
     try {
-      // Validation frontale
       const errors: string[] = service.validateRendezvousData(newRendezVous);
       if (errors.length > 0) {
         errors.forEach(error => toast.error(error));
@@ -677,7 +602,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   };
 
-  // Gestion du changement de date pour charger les créneaux disponibles
   const handleDateChange = async (date: string) => {
     if (!service) return;
 
@@ -699,7 +623,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   };
 
-  // Initialisation
   useEffect(() => {
     const initialize = async () => {
       if (!service) return;
@@ -708,11 +631,6 @@ const AdminRendezVous = (): React.JSX.Element => {
         await Promise.all([
           loadRendezvous(),
           fetchDestinations(),
-          (async () => {
-            try {
-              // Intentionally empty - placeholder for future async operation
-            } catch {}
-          })(),
         ]);
       } catch {
         console.error('Erreur initialisation:');
@@ -724,7 +642,6 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   }, [service, page, searchTerm, selectedStatus, refreshTrigger]);
 
-  // Fonctions utilitaires - Utiliser les constantes centralisées pour la cohérence
   const getStatusColor = (status: string) => {
     switch (status) {
       case RENDEZVOUS_STATUS.CONFIRMED:
@@ -764,13 +681,11 @@ const AdminRendezVous = (): React.JSX.Element => {
     });
   };
 
-  // Options de destination depuis l'API + destinations centralisées
   const destinationOptions = [
     ...destinations.map(dest => dest.country),
     ...CENTRAL_DESTINATIONS.filter(dest => !destinations.map(d => d.country).includes(dest))
   ];
 
-  // Fonction pour démarrer l'édition d'un rendez-vous
   const startEditing = (rdv: LocalRendezvous) => {
     setEditingRendezvous(rdv.id);
     setEditingForm({
@@ -787,13 +702,11 @@ const AdminRendezVous = (): React.JSX.Element => {
     setShowMobileActions(null);
   };
 
-  // Fonction pour annuler l'édition
   const cancelEditing = () => {
     setEditingRendezvous(null);
     setEditingForm({});
   };
 
-  // Fonction pour fermer tous les menus ouverts
   const closeAllMenus = () => {
     setShowMobileActions(null);
     setShowMobileFilters(false);
@@ -802,11 +715,9 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   };
 
-  // Fonction pour obtenir les transitions de statut autorisées - Utiliser les constantes centralisées
   const getAvailableStatusTransitions = (currentStatus: string): string[] => {
     const isAdmin = user?.role === 'admin';
 
-    // Transitions complètes pour admin - Utiliser les constantes du backend
     const adminTransitions: Record<string, string[]> = {
       [RENDEZVOUS_STATUS.PENDING]: [RENDEZVOUS_STATUS.CONFIRMED, RENDEZVOUS_STATUS.CANCELLED, RENDEZVOUS_STATUS.COMPLETED],
       [RENDEZVOUS_STATUS.CONFIRMED]: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.COMPLETED, RENDEZVOUS_STATUS.CANCELLED],
@@ -814,7 +725,6 @@ const AdminRendezVous = (): React.JSX.Element => {
       [RENDEZVOUS_STATUS.CANCELLED]: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.CONFIRMED, RENDEZVOUS_STATUS.COMPLETED],
     };
 
-    // Transitions limitées pour utilisateur
     const userTransitions: Record<string, string[]> = {
       [RENDEZVOUS_STATUS.PENDING]: [],
       [RENDEZVOUS_STATUS.CONFIRMED]: [RENDEZVOUS_STATUS.CANCELLED],
@@ -825,11 +735,9 @@ const AdminRendezVous = (): React.JSX.Element => {
     const transitions = isAdmin ? adminTransitions : userTransitions;
     const availableTransitions = transitions[currentStatus] || [];
 
-    // Toujours inclure le statut actuel + transitions autorisées
     return [currentStatus, ...availableTransitions];
   };
 
-  // Calcul des stats
   const stats = {
     total: rendezvous.length,
     confirmed: rendezvous.filter(r => r.status === RENDEZVOUS_STATUS.CONFIRMED).length,
@@ -866,7 +774,7 @@ const AdminRendezVous = (): React.JSX.Element => {
       >
         {/* Container principal */}
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8'>
-          {/* En-tête mobile-first */}
+          {/* En-tête */}
           <div className='mb-6'>
             <div className='flex flex-col gap-4'>
               <div className='flex items-center justify-between'>
@@ -905,13 +813,12 @@ const AdminRendezVous = (): React.JSX.Element => {
             </div>
           </div>
 
-          {/* Barre de recherche et filtres - Mobile First */}
+          {/* Barre de recherche et filtres */}
           <div
             className='bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6'
             ref={modalRef}
           >
             <div className='flex flex-col gap-4'>
-              {/* Barre de recherche */}
               <div className='relative'>
                 <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4 sm:w-5 sm:h-5' />
                 <input
@@ -923,9 +830,7 @@ const AdminRendezVous = (): React.JSX.Element => {
                 />
               </div>
 
-              {/* Filtres - Layout responsive */}
               <div className='flex flex-col sm:flex-row gap-3'>
-                {/* Bouton filtre mobile */}
                 <button
                   onClick={() => setShowMobileFilters(!showMobileFilters)}
                   className='sm:hidden flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-300 rounded-lg hover:border-sky-400 transition-all duration-200'
@@ -939,7 +844,6 @@ const AdminRendezVous = (): React.JSX.Element => {
                   )}
                 </button>
 
-                {/* Filtre de statut */}
                 <div
                   className={`${showMobileFilters ? 'block' : 'hidden'} sm:block sm:flex-1 sm:max-w-xs`}
                 >
@@ -967,7 +871,7 @@ const AdminRendezVous = (): React.JSX.Element => {
             </div>
           </div>
 
-          {/* Liste des rendez-vous - Mobile Cards */}
+          {/* Version mobile - Cards */}
           <div className='lg:hidden'>
             {isLoading ? (
               <div className='bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center'>
@@ -1998,7 +1902,6 @@ const AdminRendezVous = (): React.JSX.Element => {
             className='bg-white rounded-2xl shadow-xl w-full max-w-md mx-auto my-8 animate-in fade-in zoom-in-95 duration-200'
             ref={modalRef}
           >
-            {/* Formulaire */}
             <form onSubmit={handleCreateRendezVous} className='p-4 md:p-6'>
               <div className='space-y-6 md:space-y-8 max-h-[65vh] md:max-h-[70vh] overflow-y-auto pr-1 md:pr-3 pb-4'>
                 {/* Informations personnelles */}
@@ -2013,7 +1916,6 @@ const AdminRendezVous = (): React.JSX.Element => {
                   </div>
 
                   <div className='space-y-4 md:space-y-5'>
-                    {/* Prénom et Nom - Empilés sur mobile */}
                     <div className='flex flex-col sm:flex-row gap-4 md:gap-5'>
                       <div className='flex-1'>
                         <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
@@ -2064,7 +1966,6 @@ const AdminRendezVous = (): React.JSX.Element => {
                       </div>
                     </div>
 
-                    {/* Email */}
                     <div>
                       <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
                         Email <span className='text-rose-500'>*</span>
@@ -2089,7 +1990,6 @@ const AdminRendezVous = (): React.JSX.Element => {
                       </div>
                     </div>
 
-                    {/* Téléphone */}
                     <div>
                       <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
                         Téléphone <span className='text-rose-500'>*</span>
@@ -2131,7 +2031,6 @@ const AdminRendezVous = (): React.JSX.Element => {
                   </div>
 
                   <div className='space-y-4 md:space-y-5'>
-                    {/* Niveau d'étude */}
                     <div>
                       <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
                         Niveau d'étude <span className='text-rose-500'>*</span>
@@ -2168,7 +2067,6 @@ const AdminRendezVous = (): React.JSX.Element => {
                       </div>
                     </div>
 
-                    {/* Filière */}
                     <div>
                       <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
                         Filière <span className='text-rose-500'>*</span>
@@ -2323,7 +2221,6 @@ const AdminRendezVous = (): React.JSX.Element => {
                   </div>
 
                   <div className='space-y-4 md:space-y-5'>
-                    {/* Date */}
                     <div>
                       <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
                         Date <span className='text-rose-500'>*</span>
@@ -2343,7 +2240,6 @@ const AdminRendezVous = (): React.JSX.Element => {
                       </div>
                     </div>
 
-                    {/* Heure - Conditionnel */}
                     {newRendezVous.date && (
                       <div className='animate-fadeIn'>
                         <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
@@ -2414,7 +2310,6 @@ const AdminRendezVous = (): React.JSX.Element => {
                 </div>
               </div>
 
-              {/* Boutons - Sticky sur mobile */}
               <div className='sticky bottom-0 left-0 right-0 bg-linear-to-t from-white via-white to-transparent pt-6 mt-2 pb-2 md:pb-0'>
                 <div className='flex flex-col sm:flex-row gap-3'>
                   <button
@@ -2443,13 +2338,12 @@ const AdminRendezVous = (): React.JSX.Element => {
                     ) : (
                       <>
                         <Plus className='w-4 h-4 md:w-5 md:h-5' />
-                        <span>Créez</span>
+                        <span>Créer</span>
                       </>
                     )}
                   </button>
                 </div>
 
-                {/* Indicateur de progression (optionnel) */}
                 <div className='mt-4 text-center'>
                   <div className='flex justify-center items-center gap-2'>
                     {[1, 2, 3, 4].map(step => (

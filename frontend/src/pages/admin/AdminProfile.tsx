@@ -5,7 +5,7 @@ import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 
 const AdminProfile: React.FC = () => {
-  // ✅ Generate unique ID for this component instance
+  //  Generate unique ID for this component instance
   const uniqueId = useId();
 
   const { user, access_token, isAuthenticated, isLoading } = useAuth();
@@ -26,7 +26,7 @@ const AdminProfile: React.FC = () => {
     text: string;
   } | null>(null);
 
-  // ✅ VÉRIFICATION QUE L'UTILISATEUR EST ADMIN
+  // VÉRIFICATION QUE L'UTILISATEUR EST ADMIN
   useEffect(() => {
     if (!isLoading) {
       if (!isAuthenticated) {
@@ -95,7 +95,7 @@ const AdminProfile: React.FC = () => {
         throw new Error('Session invalide. Veuillez vous reconnecter.');
       }
 
-      // ✅ STRUCTURE CORRESPONDANT AU BACKEND (update-password.dto.ts)
+      //  STRUCTURE CORRESPONDANT AU BACKEND (update-password.dto.ts)
       const requestBody = {
         currentPassword,
         newPassword,
@@ -123,7 +123,7 @@ const AdminProfile: React.FC = () => {
           const errorData = await response.json();
           errorMessage = errorData.message || errorMessage;
 
-          // ✅ GESTION DES ERREURS SPÉCIFIQUES DU BACKEND
+          //  GESTION DES ERREURS SPÉCIFIQUES DU BACKEND
           if (response.status === 401) {
             if (errorMessage.includes('correspondent pas')) {
               errorMessage = 'Les mots de passe ne correspondent pas';
@@ -194,7 +194,7 @@ const AdminProfile: React.FC = () => {
     }));
   };
 
-  // ✅ AFFICHAGE LOADING PENDANT LA VÉRIFICATION
+  //  AFFICHAGE LOADING PENDANT LA VÉRIFICATION
   if (isLoading) {
     return (
       <div className='min-h-screen flex items-center justify-center bg-gray-50'>
@@ -206,7 +206,7 @@ const AdminProfile: React.FC = () => {
     );
   }
 
-  // ✅ VÉRIFICATION FINALE (au cas où)
+  //  VÉRIFICATION FINALE (au cas où)
   if (!user || (user.role !== 'admin' && !user.isAdmin)) {
     return (
       <div className='min-h-screen flex items-center justify-center bg-gray-50'>
