@@ -744,7 +744,6 @@ Le projet est actuellement **100% cohérent** entre backend et frontend :
 - **Code splitting** : Chargement progressif des composants
 
 #### UX/UI
-- **Dark mode** : Thème sombre/clair
 - **Language switch** : Support multilingue (FR/EN)
 - **Accessibility** : WCAG 2.1 AA compliance
 - **Mobile PWA** : Application mobile progressive
@@ -770,7 +769,6 @@ Le projet est actuellement **100% cohérent** entre backend et frontend :
 
 #### Architecture
 - **Microservices** : Découpage en services indépendants
-- **GraphQL** : Alternative à REST API
 - **Event sourcing** : Architecture événementielle
 - **CQRS pattern** : Séparation lecture/écriture
 - **API Gateway** : Point d'entrée unique pour tous les services

@@ -11,7 +11,7 @@ import { Model } from "mongoose";
 import { StorageService } from "../shared/storage/storage.service";
 import { CreateDestinationDto } from "./dto/create-destination.dto";
 import { UpdateDestinationDto } from "./dto/update-destination.dto";
-import { Destination } from "./entities/destination.entity";
+import { Destination } from "../schemas/destination.schema";
 
 const defaultDestinations = [
   {
