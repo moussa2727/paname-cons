@@ -68,7 +68,7 @@ panameconsulting/
 │   │   ├── pages/          # Pages principales
 │   │   │   ├── admin/      # Dashboard admin
 │   │   │   ├── user/       # Pages utilisateur
-│   │   │   ├── politiques/ # Pages légales
+│   │   │   ├── auth/         # Login, Register
 │   │   │   └── ...         # Autres pages publiques
 │   │   ├── components/     # Composants réutilisables
 │   │   ├── context/        # Context API (Auth)
@@ -119,46 +119,40 @@ panameconsulting/
 
 ---
 
-## Pages Légales
+## Système de Rendez-vous
 
-L'application inclut des pages légales complètes et conformes :
+L'application gère les rendez-vous avec un système complet et centralisé :
 
-### 📄 Pages disponibles
+### **Statuts des rendez-vous**
+- **En attente** : Rendez-vous créé en attente de confirmation
+- **Confirmé** : Rendez-vous validé par l'administrateur
+- **Terminé** : Rendez-vous terminé avec avis administratif
+- **Annulé** : Rendez-vous annulé (soft delete)
 
-1. **Politique de Confidentialité** (`/politique-de-confidentialite`)
-   - Protection des données personnelles
-   - Conformité RGPD
-   - Droits des utilisateurs
-   - Gestion des cookies
+### **Gestion des créneaux horaires**
+- **Horaires** : 9h00 à 16h30 par créneaux de 30 minutes
+- **Jours ouvrés** : Lundi au vendredi (week-end fermé)
+- **Jours fériés** : Jours fériés du Mali automatiquement exclus
+- **Limite quotidienne** : Maximum 24 rendez-vous par jour
+- **Disponibilité** : Vérification en temps réel des créneaux
 
-2. **Conditions Générales d'Utilisation** (`/conditions-generales`)
-   - CGU complètes
-   - Obligations des parties
-   - Services proposés
-   - Gestion des litiges
+### **Destinations d'études disponibles**
+- Russie, Chypre, Chine, Maroc, Algérie, Turquie, France
+- Option "Autre" avec précision personnalisée
 
-3. **Mentions Légales** (`/mentions-legales`)
-   - Informations éditeur
-   - Hébergeur (Vercel)
-   - Propriété intellectuelle
-   - Contact légal
+### **Filières d'études disponibles**
+- Informatique, Médecine, Droit, Commerce, Ingénierie, Architecture
+- Option "Autre" avec précision personnalisée
 
-### 🎨 Caractéristiques
+### **Niveaux d'étude supportés**
+- Bac, Bac+1, Bac+2, Licence, Master I, Master II, Doctorat
 
-- **Design cohérent** : Thème sky-50/sky-100 identique au reste du site
-- **Sans Header/Footer** : Layout minimal pour lecture optimale
-- **SEO optimisé** : Meta tags `noindex, nofollow` appropriés
-- **Responsive** : Adapté mobile/desktop
-- **Accessibilité** : Structure sémantique HTML5
-
-### 📝 Contenu
-
-Les pages incluent :
-- Informations légales complètes
-- Coordonnées de l'entreprise
-- Politiques de protection des données
-- Conditions d'utilisation des services
-- Mentions obligatoires (hébergeur, éditeur)
+### **Permissions et restrictions**
+- **Utilisateurs** : Peuvent créer/modifier leurs propres rendez-vous
+- **Administrateurs** : Gestion complète de tous les rendez-vous
+- **Confirmation** : Réservée aux administrateurs
+- **Terminaison** : Réservée aux administrateurs avec avis obligatoire
+- **Annulation** : Possible jusqu'à 2 heures avant le RDV
 
 ---
 
@@ -340,10 +334,6 @@ npm run dev
 - **Frontend** : http://localhost:5173
 - **Admin Dashboard** : http://localhost:5173/gestionnaire/statistiques
 - **API Docs** : http://localhost:10000/api
-- **Pages légales** :
-  - Politique de confidentialité : http://localhost:5173/politique-de-confidentialite
-  - Conditions générales : http://localhost:5173/conditions-generales
-  - Mentions légales : http://localhost:5173/mentions-legales
 
 ---
 
@@ -353,6 +343,28 @@ npm run dev
 
 - [Backend Documentation](./backend/README.md) - API, architecture, configuration
 - [Frontend Documentation](./frontend/README.md) - Composants, structure, développement
+
+### ✅ Cohérence Garantie
+
+Le projet maintient une **cohérence stricte et automatique** entre backend et frontend :
+
+#### Source de vérité unique
+- **Backend** : `schemas/rendezvous.schema.ts` contient toutes les constantes
+- **Frontend** : Services API importent et utilisent ces constantes
+- **Composants** : Utilisation exclusive des constantes centralisées
+
+#### Constantes synchronisées
+- **Statuts** : `En attente`, `Confirmé`, `Terminé`, `Annulé`
+- **Avis** : `Favorable`, `Défavorable`
+- **Destinations** : Russie, Chypre, Chine, Maroc, Algérie, Turquie, France, Autre
+- **Filières** : Informatique, Médecine, Droit, Commerce, Ingénierie, Architecture, Autre
+- **Niveaux** : Bac à Doctorat
+- **Créneaux** : 9h00-16h30 par pas de 30 minutes
+
+#### Architecture centralisée
+- **Services API** : `AdminRendezVousService` et `UserRendezvousService`
+- **Validation** : Fonctions `validateRendezvousData()` partagées
+- **Types** : Interfaces TypeScript identiques entre admin et user
 
 ### Points clés
 
@@ -464,17 +476,7 @@ Gérable depuis le tableau de bord admin :
 - **Détection en temps réel** : `AdminSidebar` et `AdminDashboard` affichent l'état
 - **Contrôle utilisateur** : Bloque les utilisateurs normaux, épargne les admins
 
-#### Pages Légales
-
-Conformité légale complète :
-- Politique de confidentialité RGPD
-- Conditions générales d'utilisation
-- Mentions légales complètes
-- SEO optimisé avec meta tags
-- Layout minimal pour lecture optimale
-
 ---
-
 
 ### Système de Suppression
 
@@ -599,7 +601,6 @@ frontend/
 │   ├── pages/            # Pages principales
 │   │   ├── admin/        # Dashboard admin
 │   │   ├── user/         # Pages utilisateur
-│   │   ├── politiques/   # Pages légales
 │   │   ├── auth/         # Login, Register
 │   │   └── ...           # Autres pages publiques
 │   ├── components/       # Composants réutilisables
@@ -707,14 +708,26 @@ Le frontend est configuré pour Vercel :
 - ✅ Vérifier permissions d'écriture
 - ✅ Redémarrer le backend
 
-**Pages légales non accessibles**
-- ✅ Vérifier les routes dans `App.tsx`
-- ✅ Vérifier les imports des composants
-- ✅ Consulter la console pour erreurs JavaScript
-
 ---
 
 ## Améliorations Possibles
+
+### ✅ État Actuel du Projet
+
+Le projet est actuellement **100% cohérent** entre backend et frontend :
+
+#### Cohérence des constantes
+- **Statuts des rendez-vous** : `En attente`, `Confirmé`, `Terminé`, `Annulé` (identiques partout)
+- **Avis administratifs** : `Favorable`, `Défavorable` (identiques partout)
+- **Destinations d'études** : Russie, Chypre, Chine, Maroc, Algérie, Turquie, France, Autre (identiques partout)
+- **Filières d'études** : Informatique, Médecine, Droit, Commerce, Ingénierie, Architecture, Autre (identiques partout)
+- **Niveaux d'étude** : Bac à Doctorat (identiques partout)
+- **Créneaux horaires** : 9h00-16h30 par pas de 30 minutes (identiques partout)
+
+#### Architecture centralisée
+- **Backend** : Toutes les constantes définies dans `schemas/rendezvous.schema.ts`
+- **Frontend** : Services API importent les constantes du backend
+- **Composants** : Utilisation unique des constantes centralisées
 
 ### À court terme (1-2 semaines)
 
@@ -744,6 +757,8 @@ Le frontend est configuré pour Vercel :
 - **Payment system** : Stripe/PayPal integration
 - **Video conferencing** : Zoom/Teams integration
 - **Chat system** : Messaging temps réel avec Socket.io
+- **Advanced filtering** : Filtres multi-critères pour rendez-vous
+- **Real-time updates** : Mises à jour en temps réel des statuts
 
 #### Analytics & Monitoring
 - **User analytics** : Tracking comportement utilisateur
@@ -758,18 +773,22 @@ Le frontend est configuré pour Vercel :
 - **GraphQL** : Alternative à REST API
 - **Event sourcing** : Architecture événementielle
 - **CQRS pattern** : Séparation lecture/écriture
+- **API Gateway** : Point d'entrée unique pour tous les services
+- **Message Queue** : RabbitMQ/Apache Kafka pour les traitements asynchrones
 
 #### DevOps & Scalabilité
 - **Kubernetes** : Orchestration conteneurs
-- **CI/CD pipeline** : GitHub Actions complet
-- **Load balancing** : HAProxy/Nginx
-- **Auto-scaling** : Scaling automatique
+- **CI/CD pipeline** : GitHub Actions complet avec tests automatisés
+- **Load balancing** : HAProxy/Nginx avec health checks
+- **Auto-scaling** : Scaling automatique basé sur la charge
+- **Monitoring avancé** : Prometheus + Grafana pour métriques détaillées
+- **Security scanning** : Snyk/OWASP ZAP automatisé dans CI/CD
 
 #### IA & Machine Learning
-- **Recommendation engine** : Suggestions personnalisées
-- **Chatbot** : Support client automatisé
-- **Sentiment analysis** : Analyse feedback utilisateurs
-- **Predictive analytics** : Prédictions comportement
+- **Recommendation engine** : Algorithmes de suggestion basés sur l'historique
+- **Chatbot intelligent** : Bot conversationnel avec NLP pour support client
+- **Predictive analytics** : Prédictions des tendances et comportements utilisateurs
+- **Automated testing** : Tests E2E avec Playwright
 
 ## Support
 
@@ -792,10 +811,9 @@ Pour les questions ou bugs, créez une issue sur GitHub.
 **Paname Consulting**
 - 📧 Email : panameconsulting906@gmail.com
 - 📞 Téléphone : +223 91 83 09 41
-- 📍 Adresse : Kalaban Coura, Imm.Bore en face de l'hôtel Wassulu, Bamako, Mali
 
 ---
 
 **Dernière mise à jour** : Février 2026
-**Version** : 2.0.0
+**Version** : 2.1.0
 **Licence** : MIT

@@ -38,6 +38,12 @@ import {
   RendezvousStatus,
   AdminOpinion,
   Rendezvous,
+  // Importer les constantes centralisées
+  EDUCATION_LEVELS as CENTRAL_EDUCATION_LEVELS,
+  FILIERES as CENTRAL_FILIERES,
+  DESTINATIONS as CENTRAL_DESTINATIONS,
+  RENDEZVOUS_STATUS,
+  ADMIN_OPINION as CENTRAL_ADMIN_OPINION
 } from '../../api/admin/AdminRendezVousService';
 import { destinationService } from '../../api/admin/AdminDestionService';
 
@@ -92,30 +98,10 @@ interface CreateRendezVousData {
 }
 
 // Constantes
-const EDUCATION_LEVELS = [
-  'Bac',
-  'Bac+1',
-  'Bac+2',
-  'Licence',
-  'Master I',
-  'Master II',
-  'Doctorat',
-] as const;
-const FILIERES = [
-  'Informatique',
-  'Médecine',
-  'Ingénierie',
-  'Droit',
-  'Commerce',
-  'Autre',
-] as const;
-const STATUTS = [
-  'En attente',
-  'Confirmé',
-  'Terminé',
-  'Annulé',
-] as const;
-const ADMIN_AVIS = ['Favorable', 'Défavorable'] as const;
+const EDUCATION_LEVELS = CENTRAL_EDUCATION_LEVELS;
+const FILIERES = CENTRAL_FILIERES;
+const STATUTS = Object.values(RENDEZVOUS_STATUS);
+const ADMIN_AVIS = Object.values(CENTRAL_ADMIN_OPINION);
 
 const AdminRendezVous = (): React.JSX.Element => {
   const { access_token, user } = useAuth();
@@ -248,7 +234,7 @@ const AdminRendezVous = (): React.JSX.Element => {
     telephone: rdv.telephone || '',
     date: rdv.date || '',
     time: rdv.time || '',
-    status: rdv.status || 'En attente',
+    status: rdv.status || RENDEZVOUS_STATUS.PENDING,
     destination: rdv.destination || '',
     destinationAutre: rdv.destinationAutre,
     niveauEtude: rdv.niveauEtude || '',
@@ -273,11 +259,11 @@ const AdminRendezVous = (): React.JSX.Element => {
         return { canDelete: true };
       }
 
-      if (rdv.status === 'Annulé') {
+      if (rdv.status === RENDEZVOUS_STATUS.CANCELLED) {
         return { canDelete: false, message: 'Rendez-vous déjà annulé' };
       }
 
-      if (rdv.status === 'Terminé') {
+      if (rdv.status === RENDEZVOUS_STATUS.COMPLETED) {
         return {
           canDelete: false,
           message: 'Impossible de supprimer un rendez-vous terminé',
@@ -382,7 +368,7 @@ const AdminRendezVous = (): React.JSX.Element => {
       setShowMobileActions(null);
 
       let successMessage = `Statut mis à jour: ${status}`;
-      if (status === 'Terminé' && avisAdmin) {
+      if (status === RENDEZVOUS_STATUS.COMPLETED && avisAdmin) {
         successMessage += ` (Avis: ${avisAdmin})`;
       }
 
@@ -575,14 +561,14 @@ const AdminRendezVous = (): React.JSX.Element => {
       // Règles spéciales pour admin
       const isAdmin = user?.role === 'admin';
 
-      if (newStatus === 'Terminé') {
+      if (newStatus === RENDEZVOUS_STATUS.COMPLETED) {
         // Pour "Terminé", toujours demander l'avis admin
         setPendingStatusUpdate({ id, status: newStatus as RendezvousStatus });
         setShowAvisModal(true);
-      } else if (newStatus === 'En attente' && isAdmin) {
+      } else if (newStatus === RENDEZVOUS_STATUS.PENDING && isAdmin) {
         // Pour "En attente", pas besoin d'avis
         handleUpdateStatus(id, newStatus as RendezvousStatus);
-      } else if (newStatus === 'Annulé') {
+      } else if (newStatus === RENDEZVOUS_STATUS.CANCELLED) {
         // Pour "Annulé", demander confirmation
         setShowDeleteModal(id);
       } else {
@@ -738,30 +724,30 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   }, [service, page, searchTerm, selectedStatus, refreshTrigger]);
 
-  // Fonctions utilitaires
+  // Fonctions utilitaires - Utiliser les constantes centralisées pour la cohérence
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Confirmé':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      case 'En attente':
-        return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'Annulé':
-        return 'bg-rose-100 text-rose-800 border-rose-200';
-      case 'Terminé':
-        return 'bg-sky-100 text-sky-800 border-sky-200';
+      case RENDEZVOUS_STATUS.CONFIRMED:
+        return 'bg-sky-100 text-sky-800 border-sky-300';
+      case RENDEZVOUS_STATUS.PENDING:
+        return 'bg-amber-100 text-amber-800 border-amber-300';
+      case RENDEZVOUS_STATUS.CANCELLED:
+        return 'bg-red-100 text-red-800 border-red-300';
+      case RENDEZVOUS_STATUS.COMPLETED:
+        return 'bg-emerald-100 text-emerald-800 border-emerald-300';
       default:
-        return 'bg-slate-100 text-slate-800 border-slate-200';
+        return 'bg-gray-100 text-gray-800 border-gray-300';
     }
   };
 
   const getAvisColor = (avis: string) => {
     switch (avis) {
-      case 'Favorable':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      case 'Défavorable':
-        return 'bg-rose-100 text-rose-800 border-rose-200';
+      case CENTRAL_ADMIN_OPINION.FAVORABLE:
+        return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+      case CENTRAL_ADMIN_OPINION.UNFAVORABLE:
+        return 'bg-red-100 text-red-800 border-red-300';
       default:
-        return 'bg-slate-100 text-slate-800 border-slate-200';
+        return 'bg-gray-100 text-gray-800 border-gray-300';
     }
   };
 
@@ -778,10 +764,10 @@ const AdminRendezVous = (): React.JSX.Element => {
     });
   };
 
-  // Options de destination depuis l'API + "Autre"
+  // Options de destination depuis l'API + destinations centralisées
   const destinationOptions = [
     ...destinations.map(dest => dest.country),
-    'Autre',
+    ...CENTRAL_DESTINATIONS.filter(dest => !destinations.map(d => d.country).includes(dest))
   ];
 
   // Fonction pour démarrer l'édition d'un rendez-vous
@@ -816,24 +802,24 @@ const AdminRendezVous = (): React.JSX.Element => {
     }
   };
 
-  // Fonction pour obtenir les transitions de statut autorisées
+  // Fonction pour obtenir les transitions de statut autorisées - Utiliser les constantes centralisées
   const getAvailableStatusTransitions = (currentStatus: string): string[] => {
     const isAdmin = user?.role === 'admin';
 
-    // Transitions complètes pour admin
+    // Transitions complètes pour admin - Utiliser les constantes du backend
     const adminTransitions: Record<string, string[]> = {
-      'En attente': ['Confirmé', 'Annulé', 'Terminé'],
-      Confirmé: ['En attente', 'Terminé', 'Annulé'],
-      Terminé: ['En attente', 'Confirmé', 'Annulé'],
-      Annulé: ['En attente', 'Confirmé', 'Terminé'],
+      [RENDEZVOUS_STATUS.PENDING]: [RENDEZVOUS_STATUS.CONFIRMED, RENDEZVOUS_STATUS.CANCELLED, RENDEZVOUS_STATUS.COMPLETED],
+      [RENDEZVOUS_STATUS.CONFIRMED]: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.COMPLETED, RENDEZVOUS_STATUS.CANCELLED],
+      [RENDEZVOUS_STATUS.COMPLETED]: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.CONFIRMED, RENDEZVOUS_STATUS.CANCELLED],
+      [RENDEZVOUS_STATUS.CANCELLED]: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.CONFIRMED, RENDEZVOUS_STATUS.COMPLETED],
     };
 
     // Transitions limitées pour utilisateur
     const userTransitions: Record<string, string[]> = {
-      'En attente': [],
-      Confirmé: ['Annulé'],
-      Terminé: [],
-      Annulé: [],
+      [RENDEZVOUS_STATUS.PENDING]: [],
+      [RENDEZVOUS_STATUS.CONFIRMED]: [RENDEZVOUS_STATUS.CANCELLED],
+      [RENDEZVOUS_STATUS.COMPLETED]: [],
+      [RENDEZVOUS_STATUS.CANCELLED]: [],
     };
 
     const transitions = isAdmin ? adminTransitions : userTransitions;
@@ -846,10 +832,10 @@ const AdminRendezVous = (): React.JSX.Element => {
   // Calcul des stats
   const stats = {
     total: rendezvous.length,
-    confirmed: rendezvous.filter(r => r.status === 'Confirmé').length,
-    pending: rendezvous.filter(r => r.status === 'En attente').length,
-    completed: rendezvous.filter(r => r.status === 'Terminé').length,
-    cancelled: rendezvous.filter(r => r.status === 'Annulé').length,
+    confirmed: rendezvous.filter(r => r.status === RENDEZVOUS_STATUS.CONFIRMED).length,
+    pending: rendezvous.filter(r => r.status === RENDEZVOUS_STATUS.PENDING).length,
+    completed: rendezvous.filter(r => r.status === RENDEZVOUS_STATUS.COMPLETED).length,
+    cancelled: rendezvous.filter(r => r.status === RENDEZVOUS_STATUS.CANCELLED).length,
   };
 
   if (!service) {
@@ -1158,7 +1144,7 @@ const AdminRendezVous = (): React.JSX.Element => {
                                     ).map(status => (
                                       <option key={status} value={status}>
                                         {status}
-                                        {status === 'En attente' &&
+                                        {status === RENDEZVOUS_STATUS.PENDING &&
                                           user?.role === 'admin' &&
                                           ' (Admin seulement)'}
                                       </option>
@@ -1355,11 +1341,11 @@ const AdminRendezVous = (): React.JSX.Element => {
                           >
                             {rdv.status}
                           </span>
-                          {rdv.status === 'Terminé' && rdv.avisAdmin && (
+                          {rdv.status === RENDEZVOUS_STATUS.COMPLETED && rdv.avisAdmin && (
                             <span
                               className={`px-2 py-1 rounded-lg text-xs font-medium border flex items-center gap-1 ${getAvisColor(rdv.avisAdmin)}`}
                             >
-                              {rdv.avisAdmin === 'Favorable' ? (
+                              {rdv.avisAdmin === CENTRAL_ADMIN_OPINION.FAVORABLE ? (
                                 <CheckCircle className='w-3 h-3' />
                               ) : (
                                 <XCircle className='w-3 h-3' />
@@ -1710,11 +1696,11 @@ const AdminRendezVous = (): React.JSX.Element => {
                                   </option>
                                 ))}
                               </select>
-                              {rdv.status === 'Terminé' && rdv.avisAdmin && (
+                              {rdv.status === RENDEZVOUS_STATUS.COMPLETED && rdv.avisAdmin && (
                                 <div
                                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-2 ${getAvisColor(rdv.avisAdmin)}`}
                                 >
-                                  {rdv.avisAdmin === 'Favorable' ? (
+                                  {rdv.avisAdmin === CENTRAL_ADMIN_OPINION.FAVORABLE ? (
                                     <CheckCircle className='w-3 h-3 shrink-0' />
                                   ) : (
                                     <XCircle className='w-3 h-3 shrink-0' />
@@ -1963,21 +1949,21 @@ const AdminRendezVous = (): React.JSX.Element => {
                     onClick={() => handleAvisSelection(avis as AdminOpinion)}
                     disabled={isSubmitting}
                     className={`p-4 rounded-lg border-2 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500 hover:border-sky-400 active:scale-95 disabled:opacity-50 ${
-                      avis === 'Favorable'
+                      avis === CENTRAL_ADMIN_OPINION.FAVORABLE
                         ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
                         : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'
                     }`}
                   >
                     <div className='font-semibold text-sm flex items-center justify-between'>
                       <span>{avis}</span>
-                      {avis === 'Favorable' ? (
+                      {avis === CENTRAL_ADMIN_OPINION.FAVORABLE ? (
                         <CheckCircle className='w-4 h-4 text-emerald-600 shrink-0' />
                       ) : (
                         <XCircle className='w-4 h-4 text-rose-600 shrink-0' />
                       )}
                     </div>
                     <div className='text-xs mt-1 opacity-75'>
-                      {avis === 'Favorable'
+                      {avis === CENTRAL_ADMIN_OPINION.FAVORABLE
                         ? 'Procédure créée'
                         : 'Critères non remplis'}
                     </div>
@@ -2028,7 +2014,7 @@ const AdminRendezVous = (): React.JSX.Element => {
 
                   <div className='space-y-4 md:space-y-5'>
                     {/* Prénom et Nom - Empilés sur mobile */}
-                    <div className='flex flex-col sm:flex-row gap-4 md:gap-5'>
+                    <div className='flex flex-col sm:flex-row gap-4 m d:gap-5'>
                       <div className='flex-1'>
                         <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
                           Prénom <span className='text-rose-500'>*</span>
