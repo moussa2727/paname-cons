@@ -2014,7 +2014,7 @@ const AdminRendezVous = (): React.JSX.Element => {
 
                   <div className='space-y-4 md:space-y-5'>
                     {/* Prénom et Nom - Empilés sur mobile */}
-                    <div className='flex flex-col sm:flex-row gap-4 m d:gap-5'>
+                    <div className='flex flex-col sm:flex-row gap-4 md:gap-5'>
                       <div className='flex-1'>
                         <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
                           Prénom <span className='text-rose-500'>*</span>
