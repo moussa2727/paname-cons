@@ -11,31 +11,21 @@ import { Cron } from '@nestjs/schedule';
 import { ProcedureService } from '../procedure/procedure.service';
 import { NotificationService } from '../notification/notification.service';
 import { UsersService } from '../users/users.service';
-import { Rendezvous } from '../schemas/rendezvous.schema';
+import { ADMIN_OPINION, Rendezvous, RENDEZVOUS_STATUS } from '../schemas/rendezvous.schema';
 import { CreateRendezvousDto } from './dto/create-rendezvous.dto';
 import { UpdateRendezvousDto } from './dto/update-rendezvous.dto';
 import { CreateProcedureDto } from '../procedure/dto/create-procedure.dto';
 const Holidays = require('date-holidays');
 
-// Constantes pour la cohérence - RETIRÉ MISSED
-const RENDEZVOUS_STATUS = {
-  PENDING: 'En attente',
-  CONFIRMED: 'Confirmé',
-  COMPLETED: 'Terminé',
-  CANCELLED: 'Annulé',
-} as const;
 
-const ADMIN_OPINION = {
-  FAVORABLE: 'Favorable',
-  UNFAVORABLE: 'Défavorable',
-} as const;
+
 
 const MAX_SLOTS_PER_DAY = 24;
 const WORKING_HOURS = { start: 9, end: 16.5 };
 const CANCELLATION_THRESHOLD_HOURS = 2;
 const AUTO_CANCEL_PENDING_HOURS = 5;
 
-// Types pour la cohérence - RETIRÉ MISSED
+// Types pour la cohérence
 type RendezvousStatus =
   (typeof RENDEZVOUS_STATUS)[keyof typeof RENDEZVOUS_STATUS];
 type AdminOpinion = (typeof ADMIN_OPINION)[keyof typeof ADMIN_OPINION];

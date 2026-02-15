@@ -9,38 +9,13 @@ import {
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-// Constantes pour la cohérence
-const RENDEZVOUS_STATUS = {
-  PENDING: 'En attente',
-  CONFIRMED: 'Confirmé',
-  COMPLETED: 'Terminé',
-  CANCELLED: 'Annulé',
-  MISSED: 'Manqué',
-} as const;
-
-const ADMIN_OPINION = {
-  FAVORABLE: 'Favorable',
-  UNFAVORABLE: 'Défavorable',
-} as const;
-
-const DESTINATIONS = [
-  'France',
-  'Canada',
-  'Belgique',
-  'Suisse',
-  'États-Unis',
-  'Autre',
-] as const;
-
-const FILIERES = [
-  'Informatique',
-  'Médecine',
-  'Droit',
-  'Commerce',
-  'Ingénierie',
-  'Architecture',
-  'Autre',
-] as const;
+// Constantes importées du schema pour garantir la cohérence
+import {
+  RENDEZVOUS_STATUS,
+  ADMIN_OPINION,
+  DESTINATIONS,
+  FILIERES
+} from '../../schemas/rendezvous.schema';
 
 export class UpdateRendezvousDto extends PartialType(CreateRendezvousDto) {
   @ApiProperty({

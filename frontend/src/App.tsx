@@ -25,9 +25,6 @@ import Propos from './pages/Propos';
 import Services from './pages/Services';
 import NotFound from './pages/Notfound';
 import RendezVous from './pages/user/rendezvous/RendezVous';
-import PolitiqueConfidentialite from './pages/politiques/PolitiqueConfidentialite';
-import ConditionsGenerales from './pages/politiques/ConditionsGenerales';
-import MentionsLegales from './pages/politiques/MentionsLegales';
 
 // Pages de connexion, inscription, mot de passe oublié
 import Connexion from './pages/user/auth/Connexion';
@@ -240,7 +237,7 @@ function App() {
             }
           />
 
-          <Route
+          {/* <Route
             path='/politique-de-confidentialite'
             element={
               <MinimalLayout>
@@ -265,7 +262,7 @@ function App() {
                 <MentionsLegales />
               </MinimalLayout>
             }
-          />
+          /> */}
 
           {/* Routes authentifiées (utilisateurs) */}
           <Route

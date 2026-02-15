@@ -82,7 +82,6 @@ export interface FilterParams {
   search?: string;
 }
 
-// Constantes pour la cohérence avec le backend
 const RENDEZVOUS_STATUS = {
   PENDING: 'En attente' as const,
   CONFIRMED: 'Confirmé' as const,
@@ -103,6 +102,27 @@ const EDUCATION_LEVELS = [
   'Master I',
   'Master II',
   'Doctorat',
+] as const;
+
+const DESTINATIONS = [
+  'Russie',
+  'Chypre',
+  'Chine',
+  'Maroc',
+  'Algérie',
+  'Turquie',
+  'France',
+  'Autre',
+] as const;
+
+const FILIERES = [
+  'Informatique',
+  'Médecine',
+  'Droit',
+  'Commerce',
+  'Ingénierie',
+  'Architecture',
+  'Autre',
 ] as const;
 
 const TIME_SLOTS = [
@@ -220,6 +240,16 @@ const ERROR_MESSAGES: ErrorMessages = {
   TERMINATE_SUCCESS: 'Rendez-vous terminé',
   FETCH_SUCCESS: 'Rendez-vous chargés',
 } as const;
+
+// Exporter les constantes pour les composants
+export {
+  RENDEZVOUS_STATUS,
+  ADMIN_OPINION,
+  EDUCATION_LEVELS,
+  DESTINATIONS,
+  FILIERES,
+  TIME_SLOTS
+};
 
 export class AdminRendezVousService {
   private fetchWithAuth: (

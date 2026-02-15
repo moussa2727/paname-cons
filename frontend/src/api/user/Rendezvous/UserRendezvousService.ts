@@ -12,6 +12,56 @@ const ADMIN_OPINION = {
 } as const;
 
 // Constantes pour la cohérence avec le backend
+const EDUCATION_LEVELS = [
+  'Bac',
+  'Bac+1',
+  'Bac+2',
+  'Licence',
+  'Master I',
+  'Master II',
+  'Doctorat',
+] as const;
+
+const DESTINATIONS = [
+  'Russie',
+  'Chypre',
+  'Chine',
+  'Maroc',
+  'Algérie',
+  'Turquie',
+  'France',
+  'Autre',
+] as const;
+
+const FILIERES = [
+  'Informatique',
+  'Médecine',
+  'Droit',
+  'Commerce',
+  'Ingénierie',
+  'Architecture',
+  'Autre',
+] as const;
+
+const TIME_SLOTS = [
+  '09:00',
+  '09:30',
+  '10:00',
+  '10:30',
+  '11:00',
+  '11:30',
+  '12:00',
+  '12:30',
+  '13:00',
+  '13:30',
+  '14:00',
+  '14:30',
+  '15:00',
+  '15:30',
+  '16:00',
+  '16:30',
+] as const;
+
 const CANCELLATION_THRESHOLD_HOURS = 2;
 const AUTO_EXPIRE_MINUTES = 10;
 
@@ -85,6 +135,10 @@ export class UserRendezvousService {
    */
   static readonly STATUS = RENDEZVOUS_STATUS;
   static readonly ADMIN_OPINION = ADMIN_OPINION;
+  static readonly EDUCATION_LEVELS = EDUCATION_LEVELS;
+  static readonly DESTINATIONS = DESTINATIONS;
+  static readonly FILIERES = FILIERES;
+  static readonly TIME_SLOTS = TIME_SLOTS;
 
   /**
    * Vérifie si un statut est valide (cohérent avec le backend)

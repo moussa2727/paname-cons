@@ -4,19 +4,19 @@ import { Transform } from 'class-transformer';
 import { BadRequestException } from '@nestjs/common';
 
 // Constantes pour la cohérence - RETIRÉ MISSED
-const RENDEZVOUS_STATUS = {
+export const RENDEZVOUS_STATUS = {
   PENDING: 'En attente',
   CONFIRMED: 'Confirmé',
   COMPLETED: 'Terminé',
   CANCELLED: 'Annulé',
 } as const;
 
-const ADMIN_OPINION = {
+export const ADMIN_OPINION = {
   FAVORABLE: 'Favorable',
   UNFAVORABLE: 'Défavorable',
 } as const;
 
-const EDUCATION_LEVELS = [
+export const EDUCATION_LEVELS = [
   'Bac',
   'Bac+1',
   'Bac+2',
@@ -26,7 +26,7 @@ const EDUCATION_LEVELS = [
   'Doctorat',
 ] as const;
 
-const TIME_SLOTS = [
+export const TIME_SLOTS = [
   '09:00',
   '09:30',
   '10:00',
@@ -46,7 +46,7 @@ const TIME_SLOTS = [
 ] as const;
 
 // DESTINATIONS - Inclure "Autre" comme option valide
-const DESTINATIONS = [
+export const DESTINATIONS = [
   'Russie',
   'Chypre',
   'Chine',
@@ -57,7 +57,7 @@ const DESTINATIONS = [
   'Autre',
 ] as const;
 
-const FILIERES = [
+export const FILIERES = [
   'Informatique',
   'Médecine',
   'Droit',

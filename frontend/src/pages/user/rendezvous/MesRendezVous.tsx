@@ -38,6 +38,11 @@ import {
   AuthFunctions,
 } from '../../../api/user/Rendezvous/UserRendezvousService';
 
+const {
+  STATUS,
+  ADMIN_OPINION
+} = UserRendezvousService;
+
 const pageConfigs = {
   '/mon-profil': {
     title: 'Mon Profil',
@@ -61,22 +66,22 @@ const pageConfigs = {
 
 const statusOptions = [
   { value: '', label: 'Tous les statuts' },
-  { value: 'En attente', label: 'En attente' },
-  { value: 'Confirmé', label: 'Confirmé' },
-  { value: 'Terminé', label: 'Terminé' },
-  { value: 'Annulé', label: 'Annulé' },
+  { value: STATUS.PENDING, label: 'En attente' },
+  { value: STATUS.CONFIRMED, label: 'Confirmé' },
+  { value: STATUS.COMPLETED, label: 'Terminé' },
+  { value: STATUS.CANCELLED, label: 'Annulé' },
 ];
 
 const statusColors: Record<string, string> = {
-  'En attente': 'bg-amber-100 text-amber-800 border-amber-300',
-  Confirmé: 'bg-sky-100 text-sky-800 border-sky-300',
-  Terminé: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-  Annulé: 'bg-red-100 text-red-800 border-red-300',
+  [STATUS.PENDING]: 'bg-amber-100 text-amber-800 border-amber-300',
+  [STATUS.CONFIRMED]: 'bg-sky-100 text-sky-800 border-sky-300',
+  [STATUS.COMPLETED]: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  [STATUS.CANCELLED]: 'bg-red-100 text-red-800 border-red-300',
 };
 
 const avisColors: Record<string, string> = {
-  Favorable: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-  Défavorable: 'bg-red-100 text-red-800 border-red-300',
+  [ADMIN_OPINION.FAVORABLE]: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  [ADMIN_OPINION.UNFAVORABLE]: 'bg-red-100 text-red-800 border-red-300',
 };
 
 const MesRendezvous = () => {

@@ -28,6 +28,13 @@ import {
   Dock,
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import { UserRendezvousService } from '../../../api/user/Rendezvous/UserRendezvousService';
+
+// Utiliser les constantes centralisées pour la cohérence
+const {
+  FILIERES,
+  EDUCATION_LEVELS
+} = UserRendezvousService;
 
 interface Destination {
   _id: string;
@@ -80,26 +87,6 @@ const RendezVous = () => {
   const [showOtherDestination, setShowOtherDestination] = useState(false);
   const [showOtherFiliere, setShowOtherFiliere] = useState(false);
   const [success, setSuccess] = useState(false);
-
-  const niveauxEtude = [
-    'Bac',
-    'Bac+1',
-    'Bac+2',
-    'Licence',
-    'Master I',
-    'Master II',
-    'Doctorat',
-  ];
-
-  const filieres = [
-    'Informatique',
-    'Médecine',
-    'Droit',
-    'Commerce',
-    'Ingénierie',
-    'Architecture',
-    'Autre',
-  ];
 
   useEffect(() => {
     AOS.init({
@@ -434,15 +421,7 @@ const RendezVous = () => {
       }
     } else {
       // Vérifier que la filière est valide
-      const validFilieres = [
-        'Informatique',
-        'Médecine',
-        'Droit',
-        'Commerce',
-        'Ingénierie',
-        'Architecture',
-      ];
-      if (!validFilieres.includes(formData.filiere)) {
+      if (!FILIERES.includes(formData.filiere as any)) {
         toast.error('Filière invalide');
         return;
       }
@@ -914,7 +893,7 @@ const RendezVous = () => {
             required
           >
             <option value=''>Sélectionnez votre niveau</option>
-            {niveauxEtude.map(niv => (
+            {EDUCATION_LEVELS.map((niv: string) => (
               <option key={niv} value={niv}>
                 {niv}
               </option>
@@ -941,7 +920,7 @@ const RendezVous = () => {
             required
           >
             <option value=''>Sélectionnez votre filière</option>
-            {filieres.map(fil => (
+            {FILIERES.map((fil: string) => (
               <option key={fil} value={fil}>
                 {fil}
               </option>

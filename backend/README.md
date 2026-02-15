@@ -1,6 +1,6 @@
 # Backend - Paname Consulting API
 
-API REST NestJS pour la gestion des consultations et procédures.
+API REST NestJS pour la gestion des consultations et procédures d'études à l'international.
 
 ## 🚀 Démarrage rapide
 
@@ -11,6 +11,7 @@ npm run start:dev
 ```
 
 **L'API est accessible sur** : `http://localhost:10000`
+**Documentation Swagger** : `http://localhost:10000/api`
 
 ---
 
@@ -21,6 +22,7 @@ npm run start:dev
 - [Architecture](#architecture)
 - [API Endpoints](#api-endpoints)
 - [Services](#services)
+- [Système de Rendez-vous](#système-de-rendez-vous)
 - [Logs](#logs)
 - [Déploiement](#déploiement)
 

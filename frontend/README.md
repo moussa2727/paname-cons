@@ -1,6 +1,6 @@
 # Frontend - Paname Consulting
 
-Application React/TypeScript pour la gestion des consultations et procédures.
+Application React/TypeScript pour la gestion des consultations et procédures d'études à l'international.
 
 ## 🚀 Démarrage rapide
 
@@ -19,7 +19,9 @@ npm run dev
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Structure](#structure)
+- [Services API](#services-api)
 - [Composants](#composants)
+- [Système de Rendez-vous](#système-de-rendez-vous)
 - [Développement](#développement)
 - [Build](#build)
 
@@ -35,12 +37,19 @@ npm install
 
 ### Outils
 
-- **Vite** : Bundler/Dev server ultra-rapide
-- **React 18+** : UI library
-- **TypeScript** : Type safety
-- **Tailwind CSS** : Styling
-- **Axios** : HTTP client
-- **Lucide React** : Icons
+- **React 19.2.4** : UI library avec TypeScript 5.9.3
+- **Vite 7.3.1** : Bundler/Dev server ultra-rapide
+- **Tailwind CSS 4.1.18** : Framework CSS utilitaire
+- **React Router DOM 7.13.0** : Routage client-side
+- **Axios 1.13.4** : HTTP client pour les appels API
+- **React Helmet Async 2.0.5** : Gestion des meta tags
+- **Framer Motion 12.34.0** : Animations fluides
+- **AOS 2.3.4** : Animations au scroll
+- **React Toastify 11.0.5** : Notifications toast
+- **JWT-decode 4.0.0** : Décodage tokens JWT
+- **Lucide React 0.563.0** : Icônes modernes
+- **Date-fns 4.1.0** : Manipulation des dates
+- **Context API** : Gestion d'état globale
 
 ---
 

@@ -10,39 +10,15 @@ import {
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
+// Constantes importées du schema pour garantir la cohérence
+import {
+  DESTINATIONS,
+  FILIERES,
+  EDUCATION_LEVELS,
+} from '../../schemas/rendezvous.schema';
+
 const TIME_SLOT_REGEX = /^(09|1[0-6]):(00|30)$/;
 const DATE_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
-
-// Constantes pour la cohérence
-const EDUCATION_LEVELS = [
-  'Bac',
-  'Bac+1',
-  'Bac+2',
-  'Licence',
-  'Master I',
-  'Master II',
-  'Doctorat',
-] as const;
-
-const DESTINATIONS = [
-  'France',
-  'Chypre',
-  'Chine',
-  'Maroc',
-  'Algérie',
-  'Turquie',
-  'Autre',
-] as const;
-
-const FILIERES = [
-  'Informatique',
-  'Médecine',
-  'Droit',
-  'Commerce',
-  'Ingénierie',
-  'Architecture',
-  'Autre',
-] as const;
 
 export class CreateRendezvousDto {
   @ApiProperty({ example: 'Jean', description: 'Prénom du client' })

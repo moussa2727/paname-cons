@@ -178,7 +178,7 @@ export default function Footer() {
               © {new Date().getFullYear()} Paname Consulting. Tous droits
               réservés.
             </p>
-            <div className='flex flex-col md:flex-row gap-4 text-center order-1 md:order-2'>
+            {/* <div className='flex flex-col md:flex-row gap-4 text-center order-1 md:order-2'>
               {[
                 {
                   text: 'Politique de confidentialité',
@@ -198,7 +198,7 @@ export default function Footer() {
                   {link.text}
                 </Link>
               ))}
-            </div>
+            </div> */}
           </div>
         </div>
       </div>

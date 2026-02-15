@@ -31,19 +31,10 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { CacheKey, CacheTTL } from '@nestjs/cache-manager';
+import { ADMIN_OPINION, RENDEZVOUS_STATUS } from '../schemas/rendezvous.schema';
 
-// Constantes pour la cohérence - RETIRÉ EXPIRED
-const RENDEZVOUS_STATUS = {
-  PENDING: 'En attente',
-  CONFIRMED: 'Confirmé',
-  COMPLETED: 'Terminé',
-  CANCELLED: 'Annulé',
-} as const;
 
-const ADMIN_OPINION = {
-  FAVORABLE: 'Favorable',
-  UNFAVORABLE: 'Défavorable',
-} as const;
+
 
 @ApiTags('rendezvous')
 @ApiBearerAuth()

@@ -11,8 +11,7 @@
 - [Configuration](#configuration)
 - [Démarrage](#démarrage)
 - [Documentation](#documentation)
-- [Pages Légales](#pages-légales)
-- [Système d'Annulation](#système-dannulation)
+- [Système de Rendez-vous](#système-de-rendez-vous)
 - [Mode Maintenance](#mode-maintenance)
 - [Support](#support)
 
@@ -26,21 +25,21 @@ Paname Consulting est une plateforme complète permettant aux utilisateurs de :
 - 💬 Contacter l'équipe via des formulaires de contact
 - 👤 Gérer leur profil et préférences
 - 🌍 Accéder à des services d'orientation académique internationale
-- 📄 Consulter les documents légaux et politiques
 
 ### Caractéristiques principales
 
-- ✅ Authentification JWT sécurisée
-- ✅ Tableaux de bord administrateur avancés
-- ✅ Système d'email SMTP intégré
-- ✅ Logs centralisés et sécurisés
-- ✅ Mode maintenance configurable
-- ✅ API REST documentée
+- ✅ Authentification JWT sécurisée avec tokens d'accès et rafraîchissement
+- ✅ Tableaux de bord administrateur avancés avec statistiques en temps réel
+- ✅ Système d'email SMTP intégré (Gmail/Resend)
+- ✅ Logs centralisés et sécurisés avec rotation automatique
+- ✅ Mode maintenance configurable avec protection admin
+- ✅ API REST documentée avec Swagger
 - ✅ Interface responsive (mobile-first)
-- ✅ Pages légales conformes (RGPD)
 - ✅ SEO optimisé avec meta tags
-- ✅ Système d'annulation avec confirmation améliorée
-- ✅ Système de routage avancé
+- ✅ Système de rendez-vous avec gestion des créneaux horaires
+- ✅ Système de procédures administratives multi-étapes
+- ✅ Gestion des destinations d'études internationales
+- ✅ Validation des données en temps réel
 
 ---
 
@@ -605,11 +604,13 @@ frontend/
 │   │   └── ...           # Autres pages publiques
 │   ├── components/       # Composants réutilisables
 │   │   ├── Header.tsx    # Navigation principale
-│   │   ├── Footer.tsx    # Pied de page avec liens légaux
+│   │   ├── Footer.tsx    # Pied de page
 │   │   └── ...           # Autres composants
 │   ├── context/          # Context API (Auth)
-│   ├── api/              # Appels API
-│   ├── styles/           # Global styles
+│   ├── api/              # Appels API centralisés
+│   │   ├── admin/        # Services admin
+│   │   └── user/         # Services utilisateur
+│   ├── assets/           # Images/ressources
 │   └── main.tsx          # Point d'entrée
 ├── .env                  # Variables d'environnement
 └── vite.config.ts        # Configuration Vite
