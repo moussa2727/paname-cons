@@ -173,12 +173,10 @@ interface ErrorMessages {
   ADMIN_REQUIRED_STATUS: string;
   TERMINATE_REQUIRES_AVIS: string;
   INVALID_AVIS: string;
-  FUTURE_CANT_BE_COMPLETED: string;
   DESTINATION_REQUIRED: string;
   FILIERE_REQUIRED: string;
   NO_ACCOUNT_FOUND: string;
   CANT_UPDATE_OTHERS: string;
-  MISSED_NO_EDIT: string;
   // Messages de succès
   CREATE_SUCCESS: string;
   UPDATE_SUCCESS: string;
@@ -199,9 +197,6 @@ const ERROR_MESSAGES: ErrorMessages = {
   NOT_FOUND: 'Rendez-vous non trouvé.',
   VALIDATION_ERROR: 'Données invalides.',
   RATE_LIMIT: 'Trop de requêtes. Veuillez patienter.',
-  MISSED_NO_EDIT: 'Impossible de modifier un rendez-vous manqué',
-  FUTURE_CANT_BE_COMPLETED:
-    'Impossible de marquer comme terminé un rendez-vous futur',
   // Messages spécifiques au rendez-vous
   ACCOUNT_REQUIRED:
     "Vous devez avoir un compte pour prendre un rendez-vous. Veuillez vous inscrire d'abord.",
@@ -407,7 +402,8 @@ export class AdminRendezVousService {
           ) {
             errorMessage = ERROR_MESSAGES.CANCEL_ONLY_CONFIRMED;
           } else if (
-            errorMessage.includes('administrateurs peuvent changer le statut')
+            errorMessage.includes('administrateurs peuvent changer le statut') ||
+            errorMessage.includes("administrateurs peuvent modifier le statut")
           ) {
             errorMessage = ERROR_MESSAGES.ADMIN_REQUIRED_STATUS;
           } else if (errorMessage.includes('avis admin est obligatoire')) {
@@ -722,7 +718,7 @@ export class AdminRendezVousService {
           }
         }
 
-        // Si utilisateur normal tente de changer le statut (sauf annulation)
+        // Si utilisateur normal tente de changer le statut
         if (
           !isAdmin &&
           data.status &&

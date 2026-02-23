@@ -107,6 +107,7 @@ const AdminRendezVous = (): React.JSX.Element => {
   const [, setIsLoadingDestinations] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('tous');
+  const [selectedDate, setSelectedDate] = useState<string>('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [limit] = useState(8);
@@ -297,6 +298,7 @@ const AdminRendezVous = (): React.JSX.Element => {
           selectedStatus === 'tous'
             ? undefined
             : (selectedStatus as RendezvousStatus),
+        date: selectedDate || undefined,
         search: searchTerm.trim() || undefined,
       });
 
@@ -373,9 +375,6 @@ const AdminRendezVous = (): React.JSX.Element => {
         } else if (errorMessage.includes('avis admin')) {
           errorMessage =
             "L'avis administratif est obligatoire pour terminer un rendez-vous.";
-        } else if (errorMessage.includes('futur')) {
-          errorMessage =
-            'Impossible de marquer comme terminé un rendez-vous futur.';
         }
       }
 
@@ -640,7 +639,7 @@ const AdminRendezVous = (): React.JSX.Element => {
     if (service) {
       initialize();
     }
-  }, [service, page, searchTerm, selectedStatus, refreshTrigger]);
+  }, [service, page, searchTerm, selectedStatus, selectedDate, refreshTrigger]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -866,6 +865,31 @@ const AdminRendezVous = (): React.JSX.Element => {
                     </select>
                     <ChevronDown className='absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none' />
                   </div>
+                </div>
+
+                {/* Filtre date */}
+                <div className={`${showMobileFilters ? 'block' : 'hidden'} sm:block sm:flex-1 sm:max-w-xs`}>
+                  <div className='relative'>
+                    <Calendar className='absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400' />
+                    <input
+                      type='date'
+                      value={selectedDate}
+                      onChange={e => {
+                        setSelectedDate(e.target.value);
+                        setPage(1);
+                      }}
+                      className='w-full pl-10 pr-4 py-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent hover:border-sky-400 transition-all duration-200 text-sm sm:text-base scheme-light'
+                      placeholder='Filtrer par date'
+                    />
+                  </div>
+                  {selectedDate && (
+                    <button
+                      onClick={() => { setSelectedDate(''); setPage(1); }}
+                      className='mt-1 text-xs text-sky-600 hover:text-sky-800 flex items-center gap-1'
+                    >
+                      <X className='w-3 h-3' /> Effacer la date
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

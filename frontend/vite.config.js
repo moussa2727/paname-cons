@@ -69,8 +69,7 @@ export default defineConfig(({ mode }) => ({
       'date-fns/locale/fr',
       'react-icons/fi',
       'lucide-react',     
-      'react-toastify',
-      '@heroicons/react/24/outline'
+      'react-toastify'
     ],
     exclude: ['date-fns-tz']
   },

@@ -85,6 +85,8 @@ src/
 │   ├── procedures/        # Procédures
 │   ├── rendezvous/        # Rendez-vous
 │   ├── contact/           # Contact
+│   ├── user/              # Espace utilisateur (profil, rendez-vous, procédures)
+│   ├── politiques/        # Pages légales (CGU, Mentions légales, Politique de confidentialité)
 │   └── profile/           # Profil utilisateur
 │
 ├── components/            # Composants réutilisables
@@ -100,6 +102,7 @@ src/
 │   ├── auth/
 │   ├── admin/
 │   ├── contact/
+│   ├── user/
 │   └── ...
 │
 ├── styles/               # Styles globaux
@@ -112,6 +115,14 @@ src/
 │
 └── main.tsx              # Point d'entrée
 ```
+
+### Pages légales
+
+Les pages légales sont exposées via les routes suivantes :
+
+- `/politique-de-confidentialite` : Politique de confidentialité
+- `/conditions-generales` : Conditions Générales d'utilisation
+- `/mentions-legales` : Mentions légales
 
 ---
 

@@ -63,7 +63,7 @@ const TIME_SLOTS = [
 ] as const;
 
 const CANCELLATION_THRESHOLD_HOURS = 2;
-const AUTO_EXPIRE_MINUTES = 10;
+const PAST_GRACE_MINUTES = 10;
 
 // Interface Rendezvous alignée avec le backend
 export interface Rendezvous {
@@ -474,7 +474,7 @@ export class UserRendezvousService {
 
       // Marge de 10 minutes comme dans le backend
       const tenMinutesAgo = new Date(
-        now.getTime() - AUTO_EXPIRE_MINUTES * 60 * 1000
+        now.getTime() - PAST_GRACE_MINUTES * 60 * 1000
       );
 
       // Si le rendez-vous est dans le passé de plus de 10 minutes
@@ -493,9 +493,9 @@ export class UserRendezvousService {
   }
 
   /**
-   * Calcule le temps restant avant expiration du délai d'annulation
+   * Calcule le temps restant pour le délai d'annulation
    */
-  static getTimeUntilCancellationExpires(rdv: Rendezvous): string | null {
+  static getRemainingCancellationTime(rdv: Rendezvous): string | null {
     if (rdv.status !== RENDEZVOUS_STATUS.CONFIRMED || !rdv.date || !rdv.time) {
       return null;
     }
@@ -565,7 +565,7 @@ export class UserRendezvousService {
       const now = new Date();
 
       const tenMinutesAgo = new Date(
-        now.getTime() - AUTO_EXPIRE_MINUTES * 60 * 1000
+        now.getTime() - PAST_GRACE_MINUTES * 60 * 1000
       );
 
       return rdvDateTime < tenMinutesAgo;

@@ -344,6 +344,14 @@ npm run dev
 - [Backend Documentation](./backend/README.md) - API, architecture, configuration
 - [Frontend Documentation](./frontend/README.md) - Composants, structure, développement
 
+### Pages légales
+
+Les pages légales suivantes sont disponibles côté frontend :
+
+- **Politique de confidentialité** : route `/politique-de-confidentialite`
+- **Conditions Générales d'utilisation** : route `/conditions-generales`
+- **Mentions légales** : route `/mentions-legales`
+
 ### ✅ Cohérence Garantie
 
 Le projet maintient une **cohérence stricte et automatique** entre backend et frontend :
@@ -420,14 +428,14 @@ L'application gère les rendez-vous avec un système complet :
 L'application utilise un système JWT complet avec :
 - **Tokens d'accès** : 15 minutes de durée de vie
 - **Tokens de rafraîchissement** : 30 minutes de durée de vie
-- **Session maximum** : 30 minutes inactivity
+- **Session maximum** : 30 minutes d'inactivité
 - **Déconnexion automatique** : Après 30 minutes d'inactivité
 - **Gestion des sessions** : Tracking en base de données MongoDB
 - **Rate limiting** : Protection contre les attaques brute force
 - **Rôles** : `USER`, `ADMIN`
 - **Cookies HTTP-only** : Sécurité renforcée
-- **Refresh automatique** : 5 minutes avant expiration
-- **Nettoyage des sessions expirées** : Toutes les 15 minutes
+- **Refresh automatique** : 5 minutes avant la fin de validité du token
+- **Nettoyage des sessions inactives** : Toutes les 15 minutes
 
 #### Sécurité des tokens
 - Stockage dans localStorage et cookies HTTP-only
@@ -441,9 +449,9 @@ L'application utilise un système JWT complet avec :
 Système complet de gestion des sessions :
 - **Durée de session** : 30 minutes maximum
 - **Check d'inactivité** : Toutes les minutes
-- **Déconnexion automatique** : Après expiration
+- **Déconnexion automatique** : Après la fin de session
 - **Sessions simultanées** : Maximum 5 par utilisateur
-- **Nettoyage automatique** : Sessions expirées toutes les 15 minutes
+- **Nettoyage automatique** : Sessions inactives supprimées toutes les 15 minutes
 - **Tracking d'activité** : Dernière activité enregistrée
 - **Révocation manuelle** : Admin peut révoquer des sessions
 
@@ -529,7 +537,7 @@ sessionCheckIntervalRef.current = window.setInterval(() => {
     const sessionAge = Date.now() - parseInt(sessionStart);
     if (sessionAge > MAX_SESSION_DURATION_MS) {
       cleanupAuthData();
-      toast.info('Session expirée après 30 minutes. Veuillez vous reconnecter.');
+      toast.info('Votre session a atteint sa durée maximale (30 minutes). Veuillez vous reconnecter.');
     }
   }
 }, SESSION_CHECK_INTERVAL);

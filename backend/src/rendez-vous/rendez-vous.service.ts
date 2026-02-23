@@ -391,10 +391,15 @@ export class RendezvousService {
     const filterDate = date || today;
 
     const filters: any = {
-      date: filterDate, // Filtre par date par défaut
+      date: filterDate,
     };
-    
-    if (status) filters.status = status;
+
+    if (status) {
+      filters.status = status;
+    } else {
+      filters.status = { $ne: RENDEZVOUS_STATUS.CANCELLED };
+    }
+
     if (search) {
       const normalizedSearch = search.trim();
       filters.$or = [
@@ -403,16 +408,6 @@ export class RendezvousService {
         { firstName: { $regex: normalizedSearch, $options: 'i' } },
         { lastName: { $regex: normalizedSearch, $options: 'i' } },
       ];
-    }
-
-    // Exclure les rendez-vous annulés
-    filters.status = filters.status || {};
-    if (filters.status.$nin) {
-      filters.status.$nin = [...(filters.status.$nin || []), RENDEZVOUS_STATUS.CANCELLED];
-    } else if (filters.status !== RENDEZVOUS_STATUS.CANCELLED) {
-      filters.status = {
-        $ne: RENDEZVOUS_STATUS.CANCELLED
-      };
     }
 
     const [data, total] = await Promise.all([
@@ -578,17 +573,6 @@ export class RendezvousService {
 
     // Vérifier les transitions de statut autorisées
     if (updateDto.status) {
-      // Validation spécifique pour le statut "Terminé"
-      if (updateDto.status === RENDEZVOUS_STATUS.COMPLETED) {
-        // Vérifier que le rendez-vous n'est pas dans le futur
-        if (this.isFutureRendezvous(rdv)) {
-          throw new BadRequestException(
-            'Impossible de marquer comme terminé un rendez-vous futur. ' +
-              'Seuls les rendez-vous dont la date/heure est passée peuvent être terminés.'
-          );
-        }
-      }
-
       await this.validateStatusTransition(
         rdv.status,
         updateDto.status,
@@ -654,28 +638,6 @@ export class RendezvousService {
       !Object.values(RENDEZVOUS_STATUS).includes(status as RendezvousStatus)
     ) {
       throw new BadRequestException('Statut invalide');
-    }
-
-    // Vérification spécifique pour le statut "Terminé"
-    if (status === RENDEZVOUS_STATUS.COMPLETED) {
-      // VÉRIFICATION IMPORTANTE : Un rendez-vous ne peut être marqué comme "Terminé"
-      // que s'il a déjà eu lieu (date dans le passé ou aujourd'hui)
-      if (this.isFutureRendezvous(rdv)) {
-        throw new BadRequestException(
-          'Impossible de marquer comme terminé un rendez-vous futur. ' +
-            'Seuls les rendez-vous dont la date/heure est passée peuvent être terminés.'
-        );
-      }
-
-      // Vérifier que le rendez-vous n'est pas trop ancien (optionnel)
-      const rdvDateTime = new Date(`${rdv.date}T${rdv.time}:00`);
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-      if (rdvDateTime < oneWeekAgo) {
-        throw new BadRequestException(
-          "Impossible de marquer comme terminé un rendez-vous trop ancien (plus d'une semaine)"
-        );
-      }
     }
 
     // Vérifier les transitions de statut
@@ -1728,7 +1690,7 @@ export class RendezvousService {
     }
   }
 
-  @Cron('0 20 * * *') // Rappel 2h avant le RDV
+  @Cron('0 7-14 * * 1-5') // Toutes les heures de 7h à 14h, jours ouvrés
   async sendTwoHourReminders(): Promise<void> {
     const now = new Date();
 

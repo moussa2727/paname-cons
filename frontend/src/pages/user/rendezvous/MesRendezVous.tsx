@@ -100,7 +100,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 
   if (!isOpen || !rdv) return null;
 
-  const timeLeft = UserRendezvousService.getTimeUntilCancellationExpires(rdv);
+  const timeLeft = UserRendezvousService.getRemainingCancellationTime(rdv);
 
   return (
     <div className='fixed inset-0 z-50 overflow-y-auto'>

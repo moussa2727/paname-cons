@@ -558,7 +558,7 @@ async findByUser(
   @ApiOperation({
     summary: 'Mettre à jour un rendez-vous',
     description:
-      'Modifier les informations d\'un rendez-vous existant (compte requis). IMPORTANT : Un rendez-vous ne peut être marqué comme "Terminé" que si sa date/heure est passée ou aujourd\'hui.',
+      "Modifier les informations d'un rendez-vous existant (compte requis).",
   })
   @ApiParam({
     name: 'id',
@@ -589,7 +589,7 @@ async findByUser(
   @ApiResponse({
     status: 400,
     description:
-      'Données invalides, créneau non disponible, ou tentative de marquer un rendez-vous futur comme terminé',
+      'Données invalides ou créneau non disponible',
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({
@@ -622,14 +622,13 @@ async findByUser(
     }
 
     // Validation supplémentaire pour le statut "Terminé" dans updateDto
-    if (updateDto.status === RENDEZVOUS_STATUS.COMPLETED) {
-      // Vérifier que l'avis admin est fourni si statut "Terminé"
+    if (updateDto.status) {
       if (!isAdmin) {
         this.logger.warn(
-          `Tentative non autorisée de marquer comme terminé par utilisateur: ${maskedUserEmail}`
+          `Tentative non autorisée de modifier le statut par utilisateur: ${maskedUserEmail}`
         );
         throw new ForbiddenException(
-          'Seuls les administrateurs peuvent marquer un rendez-vous comme terminé'
+          'Seuls les administrateurs peuvent modifier le statut d\'un rendez-vous'
         );
       }
     }
@@ -647,7 +646,7 @@ async findByUser(
   @ApiOperation({
     summary: "Mettre à jour le statut d'un rendez-vous (admin)",
     description:
-      'Changer le statut d\'un rendez-vous (admin uniquement). IMPORTANT : Un rendez-vous ne peut être marqué comme "Terminé" que si sa date/heure est passée ou aujourd\'hui.',
+      'Changer le statut d\'un rendez-vous (admin uniquement).',
   })
   @ApiParam({
     name: 'id',
@@ -669,7 +668,7 @@ async findByUser(
   @ApiResponse({
     status: 400,
     description:
-      'Statut invalide, avis admin manquant pour "Terminé", ou tentative de marquer un rendez-vous futur comme terminé',
+      'Statut invalide ou avis admin manquant pour "Terminé"',
   })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 403, description: 'Non autorisé (admin uniquement)' })
