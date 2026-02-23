@@ -329,16 +329,18 @@ export class UserRendezvousService {
     }
 
     try {
-      const response = await this.auth.fetchWithAuth(
-        `/api/rendezvous/${rdvId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: reason ? JSON.stringify({ cancellationReason: reason }) : undefined,
+      // Construction de l'URL avec la raison en query param (plus RESTful)
+      const url = reason 
+        ? `/api/rendezvous/${rdvId}?reason=${encodeURIComponent(reason)}`
+        : `/api/rendezvous/${rdvId}`;
+
+      const response = await this.auth.fetchWithAuth(url, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
         }
-      );
+        // Pas de body pour une requête DELETE
+      });
 
       if (!response.ok) {
         let errorData: { message?: any; error?: any };
@@ -372,8 +374,12 @@ export class UserRendezvousService {
           );
         }
 
+        if (response.status === 404) {
+          throw new Error('Rendez-vous non trouvé');
+        }
+
         const errorMessage =
-          errorData.message || errorData.error || "Erreur lors de l'annulation";
+          errorData.message || errorData.error || `Erreur ${response.status} lors de l'annulation`;
         throw new Error(errorMessage);
       }
 
@@ -391,34 +397,33 @@ export class UserRendezvousService {
 
       return updatedRdv;
     } catch (error: any) {
-      console.error(' Erreur cancelRendezvous:', error.message);
+      console.error('❌ Erreur cancelRendezvous:', error.message);
       throw error;
     }
   }
 
-
-/**
- * Récupère un rendez-vous par son ID
- */
-async getRendezvousById(id: string): Promise<Rendezvous> {
-  if (!id || id === 'undefined') {
-    throw new Error('ID de rendez-vous invalide');
-  }
-
-  const response = await this.auth.fetchWithAuth(`/api/rendezvous/${id}`);
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error('Rendez-vous non trouvé');
+  /**
+   * Récupère un rendez-vous par son ID
+   */
+  async getRendezvousById(id: string): Promise<Rendezvous> {
+    if (!id || id === 'undefined') {
+      throw new Error('ID de rendez-vous invalide');
     }
-    if (response.status === 401) {
-      throw new Error('SESSION_EXPIRED');
-    }
-    throw new Error('Erreur lors de la récupération du rendez-vous');
-  }
 
-  return response.json();
-}
+    const response = await this.auth.fetchWithAuth(`/api/rendezvous/${id}`);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Rendez-vous non trouvé');
+      }
+      if (response.status === 401) {
+        throw new Error('SESSION_EXPIRED');
+      }
+      throw new Error('Erreur lors de la récupération du rendez-vous');
+    }
+
+    return response.json();
+  }
 
   /**
    * Formate une date en français
@@ -485,6 +490,38 @@ async getRendezvousById(id: string): Promise<Rendezvous> {
     }
 
     return rdv.canBeCancelledByUser !== false;
+  }
+
+  /**
+   * Calcule le temps restant avant expiration du délai d'annulation
+   */
+  static getTimeUntilCancellationExpires(rdv: Rendezvous): string | null {
+    if (rdv.status !== RENDEZVOUS_STATUS.CONFIRMED || !rdv.date || !rdv.time) {
+      return null;
+    }
+
+    try {
+      const now = new Date();
+      const rdvDateTime = new Date(`${rdv.date}T${rdv.time}:00`);
+      const twoHoursMs = CANCELLATION_THRESHOLD_HOURS * 60 * 60 * 1000;
+      const cancellationDeadline = new Date(rdvDateTime.getTime() - twoHoursMs);
+      
+      if (now >= cancellationDeadline) {
+        return null;
+      }
+
+      const diffMs = cancellationDeadline.getTime() - now.getTime();
+      const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
+      const diffMinutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
+
+      if (diffHours > 0) {
+        return `${diffHours}h${diffMinutes > 0 ? ` ${diffMinutes}min` : ''}`;
+      } else {
+        return `${diffMinutes} minutes`;
+      }
+    } catch {
+      return null;
+    }
   }
 
   /**

@@ -2,8 +2,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
-  useMemo,
-  useRef,
+  useMemo
 } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'react-toastify';
@@ -24,7 +23,6 @@ import {
   Info,
   Star,
   Filter,
-  X,
   AlertTriangle,
   Plus,
   Loader2,
@@ -38,10 +36,7 @@ import {
   AuthFunctions,
 } from '../../../api/user/Rendezvous/UserRendezvousService';
 
-const {
-  STATUS,
-  ADMIN_OPINION
-} = UserRendezvousService;
+const { STATUS, ADMIN_OPINION } = UserRendezvousService;
 
 const pageConfigs = {
   '/mon-profil': {
@@ -80,8 +75,189 @@ const statusColors: Record<string, string> = {
 };
 
 const avisColors: Record<string, string> = {
-  [ADMIN_OPINION.FAVORABLE]: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  [ADMIN_OPINION.FAVORABLE]:
+    'bg-emerald-100 text-emerald-800 border-emerald-300',
   [ADMIN_OPINION.UNFAVORABLE]: 'bg-red-100 text-red-800 border-red-300',
+};
+
+// Composant Modal de confirmation
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  rdv: Rendezvous | null;
+  isCancelling: boolean;
+}
+
+const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  rdv,
+  isCancelling,
+}) => {
+  const [cancellationReason, setCancellationReason] = useState('');
+
+  if (!isOpen || !rdv) return null;
+
+  const timeLeft = UserRendezvousService.getTimeUntilCancellationExpires(rdv);
+
+  return (
+    <div className='fixed inset-0 z-50 overflow-y-auto'>
+      {/* Overlay avec flou */}
+      <div
+        className='fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity'
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className='flex min-h-full items-center justify-center p-4'>
+        <div
+          className='relative w-full max-w-lg transform overflow-hidden rounded-xl bg-white shadow-2xl transition-all'
+          onClick={e => e.stopPropagation()}
+        >
+          {/* En-tête avec icône d'avertissement */}
+          <div className='bg-red-600 px-6 py-4'>
+            <div className='flex items-center gap-3'>
+              <div className='rounded-full bg-white/20 p-2'>
+                <AlertTriangle className='h-6 w-6 text-white' />
+              </div>
+              <div>
+                <h3 className='text-lg font-semibold text-white'>
+                  Confirmer l'annulation
+                </h3>
+                <p className='text-sm text-red-100'>
+                  Cette action est irréversible
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Corps du modal */}
+          <div className='p-6'>
+            {/* Détails du rendez-vous */}
+            <div className='mb-6 rounded-lg bg-gray-50 p-4'>
+              <h4 className='mb-3 text-sm font-medium text-gray-700'>
+                Détails du rendez-vous à annuler :
+              </h4>
+              <div className='space-y-2 text-sm'>
+                <div className='flex items-start gap-2'>
+                  <Calendar className='mt-0.5 h-4 w-4 text-gray-500' />
+                  <span className='text-gray-700'>
+                    <span className='font-medium'>Date :</span>{' '}
+                    {UserRendezvousService.formatDate(rdv.date)}
+                  </span>
+                </div>
+                <div className='flex items-start gap-2'>
+                  <Clock className='mt-0.5 h-4 w-4 text-gray-500' />
+                  <span className='text-gray-700'>
+                    <span className='font-medium'>Heure :</span>{' '}
+                    {UserRendezvousService.formatTime(rdv.time)}
+                  </span>
+                </div>
+                <div className='flex items-start gap-2'>
+                  <MapPin className='mt-0.5 h-4 w-4 text-gray-500' />
+                  <span className='text-gray-700'>
+                    <span className='font-medium'>Destination :</span>{' '}
+                    {UserRendezvousService.getEffectiveDestination(rdv)}
+                  </span>
+                </div>
+                <div className='flex items-start gap-2'>
+                  <BookOpen className='mt-0.5 h-4 w-4 text-gray-500' />
+                  <span className='text-gray-700'>
+                    <span className='font-medium'>Filière :</span>{' '}
+                    {UserRendezvousService.getEffectiveFiliere(rdv)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Timer si applicable */}
+            {timeLeft && (
+              <div className='mb-4 rounded-lg bg-amber-50 p-3'>
+                <div className='flex items-start gap-2'>
+                  <AlertCircle className='mt-0.5 h-4 w-4 text-amber-600' />
+                  <div>
+                    <p className='text-xs font-medium text-amber-800'>
+                      Délai d'annulation
+                    </p>
+                    <p className='text-xs text-amber-700'>
+                      Il vous reste {timeLeft} pour annuler ce rendez-vous
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Champ raison d'annulation (optionnel) */}
+            <div className='mb-4'>
+              <label
+                htmlFor='cancellationReason'
+                className='block text-sm font-medium text-gray-700 mb-1'
+              >
+                Raison de l'annulation (optionnelle)
+              </label>
+              <textarea
+                id='cancellationReason'
+                rows={3}
+                className='w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent'
+                placeholder='Indiquez la raison de votre annulation...'
+                value={cancellationReason}
+                onChange={e => setCancellationReason(e.target.value)}
+              />
+            </div>
+
+            {/* Avertissement important */}
+            <div className='mb-6 rounded-lg bg-red-50 p-3'>
+              <div className='flex items-start gap-2'>
+                <AlertTriangle className='mt-0.5 h-4 w-4 text-red-600' />
+                <div>
+                  <p className='text-xs font-medium text-red-800'>
+                    Attention : Cette action est irréversible
+                  </p>
+                  <ul className='mt-1 list-inside list-disc text-xs text-red-700'>
+                    <li>Le rendez-vous sera définitivement annulé</li>
+                    <li>Un email de confirmation vous sera envoyé</li>
+                    <li>
+                      Vous devrez reprendre un nouveau rendez-vous si nécessaire
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Boutons d'action */}
+            <div className='flex gap-3'>
+              <button
+                onClick={onClose}
+                disabled={isCancelling}
+                className='flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200'
+              >
+                Retour
+              </button>
+              <button
+                onClick={() => onConfirm()}
+                disabled={isCancelling}
+                className='flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2'
+              >
+                {isCancelling ? (
+                  <>
+                    <Loader2 className='h-4 w-4 animate-spin' />
+                    Annulation...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className='h-4 w-4' />
+                    Confirmer l'annulation
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const MesRendezvous = () => {
@@ -99,7 +275,7 @@ const MesRendezvous = () => {
 
   const [rendezvous, setRendezvous] = useState<Rendezvous[]>([]);
   const [loading, setLoading] = useState(false);
-  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [pagination, setPagination] = useState<PaginationState>({
     page: 1,
@@ -108,25 +284,16 @@ const MesRendezvous = () => {
     totalPages: 1,
   });
 
-  const [showCancelPopover, setShowCancelPopover] = useState<string | null>(
-    null
-  );
-  const popoverRef = useRef<HTMLDivElement>(null);
+  // État pour le modal de confirmation
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [selectedRdvForCancel, setSelectedRdvForCancel] =
+    useState<Rendezvous | null>(null);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(event.target as Node)
-      ) {
-        setShowCancelPopover(null);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    const header = document.querySelector('header');
+    if (header) {
+      setHeaderHeight(header.offsetHeight);
+    }
   }, []);
 
   const getCurrentPageConfig = () => {
@@ -215,130 +382,66 @@ const MesRendezvous = () => {
     }
   }, [location.pathname, selectedStatus, pagination.page, fetchRendezvous]);
 
-  const handleCancelRendezvous = async (rdvId: string) => {
-    setShowCancelPopover(null);
-    setCancelling(rdvId);
+  // Ouvrir le modal de confirmation d'annulation
+  const openCancelModal = (rdv: Rendezvous) => {
+    setSelectedRdvForCancel(rdv);
+    setShowCancelModal(true);
+  };
+
+  // Fermer le modal
+  const closeCancelModal = () => {
+    setShowCancelModal(false);
+    setSelectedRdvForCancel(null);
+  };
+
+  // Gérer l'annulation
+  const handleCancelRendezvous = async () => {
+    if (!selectedRdvForCancel) return;
+
+    setCancelling(true);
 
     try {
-      const updatedRdv = await rendezvousService.cancelRendezvous(rdvId);
-
-      setRendezvous(prev =>
-        prev.map(rdv => (rdv._id === rdvId ? { ...rdv, ...updatedRdv } : rdv))
+      const updatedRdv = await rendezvousService.cancelRendezvous(
+        selectedRdvForCancel._id
       );
 
-      toast.success('Rendez-vous annulé avec succès');
+      setRendezvous(prev =>
+        prev.map(rdv =>
+          rdv._id === selectedRdvForCancel._id
+            ? { ...rdv, ...updatedRdv }
+            : rdv
+        )
+      );
+
+      toast.success('Rendez-vous annulé avec succès', {
+        position: 'top-right',
+        autoClose: 5000,
+      });
+
+      closeCancelModal();
     } catch (error: any) {
       if (
         error.message !== 'SESSION_EXPIRED' &&
         error.message !== 'SESSION_CHECK_IN_PROGRESS'
       ) {
-        toast.error("Impossible d'annuler le rendez-vous");
+        let errorMessage = error.message;
+
+        if (error.message.includes('2 heures')) {
+          errorMessage =
+            "Impossible d'annuler : moins de 2 heures avant le rendez-vous";
+        } else if (error.message.includes('terminé')) {
+          errorMessage = "Impossible d'annuler un rendez-vous terminé";
+        }
+
+        toast.error(errorMessage, {
+          position: 'top-right',
+          autoClose: 7000,
+        });
       }
     } finally {
-      setCancelling(null);
+      setCancelling(false);
     }
   };
-
-  const openCancelPopover = (rdvId: string, event: React.MouseEvent) => {
-    event.stopPropagation();
-    setShowCancelPopover(rdvId);
-  };
-
-  const CancelConfirmationPopover = ({
-    rdvId,
-    rdv,
-  }: {
-    rdvId: string;
-    rdv: Rendezvous;
-  }) => (
-    <div
-      ref={popoverRef}
-      className='absolute z-50 w-72 bg-white rounded-lg shadow-xl border border-red-200 animate-fadeIn'
-      style={{
-        top: '100%',
-        right: 0,
-        marginTop: '8px',
-      }}
-    >
-      <div className='p-4'>
-        <div className='flex items-start justify-between mb-3'>
-          <div className='flex items-center gap-2'>
-            <div className='p-1.5 bg-red-50 rounded-lg'>
-              <AlertTriangle className='h-4 w-4 text-red-600' />
-            </div>
-            <h3 className='text-sm font-semibold text-gray-900'>
-              Annuler le rendez-vous
-            </h3>
-          </div>
-          <button
-            onClick={() => setShowCancelPopover(null)}
-            className='text-gray-400 hover:text-gray-500 transition-colors'
-          >
-            <X className='h-4 w-4' />
-          </button>
-        </div>
-
-        <div className='space-y-3'>
-          <div className='bg-amber-50 border border-amber-200 rounded-lg p-3'>
-            <div className='flex items-start gap-2'>
-              <AlertCircle className='h-4 w-4 text-amber-600 mt-0.5 shrink-0' />
-              <div>
-                <p className='text-xs text-amber-800 font-medium'>
-                  Cette action est irréversible
-                </p>
-                <p className='text-xs text-amber-700 mt-1'>
-                  Le rendez-vous sera marqué comme "Annulé"
-                </p>
-                <p className='text-xs text-amber-700'>
-                  Vous ne pourrez pas le réactiver
-                </p>
-                <p className='text-xs text-amber-700'>
-                  La raison sera enregistrée
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className='bg-gray-50 rounded-lg p-3'>
-            <p className='text-xs text-gray-700'>
-              <span className='font-medium'>Rendez-vous du :</span>{' '}
-              {UserRendezvousService.formatDate(rdv.date)} à{' '}
-              {UserRendezvousService.formatTime(rdv.time)}
-              <br />
-              <span className='font-medium'>Destination :</span>{' '}
-              {UserRendezvousService.getEffectiveDestination(rdv)}
-            </p>
-          </div>
-        </div>
-
-        <div className='flex gap-2 mt-4'>
-          <button
-            onClick={() => setShowCancelPopover(null)}
-            className='flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-all duration-150'
-          >
-            Annuler
-          </button>
-          <button
-            onClick={() => handleCancelRendezvous(rdvId)}
-            disabled={cancelling === rdvId}
-            className='flex-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
-          >
-            {cancelling === rdvId ? (
-              <>
-                <Loader2 className='h-3 w-3 animate-spin' />
-                Annulation...
-              </>
-            ) : (
-              <>
-                <Trash2 className='h-3 w-3' />
-                Confirmer
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 
   const handleRefresh = () => {
     if (location.pathname === '/mes-rendez-vous') {
@@ -350,13 +453,15 @@ const MesRendezvous = () => {
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
-      setPagination((prev: any) => ({ ...prev, page: newPage }));
+      setPagination(prev => ({ ...prev, page: newPage }));
     }
   };
 
   const renderStatusBadge = (status: string) => (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusColors[status] || 'bg-gray-100 text-gray-800 border-gray-300'}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+        statusColors[status] || 'bg-gray-100 text-gray-800 border-gray-300'
+      }`}
     >
       {status === 'En attente' && <AlertCircle className='mr-1 h-3 w-3' />}
       {status === 'Confirmé' && <CheckCircle className='mr-1 h-3 w-3' />}
@@ -368,26 +473,20 @@ const MesRendezvous = () => {
 
   const renderAvisBadge = (avis: string) => (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${avisColors[avis] || 'bg-gray-100 text-gray-800 border-gray-300'}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+        avisColors[avis] || 'bg-gray-100 text-gray-800 border-gray-300'
+      }`}
     >
       <Star className='mr-1 h-3 w-3' />
       {avis}
     </span>
   );
 
-  useEffect(() => {
-    const header = document.querySelector('header');
-    if (header) {
-      setHeaderHeight(header.offsetHeight);
-    }
-  }, []);
-
   return (
     <>
       <Helmet>
         <title>{currentPage.pageTitle}</title>
         <meta name='description' content={currentPage.description} />
-        {/* noindex, nofollow */}
         <meta name='robots' content='noindex, nofollow' />
       </Helmet>
 
@@ -479,6 +578,7 @@ const MesRendezvous = () => {
             <div className='space-y-4 mb-8'>
               {rendezvous.map((rdv, index) => {
                 const uniqueKey = `rdv-${rdv._id}-${index}-${rdv.date}-${rdv.time}`;
+                const canCancel = UserRendezvousService.canCancelRendezvous(rdv);
 
                 return (
                   <div
@@ -530,34 +630,15 @@ const MesRendezvous = () => {
                       </div>
 
                       <div className='flex flex-col sm:items-end gap-2'>
-                        {UserRendezvousService.canCancelRendezvous(rdv) && (
-                          <div className='relative'>
-                            <button
-                              onClick={e => openCancelPopover(rdv._id, e)}
-                              disabled={cancelling === rdv._id}
-                              className='inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 hover:border-red-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed relative'
-                            >
-                              {cancelling === rdv._id ? (
-                                <>
-                                  <Loader2 className='mr-2 h-3 w-3 animate-spin' />
-                                  Annulation...
-                                </>
-                              ) : (
-                                <>
-                                  <Trash2 className='mr-2 h-3 w-3' />
-                                  Annuler
-                                </>
-                              )}
-                            </button>
-
-                            {showCancelPopover === rdv._id && (
-                              <CancelConfirmationPopover
-                                key={`popover-${rdv._id}-${index}`}
-                                rdvId={rdv._id}
-                                rdv={rdv}
-                              />
-                            )}
-                          </div>
+                        {canCancel && (
+                          <button
+                            onClick={() => openCancelModal(rdv)}
+                            disabled={cancelling}
+                            className='inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 hover:border-red-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                          >
+                            <Trash2 className='mr-2 h-3 w-3' />
+                            Annuler
+                          </button>
                         )}
 
                         {rdv.status === 'Terminé' && rdv.avisAdmin && (
@@ -627,7 +708,8 @@ const MesRendezvous = () => {
             <div className='flex items-center justify-between'>
               <div className='text-sm text-gray-600'>
                 Page {pagination.page} sur {pagination.totalPages} • Total :{' '}
-                {pagination.total} rendez-vous{pagination.total > 1 ? 's' : ''}
+                {pagination.total} rendez-vous
+                {pagination.total > 1 ? 's' : ''}
               </div>
 
               <div className='flex items-center gap-2'>
@@ -690,25 +772,24 @@ const MesRendezvous = () => {
               Informations importantes
             </h3>
             <ul className='text-sm text-sky-700 space-y-1'>
-              <li>
-                Les rendez-vous annulés apparaissent avec la raison d'annulation
-              </li>
-              <li>Vous ne pouvez annuler qu'un rendez-vous Confirmé</li>
-              <li>
-                L'annulation n'est plus possible à moins de 2 heures du
-                rendez-vous
-              </li>
-              <li>
-                Pour les rendez-vous Terminés, l'avis administrateur est affiché
-              </li>
-              <li>
-                Un rendez-vous Terminé avec avis Favorable peut déclencher une
-                procédure
-              </li>
+              <li>✓ Les rendez-vous annulés apparaissent avec la raison d'annulation</li>
+              <li>✓ Vous ne pouvez annuler qu'un rendez-vous Confirmé</li>
+              <li>⚠️ L'annulation n'est plus possible à moins de 2 heures du rendez-vous</li>
+              <li>✓ Pour les rendez-vous Terminés, l'avis administrateur est affiché</li>
+              <li>✓ Un rendez-vous Terminé avec avis Favorable peut déclencher une procédure</li>
             </ul>
           </div>
         </div>
       </div>
+
+      {/* Modal de confirmation */}
+      <ConfirmationModal
+        isOpen={showCancelModal}
+        onClose={closeCancelModal}
+        onConfirm={handleCancelRendezvous}
+        rdv={selectedRdvForCancel}
+        isCancelling={cancelling}
+      />
 
       <style>{`
         @keyframes fadeIn {
