@@ -48,7 +48,7 @@ export interface PasswordUpdateData {
 
 // Interface pour les fonctions d'authentification du contexte
 export interface AuthContextFunctions {
-  fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>;
+  fetchWithAuth: <T = any>(endpoint: string, options?: RequestInit) => Promise<T>;
   refreshToken: () => Promise<boolean>;
   access_token: string | null;
 }
@@ -77,28 +77,18 @@ const ERROR_MESSAGES = {
 class UserProfileService {
   /**
    * Récupérer le profil de l'utilisateur connecté
-   * Utilise fetchWithAuth du contexte
+   * Utilise fetchWithAuth du contexte (qui retourne déjà les données parsées)
    */
   static async getCurrentUser(
     authFunctions: AuthContextFunctions
   ): Promise<User | null> {
     try {
-      const response = await authFunctions.fetchWithAuth(API_ENDPOINTS.AUTH_ME);
+      // fetchWithAuth retourne déjà les données parsées, pas besoin de response.json()
+      const userData = await authFunctions.fetchWithAuth<any>(API_ENDPOINTS.AUTH_ME);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-
-        if (response.status === 401) {
-          console.warn('Session expirée détectée');
-          return null;
-        }
-
-        const errorMessage = errorData.message || ERROR_MESSAGES.UNKNOWN_ERROR;
-        toast.error(errorMessage);
+      if (!userData) {
         return null;
       }
-
-      const userData = await response.json();
 
       const user: User = {
         id: userData.id,
@@ -118,6 +108,7 @@ class UserProfileService {
     } catch (error: any) {
       console.error('Erreur lors de la récupération du profil:', error);
 
+      // Ne pas afficher de toast pour les erreurs de session
       if (error.message !== ERROR_MESSAGES.SESSION_EXPIRED) {
         toast.error(ERROR_MESSAGES.NETWORK_ERROR);
       }
@@ -157,7 +148,8 @@ class UserProfileService {
         requestData.telephone = updateData.telephone!.trim();
       }
 
-      const response = await authFunctions.fetchWithAuth(
+      // fetchWithAuth retourne déjà les données parsées
+      const result = await authFunctions.fetchWithAuth<any>(
         API_ENDPOINTS.PROFILE_ME,
         {
           method: 'PATCH',
@@ -167,22 +159,6 @@ class UserProfileService {
           body: JSON.stringify(requestData),
         }
       );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          console.error('Erreur lors du parsing de la réponse:', errorText);
-        }
-
-        const errorMessage = errorData?.message || `Erreur ${response.status}`;
-        throw new Error(errorMessage);
-      }
-
-      const result = await response.json();
 
       // Rafraîchir le token si nécessaire
       await authFunctions.refreshToken();
@@ -244,26 +220,6 @@ class UserProfileService {
         throw new Error(errorMessage);
       }
 
-      const response = await authFunctions.fetchWithAuth(
-        API_ENDPOINTS.UPDATE_PASSWORD,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            currentPassword: passwordData.currentPassword,
-            newPassword: passwordData.newPassword,
-            confirmNewPassword: passwordData.confirmNewPassword,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.message || `Erreur ${response.status}`;
-        throw new Error(errorMessage);
-      }
 
       // Rafraîchir le token après changement de mot de passe
       await authFunctions.refreshToken();

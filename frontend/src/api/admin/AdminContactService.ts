@@ -41,15 +41,15 @@ export interface CreateContactDto {
 }
 
 interface ContactFilters {
-  page?: number; // Rendre optionnel
-  limit?: number; // Rendre optionnel
+  page?: number;
+  limit?: number;
   isRead?: boolean;
   search?: string;
 }
 
 // ===== HOOK PERSONNALISÉ =====
 export const useContactService = () => {
-  const { access_token, isAuthenticated, user } = useAuth();
+  const { fetchWithAuth, isAuthenticated, user, access_token } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,11 +62,11 @@ export const useContactService = () => {
 
   // Fonction de requête sécurisée avec gestion d'erreur
   const secureFetch = useCallback(
-    async (
+    async <T = any>(
       endpoint: string,
       options: RequestInit = {},
       requireAdmin = false
-    ) => {
+    ): Promise<T> => {
       // Vérification des droits admin
       if (requireAdmin && (!isAuthenticated || !isUserAdmin(user))) {
         throw new Error('Accès refusé : droits administrateur requis');
@@ -86,126 +86,53 @@ export const useContactService = () => {
         throw new Error('Environnement non supporté pour les requêtes HTTP');
       }
 
-      const controller = new AbortController();
-      const timeoutId = globalThis.setTimeout(() => controller.abort(), 15000);
-
       try {
-        // Construction de l'URL complète
-        const fullUrl = `${API_URL}${endpoint}`;
-
-        // Validation de l'URL
-        try {
-          new URL(fullUrl);
-        } catch {
-          throw new Error(`URL invalide : ${fullUrl}`);
-        }
-
-        const response = await globalThis.fetch(fullUrl, {
+        // Utiliser fetchWithAuth qui retourne déjà les données parsées
+        const data = await fetchWithAuth<T>(endpoint, {
           ...options,
-          signal: controller.signal,
           headers: {
             'Content-Type': 'application/json',
-            ...(requireAdmin && access_token
-              ? { Authorization: `Bearer ${access_token}` }
-              : {}),
             ...options.headers,
           },
-          credentials: 'include',
         });
 
-        globalThis.clearTimeout(timeoutId);
+        return data;
 
-        // Gestion des erreurs réseau
-        if (response.status === 0 || response.type === 'error') {
-          throw new Error(
-            'Erreur de connexion au serveur. Vérifiez votre connexion réseau.'
-          );
-        }
-
-        // Gestion des erreurs HTTP spécifiques
-        if (response.status === 401) {
-          throw new Error('Session expirée, veuillez vous reconnecter');
-        }
-
-        if (response.status === 403) {
-          throw new Error('Accès refusé : droits insuffisants');
-        }
-
-        if (response.status === 404) {
-          throw new Error('Ressource non trouvée');
-        }
-
-        if (response.status === 429) {
-          throw new Error(
-            'Trop de requêtes, veuillez patienter quelques instants'
-          );
-        }
-
-        if (response.status >= 500) {
-          throw new Error('Erreur serveur, veuillez réessayer ultérieurement');
-        }
-
-        if (!response.ok) {
-          try {
-            const errorData = await response.json();
-            throw new Error(
-              errorData?.message ||
-                `Erreur ${response.status} - ${response.statusText}`
-            );
-          } catch {
-            throw new Error(
-              `Erreur ${response.status} - ${response.statusText}`
-            );
-          }
-        }
-
-        // Parse la réponse
-        try {
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            return await response.json();
-          } else if (contentType && contentType.includes('text/')) {
-            return await response.text();
-          } else {
-            return await response.blob();
-          }
-        } catch {
-          throw new Error('Erreur lors de la lecture de la réponse');
-        }
-      } catch (err: unknown) {
-        globalThis.clearTimeout(timeoutId);
-
+      } catch (err: any) {
         // Gestion des erreurs spécifiques
-        if (err instanceof Error && err.name === 'AbortError') {
+        if (err.name === 'AbortError') {
           throw new Error('La requête a expiré (timeout de 15s)');
         }
 
-        if (
-          err instanceof Error &&
-          (err.message === 'Failed to fetch' || err.name === 'TypeError')
-        ) {
-          throw new Error(
-            'Impossible de joindre le serveur. Vérifiez votre connexion internet.'
-          );
+        if (err.message === 'UNAUTHORIZED' || err.message === 'SESSION_EXPIRED') {
+          throw new Error('Session expirée, veuillez vous reconnecter');
         }
 
-        if (err instanceof Error && err.message.includes('URL invalide')) {
-          throw err;
+        if (err.status === 403) {
+          throw new Error('Accès refusé : droits insuffisants');
+        }
+
+        if (err.status === 404) {
+          throw new Error('Ressource non trouvée');
+        }
+
+        if (err.status === 429) {
+          throw new Error('Trop de requêtes, veuillez patienter quelques instants');
+        }
+
+        if (err.status >= 500) {
+          throw new Error('Erreur serveur, veuillez réessayer ultérieurement');
         }
 
         // Si l'erreur a déjà un message, la propager
-        if (
-          err instanceof Error &&
-          err.message &&
-          err.message !== 'FetchError'
-        ) {
+        if (err.message) {
           throw err;
         }
 
         throw new Error('Une erreur inattendue est survenue');
       }
     },
-    [API_URL, access_token, isAuthenticated, user]
+    [fetchWithAuth, access_token, isAuthenticated, user, API_URL]
   );
 
   // 📋 Récupérer tous les messages avec pagination et filtres
@@ -246,8 +173,8 @@ export const useContactService = () => {
           }
         }
 
-        // Appel API
-        const response = await secureFetch(
+        // fetchWithAuth retourne déjà les données parsées
+        const response = await secureFetch<ContactResponse>(
           `/api/contact?${params}`,
           {
             method: 'GET',
@@ -273,34 +200,27 @@ export const useContactService = () => {
 
         // Conversion et validation des données
         const processedData = Array.isArray(response.data)
-          ? response.data.map((contact: any) => {
-              // Validation des champs requis
-              if (!contact._id || !contact.email || !contact.message) {
-                console.warn('Contact avec des champs manquants:', contact);
-              }
-
-              return {
-                _id: String(contact._id || ''),
-                firstName: contact.firstName || undefined,
-                lastName: contact.lastName || undefined,
-                email: String(contact.email || ''),
-                message: String(contact.message || ''),
-                isRead: Boolean(contact.isRead || false),
-                adminResponse: contact.adminResponse || undefined,
-                respondedAt: contact.respondedAt
-                  ? new Date(contact.respondedAt)
-                  : undefined,
-                respondedBy: contact.respondedBy
-                  ? String(contact.respondedBy)
-                  : undefined,
-                createdAt: contact.createdAt
-                  ? new Date(contact.createdAt)
-                  : new Date(),
-                updatedAt: contact.updatedAt
-                  ? new Date(contact.updatedAt)
-                  : new Date(),
-              };
-            })
+          ? response.data.map((contact: any) => ({
+              _id: String(contact._id || ''),
+              firstName: contact.firstName || undefined,
+              lastName: contact.lastName || undefined,
+              email: String(contact.email || ''),
+              message: String(contact.message || ''),
+              isRead: Boolean(contact.isRead || false),
+              adminResponse: contact.adminResponse || undefined,
+              respondedAt: contact.respondedAt
+                ? new Date(contact.respondedAt)
+                : undefined,
+              respondedBy: contact.respondedBy
+                ? String(contact.respondedBy)
+                : undefined,
+              createdAt: contact.createdAt
+                ? new Date(contact.createdAt)
+                : new Date(),
+              updatedAt: contact.updatedAt
+                ? new Date(contact.updatedAt)
+                : new Date(),
+            }))
           : [];
 
         return {
@@ -314,7 +234,6 @@ export const useContactService = () => {
           err.message || 'Erreur lors de la récupération des messages';
         setError(errorMessage);
 
-        // Toast avec options améliorées
         toast.error(errorMessage, {
           position: 'top-center',
           autoClose: 5000,
@@ -325,7 +244,6 @@ export const useContactService = () => {
           theme: 'colored',
         });
 
-        // Log en console pour le débogage
         console.error('Erreur getAllContacts:', {
           filters,
           error: err.message,
@@ -340,13 +258,14 @@ export const useContactService = () => {
     [secureFetch]
   );
 
-  // 📊 Obtenir les statistiques des messages
+  // Obtenir les statistiques des messages
   const getContactStats = useCallback(async (): Promise<ContactStats> => {
     setIsLoading(true);
     setError(null);
 
     try {
-      return await secureFetch(
+      // fetchWithAuth retourne déjà les données parsées
+      return await secureFetch<ContactStats>(
         '/api/contact/stats',
         {
           method: 'GET',
@@ -364,14 +283,15 @@ export const useContactService = () => {
     }
   }, [secureFetch]);
 
-  // 👁️ Récupérer un message spécifique
+  // Récupérer un message spécifique
   const getContact = useCallback(
     async (id: string): Promise<Contact> => {
       setIsLoading(true);
       setError(null);
 
       try {
-        return await secureFetch(
+        // fetchWithAuth retourne déjà les données parsées
+        return await secureFetch<Contact>(
           `/api/contact/${id}`,
           {
             method: 'GET',
@@ -391,14 +311,15 @@ export const useContactService = () => {
     [secureFetch]
   );
 
-  // ✅ Marquer un message comme lu
+  // Marquer un message comme lu
   const markAsRead = useCallback(
     async (id: string): Promise<Contact> => {
       setIsLoading(true);
       setError(null);
 
       try {
-        const result = await secureFetch(
+        // fetchWithAuth retourne déjà les données parsées
+        const result = await secureFetch<{ contact: Contact }>(
           `/api/contact/${id}/read`,
           {
             method: 'PATCH',
@@ -432,7 +353,8 @@ export const useContactService = () => {
       setError(null);
 
       try {
-        const result = await secureFetch(
+        // fetchWithAuth retourne déjà les données parsées
+        const result = await secureFetch<{ contact: Contact }>(
           `/api/contact/${id}/reply`,
           {
             method: 'POST',
@@ -456,13 +378,14 @@ export const useContactService = () => {
     [secureFetch]
   );
 
-  // 🗑️ Supprimer un message
+  // Supprimer un message
   const deleteContact = useCallback(
     async (id: string): Promise<void> => {
       setIsLoading(true);
       setError(null);
 
       try {
+        // fetchWithAuth retourne déjà les données parsées
         await secureFetch(
           `/api/contact/${id}`,
           {
@@ -485,14 +408,15 @@ export const useContactService = () => {
     [secureFetch]
   );
 
-  // 📧 Envoyer un message de contact (public)
+  // Envoyer un message de contact (public)
   const createContact = useCallback(
     async (contactData: CreateContactDto): Promise<Contact> => {
       setIsLoading(true);
       setError(null);
 
       try {
-        const result = await secureFetch(
+        // fetchWithAuth retourne déjà les données parsées
+        const result = await secureFetch<{ contact: Contact }>(
           '/api/contact',
           {
             method: 'POST',

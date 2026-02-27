@@ -20,8 +20,6 @@ declare var fetch: (
   input: RequestInfo | URL,
   init?: RequestInit
 ) => Promise<Response>;
-declare var localStorage: Storage;
-declare var sessionStorage: Storage;
 declare var navigator: Navigator;
 declare var location: Location;
 declare var history: History;

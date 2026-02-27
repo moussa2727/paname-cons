@@ -143,7 +143,7 @@ export class ProcedureService {
     const procedure = await this.procedureModel.findByIdAndUpdate(
       id,
       { ...updateDto, dateDerniereModification: new Date() },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!procedure) throw new NotFoundException('Procédure non trouvée');

@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   Plus,
   Loader2,
+  OctagonAlert,
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { UserHeader } from '../../../components/user/UserHeader';
@@ -774,7 +775,7 @@ const MesRendezvous = () => {
             <ul className='text-sm text-sky-700 space-y-1'>
               <li>✓ Les rendez-vous annulés apparaissent avec la raison d'annulation</li>
               <li>✓ Vous ne pouvez annuler qu'un rendez-vous Confirmé</li>
-              <li>⚠️ L'annulation n'est plus possible à moins de 2 heures du rendez-vous</li>
+              <OctagonAlert className="w-2 h-2 text-red-600" /> Annulation n'est plus possible à moins de 2 heures du rendez-vous
               <li>✓ Pour les rendez-vous Terminés, l'avis administrateur est affiché</li>
               <li>✓ Un rendez-vous Terminé avec avis Favorable peut déclencher une procédure</li>
             </ul>

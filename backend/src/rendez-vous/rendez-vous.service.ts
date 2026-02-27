@@ -609,7 +609,7 @@ export class RendezvousService {
     const updated = await this.rendezvousModel.findByIdAndUpdate(
       id,
       updateDto,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     if (!updated) {
@@ -662,7 +662,7 @@ export class RendezvousService {
     }
 
     const updated = await this.rendezvousModel.findByIdAndUpdate(id, update, {
-      new: true,
+      returnDocument: 'after',
     });
 
     if (!updated) {
@@ -977,7 +977,7 @@ export class RendezvousService {
           ? "Annulé par l'administrateur"
           : "Annulé par l'utilisateur",
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!updated) {
@@ -1017,7 +1017,7 @@ export class RendezvousService {
     const updated = await this.rendezvousModel.findByIdAndUpdate(
       id,
       { status: RENDEZVOUS_STATUS.CONFIRMED },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!updated) {

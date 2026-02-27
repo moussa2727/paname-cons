@@ -517,7 +517,7 @@ export class UsersService {
 
       const updatedUser = await this.userModel
         .findByIdAndUpdate(id, filteredUpdate, {
-          new: true,
+          returnDocument: 'after',
           runValidators: true,
           context: 'query',
         })
@@ -843,7 +843,7 @@ export class UsersService {
     }
 
     const updatedUser = await this.userModel
-      .findByIdAndUpdate(id, { isActive: !user.isActive }, { new: true })
+      .findByIdAndUpdate(id, { isActive: !user.isActive }, { returnDocument: 'after' })
       .select('-password')
       .exec();
 

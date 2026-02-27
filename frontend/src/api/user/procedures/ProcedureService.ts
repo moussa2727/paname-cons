@@ -88,16 +88,16 @@ export interface ProcedureFilterOptions {
 
 // ==================== SERVICE API USER ====================
 class ProcedureApiService {
-  private fetchWithAuth: (
+  private fetchWithAuth: <T = any>(
     endpoint: string,
     options?: RequestInit
-  ) => Promise<Response>;
+  ) => Promise<T>;
 
   constructor(
-    fetchWithAuth: (
+    fetchWithAuth: <T = any>(
       endpoint: string,
       options?: RequestInit
-    ) => Promise<Response>
+    ) => Promise<T>
   ) {
     this.fetchWithAuth = fetchWithAuth;
   }
@@ -135,43 +135,11 @@ class ProcedureApiService {
         queryParams.append('sortOrder', filters.sortOrder);
       }
 
-      const response = await this.fetchWithAuth(
+      // fetchWithAuth retourne déjà les données parsées
+      const data = await this.fetchWithAuth<any>(
         `/api/procedures/user?${queryParams.toString()}`
       );
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('SESSION_EXPIRED');
-        }
-        if (response.status === 403) {
-          throw new Error('Accès non autorisé. Vérifiez vos permissions.');
-        }
-        
-        // Vérifier si la réponse est vide
-        const responseText = await response.text();
-        if (!responseText) {
-          throw new Error(`Réponse vide du serveur (${response.status})`);
-        }
-        
-        throw new Error(
-          `Erreur ${response.status}: Impossible de charger vos procédures`
-        );
-      }
-
-      // Vérifier que la réponse contient du JSON valide
-      const responseText = await response.text();
-      if (!responseText) {
-        return {
-          data: [],
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
-        };
-      }
-
-      const data = JSON.parse(responseText);
-      
       // Vérifier la structure de la réponse
       if (!data || typeof data !== 'object') {
         throw new Error('Format de réponse invalide');
@@ -205,37 +173,9 @@ class ProcedureApiService {
         throw new Error('ID de procédure invalide ou manquant');
       }
 
-      const response = await this.fetchWithAuth(`/api/procedures/${procedureId}`);
+      // fetchWithAuth retourne déjà les données parsées
+      const data = await this.fetchWithAuth<any>(`/api/procedures/${procedureId}`);
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Procédure non trouvée');
-        }
-        if (response.status === 403) {
-          throw new Error("Accès interdit");
-        }
-        if (response.status === 401) {
-          throw new Error('SESSION_EXPIRED');
-        }
-        
-        // Vérifier si la réponse est vide
-        const responseText = await response.text();
-        if (!responseText) {
-          throw new Error(`Réponse vide du serveur (${response.status})`);
-        }
-        
-        throw new Error(
-          `Erreur ${response.status}: Impossible de charger les détails`
-        );
-      }
-
-      // Vérifier que la réponse contient du JSON valide
-      const responseText = await response.text();
-      if (!responseText) {
-        throw new Error('Réponse vide du serveur');
-      }
-
-      const data = JSON.parse(responseText);
       return this.normalizeProcedureData(data);
     } catch (error: any) {
       if (error.message === 'SESSION_EXPIRED') {
@@ -259,7 +199,8 @@ class ProcedureApiService {
         throw new Error('ID de procédure manquant');
       }
 
-      const response = await this.fetchWithAuth(
+      // fetchWithAuth retourne déjà les données parsées
+      const data = await this.fetchWithAuth<any>(
         `/api/procedures/${procedureId}/cancel`,
         {
           method: 'PUT',
@@ -270,40 +211,6 @@ class ProcedureApiService {
         }
       );
 
-      if (!response.ok) {
-        const responseText = await response.text();
-        let errorMessage = `Erreur ${response.status}`;
-        
-        if (responseText) {
-          try {
-            const errorData = JSON.parse(responseText);
-            errorMessage = errorData.message || errorMessage;
-          } catch {
-            errorMessage = responseText;
-          }
-        }
-
-        switch (response.status) {
-          case 401:
-            throw new Error('SESSION_EXPIRED');
-          case 403:
-            throw new Error('Vous ne pouvez annuler que vos propres procédures');
-          case 404:
-            throw new Error('Procédure non trouvée');
-          case 400:
-            throw new Error(`Requête invalide: ${errorMessage}`);
-          default:
-            throw new Error(`Erreur serveur: ${errorMessage}`);
-        }
-      }
-
-      // Vérifier que la réponse contient du JSON valide
-      const responseText = await response.text();
-      if (!responseText) {
-        throw new Error('Réponse vide du serveur');
-      }
-
-      const data = JSON.parse(responseText);
       return this.normalizeProcedureData(data);
     } catch (error: any) {
       if (error.message === 'SESSION_EXPIRED') {
@@ -523,8 +430,6 @@ class ProcedureApiService {
 
     return statusMap[status] || StepStatus.PENDING;
   }
-
-
 }
 
 // ==================== HOOKS USER ====================

@@ -169,7 +169,7 @@ export class ContactService {
       this.logger.log(`Marquage comme lu du contact [ID: ${id}]`);
 
       const contact = await this.contactModel
-        .findByIdAndUpdate(id, { isRead: true }, { new: true })
+        .findByIdAndUpdate(id, { isRead: true }, { returnDocument: 'after' })
         .exec();
 
       if (!contact) {
@@ -229,7 +229,7 @@ export class ContactService {
             respondedBy: user._id,
             isRead: true,
           },
-          { new: true }
+          { returnDocument: 'after' }
         )
         .exec();
 

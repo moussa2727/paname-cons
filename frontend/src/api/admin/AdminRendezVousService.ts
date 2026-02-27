@@ -197,6 +197,7 @@ const ERROR_MESSAGES: ErrorMessages = {
   NOT_FOUND: 'Rendez-vous non trouvé.',
   VALIDATION_ERROR: 'Données invalides.',
   RATE_LIMIT: 'Trop de requêtes. Veuillez patienter.',
+  
   // Messages spécifiques au rendez-vous
   ACCOUNT_REQUIRED:
     "Vous devez avoir un compte pour prendre un rendez-vous. Veuillez vous inscrire d'abord.",
@@ -247,10 +248,10 @@ export {
 };
 
 export class AdminRendezVousService {
-  private fetchWithAuth: (
+  private fetchWithAuth: <T = any>(
     endpoint: string,
     options?: RequestInit
-  ) => Promise<Response>;
+  ) => Promise<T>;
   private lastRequestTime: number = 0;
   private MIN_REQUEST_INTERVAL = 1000;
   private requestQueue: Promise<any> = Promise.resolve();
@@ -259,10 +260,10 @@ export class AdminRendezVousService {
   private requestTimeout: number = 30000;
 
   constructor(
-    fetchWithAuth: (
+    fetchWithAuth: <T = any>(
       endpoint: string,
       options?: RequestInit
-    ) => Promise<Response>
+    ) => Promise<T>
   ) {
     this.fetchWithAuth = fetchWithAuth;
   }
@@ -282,10 +283,10 @@ export class AdminRendezVousService {
     return queryString ? `?${queryString}` : '';
   }
 
-  private async rateLimitedFetch(
+  private async rateLimitedFetch<T = any>(
     endpoint: string,
     options?: RequestInit
-  ): Promise<Response> {
+  ): Promise<T> {
     const requestId = `${endpoint}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     try {
@@ -308,13 +309,14 @@ export class AdminRendezVousService {
       );
 
       try {
-        const response = await this.fetchWithAuth(endpoint, {
+        // fetchWithAuth retourne directement les données parsées
+        const data = await this.fetchWithAuth<T>(endpoint, {
           ...options,
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
-        return response;
+        return data;
       } catch (error) {
         clearTimeout(timeoutId);
         throw error;
@@ -333,12 +335,12 @@ export class AdminRendezVousService {
         .then(async () => {
           this.isProcessingQueue = true;
           try {
-            console.log(` ${operationName} en cours...`);
+            console.log(`${operationName} en cours...`);
             const result = await operation();
-            console.log(` ${operationName} réussi`);
+            console.log(`${operationName} réussi`);
             resolve(result);
           } catch (error) {
-            console.error(` ${operationName} échoué:`, error);
+            console.error(`${operationName} échoué:`, error);
             reject(error);
           } finally {
             this.isProcessingQueue = false;
@@ -346,7 +348,7 @@ export class AdminRendezVousService {
         })
         .catch(error => {
           console.error(
-            ` Erreur dans la file d'attente pour ${operationName}:`,
+            `Erreur dans la file d'attente pour ${operationName}:`,
             error
           );
           reject(error);
@@ -354,129 +356,119 @@ export class AdminRendezVousService {
     });
   }
 
-  private async handleResponse<T>(response: Response): Promise<T> {
-    if (!response.ok) {
-      let errorMessage = ERROR_MESSAGES.SERVER_ERROR;
+  private async handleResponseError(error: any): Promise<never> {
+    let errorMessage = ERROR_MESSAGES.SERVER_ERROR;
 
-      try {
-        const errorData = await response.json();
+    console.error('[AdminRendezVousService] handleResponseError appelé avec:', {
+      error: (error as any)?.message || error,
+      status: (error as any)?.status,
+      stack: (error as any)?.stack,
+      name: (error as any)?.name,
+      code: (error as any)?.code
+    });
 
-        // Récupération du message d'erreur du backend
-        if (errorData.message) {
-          errorMessage = errorData.message;
+    // Récupération du message d'erreur
+    if ((error as any)?.message) {
+      errorMessage = (error as any).message;
+      console.log('[AdminRendezVousService] Message d\'erreur reçu:', errorMessage);
 
-          // Mapping des messages d'erreur spécifiques du backend
-          if (errorMessage.includes('compte pour prendre un rendez-vous')) {
-            errorMessage = ERROR_MESSAGES.ACCOUNT_REQUIRED;
-          } else if (errorMessage.includes('doit correspondre exactement')) {
-            errorMessage = ERROR_MESSAGES.EMAIL_MISMATCH;
-          } else if (errorMessage.includes('déjà un rendez-vous confirmé')) {
-            errorMessage = ERROR_MESSAGES.ALREADY_CONFIRMED;
-          } else if (
-            errorMessage.includes("créneau horaire n'est pas disponible")
-          ) {
-            errorMessage = ERROR_MESSAGES.SLOT_UNAVAILABLE;
-          } else if (errorMessage.includes('Tous les créneaux sont complets')) {
-            errorMessage = ERROR_MESSAGES.DATE_FULL;
-          } else if (
-            errorMessage.includes('date passée') ||
-            errorMessage.includes('Date invalide ou passée')
-          ) {
-            errorMessage = ERROR_MESSAGES.PAST_DATE;
-          } else if (errorMessage.includes('créneau passé')) {
-            errorMessage = ERROR_MESSAGES.PAST_SLOT;
-          } else if (errorMessage.includes('week-end')) {
-            errorMessage = ERROR_MESSAGES.WEEKEND;
-          } else if (errorMessage.includes('jours fériés')) {
-            errorMessage = ERROR_MESSAGES.HOLIDAY;
-          } else if (errorMessage.includes('horaires disponibles sont entre')) {
-            errorMessage = ERROR_MESSAGES.INVALID_TIME;
-          } else if (errorMessage.includes('créneaux doivent être espacés')) {
-            errorMessage = ERROR_MESSAGES.INVALID_TIME_SLOT;
-          } else if (errorMessage.includes('modifier un rendez-vous terminé')) {
-            errorMessage = ERROR_MESSAGES.COMPLETED_NO_EDIT;
-          } else if (errorMessage.includes('moins de 2 heures')) {
-            errorMessage = ERROR_MESSAGES.CANCEL_THRESHOLD;
-          } else if (
-            errorMessage.includes('annuler que les rendez-vous confirmés')
-          ) {
-            errorMessage = ERROR_MESSAGES.CANCEL_ONLY_CONFIRMED;
-          } else if (
-            errorMessage.includes('administrateurs peuvent changer le statut') ||
-            errorMessage.includes("administrateurs peuvent modifier le statut")
-          ) {
-            errorMessage = ERROR_MESSAGES.ADMIN_REQUIRED_STATUS;
-          } else if (errorMessage.includes('avis admin est obligatoire')) {
-            errorMessage = ERROR_MESSAGES.TERMINATE_REQUIRES_AVIS;
-          } else if (errorMessage.includes('Avis admin invalide')) {
-            errorMessage = ERROR_MESSAGES.INVALID_AVIS;
-          } else if (errorMessage.includes('nécessite une précision')) {
-            if (errorMessage.includes('destination')) {
-              errorMessage = ERROR_MESSAGES.DESTINATION_REQUIRED;
-            } else if (errorMessage.includes('filière')) {
-              errorMessage = ERROR_MESSAGES.FILIERE_REQUIRED;
-            }
-          } else if (errorMessage.includes('Aucun compte trouvé')) {
-            errorMessage = ERROR_MESSAGES.NO_ACCOUNT_FOUND;
-          } else if (errorMessage.includes('vos propres rendez-vous')) {
-            errorMessage = ERROR_MESSAGES.CANT_UPDATE_OTHERS;
-          }
+      // Mapping des messages d'erreur spécifiques du backend
+      if (errorMessage.includes('compte pour prendre un rendez-vous')) {
+        errorMessage = ERROR_MESSAGES.ACCOUNT_REQUIRED;
+      } else if (errorMessage.includes('doit correspondre exactement')) {
+        errorMessage = ERROR_MESSAGES.EMAIL_MISMATCH;
+      } else if (errorMessage.includes('déjà un rendez-vous confirmé')) {
+        errorMessage = ERROR_MESSAGES.ALREADY_CONFIRMED;
+      } else if (errorMessage.includes("créneau horaire n'est pas disponible")) {
+        errorMessage = ERROR_MESSAGES.SLOT_UNAVAILABLE;
+      } else if (errorMessage.includes('Tous les créneaux sont complets')) {
+        errorMessage = ERROR_MESSAGES.DATE_FULL;
+      } else if (
+        errorMessage.includes('date passée') ||
+        errorMessage.includes('Date invalide ou passée')
+      ) {
+        errorMessage = ERROR_MESSAGES.PAST_DATE;
+      } else if (errorMessage.includes('créneau passé')) {
+        errorMessage = ERROR_MESSAGES.PAST_SLOT;
+      } else if (errorMessage.includes('week-end')) {
+        errorMessage = ERROR_MESSAGES.WEEKEND;
+      } else if (errorMessage.includes('jours fériés')) {
+        errorMessage = ERROR_MESSAGES.HOLIDAY;
+      } else if (errorMessage.includes('horaires disponibles sont entre')) {
+        errorMessage = ERROR_MESSAGES.INVALID_TIME;
+      } else if (errorMessage.includes('créneaux doivent être espacés')) {
+        errorMessage = ERROR_MESSAGES.INVALID_TIME_SLOT;
+      } else if (errorMessage.includes('modifier un rendez-vous terminé')) {
+        errorMessage = ERROR_MESSAGES.COMPLETED_NO_EDIT;
+      } else if (errorMessage.includes('moins de 2 heures')) {
+        errorMessage = ERROR_MESSAGES.CANCEL_THRESHOLD;
+      } else if (errorMessage.includes('annuler que les rendez-vous confirmés')) {
+        errorMessage = ERROR_MESSAGES.CANCEL_ONLY_CONFIRMED;
+      } else if (
+        errorMessage.includes('administrateurs peuvent changer le statut') ||
+        errorMessage.includes("administrateurs peuvent modifier le statut")
+      ) {
+        errorMessage = ERROR_MESSAGES.ADMIN_REQUIRED_STATUS;
+      } else if (errorMessage.includes('avis admin est obligatoire')) {
+        errorMessage = ERROR_MESSAGES.TERMINATE_REQUIRES_AVIS;
+      } else if (errorMessage.includes('Avis admin invalide')) {
+        errorMessage = ERROR_MESSAGES.INVALID_AVIS;
+      } else if (errorMessage.includes('nécessite une précision')) {
+        if (errorMessage.includes('destination')) {
+          errorMessage = ERROR_MESSAGES.DESTINATION_REQUIRED;
+        } else if (errorMessage.includes('filière')) {
+          errorMessage = ERROR_MESSAGES.FILIERE_REQUIRED;
         }
-
-        // Gestion des codes HTTP
-        switch (response.status) {
-          case 400:
-            if (
-              !errorMessage.includes(ERROR_MESSAGES.ACCOUNT_REQUIRED) &&
-              !errorMessage.includes(ERROR_MESSAGES.EMAIL_MISMATCH) &&
-              !errorMessage.includes(ERROR_MESSAGES.ALREADY_CONFIRMED)
-            ) {
-              errorMessage =
-                errorData.message || ERROR_MESSAGES.VALIDATION_ERROR;
-            }
-            break;
-          case 401:
-            errorMessage = ERROR_MESSAGES.UNAUTHORIZED;
-            break;
-          case 403:
-            if (
-              !errorMessage.includes(ERROR_MESSAGES.ACCOUNT_REQUIRED) &&
-              !errorMessage.includes(ERROR_MESSAGES.EMAIL_MISMATCH) &&
-              !errorMessage.includes(ERROR_MESSAGES.ALREADY_CONFIRMED)
-            ) {
-              errorMessage = ERROR_MESSAGES.FORBIDDEN;
-            }
-            break;
-          case 404:
-            errorMessage = ERROR_MESSAGES.NOT_FOUND;
-            break;
-          case 429:
-            errorMessage = ERROR_MESSAGES.RATE_LIMIT;
-            break;
-        }
-      } catch (parseError) {
-        console.error('Erreur parsing error response:', parseError);
+      } else if (errorMessage.includes('Aucun compte trouvé')) {
+        errorMessage = ERROR_MESSAGES.NO_ACCOUNT_FOUND;
+      } else if (errorMessage.includes('vos propres rendez-vous')) {
+        errorMessage = ERROR_MESSAGES.CANT_UPDATE_OTHERS;
       }
-
-      // Afficher le toast d'erreur
-      toast.error(errorMessage, {
-        autoClose: 5000,
-        position: 'top-right',
-      });
-
-      throw new Error(errorMessage);
     }
 
-    try {
-      const data = await response.json();
-      return data as T;
-    } catch (error) {
-      console.error('Erreur de parsing JSON:', error);
-      toast.error('Erreur lors du traitement de la réponse', {
-        autoClose: 3000,
-      });
-      throw new Error('Erreur lors du traitement de la réponse');
+    // Gestion des codes HTTP via le status de l'erreur
+    if (error?.status) {
+      switch (error.status) {
+        case 400:
+          if (
+            !errorMessage.includes(ERROR_MESSAGES.ACCOUNT_REQUIRED) &&
+            !errorMessage.includes(ERROR_MESSAGES.EMAIL_MISMATCH) &&
+            !errorMessage.includes(ERROR_MESSAGES.ALREADY_CONFIRMED)
+          ) {
+            errorMessage = error.message || ERROR_MESSAGES.VALIDATION_ERROR;
+          }
+          break;
+        case 401:
+          errorMessage = ERROR_MESSAGES.UNAUTHORIZED;
+          break;
+        case 403:
+          if (
+            !errorMessage.includes(ERROR_MESSAGES.ACCOUNT_REQUIRED) &&
+            !errorMessage.includes(ERROR_MESSAGES.EMAIL_MISMATCH) &&
+            !errorMessage.includes(ERROR_MESSAGES.ALREADY_CONFIRMED)
+          ) {
+            errorMessage = ERROR_MESSAGES.FORBIDDEN;
+          }
+          break;
+        case 404:
+          errorMessage = ERROR_MESSAGES.NOT_FOUND;
+          break;
+        case 429:
+          errorMessage = ERROR_MESSAGES.RATE_LIMIT;
+          break;
+      }
     }
+
+    // Afficher le toast d'erreur
+    console.log('[AdminRendezVousService] Affichage toast erreur:', errorMessage);
+    
+    toast.error(errorMessage, {
+      autoClose: 5000,
+      position: 'top-right',
+    });
+
+    console.log('[AdminRendezVousService] Erreur finale à throw:', errorMessage);
+    throw new Error(errorMessage);
   }
 
   // ==================== MÉTHODES PUBLIQUES ====================
@@ -489,17 +481,39 @@ export class AdminRendezVousService {
   ): Promise<RendezvousListResponse> {
     return this.queueRequest(async () => {
       try {
+        console.log('[AdminRendezVousService] fetchAllRendezvous appelé avec:', { page, limit, filters });
+        
         const queryParams: FilterParams = { page, limit, ...filters };
         const queryString = this.buildQueryString(queryParams);
-        const response = await this.rateLimitedFetch(
-          `/api/rendezvous${queryString}`
-        );
-
-        const data =
-          await this.handleResponse<RendezvousListResponse>(response);
+        const endpoint = `/api/rendezvous${queryString}`;
+        
+        console.log('[AdminRendezVousService] Appel API endpoint:', endpoint);
+        
+        // fetchWithAuth retourne directement les données
+        const data = await this.rateLimitedFetch<RendezvousListResponse>(endpoint);
+        
+        console.log('[AdminRendezVousService] fetchAllRendezvous réponse:', {
+          total: data?.total,
+          totalPages: data?.totalPages,
+          dataLength: data?.data?.length,
+          firstItem: data?.data?.[0] ? {
+            id: data.data[0].id,
+            status: data.data[0].status,
+            date: data.data[0].date
+          } : null
+        });
 
         return data;
       } catch (error) {
+        console.error('[AdminRendezVousService] Erreur fetchAllRendezvous:', {
+          error: (error as any)?.message || error,
+          stack: (error as any)?.stack,
+          status: (error as any)?.status,
+          page,
+          limit,
+          filters
+        });
+        
         if (error instanceof Error) {
           if (error.name === 'AbortError') {
             toast.error('La requête a expiré. Veuillez réessayer.', {
@@ -508,6 +522,7 @@ export class AdminRendezVousService {
             throw new Error('Request timeout');
           }
         }
+        await this.handleResponseError(error);
         throw error;
       }
     }, 'fetchAllRendezvous');
@@ -580,15 +595,14 @@ export class AdminRendezVousService {
           }
         }
 
-        const response = await this.rateLimitedFetch('/api/rendezvous', {
+        // fetchWithAuth retourne directement les données
+        const result = await this.rateLimitedFetch<Rendezvous>('/api/rendezvous', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(data),
         });
-
-        const result = await this.handleResponse<Rendezvous>(response);
 
         toast.success(ERROR_MESSAGES.CREATE_SUCCESS, {
           autoClose: 3000,
@@ -597,6 +611,7 @@ export class AdminRendezVousService {
 
         return result;
       } catch (error) {
+        await this.handleResponseError(error);
         throw error;
       }
     }, 'createRendezvous');
@@ -615,15 +630,15 @@ export class AdminRendezVousService {
         if (status) queryParams.status = status;
 
         const queryString = this.buildQueryString(queryParams);
-        const response = await this.rateLimitedFetch(
+        
+        // fetchWithAuth retourne directement les données
+        const data = await this.rateLimitedFetch<RendezvousListResponse>(
           `/api/rendezvous/user${queryString}`
         );
 
-        const data =
-          await this.handleResponse<RendezvousListResponse>(response);
-
         return data;
       } catch (error) {
+        await this.handleResponseError(error);
         throw error;
       }
     }, 'fetchUserRendezvous');
@@ -644,9 +659,8 @@ export class AdminRendezVousService {
       }
 
       try {
-        const response = await this.rateLimitedFetch(`/api/rendezvous/${id}`);
-
-        const data = await this.handleResponse<Rendezvous>(response);
+        // fetchWithAuth retourne directement les données
+        const data = await this.rateLimitedFetch<Rendezvous>(`/api/rendezvous/${id}`);
 
         // Vérifier les permissions d'accès
         if (!isAdmin && userEmail) {
@@ -663,6 +677,7 @@ export class AdminRendezVousService {
 
         return data;
       } catch (error) {
+        await this.handleResponseError(error);
         throw error;
       }
     }, 'getRendezvousById');
@@ -751,15 +766,14 @@ export class AdminRendezVousService {
           }
         }
 
-        const response = await this.rateLimitedFetch(`/api/rendezvous/${id}`, {
+        // fetchWithAuth retourne directement les données
+        const result = await this.rateLimitedFetch<Rendezvous>(`/api/rendezvous/${id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(data),
         });
-
-        const result = await this.handleResponse<Rendezvous>(response);
 
         toast.success(ERROR_MESSAGES.UPDATE_SUCCESS, {
           autoClose: 3000,
@@ -768,6 +782,7 @@ export class AdminRendezVousService {
 
         return result;
       } catch (error) {
+        await this.handleResponseError(error);
         throw error;
       }
     }, 'updateRendezvous');
@@ -800,7 +815,8 @@ export class AdminRendezVousService {
           body.avisAdmin = avisAdmin;
         }
 
-        const response = await this.rateLimitedFetch(
+        // fetchWithAuth retourne directement les données
+        const result = await this.rateLimitedFetch<Rendezvous>(
           `/api/rendezvous/${id}/status`,
           {
             method: 'PUT',
@@ -811,8 +827,6 @@ export class AdminRendezVousService {
           }
         );
 
-        const result = await this.handleResponse<Rendezvous>(response);
-
         toast.success(ERROR_MESSAGES.STATUS_UPDATE_SUCCESS, {
           autoClose: 3000,
           position: 'top-right',
@@ -820,6 +834,7 @@ export class AdminRendezVousService {
 
         return result;
       } catch (error) {
+        await this.handleResponseError(error);
         throw error;
       }
     }, 'updateRendezvousStatus');
@@ -839,7 +854,8 @@ export class AdminRendezVousService {
       }
 
       try {
-        const response = await this.rateLimitedFetch(`/api/rendezvous/${id}`, {
+        // fetchWithAuth retourne directement les données
+        const result = await this.rateLimitedFetch<Rendezvous>(`/api/rendezvous/${id}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
@@ -849,8 +865,6 @@ export class AdminRendezVousService {
             : undefined,
         });
 
-        const result = await this.handleResponse<Rendezvous>(response);
-
         toast.success(ERROR_MESSAGES.DELETE_SUCCESS, {
           autoClose: 3000,
           position: 'top-right',
@@ -858,6 +872,7 @@ export class AdminRendezVousService {
 
         return result;
       } catch (error) {
+        await this.handleResponseError(error);
         throw error;
       }
     }, 'cancelRendezvous');
@@ -874,7 +889,8 @@ export class AdminRendezVousService {
       }
 
       try {
-        const response = await this.rateLimitedFetch(
+        // fetchWithAuth retourne directement les données
+        const result = await this.rateLimitedFetch<Rendezvous>(
           `/api/rendezvous/${id}/confirm`,
           {
             method: 'PUT',
@@ -884,8 +900,6 @@ export class AdminRendezVousService {
           }
         );
 
-        const result = await this.handleResponse<Rendezvous>(response);
-
         toast.success(ERROR_MESSAGES.CONFIRM_SUCCESS, {
           autoClose: 3000,
           position: 'top-right',
@@ -893,6 +907,7 @@ export class AdminRendezVousService {
 
         return result;
       } catch (error) {
+        await this.handleResponseError(error);
         throw error;
       }
     }, 'confirmRendezvous');
@@ -918,17 +933,17 @@ export class AdminRendezVousService {
       }
 
       try {
-        const response = await this.rateLimitedFetch(
+        // fetchWithAuth retourne directement les données
+        const data = await this.rateLimitedFetch<string[]>(
           `/api/rendezvous/available-slots?date=${encodeURIComponent(date)}`
         );
-
-        const data = await this.handleResponse<string[]>(response);
 
         return data;
       } catch (error) {
         if (error instanceof Error && error.message.includes('Date invalide')) {
           throw error;
         }
+        await this.handleResponseError(error);
         throw error;
       }
     }, 'fetchAvailableSlots');
@@ -938,14 +953,14 @@ export class AdminRendezVousService {
   async fetchAvailableDates(): Promise<string[]> {
     return this.queueRequest(async () => {
       try {
-        const response = await this.rateLimitedFetch(
+        // fetchWithAuth retourne directement les données
+        const data = await this.rateLimitedFetch<string[]>(
           '/api/rendezvous/available-dates'
         );
 
-        const data = await this.handleResponse<string[]>(response);
-
         return data;
       } catch (error) {
+        await this.handleResponseError(error);
         throw error;
       }
     }, 'fetchAvailableDates');
@@ -1188,7 +1203,10 @@ export class AdminRendezVousService {
 
 // Hook personnalisé pour utiliser le service
 export function useAdminRendezVousService(
-  fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>
+  fetchWithAuth: <T = any>(
+    endpoint: string,
+    options?: RequestInit
+  ) => Promise<T>
 ) {
   return useMemo(
     () => new AdminRendezVousService(fetchWithAuth),
@@ -1198,25 +1216,10 @@ export function useAdminRendezVousService(
 
 // Fonction pour créer une instance du service (utile pour les composants non-hooks)
 export function createAdminRendezVousService(
-  fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>
+  fetchWithAuth: <T = any>(
+    endpoint: string,
+    options?: RequestInit
+  ) => Promise<T>
 ): AdminRendezVousService {
   return new AdminRendezVousService(fetchWithAuth);
-}
-
-// Fonction utilitaire pour créer un fetchWithAuth avec token
-export function createAuthFetch(
-  token: string
-): (endpoint: string, options?: RequestInit) => Promise<Response> {
-  return async (endpoint: string, options?: RequestInit) => {
-    const baseUrl = import.meta.env.VITE_API_URL || '';
-    const response = await fetch(`${baseUrl}${endpoint}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        ...options?.headers,
-      },
-    });
-    return response;
-  };
 }

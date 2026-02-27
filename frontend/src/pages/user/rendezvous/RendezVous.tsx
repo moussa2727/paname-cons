@@ -513,6 +513,7 @@ const RendezVous = () => {
       const makeRequest = async (currentToken: string): Promise<Response> => {
         return fetch(`${API_URL}/api/rendezvous`, {
           method: 'POST',
+          credentials: 'include',
           headers: {
             Authorization: `Bearer ${currentToken}`,
             'Content-Type': 'application/json',
@@ -529,7 +530,11 @@ const RendezVous = () => {
         try {
           const refreshed = await refreshToken();
           if (refreshed) {
-            const currentToken = localStorage.getItem('access_token');
+            const currentToken = (() => {
+              const cookies = document.cookie.split(';').map(cookie => cookie.trim());
+              const tokenCookie = cookies.find(cookie => cookie.startsWith('access_token='));
+              return tokenCookie ? tokenCookie.substring('access_token='.length) : null;
+            })();
             if (currentToken) {
               response = await makeRequest(currentToken);
             } else {

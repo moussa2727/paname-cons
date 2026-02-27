@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import {
-  destinationService,
-  type Destination,
-  type CreateDestinationData,
-  type UpdateDestinationData,
+import { 
+  CreateDestinationData, 
+  Destination, 
+  UpdateDestinationData, 
+  useAdminDestinationService
 } from '../../api/admin/AdminDestionService';
 import { Helmet } from 'react-helmet-async';
 import RequireAdmin from '../../context/RequireAdmin';
@@ -20,7 +20,8 @@ const initialForm = {
 };
 
 const AdminDestinations: React.FC = (): React.JSX.Element => {
-  const { access_token, user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const destinationService = useAdminDestinationService();
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -51,55 +52,51 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
   const fetchDestinations = async (): Promise<void> => {
     setLoading(true);
     try {
-      const data =
-        await destinationService.getAllDestinationsWithoutPagination();
+      const response = await destinationService.findAll(1, 1000);
+      
+      if (!response) {
+        throw new Error('Réponse invalide du serveur');
+      }
 
-      // Transformer les données pour inclure les URLs complètes des images
-      const transformedData = data.map((dest: Destination) => ({
+      const destinationsData = Array.isArray(response.data) ? response.data : [];
+      
+      const transformedData = destinationsData.map((dest: Destination) => ({
         ...dest,
-        imagePath: destinationService.getFullImageUrl(dest.imagePath), // ← Utiliser le service
+        imagePath: destinationService.getImageUrl(dest.imagePath),
       }));
 
       setDestinations(transformedData);
 
-      // Mettre à jour les informations de source de données
-      const stats = await destinationService.getStatistics();
-
       setDataSourceInfo({
-        count: data.length,
-        lastUpdated:
-          stats.lastUpdated ||
-          new Date().toLocaleDateString('fr-FR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
+        count: destinationsData.length,
+        lastUpdated: new Date().toLocaleDateString('fr-FR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        }),
       });
     } catch (error: any) {
-      if (import.meta.env.DEV) {
-        console.error('Erreur détaillée:', error);
-      }
+      console.error('[AdminDestinations] Erreur fetchDestinations:', {
+        error: error.message || error,
+        status: error.status,
+        stack: error.stack
+      });
       showPopover(
         error.message || 'Erreur lors du chargement des destinations',
         'error'
       );
+      setDestinations([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Vérifier les droits admin - CORRIGÉ
+  // Vérifier les droits admin
   const hasAdminRights = (): boolean => {
-    if (!isAuthenticated || !user || !access_token) {
+    if (!isAuthenticated || !user) {
       return false;
     }
-
-    // Vérifier le rôle admin
-    const isAdminUser = user.role === 'admin';
-
-    return isAdminUser;
+    return user.role === 'admin';
   };
 
   // Soumission du formulaire
@@ -129,23 +126,23 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
       }
 
       if (editingId) {
-        // Mise à jour destination existante
         const updateData: UpdateDestinationData = {
           country: form.country.trim(),
           text: form.text.trim(),
           ...(imageFile && { imageFile }),
         };
 
-        await destinationService.updateDestination(
-          editingId,
-          updateData,
-          access_token!
-        );
+        await destinationService.update(editingId, updateData);
         showPopover('Destination modifiée avec succès', 'success');
       } else {
-        // Création nouvelle destination
         if (!imageFile) {
           showPopover('Veuillez sélectionner une image', 'error');
+          return;
+        }
+
+        const validation = destinationService.validateImage(imageFile);
+        if (!validation.isValid) {
+          showPopover(validation.error!, 'error');
           return;
         }
 
@@ -155,18 +152,24 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           imageFile,
         };
 
-        await destinationService.createDestination(createData, access_token!);
+        await destinationService.create(createData);
         showPopover('Destination ajoutée avec succès', 'success');
       }
 
-      // Réinitialiser et rafraîchir
       handleCancelEdit();
       fetchDestinations();
-    } catch {
-      if (import.meta.env.DEV) {
-        console.error('Erreur détaillée:');
-      }
-      // Le message d'erreur est déjà géré par le service
+    } catch (error: any) {
+      console.error('[AdminDestinations] Erreur handleSubmit:', {
+        error: error.message || error,
+        status: error.status,
+        stack: error.stack,
+        editingId,
+        country: form.country
+      });
+      showPopover(
+        error.message || 'Une erreur est survenue',
+        'error'
+      );
     } finally {
       setLoading(false);
     }
@@ -182,11 +185,21 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
 
     setLoading(true);
     try {
-      await destinationService.deleteDestination(id, access_token!);
+      await destinationService.remove(id);
       showPopover('Destination supprimée avec succès', 'success');
       setShowDeleteConfirm(null);
       fetchDestinations();
-    } catch {
+    } catch (error: any) {
+      console.error('[AdminDestinations] Erreur handleDelete:', {
+        error: error.message || error,
+        status: error.status,
+        stack: error.stack,
+        id
+      });
+      showPopover(
+        error.message || 'Erreur lors de la suppression',
+        'error'
+      );
     } finally {
       setLoading(false);
     }
@@ -204,8 +217,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
 
-      // Validation via le service
-      const validation = destinationService.validateImageFile(file);
+      const validation = destinationService.validateImage(file);
       if (!validation.isValid) {
         showPopover(validation.error!, 'error');
         e.target.value = '';
@@ -242,9 +254,10 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     return () => {
       if (popoverTimeout.current) clearTimeout(popoverTimeout.current);
     };
-  }, [access_token, user, isAuthenticated]);
+  }, []);
 
   const isAdmin = hasAdminRights();
+  const safeDestinations = Array.isArray(destinations) ? destinations : [];
 
   return (
     <>
@@ -293,7 +306,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
 
           {/* Cartes de statistiques */}
           {dataSourceInfo && (
-            <div className='grid grid-cols-2 lg:grid-cols-3 gap-2 mb-4 px-4'>
+            <div className='grid grid-cols-2 lg:grid-cols-2 gap-2 mb-4 px-4'>
               <div className='bg-white rounded-xl border border-slate-200/60 p-3 shadow-sm'>
                 <div className='flex items-center'>
                   <div className='p-2 bg-blue-500 rounded-lg'>
@@ -316,30 +329,6 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                     <p className='text-lg font-bold text-slate-800'>
                       {dataSourceInfo.count}
                     </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className='bg-white rounded-xl border border-slate-200/60 p-3 shadow-sm'>
-                <div className='flex items-center'>
-                  <div className='p-2 bg-emerald-500 rounded-lg'>
-                    <svg
-                      className='w-4 h-4 text-white'
-                      fill='none'
-                      stroke='currentColor'
-                      viewBox='0 0 24 24'
-                    >
-                      <path
-                        strokeLinecap='round'
-                        strokeLinejoin='round'
-                        strokeWidth='2'
-                        d='M5 13l4 4L19 7'
-                      />
-                    </svg>
-                  </div>
-                  <div className='ml-2'>
-                    <p className='text-xs text-slate-600'>Statut</p>
-                    <p className='text-lg font-bold text-slate-800'>Actif</p>
                   </div>
                 </div>
               </div>
@@ -534,14 +523,14 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                     id='image'
                     name='image'
                     type='file'
-                    accept='image/*'
+                    accept='image/jpeg,image/jpg,image/png,image/webp,image/avif,image/svg+xml'
                     ref={fileInputRef}
                     onChange={handleImageChange}
                     disabled={!isAdmin}
                     className='w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed'
                   />
                   <p className='text-xs text-slate-500 mt-1'>
-                    JPG, PNG, WEBP, SVG - Max 5MB
+                    JPG, PNG, WEBP, AVIF, SVG - Max 5MB
                   </p>
 
                   {imageFile && (
@@ -711,7 +700,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           {/* Liste des destinations */}
           <div className='bg-white rounded-xl border border-slate-200/60 overflow-hidden shadow-sm mx-4'>
             {/* En-tête */}
-            <div className='px-4 py-3 bg-linear-to-r from-blue-500 to-blue-600 text-white'>
+            <div className='px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white'>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
                   <svg
@@ -731,7 +720,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                     Liste des Destinations
                   </h2>
                   <span className='bg-blue-400 text-blue-100 px-2 py-0.5 rounded-full text-xs'>
-                    {destinations.length}
+                    {safeDestinations.length}
                   </span>
                 </div>
               </div>
@@ -746,7 +735,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                     Chargement sécurisé...
                   </p>
                 </div>
-              ) : destinations.length === 0 ? (
+              ) : safeDestinations.length === 0 ? (
                 <div className='p-6 text-center text-slate-500'>
                   <svg
                     className='w-12 h-12 mx-auto mb-2 text-slate-400'
@@ -770,7 +759,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                 </div>
               ) : (
                 <div className='divide-y divide-slate-200'>
-                  {destinations.map(dest => (
+                  {safeDestinations.map(dest => (
                     <div
                       key={dest._id}
                       className='p-4 hover:bg-slate-50 transition-colors'
@@ -891,7 +880,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                         </p>
                       </td>
                     </tr>
-                  ) : destinations.length === 0 ? (
+                  ) : safeDestinations.length === 0 ? (
                     <tr>
                       <td colSpan={3} className='px-4 py-8 text-center'>
                         <svg
@@ -913,7 +902,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                       </td>
                     </tr>
                   ) : (
-                    destinations.map(dest => (
+                    safeDestinations.map(dest => (
                       <tr
                         key={dest._id}
                         className='hover:bg-slate-50 transition-colors'
@@ -1044,7 +1033,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                     Supprimer la destination{' '}
                     <span className='font-semibold text-slate-800'>
                       {
-                        destinations.find(d => d._id === showDeleteConfirm)
+                        safeDestinations.find(d => d._id === showDeleteConfirm)
                           ?.country
                       }
                     </span>{' '}

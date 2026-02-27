@@ -223,7 +223,7 @@ const AdminDashboard = () => {
     if (!isAuthenticated) return;
 
     checkMaintenanceStatus();
-  }, [isAuthenticated, checkMaintenanceStatus]);
+  }, [isAuthenticated]); // Retirer checkMaintenanceStatus des dépendances
 
   // Gérer le toggle de maintenance
   const handleToggleMaintenance = async () => {
@@ -495,7 +495,7 @@ const AdminDashboard = () => {
         <meta name='seznam' content='noindex, nofollow' />
       </Helmet>
 
-      <div className='min-h-screen bg-gray-50'>
+      <div className='min-h-screen '>
         <div className='p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto'>
           {/* En-tête */}
           <div className='bg-white rounded-2xl shadow-lg p-4 md:p-6 lg:p-8 border border-gray-200'>

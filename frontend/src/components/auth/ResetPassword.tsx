@@ -51,7 +51,7 @@ const ResetPassword: React.FC = () => {
     hasUpperCase: false,
     hasLowerCase: false,
     hasNumber: false,
-    // ✅ SUPPRIMÉ: Caractère spécial NON REQUIS par le backend
+    // SUPPRIMÉ: Caractère spécial NON REQUIS par le backend
     // hasSpecialChar: false,
   });
 
@@ -69,25 +69,25 @@ const ResetPassword: React.FC = () => {
   }, [formData.newPassword]);
 
   const checkPasswordStrength = (password: string) => {
-    // ✅ SYNCHRONISÉ AVEC BACKEND (update-password.dto.ts, reset-password.dto.ts)
+    // SYNCHRONISÉ AVEC BACKEND (update-password.dto.ts, reset-password.dto.ts)
     // Backend: (?=.*[a-z])(?=.*[A-Z])(?=.*\d) - Pas de caractère spécial requis
     setPasswordStrength({
       hasMinLength: password.length >= 8,
       hasUpperCase: /[A-Z]/.test(password),
       hasLowerCase: /[a-z]/.test(password),
       hasNumber: /[0-9]/.test(password),
-      // ✅ SUPPRIMÉ: Pas de caractère spécial requis
+      // SUPPRIMÉ: Pas de caractère spécial requis
       // hasSpecialChar: /[!@#$%^&*(),.?":{}|<>]/.test(password),
     });
   };
 
-  // ✅ CORRECT: Validation synchronisée avec backend
+  // CORRECT: Validation synchronisée avec backend
   const isPasswordValid =
     passwordStrength.hasMinLength &&
     passwordStrength.hasUpperCase &&
     passwordStrength.hasLowerCase &&
     passwordStrength.hasNumber;
-  // ✅ SUPPRIMÉ: Pas de caractère spécial requis
+  // SUPPRIMÉ: Pas de caractère spécial requis
   // && passwordStrength.hasSpecialChar;
 
   const canSubmit =
@@ -134,7 +134,7 @@ const ResetPassword: React.FC = () => {
 
       setTimeout(() => navigate('/connexion'), 3000);
     } catch (error: any) {
-      // ✅ Gestion des erreurs synchronisée avec backend
+      // Gestion des erreurs synchronisée avec backend
       let errorMessage = error.message || 'Erreur lors de la réinitialisation';
 
       if (errorMessage.includes('Token invalide ou expiré')) {
@@ -280,7 +280,7 @@ const ResetPassword: React.FC = () => {
                     className='mt-3 p-4 bg-gray-50 rounded-lg space-y-2'
                   >
                     <p className='text-sm font-medium text-gray-700 mb-2'>
-                      ✅ Exigences de sécurité (synchronisées avec le serveur):
+                      Exigences de sécurité (synchronisées avec le serveur):
                     </p>
                     <PasswordRequirement
                       met={passwordStrength.hasMinLength}

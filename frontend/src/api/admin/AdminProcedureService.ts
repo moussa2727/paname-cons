@@ -1,6 +1,11 @@
 import { toast } from 'react-toastify';
+import { useState, useMemo, useCallback } from 'react';
+import { useAuth } from '../../context/AuthContext';
 
-// ==================== TYPES ====================
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+export const API_TIMEOUT = 10000;
+
+// ==================== TYPES (Aligned with Backend) ====================
 export enum ProcedureStatus {
   IN_PROGRESS = 'En cours',
   COMPLETED = 'Terminée',
@@ -33,35 +38,25 @@ export interface Step {
 
 export interface Procedure {
   _id: string;
+  id?: string; // Pour compatibilité
   rendezVousId: string;
   prenom: string;
   nom: string;
   email: string;
-  telephone?: string;
+  telephone: string;
   destination: string;
   destinationAutre?: string;
-  filiere?: string;
+  filiere: string;
   filiereAutre?: string;
-  niveauEtude?: string;
+  niveauEtude: string;
   statut: ProcedureStatus;
   steps: Step[];
   isDeleted: boolean;
-  deletedAt?: string;
-  deletionReason?: string;
   raisonRejet?: string;
   dateCompletion?: string;
-  dateDerniereModification?: string;
   createdAt: string;
   updatedAt: string;
-  rendezVous?: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    date: string;
-    time: string;
-    status: string;
-    avisAdmin?: string;
-  };
+  dateDerniereModification?: string;
 }
 
 export interface PaginatedResponse {
@@ -70,6 +65,12 @@ export interface PaginatedResponse {
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export interface StatsResponse {
+  byStatus: Array<{ _id: string; count: number }>;
+  byDestination: Array<{ _id: string; count: number }>;
+  total: number;
 }
 
 export interface ProcedureFilters {
@@ -81,587 +82,276 @@ export interface ProcedureFilters {
 }
 
 export interface UpdateStepDto {
-  statut?: StepStatus;
-  raisonRefus?: string;
-  dateCreation?: string;
-  dateMaj?: string;
-  dateCompletion?: string;
+  statut: StepStatus;
+  raisonRefus?: string; // Obligatoire si statut = REJECTED
 }
 
-export interface UpdateProcedureDto {
-  prenom?: string;
-  nom?: string;
-  email?: string;
-  telephone?: string;
-  destination?: string;
-  destinationAutre?: string;
-  filiere?: string;
-  filiereAutre?: string;
-  niveauEtude?: string;
-  statut?: ProcedureStatus;
-  steps?: UpdateStepDto[];
-  isDeleted?: boolean;
-  deletedAt?: string;
-  deletionReason?: string;
-  raisonRejet?: string;
-  dateCompletion?: string;
-  dateDerniereModification?: string;
-}
-
-export interface CreateProcedureDto {
-  rendezVousId: string;
-}
-
-export interface CancelProcedureDto {
-  reason?: string;
-}
-
-export interface StatsResponse {
-  byStatus: Array<{ _id: string; count: number }>;
-  byDestination: Array<{ _id: string; count: number }>;
-  total: number;
-}
-
-// ==================== CONSTANTS ====================
-const API_BASE_URL = import.meta.env.VITE_API_URL;
-const API_TIMEOUT = 30000;
-
-// ==================== ERROR HANDLING ====================
 export class ProcedureError extends Error {
-  constructor(
-    message: string,
-    public code?: string,
-    public status?: number
-  ) {
+  code?: string;
+
+  constructor(message: string, code?: string) {
     super(message);
-    this.name = 'ProcedureError';
+    this.code = code;
   }
 }
 
-const ERROR_MAPPING: Record<string, string> = {
-  VALIDATION_RENDEZVOIS_NON_TERMINE: 'Le rendez-vous doit être terminé',
-  VALIDATION_AVIS_NON_FAVORABLE: "L'avis administratif doit être favorable",
-  VALIDATION_PROCEDURE_EXISTANTE: 'Une procédure existe déjà',
-  VALIDATION_ORDRE_ETAPES: "Respectez l'ordre des étapes",
-  VALIDATION_ETAPE_FINALISEE: 'Étape déjà finalisée',
-  VALIDATION_ADMISSION_REJECTED: 'Admission rejetée/annulée',
-  VALIDATION_VISA_REJECTED: 'Visa rejeté/annulé',
-  VALIDATION_VISA_NON_COMPLETED: 'Visa non terminé',
-  VALIDATION_ETAPE_NON_REPRISABLE: 'Étape non reprise',
-  VALIDATION_PAGE_INVALIDE: 'Page invalide',
-  VALIDATION_LIMIT_INVALIDE: 'Limite invalide',
-  VALIDATION_RAISON_REQUISE: 'Raison requise',
-  VALIDATION_RAISON_TROP_COURTE: 'Raison trop courte',
-  VALIDATION_RAISON_TROP_LONGUE: 'Raison trop longue',
-  UNAUTHORIZED: 'Session expirée',
-  NOT_FOUND: 'Procédure non trouvée',
-  FORBIDDEN: 'Accès interdit',
-  NETWORK_ERROR: 'Erreur de connexion au serveur',
-  TIMEOUT: 'La requête a expiré',
-};
-
-// ==================== UTILITY FUNCTIONS ====================
-const maskSensitiveData = {
-  email: (email: string): string => {
-    if (!email) return '***';
-    const [name, domain] = email.split('@');
-    if (!name || !domain) return '***';
-    const maskedName =
-      name.length > 2
-        ? name.substring(0, 2) + '*'.repeat(Math.max(name.length - 2, 1))
-        : '*'.repeat(name.length);
-    return `${maskedName}@${domain}`;
-  },
-
-  id: (id: string): string => {
-    if (!id) return '***';
-    if (id.length <= 8) return id;
-    return `${id.substring(0, 4)}***${id.substring(id.length - 4)}`;
-  },
-};
-
-const delay = (ms: number) => {
-  if (typeof globalThis !== 'undefined' && globalThis.setTimeout) {
-    return new Promise(resolve => globalThis.setTimeout(resolve, ms));
-  }
-  return Promise.resolve();
-};
-
-// ==================== TOAST UTILITIES ====================
-const showToast = {
-  success: (message: string) => {
-    toast.success(message, {
-      position: 'top-right',
-      autoClose: 3000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
-    });
-  },
-
-  error: (message: string, code?: string) => {
-    const userMessage =
-      code && ERROR_MAPPING[code] ? ERROR_MAPPING[code] : message;
-    toast.error(userMessage, {
-      position: 'top-right',
-      autoClose: 5000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
-    });
-  },
-
-  info: (message: string) => {
-    toast.info(message, {
-      position: 'top-right',
-      autoClose: 3000,
-    });
-  },
-};
-
-// ==================== MAIN SERVICE CLASS ====================
-export class ProcedureService {
-  private accessToken: string | null = null;
-  private logoutCallback:
-    | ((redirectPath?: string, silent?: boolean) => void)
-    | null = null;
+// ==================== API SERVICE CLASS ====================
+export class ProcedureApiService {
+  private fetchWithAuth: <T = any>(
+    endpoint: string,
+    options?: RequestInit
+  ) => Promise<T>;
 
   constructor(
-    accessToken?: string | null,
-    logoutCallback?: (redirectPath?: string, silent?: boolean) => void
+    fetchWithAuth: <T = any>(
+      endpoint: string,
+      options?: RequestInit
+    ) => Promise<T>
   ) {
-    this.accessToken = accessToken || null;
-    this.logoutCallback = logoutCallback || null;
+    this.fetchWithAuth = fetchWithAuth;
   }
 
-  setAccessToken(token: string | null) {
-    this.accessToken = token;
-  }
+  // ==================== ERROR HANDLING ====================
+  private handleRequestError(error: any): never {
+    let errorMessage = error.message || 'Une erreur est survenue';
+    let errorCode = 'UNKNOWN_ERROR';
 
-  setLogoutCallback(
-    callback: (redirectPath?: string, silent?: boolean) => void
-  ) {
-    this.logoutCallback = callback;
-  }
-
-  // ==================== CORE REQUEST METHOD ====================
-  private async makeRequest<T>(
-    endpoint: string,
-    options: RequestInit = {},
-    retryCount = 0
-  ): Promise<T> {
-    if (typeof globalThis === 'undefined' || !globalThis.setTimeout) {
-      throw new ProcedureError(
-        'Environnement non supporté',
-        'ENVIRONMENT_ERROR'
-      );
+    // Extraire le code d'erreur du backend si disponible
+    if (error.code) {
+      errorCode = error.code;
     }
 
-    const controller = new AbortController();
-    const timeoutId = globalThis.setTimeout(
-      () => controller.abort(),
-      API_TIMEOUT
-    );
+    if (error.status === 401 || error.message === 'UNAUTHORIZED') {
+      errorCode = 'UNAUTHORIZED';
+      toast.error('Session expirée. Veuillez vous reconnecter.');
+    } else if (error.status === 403) {
+      errorCode = 'FORBIDDEN';
+      toast.error('Accès interdit');
+    } else if (error.status === 400) {
+      // Messages spécifiques pour les erreurs 400
+      if (errorMessage.toLowerCase().includes('raison du refus est obligatoire')) {
+        errorCode = 'REASON_REQUIRED';
+      } else if (errorMessage.toLowerCase().includes('au moins 5 caractères')) {
+        errorCode = 'REASON_TOO_SHORT';
+      } else if (errorMessage.toLowerCase().includes('dépasser 500 caractères')) {
+        errorCode = 'REASON_TOO_LONG';
+      } else if (errorMessage.toLowerCase().includes('doit être terminée')) {
+        errorCode = 'STEP_ORDER_VIOLATION';
+      }
+    }
+
+    throw new ProcedureError(errorMessage, errorCode);
+  }
+
+  // ==================== CORE REQUEST METHOD - CORRIGÉ ====================
+  private async makeRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    // S'assurer que l'endpoint commence par /
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    
+    console.log('API Call Details:', {
+      endpoint: cleanEndpoint,
+      method: options.method || 'GET'
+    });
 
     try {
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        ...(this.accessToken && {
-          Authorization: `Bearer ${this.accessToken}`,
-        }),
-        ...options.headers,
-      };
-
-      const response = await globalThis.fetch(`${API_BASE_URL}${endpoint}`, {
+      // fetchWithAuth retourne déjà les données parsées
+      // fetchWithAuth gère déjà l'URL de base
+      const data = await this.fetchWithAuth<T>(cleanEndpoint, {
         ...options,
-        headers,
-        credentials: 'include',
-        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
       });
 
-      globalThis.clearTimeout(timeoutId);
+      console.log('API Response:', cleanEndpoint);
+      return data;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage = `Erreur ${response.status}: ${response.statusText}`;
-        let errorCode = 'UNKNOWN_ERROR';
-
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.message || errorMessage;
-          errorCode = errorData.code || errorCode;
-        } catch {
-          // Utiliser le texte brut si le parsing échoue
-        }
-
-        // Gestion des erreurs spécifiques
-        if (response.status === 401) {
-          errorCode = 'UNAUTHORIZED';
-          showToast.error(
-            'Session expirée. Veuillez vous reconnecter.',
-            'UNAUTHORIZED'
-          );
-          if (this.logoutCallback) {
-            this.logoutCallback('/connexion', true);
-          }
-        } else if (response.status === 403) {
-          errorCode = 'FORBIDDEN';
-          showToast.error('Accès interdit', 'FORBIDDEN');
-        } else if (response.status === 404) {
-          errorCode = 'NOT_FOUND';
-        } else if (response.status === 400) {
-          Object.keys(ERROR_MAPPING).forEach(code => {
-            if (
-              errorMessage.includes(code) ||
-              errorMessage.includes(ERROR_MAPPING[code])
-            ) {
-              errorCode = code;
-              errorMessage = ERROR_MAPPING[code];
-            }
-          });
-        }
-
-        if (response.status >= 500 && retryCount < 2) {
-          await delay(1000 * (retryCount + 1));
-          return this.makeRequest<T>(endpoint, options, retryCount + 1);
-        }
-
-        throw new ProcedureError(errorMessage, errorCode, response.status);
-      }
-
-      const data = await response.json();
-      return data as T;
     } catch (error: any) {
-      globalThis.clearTimeout(timeoutId);
-
+      console.error('API Request failed:', error);
+      
+      // Gestion des erreurs spécifiques
       if (error.name === 'AbortError') {
         throw new ProcedureError(
-          'La requête a expiré. Veuillez réessayer.',
+          'La requête a expiré',
           'TIMEOUT'
         );
       }
-
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      
+      if (error.message === 'UNAUTHORIZED') {
         throw new ProcedureError(
-          'Erreur de connexion au serveur. Vérifiez votre connexion internet.',
-          'NETWORK_ERROR'
+          'Session expirée',
+          'UNAUTHORIZED'
         );
       }
 
+      if (error.status === 404) {
+        throw new ProcedureError(
+          'Ressource non trouvée',
+          'NOT_FOUND'
+        );
+      }
+
+      if (error.status === 429) {
+        throw new ProcedureError(
+          'Trop de requêtes, veuillez patienter',
+          'RATE_LIMIT'
+        );
+      }
+
+      if (error.status >= 500) {
+        throw new ProcedureError(
+          'Erreur serveur, veuillez réessayer',
+          'SERVER_ERROR'
+        );
+      }
+      
       if (error instanceof ProcedureError) {
         throw error;
       }
-
-      throw new ProcedureError(
-        error.message || 'Erreur inconnue',
-        'UNKNOWN_ERROR'
-      );
+      
+      // Propager les autres erreurs
+      this.handleRequestError(error);
     }
   }
 
-  // ==================== PUBLIC METHODS ====================
+  // ==================== ADMIN METHODS ====================
+  async getAdminProceduresOverview(): Promise<StatsResponse> {
+    return this.makeRequest<StatsResponse>('/api/procedures/admin/stats');
+  }
 
-  // === ADMIN METHODS ===
-
-  async fetchAdminProcedures(
+  async getAdminProcedures(
     page: number = 1,
     limit: number = 10,
-    filters: ProcedureFilters = {}
+    filters?: ProcedureFilters
   ): Promise<PaginatedResponse> {
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('limit', limit.toString());
-
-    if (filters.email) params.append('email', filters.email);
-
-    // CORRECTION : Gérer le statut avec type safe
-    if (filters.statut !== undefined && filters.statut !== '') {
-      params.append('statut', filters.statut as string);
+    
+    if (filters?.email) {
+      params.append('email', filters.email);
     }
-
-    if (filters.destination) params.append('destination', filters.destination);
-    if (filters.filiere) params.append('filiere', filters.filiere);
-    if (filters.search) params.append('search', filters.search);
 
     return this.makeRequest<PaginatedResponse>(
       `/api/procedures/admin/all?${params.toString()}`
     );
   }
 
-  async getAdminProcedureDetails(id: string): Promise<Procedure> {
-    return this.makeRequest<Procedure>(`/api/procedures/admin/${id}`);
-  }
-
-  async updateAdminStep(
-    procedureId: string,
-    stepName: string,
-    updates: UpdateStepDto
+  async updateProcedureStep(
+    id: string,
+    stepName: StepName,
+    updateDto: UpdateStepDto
   ): Promise<Procedure> {
-    // Validation frontend
-    if (updates.statut === StepStatus.REJECTED) {
-      if (!updates.raisonRefus || updates.raisonRefus.trim() === '') {
+    // Validation préliminaire
+    if (updateDto.statut === StepStatus.REJECTED) {
+      if (!updateDto.raisonRefus || updateDto.raisonRefus.trim() === '') {
         throw new ProcedureError(
-          'La raison du refus est obligatoire lorsque le statut est "Rejeté"',
-          'VALIDATION_RAISON_REQUISE'
+          'La raison du refus est obligatoire',
+          'REASON_REQUIRED'
         );
       }
-
-      if (updates.raisonRefus.trim().length < 5) {
+      if (updateDto.raisonRefus.trim().length < 5) {
         throw new ProcedureError(
           'La raison doit contenir au moins 5 caractères',
-          'VALIDATION_RAISON_TROP_COURTE'
+          'REASON_TOO_SHORT'
         );
       }
-
-      if (updates.raisonRefus.length > 500) {
+      if (updateDto.raisonRefus.length > 500) {
         throw new ProcedureError(
           'La raison ne doit pas dépasser 500 caractères',
-          'VALIDATION_RAISON_TROP_LONGUE'
+          'REASON_TOO_LONG'
         );
       }
     }
 
-    const encodedStepName = encodeURIComponent(stepName);
     const result = await this.makeRequest<Procedure>(
-      `/api/procedures/admin/${procedureId}/steps/${encodedStepName}`,
+      `/api/procedures/admin/${id}/steps/${encodeURIComponent(stepName)}`,
       {
         method: 'PUT',
-        body: JSON.stringify(updates),
+        body: JSON.stringify(updateDto),
       }
     );
 
-    showToast.success('Étape mise à jour avec succès');
     return result;
   }
 
-  async deleteAdminProcedure(
-    id: string,
-    reason?: string
-  ): Promise<{ success: boolean; message: string }> {
-    const result = await this.makeRequest<{
-      success: boolean;
-      message: string;
-    }>(`/api/procedures/admin/${id}`, {
-      method: 'DELETE',
-      body: reason ? JSON.stringify({ reason }) : undefined,
-    });
-
-    showToast.success('Procédure supprimée avec succès');
-    return result;
-  }
-
-  async rejectAdminProcedure(id: string, reason: string): Promise<Procedure> {
+  async rejectProcedure(id: string, reason: string): Promise<Procedure> {
     // Validation frontend
     if (!reason || reason.trim() === '') {
       throw new ProcedureError(
         'La raison du rejet est obligatoire',
-        'VALIDATION_RAISON_REQUISE'
+        'REASON_REQUIRED'
       );
     }
-
     if (reason.trim().length < 5) {
       throw new ProcedureError(
         'La raison doit contenir au moins 5 caractères',
-        'VALIDATION_RAISON_TROP_COURTE'
+        'REASON_TOO_SHORT'
       );
     }
-
     if (reason.length > 500) {
       throw new ProcedureError(
         'La raison ne doit pas dépasser 500 caractères',
-        'VALIDATION_RAISON_TROP_LONGUE'
+        'REASON_TOO_LONG'
       );
     }
 
-    const result = await this.makeRequest<Procedure>(
-      `/api/procedures/admin/${id}/reject`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({ reason }),
-      }
-    );
-
-    showToast.success('Procédure rejetée avec succès');
-    return result;
-  }
-
-  async updateAdminProcedure(
-    id: string,
-    updates: UpdateProcedureDto
-  ): Promise<Procedure> {
-    const result = await this.makeRequest<Procedure>(
-      `/api/procedures/admin/${id}`,
-      {
-        method: 'PUT',
-        body: JSON.stringify(updates),
-      }
-    );
-
-    showToast.success('Procédure mise à jour avec succès');
-    return result;
-  }
-
-  async createProcedureFromRendezvous(
-    rendezVousId: string
-  ): Promise<Procedure> {
-    const result = await this.makeRequest<Procedure>(
-      '/api/procedures/admin/create',
-      {
-        method: 'POST',
-        body: JSON.stringify({ rendezVousId }),
-      }
-    );
-
-    showToast.success('Procédure créée avec succès');
-    return result;
-  }
-
-  async getAdminProceduresOverview(): Promise<StatsResponse> {
-    return this.makeRequest<StatsResponse>('/api/procedures/admin/stats');
-  }
-
-  // === USER METHODS ===
-
-  async fetchUserProcedures(
-    email: string,
-    page: number = 1,
-    limit: number = 10
-  ): Promise<PaginatedResponse> {
-    return this.makeRequest<PaginatedResponse>(
-      `/api/procedures/user?email=${encodeURIComponent(email)}&page=${page}&limit=${limit}`
-    );
-  }
-
-  async getUserProcedureDetails(id: string): Promise<Procedure> {
-    return this.makeRequest<Procedure>(`/api/procedures/${id}`);
-  }
-
-  async cancelUserProcedure(
-    id: string,
-    email: string,
-    reason?: string
-  ): Promise<Procedure> {
-    const result = await this.makeRequest<Procedure>(
-      `/api/procedures/${id}/cancel`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({ reason, email }),
-      }
-    );
-
-    showToast.success('Procédure annulée avec succès');
-    return result;
-  }
-
-  async getUserProceduresByEmail(email: string): Promise<Procedure[]> {
-    return this.makeRequest<Procedure[]>(
-      `/api/procedures/email/${encodeURIComponent(email)}`
-    );
-  }
-
-  // === COMMON METHODS ===
-
-  async findProceduresByEmail(email: string): Promise<Procedure[]> {
-    return this.makeRequest<Procedure[]>(
-      `/api/procedures/find?email=${encodeURIComponent(email)}`
-    );
-  }
-
-  async getActiveProcedures(
-    page: number = 1,
-    limit: number = 10,
-    email?: string
-  ): Promise<PaginatedResponse> {
-    const params = new URLSearchParams();
-    params.append('page', page.toString());
-    params.append('limit', limit.toString());
-    if (email) params.append('email', email);
-
-    return this.makeRequest<PaginatedResponse>(
-      `/api/procedures/active?${params.toString()}`
-    );
+    return this.makeRequest<Procedure>(`/api/procedures/admin/${id}/reject`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason }),
+    });
   }
 
   async softDeleteProcedure(id: string, reason?: string): Promise<Procedure> {
-    // Validation frontend
-    if (reason) {
-      if (reason.trim().length < 5) {
-        throw new ProcedureError(
-          'La raison doit contenir au moins 5 caractères',
-          'VALIDATION_RAISON_TROP_COURTE'
-        );
-      }
-
-      if (reason.length > 500) {
-        throw new ProcedureError(
-          'La raison ne doit pas dépasser 500 caractères',
-          'VALIDATION_RAISON_TROP_LONGUE'
-        );
-      }
-    }
-
-    const result = await this.makeRequest<Procedure>(
-      `/api/procedures/admin/${id}`,
-      {
-        method: 'DELETE',
-        body: reason ? JSON.stringify({ reason }) : '{}',
-      }
-    );
-
-    showToast.success('Procédure supprimée avec succès');
-    return result;
+    return this.makeRequest<Procedure>(`/api/procedures/admin/${id}`, {
+      method: 'DELETE',
+      body: reason ? JSON.stringify({ reason }) : undefined,
+    });
   }
 
-  // ==================== UTILITY METHODS ====================
-
-  static translateStepName(stepName: StepName): string {
-    switch (stepName) {
-      case StepName.DEMANDE_ADMISSION:
-        return "Demande d'admission";
-      case StepName.DEMANDE_VISA:
-        return 'Demande de visa';
-      case StepName.PREPARATIF_VOYAGE:
-        return 'Préparatifs de voyage';
-      default:
-        return stepName;
-    }
+  async updateProcedure(
+    id: string,
+    updateDto: Partial<Procedure>
+  ): Promise<Procedure> {
+    return this.makeRequest<Procedure>(`/api/procedures/admin/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateDto),
+    });
   }
 
-  static canModifyStep(
+  // ==================== VALIDATION METHODS ====================
+  canModifyStep(
     procedure: Procedure,
     stepName: StepName,
-    newStatus?: StepStatus
+    _newStatus: StepStatus
   ): { canModify: boolean; reason?: string } {
     const step = procedure.steps.find(s => s.nom === stepName);
+    
     if (!step) {
       return { canModify: false, reason: 'Étape non trouvée' };
     }
 
-    if (
-      [
-        StepStatus.COMPLETED,
-        StepStatus.REJECTED,
-        StepStatus.CANCELLED,
-      ].includes(step.statut)
-    ) {
-      return { canModify: false, reason: 'Étape déjà finalisée' };
+    // Ne pas permettre de modifier une étape finalisée
+    if ([StepStatus.COMPLETED, StepStatus.REJECTED, StepStatus.CANCELLED].includes(step.statut)) {
+      return { 
+        canModify: false, 
+        reason: `Impossible de modifier une étape déjà ${step.statut.toLowerCase()}` 
+      };
     }
 
-    if (stepName !== StepName.DEMANDE_ADMISSION) {
+    // Règle: Admission → Visa → Voyage
+    if (stepName === StepName.DEMANDE_VISA) {
       const admissionStep = procedure.steps.find(
         s => s.nom === StepName.DEMANDE_ADMISSION
       );
-      if (
-        admissionStep &&
-        [StepStatus.REJECTED, StepStatus.CANCELLED].includes(
-          admissionStep.statut
-        )
-      ) {
-        return {
-          canModify: false,
-          reason: `Impossible de modifier car l'admission est ${admissionStep.statut.toLowerCase()}`,
+      if (admissionStep?.statut !== StepStatus.COMPLETED) {
+        return { 
+          canModify: false, 
+          reason: "La demande d'admission doit être terminée avant de modifier le visa" 
         };
       }
     }
@@ -670,85 +360,68 @@ export class ProcedureService {
       const visaStep = procedure.steps.find(
         s => s.nom === StepName.DEMANDE_VISA
       );
-      if (
-        visaStep &&
-        [StepStatus.REJECTED, StepStatus.CANCELLED].includes(visaStep.statut)
-      ) {
-        return {
-          canModify: false,
-          reason: `Impossible de modifier car le visa est ${visaStep.statut.toLowerCase()}`,
+      if (visaStep?.statut !== StepStatus.COMPLETED) {
+        return { 
+          canModify: false, 
+          reason: 'La demande de visa doit être terminée avant de modifier les préparatifs' 
         };
       }
     }
 
+    // Vérifier si l'admission est rejetée/annulée (cascade)
+    const admissionStep = procedure.steps.find(
+      s => s.nom === StepName.DEMANDE_ADMISSION
+    );
     if (
-      stepName === StepName.DEMANDE_VISA &&
-      newStatus !== StepStatus.REJECTED
+      admissionStep &&
+      [StepStatus.REJECTED, StepStatus.CANCELLED].includes(admissionStep.statut) &&
+      stepName !== StepName.DEMANDE_ADMISSION
     ) {
-      const admissionStep = procedure.steps.find(
-        s => s.nom === StepName.DEMANDE_ADMISSION
-      );
-      if (admissionStep && admissionStep.statut !== StepStatus.COMPLETED) {
-        return {
-          canModify: false,
-          reason: "L'admission doit être terminée avant de démarrer le visa",
-        };
-      }
-    }
-
-    if (
-      stepName === StepName.PREPARATIF_VOYAGE &&
-      newStatus !== StepStatus.REJECTED
-    ) {
-      const visaStep = procedure.steps.find(
-        s => s.nom === StepName.DEMANDE_VISA
-      );
-      if (visaStep && visaStep.statut !== StepStatus.COMPLETED) {
-        return {
-          canModify: false,
-          reason:
-            'Le visa doit être terminé avant de démarrer les préparatifs de voyage',
-        };
-      }
+      return { 
+        canModify: false, 
+        reason: `Impossible de modifier car l'admission est ${admissionStep.statut.toLowerCase()}` 
+      };
     }
 
     return { canModify: true };
   }
 
-  static getStatusColor(status: ProcedureStatus | StepStatus): string {
+  // ==================== UTILITY METHODS ====================
+  getStatusColor(status: ProcedureStatus | StepStatus): string {
     if (
       status === ProcedureStatus.IN_PROGRESS ||
       status === StepStatus.IN_PROGRESS
     ) {
       return 'blue';
     }
-
     if (
       status === ProcedureStatus.COMPLETED ||
       status === StepStatus.COMPLETED
     ) {
       return 'green';
     }
-
     if (status === ProcedureStatus.REJECTED || status === StepStatus.REJECTED) {
       return 'red';
     }
-
-    if (
-      status === ProcedureStatus.CANCELLED ||
-      status === StepStatus.CANCELLED
-    ) {
+    if (status === StepStatus.CANCELLED || status === ProcedureStatus.CANCELLED) {
       return 'gray';
     }
-
     if (status === StepStatus.PENDING) {
       return 'yellow';
     }
-
     return 'gray';
   }
 
-  static formatDate(dateString: string): string {
+  translateStepName(stepName: StepName): string {
+    const translations: Record<StepName, string> = {
+      [StepName.DEMANDE_ADMISSION]: "Demande d'admission",
+      [StepName.DEMANDE_VISA]: 'Demande de visa',
+      [StepName.PREPARATIF_VOYAGE]: 'Préparatifs de voyage',
+    };
+    return translations[stepName] || stepName;
+  }
+
+  formatDate(dateString: string): string {
     try {
       const date = new Date(dateString);
       return date.toLocaleDateString('fr-FR', {
@@ -763,56 +436,57 @@ export class ProcedureService {
     }
   }
 
-  static maskEmail(email: string): string {
-    return maskSensitiveData.email(email);
+  maskEmail(email: string): string {
+    if (!email) return '***@***';
+    const [name, domain] = email.split('@');
+    if (!name || !domain) return '***@***';
+    
+    const maskedName = name.length <= 2 
+      ? name.charAt(0) + '*'
+      : name.charAt(0) + '***' + name.slice(-1);
+    
+    return `${maskedName}@${domain}`;
   }
 
-  static maskId(id: string): string {
-    return maskSensitiveData.id(id);
+  maskId(id: string): string {
+    if (!id || id.length < 8) return '***';
+    return `${id.substring(0, 4)}***${id.substring(id.length - 4)}`;
   }
 }
 
-// ==================== HOOK PERSONNALISÉ ====================
-import { useAuth } from '../../context/AuthContext';
-import { useMemo } from 'react';
-
+// ==================== REACT HOOKS ====================
 export const useProcedureService = () => {
-  const { access_token, logout } = useAuth();
+  const { fetchWithAuth } = useAuth();
 
   return useMemo(() => {
-    const instance = new ProcedureService(access_token, logout);
+    const instance = new ProcedureApiService(fetchWithAuth);
     return instance;
-  }, [access_token, logout]);
+  }, [fetchWithAuth]);
 };
-
-// ==================== REACT HOOKS UTILITAIRES ====================
-import { useState, useCallback } from 'react';
 
 export const useProcedureActions = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const withErrorHandling = useCallback(
+  const execute = useCallback(
     async <T>(
       operation: () => Promise<T>,
       successMessage?: string
-    ): Promise<T> => {
+    ): Promise<T | null> => {
       setLoading(true);
       setError(null);
 
       try {
         const result = await operation();
-
         if (successMessage) {
-          showToast.success(successMessage);
+          toast.success(successMessage);
         }
-
         return result;
       } catch (err: any) {
         const errorMessage = err.message || 'Une erreur est survenue';
         setError(errorMessage);
-
-        throw err;
+        toast.error(errorMessage);
+        return null;
       } finally {
         setLoading(false);
       }
@@ -823,7 +497,6 @@ export const useProcedureActions = () => {
   return {
     loading,
     error,
-    setError,
-    withErrorHandling,
+    execute,
   };
 };

@@ -72,7 +72,7 @@ class AdminDashboardService {
       throw new Error('UNAUTHORIZED');
     }
 
-    // 🔧 Déduplication des requêtes identiques
+    // Déduplication des requêtes identiques
     const requestKey = `${endpoint}:${JSON.stringify(options)}`;
 
     if (useRequestDeduplication && this.activeRequests.has(requestKey)) {
@@ -82,7 +82,6 @@ class AdminDashboardService {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    // CORRECTION IMPORTANTE : Vos contrôleurs montrent des routes directes
     const url = `${this.baseUrl}${endpoint}`;
 
     const headers: Record<string, string> = {
@@ -90,26 +89,11 @@ class AdminDashboardService {
       Authorization: `Bearer ${accessToken}`,
     };
 
-    const finalHeaders = { ...headers };
-
-    if (options.headers) {
-      Object.entries(options.headers as Record<string, string>).forEach(
-        ([key, value]) => {
-          if (
-            key.toLowerCase() !== 'content-type' ||
-            value !== 'multipart/form-data'
-          ) {
-            finalHeaders[key] = value;
-          }
-        }
-      );
-    }
-
     const requestPromise = (async () => {
       try {
         const response = await fetch(url, {
           ...options,
-          headers: finalHeaders,
+          headers,
           credentials: 'include',
           signal: controller.signal,
         });
@@ -249,7 +233,7 @@ class AdminDashboardService {
       // Récupérer TOUTES les stats en parallèle avec les endpoints officiels
       const [userStats, procedureStats, contactStats, rendezvousStats] =
         await Promise.allSettled([
-          // Endpoint: GET /users/stats (users.controller.ts ligne 40)
+          // Endpoint: GET /users/stats
           this.requestWithCache(
             '/api/users/stats',
             accessToken,
@@ -257,7 +241,7 @@ class AdminDashboardService {
             true
           ).catch(() => null),
 
-          // Endpoint: GET /procedures/admin/stats (procedure.controller.ts ligne 78)
+          // Endpoint: GET /procedures/admin/stats
           this.requestWithCache(
             '/api/procedures/admin/stats',
             accessToken,
@@ -265,7 +249,7 @@ class AdminDashboardService {
             true
           ).catch(() => null),
 
-          // Endpoint: GET /contact/stats (contact.controller.ts ligne 39)
+          // Endpoint: GET /contact/stats
           this.requestWithCache(
             '/api/contact/stats',
             accessToken,
@@ -273,7 +257,7 @@ class AdminDashboardService {
             true
           ).catch(() => null),
 
-          // CORRIGÉ: Utiliser '/rendezvous/stats/overview' (rendez-vous.controller.ts ligne 456)
+          // Endpoint: GET /rendezvous/stats/overview
           this.requestWithCache(
             '/api/rendezvous/stats/overview',
             accessToken,
@@ -313,8 +297,6 @@ class AdminDashboardService {
       // Traiter les statistiques des rendez-vous
       if (rendezvousStats.status === 'fulfilled' && rendezvousStats.value) {
         const rdvData = rendezvousStats.value;
-
-        // Format attendu depuis le backend
         stats.totalRendezvous = rdvData.total || 0;
 
         // Si le backend retourne un tableau byStatus, le convertir en objet
@@ -355,7 +337,6 @@ class AdminDashboardService {
 
   /**
    * Récupère les activités récentes
-   * Utilise STRICTEMENT les endpoints définis dans les contrôleurs
    */
   async getRecentActivities(
     accessToken: string,
@@ -364,26 +345,21 @@ class AdminDashboardService {
     try {
       const activities: RecentActivity[] = [];
 
-      // Récupérer les activités en parallèle avec les endpoints officiels
+      // Récupérer les activités en parallèle
       const [proceduresResponse, rendezvousResponse, contactsResponse] =
         await Promise.allSettled([
-          // ✅ Endpoint: GET /procedures/admin/all?page=1&limit={limit} (procedure.controller.ts ligne 46)
           this.requestWithCache(
             `/api/procedures/admin/all?page=1&limit=${limit}`,
             accessToken,
             {},
             false
           ),
-
-          // ✅ Endpoint: GET /rendezvous?page=1&limit={limit} (rendez-vous.controller.ts ligne 138)
           this.requestWithCache(
             `/api/rendezvous?page=1&limit=${limit}`,
             accessToken,
             {},
             false
           ),
-
-          // ✅ Endpoint: GET /contact?page=1&limit={limit} (contact.controller.ts ligne 27)
           this.requestWithCache(
             `/api/contact?page=1&limit=${limit}`,
             accessToken,
@@ -399,9 +375,7 @@ class AdminDashboardService {
       ) {
         const procedures = proceduresResponse.value.data || [];
         procedures.forEach((procedure: any) => {
-          // Masquer les données sensibles
           const maskedEmail = this.maskEmail(procedure.email);
-
           activities.push({
             _id: procedure._id,
             type: 'procedure',
@@ -420,9 +394,7 @@ class AdminDashboardService {
       ) {
         const rendezvous = rendezvousResponse.value.data || [];
         rendezvous.forEach((rdv: any) => {
-          // Masquer les données sensibles
           const maskedEmail = this.maskEmail(rdv.email);
-
           activities.push({
             _id: rdv._id,
             type: 'rendezvous',
@@ -438,9 +410,7 @@ class AdminDashboardService {
       if (contactsResponse.status === 'fulfilled' && contactsResponse.value) {
         const contacts = contactsResponse.value.data || [];
         contacts.forEach((contact: any) => {
-          // Masquer les données sensibles
           const maskedEmail = this.maskEmail(contact.email);
-
           activities.push({
             _id: contact._id,
             type: 'contact',
@@ -466,7 +436,6 @@ class AdminDashboardService {
 
   /**
    * Récupère les statistiques détaillées des procédures
-   * ✅ Endpoint: GET /procedures/admin/stats (procedure.controller.ts ligne 78)
    */
   async getDetailedProcedureStats(accessToken: string): Promise<any> {
     try {
@@ -494,7 +463,6 @@ class AdminDashboardService {
 
   /**
    * Récupère les messages de contact non lus
-   * ✅ Endpoint: GET /contact?isRead=false&limit=5 (contact.controller.ts ligne 27)
    */
   async getUnreadContacts(accessToken: string): Promise<any[]> {
     try {
@@ -515,7 +483,6 @@ class AdminDashboardService {
 
   /**
    * Récupère les statistiques détaillées des rendez-vous
-   * ✅ Endpoint: GET /rendezvous/stats/overview (rendez-vous.controller.ts ligne 456)
    */
   async getDetailedRendezvousStats(accessToken: string): Promise<any> {
     try {
@@ -539,65 +506,49 @@ class AdminDashboardService {
   }
 
   /**
-   * Récupère le statut du mode maintenance
-   * ✅ Utilise fetchWithAuth du contexte pour la bonne URL et authentification
-   */
-  async getMaintenanceStatus(
-    fetchWithAuth: (
-      endpoint: string,
-      options?: RequestInit
-    ) => Promise<Response>
-  ): Promise<any> {
-    try {
-      const response = await fetchWithAuth('/api/users/maintenance-status');
-
-      if (!response.ok) {
-        throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('Erreur récupération statut maintenance:', error);
-      }
-      return null;
+ * Récupère le statut du mode maintenance
+ */
+async getMaintenanceStatus(
+  fetchWithAuth: <T = any>(endpoint: string, options?: RequestInit) => Promise<T>
+): Promise<any> {
+  try {
+    // Utiliser le bon endpoint
+    return await fetchWithAuth('/api/users/maintenance-status');
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('Erreur récupération statut maintenance:', error);
     }
+    return null;
   }
+}
 
-  /**
-   * Active/désactive le mode maintenance
-   * ✅ Utilise fetchWithAuth du contexte pour la bonne URL et authentification
-   */
-  async toggleMaintenanceMode(
-    enabled: boolean,
-    fetchWithAuth: (
-      endpoint: string,
-      options?: RequestInit
-    ) => Promise<Response>
-  ): Promise<any> {
-    try {
-      const response = await fetchWithAuth('/api/users/maintenance-mode', {
-        method: 'POST',
-        body: JSON.stringify({ enabled }),
-      });
+/**
+ * Active/désactive le mode maintenance
+ */
+async toggleMaintenanceMode(
+  enabled: boolean,
+  fetchWithAuth: <T = any>(endpoint: string, options?: RequestInit) => Promise<T>
+): Promise<any> {
+  try {
+    // Utiliser le bon endpoint
+    const result = await fetchWithAuth('/api/users/maintenance-mode', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }), // Note: { enabled } et non { isActive }
+    });
 
-      if (!response.ok) {
-        throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-      }
+    // FORCER LE RAFRAÎCHISSEMENT IMMÉDIAT APRÈS LE TOGGLE
+    await new Promise(resolve => setTimeout(resolve, 300));
 
-      const result = await response.json();
-
-      // FORCER LE RAFRAÎCHISSEMENT IMMÉDIAT APRÈS LE TOGGLE
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      return result;
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('Erreur changement mode maintenance:', error);
-      }
-      throw error;
+    return result;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('Erreur changement mode maintenance:', error);
     }
+    throw error;
   }
+}
+
+  
 
   /**
    * Masque les emails dans les logs
@@ -651,13 +602,13 @@ class AdminDashboardService {
       activeRequests: this.activeRequests.size,
       baseUrl: this.baseUrl,
       endpoints: [
-        '/API/users/stats',
-        '/API/procedures/admin/stats',
-        '/API/contact/stats',
-        '/API/rendezvous/stats/overview', // ✅ Corrigé
-        '/API/procedures/admin/all',
-        '/API/rendezvous',
-        '/API/contact',
+        '/api/users/stats',
+        '/api/procedures/admin/stats',
+        '/api/contact/stats',
+        '/api/rendezvous/stats/overview',
+        '/api/procedures/admin/all',
+        '/api/rendezvous',
+        '/api/contact',
       ],
     };
   }
@@ -726,14 +677,14 @@ export const useAdminDashboard = () => {
     getUnreadContacts: () =>
       secureRequest(token => adminDashboardService.getUnreadContacts(token)),
 
-    // ✅ Ajouter les méthodes de maintenance
+    // Méthodes de maintenance (utilisent fetchWithAuth directement)
     getMaintenanceStatus: () =>
       adminDashboardService.getMaintenanceStatus(fetchWithAuth),
 
     toggleMaintenanceMode: (enabled: boolean) =>
       adminDashboardService.toggleMaintenanceMode(enabled, fetchWithAuth),
 
-    // ✅ Ajouter aussi les méthodes du contexte directement
+    // Méthodes du contexte
     checkMaintenanceStatusFromContext: checkMaintenanceStatus,
     toggleMaintenanceModeFromContext: contextToggleMaintenanceMode,
     maintenanceStatus,

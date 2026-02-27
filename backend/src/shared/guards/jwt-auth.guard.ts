@@ -6,11 +6,15 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthConstants } from '../../auth/auth.constants';
-import jwt from 'jsonwebtoken';
+import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
   private readonly logger = new Logger(JwtAuthGuard.name);
+
+  constructor(private readonly jwtService: JwtService) {
+    super();
+  }
 
   handleRequest(err: any, user: any, info: any, _context: ExecutionContext) {
     if (err || !user) {
@@ -74,7 +78,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
       if (process.env.NODE_ENV === 'development') {
         try {
-          const decoded = jwt.decode(token);
+          const decoded = this.jwtService.decode(token);
           this.logger.debug(
             `Token décodé: ${JSON.stringify(decoded, null, 2)}`
           );

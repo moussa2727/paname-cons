@@ -10,7 +10,6 @@ export default defineConfig(({ mode }) => ({
   // Configuration du serveur de développement
   server: {
     host: true, // Permet l'accès depuis le réseau local
-    open: true, // Ouvre le navigateur automatiquement
     proxy: mode === 'development' ? {
       '/api': {
         target: 'http://localhost:10000',

@@ -1,4 +1,3 @@
-// hooks/useAdminUserService.ts
 import { useAuth } from '../../context/AuthContext';
 
 // ===== INTERFACES (Alignées avec backend) =====
@@ -29,7 +28,7 @@ export interface CreateUserDto {
   email: string;
   telephone: string;
   password: string;
-  role: 'admin' | 'user'; // Note: Backend forcera USER pour tous les créations API
+  role: 'admin' | 'user';
 }
 
 export interface UpdateUserDto {
@@ -71,7 +70,6 @@ export const useAdminUserService = () => {
   // Extraire les messages d'erreur spécifiques du backend
   const extractBackendErrorMessage = (error: any): string => {
     if (error.message && typeof error.message === 'string') {
-      // Messages d'erreur spécifiques du backend
       const backendMessages = [
         'Cet email est déjà utilisé',
         'Ce numéro de téléphone est déjà utilisé',
@@ -101,11 +99,11 @@ export const useAdminUserService = () => {
   };
 
   // Fonction de requête admin sécurisée avec timeout
-  const secureAdminFetch = async (
+  const secureAdminFetch = async <T = any>(
     endpoint: string,
     options: RequestInit = {},
-    timeout = 15000 // 15 secondes par défaut
-  ) => {
+    timeout = 15000
+  ): Promise<T> => {
     if (!isAuthenticated || !isUserAdmin(user)) {
       throw new Error('Accès refusé : droits administrateur requis');
     }
@@ -119,34 +117,17 @@ export const useAdminUserService = () => {
     };
 
     try {
-      const response = await fetchWithAuth(`${endpoint}`, {
+      // fetchWithAuth retourne directement les données parsées, pas un objet Response !
+      console.log('API Response:', endpoint);
+      const data = await fetchWithAuth<T>(endpoint, {
         ...options,
         headers,
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
+      return data;
 
-      if (response.status === 401) {
-        throw new Error('Session expirée, veuillez vous reconnecter');
-      }
-
-      if (response.status === 403) {
-        throw new Error('Accès refusé : droits administrateur requis');
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        const errorMessage = errorData?.message || `Erreur ${response.status}`;
-        throw new Error(errorMessage);
-      }
-
-      // Pour les réponses 204 (No Content)
-      if (response.status === 204) {
-        return null;
-      }
-
-      return await response.json();
     } catch (err: any) {
       clearTimeout(timeoutId);
 
@@ -154,11 +135,12 @@ export const useAdminUserService = () => {
         throw new Error('La requête a expiré. Veuillez réessayer.');
       }
 
-      if (
-        err.message === 'SESSION_EXPIRED' ||
-        err.message.includes('Session expirée')
-      ) {
+      if (err.message === 'UNAUTHORIZED' || err.message === 'SESSION_EXPIRED') {
         throw new Error('Session expirée, veuillez vous reconnecter');
+      }
+
+      if (err.status === 403) {
+        throw new Error('Accès refusé : droits administrateur requis');
       }
 
       // Extraire le message d'erreur spécifique du backend
@@ -171,7 +153,7 @@ export const useAdminUserService = () => {
   const cleanData = (data: any): any => {
     return Object.fromEntries(
       Object.entries(data).filter(
-        ([value]) => value !== undefined && value !== null && value !== ''
+        ([, value]) => value !== undefined && value !== null && value !== ''
       )
     );
   };
@@ -181,11 +163,9 @@ export const useAdminUserService = () => {
   // Récupérer tous les utilisateurs
   const getAllUsers = async (): Promise<User[]> => {
     try {
-      const users = await secureAdminFetch('/api/users', {
+      return await secureAdminFetch<User[]>('/api/users', {
         method: 'GET',
       });
-
-      return users as User[];
     } catch (err: any) {
       throw new Error(
         err.message || 'Erreur lors de la récupération des utilisateurs'
@@ -196,11 +176,9 @@ export const useAdminUserService = () => {
   // Obtenir les statistiques utilisateurs
   const getUserStats = async (): Promise<UserStats> => {
     try {
-      const stats = await secureAdminFetch('/api/users/stats', {
+      return await secureAdminFetch<UserStats>('/api/users/stats', {
         method: 'GET',
       });
-
-      return stats as UserStats;
     } catch (err: any) {
       throw new Error(
         err.message || 'Erreur lors de la récupération des statistiques'
@@ -208,7 +186,7 @@ export const useAdminUserService = () => {
     }
   };
 
-  // Créer un utilisateur (sera toujours USER sauf si email=EMAIL_USER et premier admin)
+  // Créer un utilisateur
   const createUser = async (userData: CreateUserDto): Promise<User> => {
     try {
       // Validation frontend supplémentaire
@@ -224,12 +202,10 @@ export const useAdminUserService = () => {
         throw new Error('Le téléphone doit contenir au moins 5 caractères');
       }
 
-      const result = await secureAdminFetch('/api/users', {
+      return await secureAdminFetch<User>('/api/users', {
         method: 'POST',
         body: JSON.stringify(userData),
       });
-
-      return result as User;
     } catch (err: any) {
       throw new Error(
         err.message || "Erreur lors de la création de l'utilisateur"
@@ -259,12 +235,10 @@ export const useAdminUserService = () => {
         throw new Error('Aucune donnée valide à mettre à jour');
       }
 
-      const result = await secureAdminFetch(`/api/users/${userId}`, {
+      return await secureAdminFetch<User>(`/api/users/${userId}`, {
         method: 'PATCH',
         body: JSON.stringify(cleanUserData),
       });
-
-      return result as User;
     } catch (err: any) {
       throw new Error(err.message || 'Erreur lors de la mise à jour');
     }
@@ -310,14 +284,12 @@ export const useAdminUserService = () => {
   // Activer/désactiver un utilisateur
   const toggleUserStatus = async (userId: string): Promise<User> => {
     try {
-      const result = await secureAdminFetch(
+      return await secureAdminFetch<User>(
         `/api/users/${userId}/toggle-status`,
         {
           method: 'PATCH',
         }
       );
-
-      return result as User;
     } catch (err: any) {
       throw new Error(err.message || 'Erreur lors du changement de statut');
     }
@@ -328,14 +300,12 @@ export const useAdminUserService = () => {
     userId: string
   ): Promise<AccessCheckResponse> => {
     try {
-      const accessCheck = await secureAdminFetch(
+      return await secureAdminFetch<AccessCheckResponse>(
         `/api/users/check-access/${userId}`,
         {
           method: 'GET',
         }
       );
-
-      return accessCheck as AccessCheckResponse;
     } catch (err: any) {
       throw new Error(err.message || 'Erreur vérification accès');
     }
@@ -344,11 +314,9 @@ export const useAdminUserService = () => {
   // Gestion du mode maintenance
   const getMaintenanceStatus = async (): Promise<MaintenanceStatus> => {
     try {
-      const status = await secureAdminFetch('/api/users/maintenance-status', {
+      return await secureAdminFetch<MaintenanceStatus>('/api/users/maintenance-status', {
         method: 'GET',
       });
-
-      return status as MaintenanceStatus;
     } catch (err: any) {
       throw new Error(err.message || 'Erreur récupération statut maintenance');
     }
@@ -358,12 +326,10 @@ export const useAdminUserService = () => {
     enabled: boolean
   ): Promise<MaintenanceResponse> => {
     try {
-      const response = await secureAdminFetch('/api/users/maintenance-mode', {
+      return await secureAdminFetch<MaintenanceResponse>('/api/users/maintenance-mode', {
         method: 'POST',
         body: JSON.stringify({ enabled }),
       });
-
-      return response as MaintenanceResponse;
     } catch (err: any) {
       throw new Error(err.message || 'Erreur changement mode maintenance');
     }
@@ -387,12 +353,10 @@ export const useAdminUserService = () => {
         throw new Error('Aucune donnée valide à mettre à jour');
       }
 
-      const result = await secureAdminFetch('/api/users/profile/me', {
+      return await secureAdminFetch<User>('/api/users/profile/me', {
         method: 'PATCH',
         body: JSON.stringify(cleanUserData),
       });
-
-      return result as User;
     } catch (err: any) {
       throw new Error(err.message || 'Erreur lors de la mise à jour du profil');
     }
@@ -401,11 +365,9 @@ export const useAdminUserService = () => {
   // Récupérer le profil de l'utilisateur connecté
   const getMyProfile = async (): Promise<User> => {
     try {
-      const profile = await secureAdminFetch('/api/users/profile/me', {
+      return await secureAdminFetch<User>('/api/users/profile/me', {
         method: 'GET',
       });
-
-      return profile as User;
     } catch (err: any) {
       throw new Error(err.message || 'Erreur récupération profil');
     }

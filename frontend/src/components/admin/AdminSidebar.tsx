@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, LogoutAllResponse } from '../../context/AuthContext';
 import {
   LayoutDashboard,
   MapPin,
@@ -46,11 +46,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
   const [isLogoutAllOpen, setIsLogoutAllOpen] = useState(false);
   const [isLogoutAllLoading, setIsLogoutAllLoading] = useState(false);
   const [isMaintenanceLoading, setIsMaintenanceLoading] = useState(false);
-  const [logoutAllResult, setLogoutAllResult] = useState<{
-    success: boolean;
-    message: string;
-    stats?: any;
-  } | null>(null);
+  const [logoutAllResult, setLogoutAllResult] = useState<LogoutAllResponse | null>(null);
   const [showMaintenanceToggle, setShowMaintenanceToggle] = useState(false);
 
   // Détection précise des tailles d'écran
@@ -75,12 +71,12 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ children }) => {
     };
   }, []);
 
-  // Vérifier le statut maintenance au montage
+  // Vérifier le statut maintenance au montage et quand l'utilisateur change
   useEffect(() => {
     if (user?.role === 'admin') {
       checkMaintenanceStatus();
     }
-  }, [user, checkMaintenanceStatus]);
+  }, [user]); // Retirer checkMaintenanceStatus des dépendances
 
   const menuItems = [
     {

@@ -118,7 +118,7 @@ export interface AuthFunctions {
   getAccessToken: () => string | null;
   refreshToken: () => Promise<boolean>;
   logout: () => void;
-  fetchWithAuth: (endpoint: string, options?: RequestInit) => Promise<Response>;
+  fetchWithAuth: <T = any>(endpoint: string, options?: RequestInit) => Promise<T>;
 }
 
 export class UserRendezvousService {
@@ -246,36 +246,8 @@ export class UserRendezvousService {
 
         const endpoint = `/api/rendezvous/user?${urlParams.toString()}`;
 
-        const response = await this.auth.fetchWithAuth(endpoint);
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-
-          if (
-            response.status === 400 &&
-            errorData.message?.includes('Statut invalide')
-          ) {
-            console.warn('Backend a rejeté le filtre de statut');
-            return {
-              data: [],
-              total: 0,
-              page: params.page,
-              limit: params.limit,
-              totalPages: 0,
-            };
-          }
-
-          if (response.status === 429) {
-            const waitTime = 5000;
-            console.log(`Rate limit détecté, attente de ${waitTime}ms`);
-            await this.wait(waitTime);
-            return this.fetchUserRendezvous(params);
-          }
-
-          throw new Error(errorData.message || `Erreur ${response.status}`);
-        }
-
-        const data = await response.json();
+        // fetchWithAuth retourne déjà les données parsées, pas besoin de response.json()
+        const data = await this.auth.fetchWithAuth<ApiResponse>(endpoint);
 
         if (data.data && Array.isArray(data.data)) {
           data.data.forEach((rdv: Rendezvous) => {
@@ -291,7 +263,7 @@ export class UserRendezvousService {
 
         return data;
       } catch (error: any) {
-        if (error.message.startsWith('RATE_LIMIT:')) {
+        if (error.message && error.message.startsWith('RATE_LIMIT:')) {
           const waitTime = parseInt(error.message.split(':')[1]);
           await this.wait(waitTime);
           return this.fetchUserRendezvous(params);
@@ -300,7 +272,7 @@ export class UserRendezvousService {
         if (
           error.message !== 'SESSION_EXPIRED' &&
           error.message !== 'SESSION_CHECK_IN_PROGRESS' &&
-          !error.message.includes('STATUT_INVALIDE')
+          !error.message?.includes('STATUT_INVALIDE')
         ) {
           console.error('Erreur fetchUserRendezvous:', error.message);
           return {
@@ -334,61 +306,13 @@ export class UserRendezvousService {
         ? `/api/rendezvous/${rdvId}?reason=${encodeURIComponent(reason)}`
         : `/api/rendezvous/${rdvId}`;
 
-      const response = await this.auth.fetchWithAuth(url, {
+      // fetchWithAuth retourne déjà les données parsées
+      const updatedRdv = await this.auth.fetchWithAuth<Rendezvous>(url, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         }
-        // Pas de body pour une requête DELETE
       });
-
-      if (!response.ok) {
-        let errorData: { message?: any; error?: any };
-        try {
-          const responseText = await response.text();
-          errorData = responseText ? JSON.parse(responseText) : {};
-        } catch {
-          errorData = {};
-        }
-
-        if (response.status === 401) {
-          throw new Error('SESSION_EXPIRED');
-        }
-
-        if (response.status === 400) {
-          if (errorData.message?.includes('2 heures')) {
-            throw new Error(
-              "Vous ne pouvez plus annuler votre rendez-vous à moins de 2 heures de l'heure prévue"
-            );
-          }
-          if (errorData.message?.includes('terminé')) {
-            throw new Error(
-              "Impossible d'annuler un rendez-vous terminé"
-            );
-          }
-        }
-
-        if (response.status === 403) {
-          throw new Error(
-            'Vous ne pouvez annuler que vos propres rendez-vous'
-          );
-        }
-
-        if (response.status === 404) {
-          throw new Error('Rendez-vous non trouvé');
-        }
-
-        const errorMessage =
-          errorData.message || errorData.error || `Erreur ${response.status} lors de l'annulation`;
-        throw new Error(errorMessage);
-      }
-
-      const responseText = await response.text();
-      if (!responseText) {
-        throw new Error('Réponse serveur vide');
-      }
-
-      const updatedRdv = JSON.parse(responseText);
       
       // Vérifier que le statut a bien été changé en "Annulé"
       if (updatedRdv.status !== RENDEZVOUS_STATUS.CANCELLED) {
@@ -397,7 +321,13 @@ export class UserRendezvousService {
 
       return updatedRdv;
     } catch (error: any) {
-      console.error('❌ Erreur cancelRendezvous:', error.message);
+      console.error('Erreur cancelRendezvous:', error.message);
+      
+      // Si l'erreur est une session expirée, la propager
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      
       throw error;
     }
   }
@@ -410,19 +340,19 @@ export class UserRendezvousService {
       throw new Error('ID de rendez-vous invalide');
     }
 
-    const response = await this.auth.fetchWithAuth(`/api/rendezvous/${id}`);
-
-    if (!response.ok) {
-      if (response.status === 404) {
+    try {
+      // fetchWithAuth retourne déjà les données parsées
+      const rdv = await this.auth.fetchWithAuth<Rendezvous>(`/api/rendezvous/${id}`);
+      return rdv;
+    } catch (error: any) {
+      if (error.message?.includes('404')) {
         throw new Error('Rendez-vous non trouvé');
       }
-      if (response.status === 401) {
-        throw new Error('SESSION_EXPIRED');
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
       }
       throw new Error('Erreur lors de la récupération du rendez-vous');
     }
-
-    return response.json();
   }
 
   /**

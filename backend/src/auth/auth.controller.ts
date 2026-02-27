@@ -45,16 +45,6 @@ export class AuthController {
     private usersService: UsersService
   ) {}
 
-  // Dans la méthode getCookieOptions du AuthController
-  private getCookieOptions(): any {
-    return {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/',
-    };
-  }
-
   @Post('login')
   @UseGuards(ThrottleGuard, LocalAuthGuard)
   @ApiOperation({ summary: 'Connexion utilisateur' })
@@ -63,38 +53,42 @@ export class AuthController {
   async login(
     @Body() _loginDto: LoginDto,
     @Request() req: { user: any },
-    @Res() res: Response
+    @Res({ passthrough: true }) res: Response
   ) {
     if (!req.user) {
-      return res.status(401).json({
+      return {
         message: 'Email ou mot de passe incorrect',
         code: 'INVALID CREDENTIALS',
         timestamp: new Date().toISOString(),
-      });
+      };
     }
 
     console.log('Login - Génération des tokens...');
     const result = await this.authService.login(req.user);
 
-    const cookieOptions = this.getCookieOptions();
-
-    // Définir les cookies AVANT d'envoyer la réponse
+    // Définir les cookies
     console.log('Définition du refresh_token cookie');
     res.cookie('refresh_token', result.refresh_token, {
-      ...cookieOptions,
-      maxAge: AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000, // 30 minutes
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+      maxAge: AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000,
     });
 
     console.log('Définition du access_token cookie');
     res.cookie('access_token', result.access_token, {
-      ...cookieOptions,
-      maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000, // 15 minutes
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+      maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000,
     });
 
     console.log('Login réussi - cookies définis');
 
-    // Envoyer la réponse JSON
-    return res.status(200).json({
+    // Retourner la réponse JSON
+    return {
       access_token: result.access_token,
       user: {
         id: result.user.id,
@@ -106,7 +100,7 @@ export class AuthController {
         isAdmin: result.user.role === UserRole.ADMIN,
       },
       message: 'Connexion réussie',
-    });
+    };
   }
 
   @Post('refresh')
@@ -116,9 +110,9 @@ export class AuthController {
   async refresh(
     @Request() req: CustomRequest,
     @Body() body: any,
-    @Res() res: Response
+    @Res({ passthrough: true }) res: Response
   ) {
-    // Lire le refresh_token depuis les cookies
+    // Lire le refresh_token depuis les cookies ou le body
     const refresh_token = req.cookies?.refresh_token || body?.refresh_token;
 
     console.log('Refresh - Vérification du refresh_token...');
@@ -127,11 +121,11 @@ export class AuthController {
     if (!refresh_token) {
       console.error('Refresh token manquant');
       this.clearAuthCookies(res);
-      return res.status(401).json({
+      return {
         message: 'Refresh token manquant',
         loggedOut: true,
         requiresReauth: true,
-      });
+      };
     }
 
     try {
@@ -141,11 +135,11 @@ export class AuthController {
       if (result.sessionExpired) {
         console.warn('Session expirée détectée');
         this.clearAuthCookies(res);
-        return res.status(401).json({
+        return {
           loggedOut: true,
           sessionExpired: true,
           message: 'Session expirée après 30 minutes',
-        });
+        };
       }
 
       if (!result.access_token) {
@@ -154,13 +148,14 @@ export class AuthController {
 
       console.log('Nouveaux tokens générés');
 
-      const cookieOptions = this.getCookieOptions();
-
       // Définir le nouveau refresh_token si présent
       if (result.refresh_token) {
         console.log('Mise à jour du refresh_token cookie');
         res.cookie('refresh_token', result.refresh_token, {
-          ...cookieOptions,
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+          path: '/',
           maxAge: AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000,
         });
       }
@@ -168,18 +163,21 @@ export class AuthController {
       // Définir le nouveau access_token
       console.log('Mise à jour du access_token cookie');
       res.cookie('access_token', result.access_token, {
-        ...cookieOptions,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
         maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000,
       });
 
       console.log('Refresh réussi - cookies mis à jour');
 
-      return res.status(200).json({
+      return {
         access_token: result.access_token,
         refresh_token: result.refresh_token,
         message: 'Tokens rafraîchis avec succès',
         expiresIn: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS,
-      });
+      };
     } catch (error: any) {
       console.error('Erreur lors du refresh:', error.message);
       this.clearAuthCookies(res);
@@ -192,11 +190,11 @@ export class AuthController {
         statusCode = 400;
       }
 
-      return res.status(statusCode).json({
+      return {
         message: errorMessage,
         loggedOut: true,
         requiresReauth: true,
-      });
+      };
     }
   }
 
@@ -206,24 +204,28 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Données invalides' })
   async register(
     @Body() registerDto: RegisterDto,
-    @Req() req: any,
-    @Res() res: Response
+    @Res({ passthrough: true }) res: Response
   ) {
     try {
       const result = await this.authService.register(registerDto);
-      const cookieOptions = this.getCookieOptions();
-
+      
       res.cookie('refresh_token', result.refresh_token, {
-        ...cookieOptions,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
         maxAge: AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000,
       });
 
       res.cookie('access_token', result.access_token, {
-        ...cookieOptions,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
         maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000,
       });
 
-      return res.status(201).json({
+      return {
         access_token: result.access_token,
         user: {
           id: result.user.id,
@@ -236,7 +238,7 @@ export class AuthController {
           isActive: result.user.isActive,
         },
         message: 'Inscription réussie',
-      });
+      };
     } catch (error: any) {
       if (error instanceof BadRequestException) {
         throw error;
@@ -251,7 +253,10 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Déconnexion' })
-  async logout(@Request() req: any, @Res() res: Response) {
+  async logout(
+    @Request() req: any,
+    @Res({ passthrough: true }) res: Response
+  ) {
     const userId = req.user?.id;
     const token =
       req.headers.authorization?.split(' ')[1] ||
@@ -264,21 +269,27 @@ export class AuthController {
 
     this.clearAuthCookies(res);
 
-    return res.json({
+    return {
       message: 'Déconnexion réussie',
       timestamp: new Date().toISOString(),
-    });
+    };
   }
 
   @Post('logout-all')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Déconnexion de tous les utilisateurs non-admin' })
-  async logoutAll(@Request() _req: any, @Res() res: Response) {
+  async logoutAll(
+    @Request() _req: any,
+    @Res({ passthrough: true }) res: Response
+  ) {
     try {
       const result = await this.authService.logoutAll();
 
-      return res.json({
+      // Effacer les cookies de l'admin qui a fait l'action
+      this.clearAuthCookies(res);
+
+      return {
         success: result.success,
         message: result.message,
         stats: {
@@ -289,12 +300,12 @@ export class AuthController {
           timestamp: result.stats.timestamp || new Date().toISOString(),
           userEmails: result.stats.userEmails || [],
         },
-      });
+      };
     } catch {
-      return res.status(500).json({
+      return {
         success: false,
         message: 'Erreur lors de la déconnexion globale',
-      });
+      };
     }
   }
 
@@ -410,16 +421,19 @@ export class AuthController {
   private clearAuthCookies(res: Response): void {
     console.log("Nettoyage des cookies d'authentification");
 
-    const cookieOptions: any = {
+    res.clearCookie('refresh_token', {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none' as const,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/',
-      // Ne pas définir de domaine spécifique
-    };
-
-    res.clearCookie('refresh_token', cookieOptions);
-    res.clearCookie('access_token', cookieOptions);
+    });
+    
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+    });
 
     console.log('Cookies nettoyés');
   }
@@ -429,4 +443,5 @@ export class AuthController {
       return 'user_***';
     return `user_${userId.substring(0, 3)}***${userId.substring(userId.length - 3)}`;
   }
+
 }

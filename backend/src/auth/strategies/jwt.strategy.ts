@@ -19,7 +19,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     const strategyOptions: StrategyOptions = {
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        (request) => {
+          // Essayer d'abord le header Authorization (pour compatibilité)
+          const authHeader = request?.headers?.authorization;
+          if (authHeader && authHeader.startsWith('Bearer ')) {
+            return authHeader.substring(7);
+          }
+          
+          // Ensuite, essayer les cookies
+          const token = request?.cookies?.access_token;
+          if (token) {
+            return token;
+          }
+          
+          return null;
+        },
+      ]),
       ignoreExpiration: false,
       secretOrKey: jwtSecret,
     };

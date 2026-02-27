@@ -42,6 +42,7 @@ function Header(): React.JSX.Element {
 
   const isAdmin = user?.role === UserRole.ADMIN || user?.isAdmin === true;
 
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -113,7 +114,8 @@ function Header(): React.JSX.Element {
     setIsLoggingOut(true);
     try {
       await logout();
-      window.sessionStorage?.removeItem('redirect_after_login');
+      // Suppression du cookie de redirection (plus de sessionStorage)
+      document.cookie = 'redirect_after_login=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; secure; samesite=none';
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error('Erreur lors de la déconnexion:', error);
@@ -130,7 +132,9 @@ function Header(): React.JSX.Element {
     isMobile: boolean = false
   ): void => {
     if (!isAuthenticated) {
-      window.sessionStorage?.setItem('redirect_after_login', path);
+      // Stockage de la redirection dans un cookie (plus de sessionStorage)
+      const encodedPath = encodeURIComponent(path);
+      document.cookie = `redirect_after_login=${encodedPath}; max-age=${5*60}; path=/; secure; samesite=none`;
       navigate('/connexion', {
         state: {
           message: 'Veuillez vous connecter pour accéder à cette page',
