@@ -30,8 +30,8 @@ export default function Services() {
             name='viewport'
             content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
           />
-          <link rel='icon' href='/paname-consulting.jpg' />
-          <link rel='apple-touch-icon' href='/paname-consulting.jpg' />
+          <link rel='icon' href='/images/paname-consulting.jpg' />
+          <link rel='apple-touch-icon' href='/images/paname-consulting.jpg' />
           <link rel='manifest' href='/manifest.json' />
           {/* Ajout d'un style global pour désactiver le swipe horizontal */}
           <style type='text/css'>{`

@@ -103,7 +103,8 @@ const Hero = () => {
   ];
 
   const handleDestinationClick = (countrySlug: string) => {
-    navigate(`/destination/${countrySlug}`);
+    // Naviguer vers la page d'info avec le nom exact du document
+    navigate(`/info/${countrySlug}`);
   };
 
   return (
@@ -115,7 +116,7 @@ const Hero = () => {
           <div
             className='absolute inset-0 bg-cover bg-center'
             style={{
-              backgroundImage: 'url("/Heroimage.avif")',
+              backgroundImage: 'url("/images/Heroimage.avif")',
             }}
           />
           <div className='absolute inset-0 bg-sky-900/70'></div>

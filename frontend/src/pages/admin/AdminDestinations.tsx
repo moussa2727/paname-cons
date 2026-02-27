@@ -772,7 +772,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                             className='w-16 h-16 object-cover rounded-lg border border-slate-200 shadow-sm'
                             onError={e => {
                               (e.target as HTMLImageElement).src =
-                                '/paname-placeholder.png';
+                                '/images/paname-consulting.png';
                             }}
                           />
                         </div>
@@ -915,7 +915,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                               className='w-12 h-12 object-cover rounded-lg border border-slate-200 shadow-sm'
                               onError={e => {
                                 (e.target as HTMLImageElement).src =
-                                  '/paname-placeholder.png';
+                                  '/images/placeholder-image.avif';
                               }}
                             />
                             <div className='ml-3'>

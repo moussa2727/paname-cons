@@ -25,6 +25,7 @@ import Propos from './pages/Propos';
 import Services from './pages/Services';
 import NotFound from './pages/Notfound';
 import RendezVous from './pages/user/rendezvous/RendezVous';
+import PDFViewer from './pages/PDFViewer';
 
 // Pages de connexion, inscription, mot de passe oublié
 import Connexion from './pages/user/auth/Connexion';
@@ -190,9 +191,9 @@ function App() {
           name='viewport'
           content='width=device-width, initial-scale=1, maximum-scale=5'
         />
-        <link rel='icon' href='/paname-consulting.ico' sizes='any' />
-        <link rel='icon' href='/paname-consulting.svg' type='image/svg+xml' />
-        <link rel='apple-touch-icon' href='/paname-consulting.png' />
+        <link rel='icon' href='/images/paname-consulting.ico' sizes='any' />
+        <link rel='icon' href='/images/paname-consulting.svg' type='image/svg+xml' />
+        <link rel='apple-touch-icon' href='/images/paname-consulting.png' />
         <link rel='manifest' href='/manifest.json' />
         <meta property='og:url' content='https://panameconsulting.vercel.app' />
       </Helmet>
@@ -234,6 +235,15 @@ function App() {
               <PublicLayout>
                 <Propos />
               </PublicLayout>
+            }
+          />
+
+          <Route
+            path='/info/:documentName'
+            element={
+              <MinimalLayout>
+                <PDFViewer />
+              </MinimalLayout>
             }
           />
 

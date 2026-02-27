@@ -1,6 +1,6 @@
 # Frontend - Paname Consulting
 
-Application React/TypeScript pour la gestion des consultations et procédures d'études à l'international.
+Application React/TypeScript moderne pour la gestion des consultations et procédures d'études à l'international.
 
 ## 🚀 Démarrage rapide
 
@@ -19,9 +19,11 @@ npm run dev
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Structure](#structure)
+- [Nouvelles fonctionnalités](#nouvelles-fonctionnalités)
 - [Services API](#services-api)
 - [Composants](#composants)
 - [Système de Rendez-vous](#système-de-rendez-vous)
+- [Lecteur PDF](#lecteur-pdf)
 - [Développement](#développement)
 - [Build](#build)
 
@@ -35,7 +37,7 @@ npm run dev
 npm install
 ```
 
-### Outils
+### Outils principaux
 
 - **React 19.2.4** : UI library avec TypeScript 5.9.3
 - **Vite 7.3.1** : Bundler/Dev server ultra-rapide
@@ -78,204 +80,276 @@ VITE_APP_NAME=Paname-Consulting
 src/
 ├── pages/                  # Pages principales
 │   ├── admin/             # Dashboard admin
-│   │   └── AdminDashboard.tsx
-│   ├── auth/              # Authentification
-│   │   ├── Login.tsx
-│   │   └── Register.tsx
-│   ├── procedures/        # Procédures
-│   ├── rendezvous/        # Rendez-vous
-│   ├── contact/           # Contact
-│   ├── user/              # Espace utilisateur (profil, rendez-vous, procédures)
-│   ├── politiques/        # Pages légales (CGU, Mentions légales, Politique de confidentialité)
-│   └── profile/           # Profil utilisateur
+│   │   ├── AdminDashboard.tsx
+│   │   ├── AdminDestinations.tsx
+│   │   ├── AdminMessages.tsx
+│   │   ├── AdminProfile.tsx
+│   │   ├── AdminProcedure.tsx
+│   │   ├── AdminRendez-Vous.tsx
+│   │   └── UsersManagement.tsx
+│   ├── user/              # Espace utilisateur
+│   │   ├── UserProfile.tsx
+│   │   ├── UserProcedure.tsx
+│   │   ├── auth/
+│   │   │   ├── Connexion.tsx
+│   │   │   ├── Inscription.tsx
+│   │   │   └── MotdePasseoublie.tsx
+│   │   └── rendezvous/
+│   │       ├── RendezVous.tsx
+│   │       └── MesRendezVous.tsx
+│   ├── politiques/        # Pages légales
+│   │   ├── ConditionsGenerales.tsx
+│   │   ├── MentionsLegales.tsx
+│   │   └── PolitiqueConfidentialite.tsx
+│   ├── Accueil.tsx        # Page d'accueil
+│   ├── Contact.tsx         # Contact
+│   ├── Notfound.tsx        # Page 404
+│   ├── PDFViewer.tsx       # Lecteur PDF
+│   ├── Propos.tsx          # À propos
+│   └── Services.tsx        # Services
 │
 ├── components/            # Composants réutilisables
-│   ├── Header.tsx
+│   ├── admin/
+│   │   └── AdminSidebar.tsx
+│   ├── auth/
+│   │   ├── ForgotPassword.tsx
+│   │   ├── Login.tsx
+│   │   ├── Register.tsx
+│   │   └── ResetPassword.tsx
+│   ├── user/
+│   │   └── UserHeader.tsx
+│   ├── About.tsx
+│   ├── CtaSection.tsx
+│   ├── Destination.tsx
+│   ├── DestinationQuiz.tsx
+│   ├── ErrorBoundary.tsx
+│   ├── Faq.tsx
 │   ├── Footer.tsx
-│   ├── Sidebar.tsx
-│   └── ...
-│
-├── context/              # Context API
-│   └── AuthContext.tsx   # Gestion authentification
+│   ├── Form.tsx
+│   ├── FrenchSchool.tsx
+│   ├── Header.tsx
+│   ├── Hero.tsx
+│   ├── Loader.tsx
+│   ├── ServicesGrid.tsx
+│   ├── Valeur.tsx
+│   └── partners.tsx
 │
 ├── api/                  # Services API
-│   ├── auth/
 │   ├── admin/
-│   ├── contact/
-│   ├── user/
-│   └── ...
+│   │   ├── AdminContactService.ts
+│   │   ├── AdminDashboardService.ts
+│   │   ├── AdminDestionService.ts
+│   │   ├── AdminProcedureService.ts
+│   │   ├── AdminRendezVousService.ts
+│   │   └── AdminUserService.ts
+│   └── user/
+│       ├── Profile/
+│       │   └── userProfileApi.ts
+│       ├── Rendezvous/
+│       │   └── UserRendezvousService.ts
+│       └── procedures/
+│           └── ProcedureService.ts
 │
-├── styles/               # Styles globaux
-│   └── globals.css
+├── context/              # Context API
+│   ├── AuthContext.tsx   # Gestion authentification
+│   └── RequireAdmin.tsx   # Protection routes admin
 │
-├── utils/                # Utilitaires
-│   ├── validators.ts
-│   ├── formatters.ts
-│   └── helpers.ts
+├── types/                # Types TypeScript
+│   ├── global.d.ts
+│   ├── react-router.d.ts
+│   └── vite-env.d.ts
 │
+├── AdminLayout.tsx       # Layout admin
+├── App.tsx               # Router principal
+├── index.css             # Styles globaux
 └── main.tsx              # Point d'entrée
 ```
 
-### Pages légales
+---
 
-Les pages légales sont exposées via les routes suivantes :
+## Architecture des Services API
 
-- `/politique-de-confidentialite` : Politique de confidentialité
-- `/conditions-generales` : Conditions Générales d'utilisation
-- `/mentions-legales` : Mentions légales
+### **Services Admin**
+- **AdminDashboardService** : Statistiques et analytics
+- **AdminContactService** : Gestion des messages contact
+- **AdminDestionService** : Gestion destinations
+- **AdminProcedureService** : Gestion procédures
+- **AdminRendezVousService** : Gestion rendez-vous
+- **AdminUserService** : Gestion utilisateurs
+
+### **Services User**
+- **userProfileApi** : Profil utilisateur
+- **UserRendezvousService** : Rendez-vous utilisateur
+- **ProcedureService** : Procédures utilisateur
+
+### **Pattern d'architecture**
+- **Services centralisés** : Chaque entité a son service dédié
+- **TypeScript** : Types forts pour toutes les API
+- **Error handling** : Gestion d'erreurs unifiée
+- **Authentification** : Tokens JWT automatiques
 
 ---
 
-## Composants
+## Routes et Layouts
 
-### Composants principaux
+### **Structure des routes**
+```tsx
+// Pages publiques
+/                    # Accueil
+/services            # Services
+/contact             # Contact
+/a-propos            # À propos
+/info/:documentName  # Lecteur PDF (/info/russie, /info/chine...)
 
-#### Header
-Barre de navigation avec :
-- Logo
-- Menu navigation
-- Authenticaton (Login/Logout)
-- Profil utilisateur
+// Pages légales
+/conditions-generales    # CGU
+/mentions-legales        # Mentions légales
+// politique-de-confidentialite # Commentée
 
-#### Footer
-Pied de page avec :
-- Informations entreprise
-- Liens rapides
-- Social links
+// Authentification
+/connexion              # Login
+/inscription            # Register
+/mot-de-passe-oublie    # Forgot password
+/reset-password         # Reset password
 
-#### Sidebar (Admin)
-Navigation admin avec :
-- Statistiques
-- Contrôles système
-- Bouton mode maintenance
+// Routes utilisateur (protégées)
+/rendez-vous           # Prise de rendez-vous
+/mes-rendez-vous       # Gestion rendez-vous
+/mon-profil            # Profil utilisateur
+/ma-procedure          # Procédures utilisateur
 
-#### Dashboard
-Tableau de bord avec :
-- Cards statistiques
-- Graphiques
-- Activités récentes
-- Gestion mode maintenance
+// Routes admin (protégées)
+/gestionnaire           # Dashboard admin
+/gestionnaire/*        # Toutes les routes admin
+```
 
-### Patterns
-
-- **React Hooks** : useState, useEffect, useContext
-- **Custom Hooks** : useAuth, useDashboardData
-- **Context API** : Gestion état global
-- **Composition** : Props-based components
+### **Layouts disponibles**
+- **AccueilLayout** : Layout avec loader pour l'accueil
+- **PublicLayout** : Layout standard pour pages publiques
+- **MinimalLayout** : Layout minimaliste (PDF, auth, profil)
+- **AdminLayout** : Layout admin avec sidebar
 
 ---
 
-## Développement
+## Nouvelles fonctionnalités
 
-### Démarrage
+### 🎨 **Design moderne**
+- Interface responsive et accessible
+- Animations fluides avec Framer Motion et AOS
+- Design system cohérent avec Tailwind CSS
+- Support dark/light mode (préparé)
 
-```bash
-npm run dev
-```
+### 📄 **Lecteur PDF intégré**
+- Lecture des documents depuis `/info/nomdudocument`
+- Support des formats PDF standards
+- Navigation intuitive avec téléchargement
+- Gestion d'erreur pour documents indisponibles
 
-L'app recharge automatiquement les modifications (HMR).
+### 🌍 **Destinations multiples**
+- Affichage dynamique des pays disponibles
+- Images optimisées dans `/images/`
+- Informations détaillées par destination
+- Fallbacks pour images manquantes
 
-### Structure d'une page
-
-```tsx
-import { useAuth } from '@/context/AuthContext';
-import { Helmet } from 'react-helmet-async';
-
-const MyPage = () => {
-  const { user, isAuthenticated } = useAuth();
-
-  if (!isAuthenticated) {
-    return <div>Veuillez vous connecter</div>;
-  }
-
-  return (
-    <>
-      <Helmet>
-        <title>Ma Page - Paname Consulting</title>
-      </Helmet>
-      <div className="p-8">
-        {/* Contenu */}
-      </div>
-    </>
-  );
-};
-
-export default MyPage;
-```
-
-### Appels API
-
-```tsx
-import axios from 'axios';
-
-// Dans un composant
-useEffect(() => {
-  const fetchData = async () => {
-    try {
-      const response = await axios.get('/api/endpoint');
-      setData(response.data);
-    } catch (error) {
-      console.error('Erreur:', error);
-    }
-  };
-
-  fetchData();
-}, []);
-```
-
-### Styling avec Tailwind
-
-```tsx
-// Classes Tailwind
-<div className="p-4 md:p-6 lg:p-8 bg-white rounded-lg shadow-md">
-  <h1 className="text-2xl font-bold text-gray-900">Titre</h1>
-  <p className="text-gray-600 mt-2">Descriptif</p>
-</div>
-```
+### 📱 **Expérience utilisateur**
+- Notifications toast uniques
+- Formulaire de contact multi-étapes
+- Système de rendez-vous complet
+- Profil utilisateur personnalisé
 
 ---
 
-## Features
+## Système de Rendez-vous
 
-### Authentification
-
-- Inscription (Register)
-- Connexion (Login)
-- Réinitialisation mot de passe
-- Vérification email
-- Renouvellement automatique token
-
-### Pages utilisateur
-
-- Dashboard personnel
-- Mes procédures
-- Mes rendez-vous (gestion complète avec statuts)
-- Profil
-- Contact
-
-### Système de rendez-vous
-
-#### **Statuts disponibles**
+### **Statuts disponibles**
 - **En attente** : Création en attente de confirmation admin
 - **Confirmé** : Validé et programmé
 - **Terminé** : Effectué avec avis administratif
 - **Annulé** : Supprimé (soft delete)
 
-#### **Fonctionnalités**
+### **Fonctionnalités**
 - **Prise de RDV** : Créneaux disponibles en temps réel
 - **Gestion** : Modification/annulation selon permissions
 - **Notifications** : Emails automatiques de confirmation/rappel
 - **Validation** : Vérification disponibilité et règles métier
 - **Avis admin** : Obligatoire pour terminer un RDV
 
-### Pages admin
+---
 
-- Tableau de bord analytics
-- Gestion utilisateurs
-- Gestion procédures
-- Gestion rendez-vous
-- Mode maintenance
-- Statistiques
+## Lecteur PDF
+
+### **URL Structure**
+- Format : `/info/nomdudocument`
+- Exemples : `/info/russie`, `/info/turquie`, `/info/chine`
+
+### **Documents disponibles**
+- `russie.pdf` - Informations sur les études en Russie
+- `turquie.pdf` - Guide études en Turquie
+- `chine.pdf` - Documentation Chine
+- `chypre.pdf` - Informations Chypre
+- `algerie.pdf` - Guide Algérie
+- `maroc.pdf` - Documentation Maroc
+- `france.pdf` - Informations France
+
+### **Fonctionnalités**
+- 📖 Lecture plein écran
+- ⬇️ Téléchargement direct
+- 🔙 Navigation retour
+- ❌ Gestion d'erreur élégante
+
+---
+
+## Assets et Images
+
+### **Structure des images**
+```
+public/images/
+├── Heroimage.avif           # Image hero
+├── CEOPANAME.webp           # Photo CEO
+├── paname-consulting.*      # Logo et favicons
+├── russie.png               # Drapeau Russie
+├── chine.jpg                # Drapeau Chine
+├── maroc.webp               # Drapeau Maroc
+├── algerie.png              # Drapeau Algérie
+├── turquie.webp             # Drapeau Turquie
+├── france.svg               # Drapeau France
+├── supemir.webp             # Partenaire Supemir
+├── hecf.webp                # Partenaire HECF
+├── inted.webp               # Partenaire Inted
+└── ...                      # Autres partenaires
+```
+
+### **Optimisations**
+- ✅ Images au format WebP/AVIF
+- ✅ Lazy loading automatique
+- ✅ Fallbacks pour erreurs
+- ✅ Responsive avec srcset
+
+---
+
+## SEO et Performance
+
+### **Meta tags optimisés**
+```tsx
+<Helmet>
+  <title>Page Title - Paname Consulting</title>
+  <meta name="description" content="..." />
+  <meta property="og:image" content="/images/paname-consulting.jpg" />
+  <meta name="robots" content="index, follow" />
+</Helmet>
+```
+
+### **Sitemap complet**
+- URLs principales indexées
+- Dates de modification à jour
+- Priorités appropriées
+- Fréquences de crawl optimisées
+
+### **Robots.txt optimisé**
+- Autorisation des pages publiques
+- Blocage des pages admin/auth
+- Protection des documents
+- Crawl-delay configuré
 
 ---
 
@@ -287,7 +361,7 @@ useEffect(() => {
 npm run build
 ```
 
-Génère un dossier `dist/` optimisé.
+Génère un dossier `dist/` optimisé avec toutes les images et assets.
 
 ### Preview production
 
@@ -299,61 +373,38 @@ npm run preview
 
 ## Performance
 
-### Optimisations
-
+### Optimisations implémentées
 - ✅ Code splitting automatique (Vite)
-- ✅ Lazy loading routes
-- ✅ Image optimization
+- ✅ Lazy loading routes et images
+- ✅ Image optimization (WebP/AVIF)
 - ✅ CSS purging (Tailwind)
-- ✅ Minification
+- ✅ Minification et compression
+- ✅ Service Worker prêt
 
-### Checklist
-
-- [ ] Lighthouse score > 90
-- [ ] Time to Interactive < 3s
-- [ ] Bundle size < 500KB
-
----
-
-## SEO
-
-### Meta tags
-
-```tsx
-<Helmet>
-  <title>Page Title - Paname Consulting</title>
-  <meta name="description" content="..." />
-  <meta name="robots" content="noindex, nofollow" /> {/* Pour admin */}
-</Helmet>
-```
+### Métriques cibles
+- 🎯 Lighthouse score > 95
+- 🎯 Time to Interactive < 2s
+- 🎯 Bundle size < 400KB
+- 🎯 Core Web Vitals verts
 
 ---
 
-## Troubleshooting
-
-| Problème | Solution |
-|----------|----------|
-| API 404 | Vérifier `VITE_API_URL` |
-| Erreur CORS | Vérifier backend CORS config |
-| Style non appliqué | Vérifier Tailwind purge config |
-| Auth non persistante | Vérifier cookies HTTP-only |
-
----
-
-## Stack & Libraries
+## Stack & Technologies
 
 | Package | Usage |
 |---------|-------|
 | **react** | UI library |
 | **typescript** | Type safety |
-| **vite** | Bundler |
+| **vite** | Build tool |
 | **tailwindcss** | Styling |
 | **axios** | HTTP client |
 | **react-router** | Routing |
+| **framer-motion** | Animations |
 | **react-toastify** | Notifications |
 | **lucide-react** | Icons |
 
 ---
 
-**Version** : 1.0.0
-**Dernière mise à jour** : Janvier 2026
+**Version** : 2.0.0
+**Dernière mise à jour** : 27 Février 2026
+**Auteur** : Paname Consulting Team

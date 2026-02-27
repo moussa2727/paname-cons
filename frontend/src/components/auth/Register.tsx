@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FiMail, FiPhone, FiUser, FiAlertCircle } from 'react-icons/fi';
-
 import { Lock as FiLock, Eye as FiEye, EyeOff as FiEyeOff } from 'lucide-react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 interface RegisterFormData {
@@ -16,13 +15,13 @@ interface RegisterFormData {
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const {
     register,
     isLoading,
     error: authError,
     isAuthenticated,
     user,
+    clearAuthToasts,
   } = useAuth();
 
   const [formData, setFormData] = useState<RegisterFormData>({
@@ -37,138 +36,207 @@ const Register: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
 
   // Redirection si déjà connecté
   useEffect(() => {
     if (isAuthenticated && user) {
-      const redirectPath =
-        user.role === 'admin' ? '/gestionnaire/statistiques' : '/';
+      const redirectPath = user.role === 'admin' ? '/gestionnaire/statistiques' : '/';
       navigate(redirectPath);
     }
   }, [isAuthenticated, user, navigate]);
-
-  // Récupération des messages de redirection
-  useEffect(() => {
-    if (location.state?.message) {
-      console.info('Message de redirection:', location.state.message);
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location, navigate]);
 
   // Synchronisation des erreurs d'authentification
   useEffect(() => {
     if (authError) {
       setFormError(authError);
+      
+      // Déduire les erreurs de champ spécifiques
+      if (authError.toLowerCase().includes('email')) {
+        setFieldErrors(prev => ({ ...prev, email: authError }));
+      } else if (authError.toLowerCase().includes('téléphone')) {
+        setFieldErrors(prev => ({ ...prev, telephone: authError }));
+      }
     }
   }, [authError]);
+
+  // Nettoyer les toasts au démontage
+  useEffect(() => {
+    return () => {
+      clearAuthToasts();
+    };
+  }, [clearAuthToasts]);
+
+  const handleBlur = (field: string) => {
+    setTouchedFields(prev => ({ ...prev, [field]: true }));
+    validateField(field);
+  };
+
+  const validateField = (field: string): boolean => {
+    let error = '';
+    
+    switch (field) {
+      case 'firstName':
+        if (!formData.firstName.trim()) {
+          error = 'Le prénom est requis';
+        } else if (formData.firstName.length < 2) {
+          error = 'Le prénom doit contenir au moins 2 caractères';
+        }
+        break;
+        
+      case 'lastName':
+        if (!formData.lastName.trim()) {
+          error = 'Le nom est requis';
+        } else if (formData.lastName.length < 2) {
+          error = 'Le nom doit contenir au moins 2 caractères';
+        }
+        break;
+        
+      case 'email':
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!formData.email) {
+          error = "L'email est requis";
+        } else if (!emailRegex.test(formData.email)) {
+          error = "Format d'email invalide";
+        }
+        break;
+        
+      case 'telephone':
+        const phoneDigits = formData.telephone.replace(/\D/g, '');
+        if (!formData.telephone) {
+          error = 'Le téléphone est requis';
+        } else if (phoneDigits.length < 8) {
+          error = 'Le téléphone doit contenir au moins 8 chiffres';
+        } else if (phoneDigits.length > 15) {
+          error = 'Le téléphone est trop long';
+        }
+        break;
+        
+      case 'password':
+        if (!formData.password) {
+          error = 'Le mot de passe est requis';
+        } else if (formData.password.length < 8) {
+          error = 'Le mot de passe doit contenir au moins 8 caractères';
+        } else {
+          const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+          if (!passwordRegex.test(formData.password)) {
+            error = 'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre';
+          }
+        }
+        break;
+        
+      case 'confirmPassword':
+        if (!formData.confirmPassword) {
+          error = 'Veuillez confirmer le mot de passe';
+        } else if (formData.password !== formData.confirmPassword) {
+          error = 'Les mots de passe ne correspondent pas';
+        }
+        break;
+    }
+    
+    setFieldErrors(prev => ({ ...prev, [field]: error }));
+    return !error;
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
 
     if (name === 'telephone') {
-      const cleanedValue = value
-        .replace(/\s/g, '') // Supprimer tous les espaces
-        .replace(/[^\d+]/g, '') // Garder uniquement les chiffres et le +
-        .replace(/(?<!^)\+/g, ''); // Supprimer les + qui ne sont pas au début
-
+      // Nettoyage du téléphone : garder uniquement chiffres et + au début
+      let cleanedValue = value.replace(/\s/g, '');
+      
+      // Si le premier caractère est +, le garder, sinon enlever tous les +
+      if (cleanedValue.startsWith('+')) {
+        cleanedValue = '+' + cleanedValue.substring(1).replace(/[^\d]/g, '');
+      } else {
+        cleanedValue = cleanedValue.replace(/[^\d]/g, '');
+      }
+      
       setFormData(prev => ({ ...prev, [name]: cleanedValue }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
 
+    // Réinitialiser l'erreur du champ et l'erreur générale
+    setFieldErrors(prev => ({ ...prev, [name]: '' }));
     if (formError) setFormError('');
   };
 
   const validateForm = (): boolean => {
-    if (!formData.firstName.trim() || !formData.lastName.trim()) {
-      setFormError('Le prénom et le nom sont obligatoires');
-      return false;
-    }
-
-    if (formData.firstName.length < 2 || formData.lastName.length < 2) {
-      setFormError(
-        'Le prénom et le nom doivent contenir au moins 2 caractères'
-      );
-      return false;
-    }
-
-    // Validation de l'email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      setFormError("Format d'email invalide");
-      return false;
-    }
-
-    const phoneDigits = formData.telephone.replace(/\D/g, '');
-    if (phoneDigits.length < 8) {
-      setFormError('Le téléphone doit contenir au moins 8 chiffres');
-      return false;
-    }
-
-    // Validation du mot de passe
-    if (formData.password.length < 8) {
-      setFormError('Le mot de passe doit contenir au moins 8 caractères');
-      return false;
-    }
-
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
-    if (!passwordRegex.test(formData.password)) {
-      setFormError(
-        'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre'
-      );
-      return false;
-    }
-
-    // Validation de la confirmation
-    if (formData.password !== formData.confirmPassword) {
-      setFormError('Les mots de passe ne correspondent pas');
-      return false;
-    }
-
-    return true;
+    const fields = ['firstName', 'lastName', 'email', 'telephone', 'password', 'confirmPassword'];
+    let isValid = true;
+    
+    // Marquer tous les champs comme touchés
+    const newTouchedFields: Record<string, boolean> = {};
+    fields.forEach(field => { newTouchedFields[field] = true; });
+    setTouchedFields(newTouchedFields);
+    
+    // Valider chaque champ
+    fields.forEach(field => {
+      const fieldValid = validateField(field);
+      if (!fieldValid) isValid = false;
+    });
+    
+    return isValid;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError('');
-
+    
     if (!validateForm()) {
       return;
     }
 
     try {
-      await register(formData);
-    } catch (err: any) {
-      console.error('Erreur inscription frontend:', {
-        message: err.message,
-        data: formData,
-      });
+      // Nettoyer les données avant envoi
+      const submitData = {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        telephone: formData.telephone.trim(),
+        password: formData.password,
+      };
 
-      setFormError(err.message || 'Erreur lors de la création du compte');
+      await register(submitData);
+      // La redirection est gérée par le contexte après succès
+      
+    } catch (err: any) {
+      console.error('Erreur inscription:', err);
+      // L'erreur est déjà gérée par le contexte
     }
   };
 
+  const getFieldClassName = (fieldName: string): string => {
+    const baseClass = 'pl-9 w-full px-3 py-2 rounded bg-gray-50 border focus:border-sky-500 focus:outline-none focus:ring-none transition-colors';
+    const hasError = touchedFields[fieldName] && fieldErrors[fieldName];
+    const normalClass = 'border-gray-300 hover:border-sky-400 focus:border-sky-500 focus:outline-none focus:ring-none';
+    const errorClass = 'border-red-300 hover:border-red-400 focus:border-red-500 bg-red-50';
+    
+    return `${baseClass} ${hasError ? errorClass : normalClass}`;
+  };
+
   return (
-    <div className='flex items-center justify-center p-4 min-h-screen bg-sky-50'>
-      <div className='w-full max-w-sm'>
-        <div className='bg-white rounded-lg shadow-md overflow-hidden'>
-          <div className='bg-linear-to-r from-sky-500 to-sky-600 p-4 text-center'>
-            <div className='flex items-center justify-center space-x-2'>
-              <div className='bg-white p-1 rounded-full'>
-                <div className='w-8 h-8 rounded-full bg-sky-500 flex items-center justify-center'>
-                  <FiUser className='text-white text-lg' />
+    <div className='flex items-center justify-center p-4 min-h-screen bg-gradient-to-br from-sky-50 to-indigo-50'>
+      <div className='w-full max-w-md'>
+        <div className='bg-white rounded-xl shadow-xl overflow-hidden'>
+          <div className='bg-gradient-to-r from-sky-500 to-sky-600 p-6 text-center'>
+            <div className='flex items-center justify-center space-x-3'>
+              <div className='bg-white p-2 rounded-full'>
+                <div className='w-10 h-10 rounded-full bg-gradient-to-r from-sky-500 to-sky-600 flex items-center justify-center'>
+                  <FiUser className='text-white text-xl' />
                 </div>
               </div>
-              <h1 className='text-lg font-bold text-white'>
-                <Link to='/'>Créer Un Compte</Link>
+              <h1 className='text-2xl font-bold text-white'>
+                Créer un compte
               </h1>
             </div>
           </div>
 
-          <div className='p-4 space-y-3'>
-            <form className='space-y-3' onSubmit={handleSubmit}>
+          <div className='p-6'>
+            <form className='space-y-4' onSubmit={handleSubmit} noValidate>
               {/* Nom et prénom */}
-              <div className='grid grid-cols-2 gap-3'>
+              <div className='grid grid-cols-2 gap-4'>
                 <div>
                   <label className='block text-sm font-medium text-gray-700 mb-1'>
                     Prénom *
@@ -182,14 +250,19 @@ const Register: React.FC = () => {
                       type='text'
                       value={formData.firstName}
                       onChange={handleChange}
-                      className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:ring-none focus:outline-none focus:border-sky-500 transition-colors'
-                      placeholder='Votre prénom'
+                      onBlur={() => handleBlur('firstName')}
+                      className={getFieldClassName('firstName')}
+                      placeholder='Jean'
                       required
                       disabled={isLoading}
                       autoComplete='given-name'
                       minLength={2}
+                      maxLength={50}
                     />
                   </div>
+                  {touchedFields.firstName && fieldErrors.firstName && (
+                    <p className='text-xs text-red-500 mt-1'>{fieldErrors.firstName}</p>
+                  )}
                 </div>
 
                 <div>
@@ -205,14 +278,19 @@ const Register: React.FC = () => {
                       type='text'
                       value={formData.lastName}
                       onChange={handleChange}
-                      className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:ring-none focus:outline-none focus:border-sky-500 transition-colors'
-                      placeholder='Votre nom'
+                      onBlur={() => handleBlur('lastName')}
+                      className={getFieldClassName('lastName')}
+                      placeholder='Dupont'
                       required
                       disabled={isLoading}
                       autoComplete='family-name'
                       minLength={2}
+                      maxLength={50}
                     />
                   </div>
+                  {touchedFields.lastName && fieldErrors.lastName && (
+                    <p className='text-xs text-red-500 mt-1'>{fieldErrors.lastName}</p>
+                  )}
                 </div>
               </div>
 
@@ -230,13 +308,18 @@ const Register: React.FC = () => {
                     type='email'
                     value={formData.email}
                     onChange={handleChange}
-                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:ring-none focus:outline-none focus:border-sky-500 transition-colors'
-                    placeholder='votre@email.com'
+                    onBlur={() => handleBlur('email')}
+                    className={getFieldClassName('email')}
+                    placeholder='jean.dupont@email.com'
                     required
                     disabled={isLoading}
                     autoComplete='email'
+                    maxLength={100}
                   />
                 </div>
+                {touchedFields.email && fieldErrors.email && (
+                  <p className='text-xs text-red-500 mt-1'>{fieldErrors.email}</p>
+                )}
               </div>
 
               {/* Téléphone */}
@@ -245,27 +328,30 @@ const Register: React.FC = () => {
                   Téléphone *
                 </label>
                 <div className='relative'>
-                  <div className='absolute inset-y-0 left-0 pl-3 flex mb-8 items-center pointer-events-none'>
-                    <FiPhone className='text-gray-400 mb-1' />
+                  <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+                    <FiPhone className='text-gray-400' />
                   </div>
                   <input
                     name='telephone'
                     type='tel'
                     value={formData.telephone}
                     onChange={handleChange}
-                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:ring-none focus:outline-none focus:border-sky-500 transition-colors'
-                    placeholder='Ex: +33123456789 ou 0123456789'
+                    onBlur={() => handleBlur('telephone')}
+                    className={getFieldClassName('telephone')}
+                    placeholder='+33123456789 ou 0123456789'
                     required
                     disabled={isLoading}
                     autoComplete='tel'
-                    minLength={8} // Changé de 10 à 8
                     maxLength={20}
                   />
-                  <p className='text-xs text-gray-500 mt-1'>
-                    Format: +33123456789 ou 0123456789 (minimum 8 chiffres, +
-                    optionnel)
-                  </p>
                 </div>
+                {touchedFields.telephone && fieldErrors.telephone ? (
+                  <p className='text-xs text-red-500 mt-1'>{fieldErrors.telephone}</p>
+                ) : (
+                  <p className='text-xs text-gray-500 mt-1'>
+                    Format: +33123456789 ou 0123456789 (minimum 8 chiffres)
+                  </p>
+                )}
               </div>
 
               {/* Mot de passe */}
@@ -282,10 +368,12 @@ const Register: React.FC = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={formData.password}
                     onChange={handleChange}
-                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:ring-none focus:outline-none focus:border-sky-500 pr-9 transition-colors'
+                    onBlur={() => handleBlur('password')}
+                    className={getFieldClassName('password')}
                     placeholder='••••••••'
                     required
                     minLength={8}
+                    maxLength={72}
                     disabled={isLoading}
                     autoComplete='new-password'
                   />
@@ -294,19 +382,22 @@ const Register: React.FC = () => {
                     className='absolute inset-y-0 right-0 pr-3 flex items-center'
                     onClick={() => setShowPassword(!showPassword)}
                     disabled={isLoading}
-                    aria-label={
-                      showPassword
-                        ? 'Cacher le mot de passe'
-                        : 'Afficher le mot de passe'
-                    }
+                    aria-label={showPassword ? 'Cacher le mot de passe' : 'Afficher le mot de passe'}
                   >
                     {showPassword ? (
-                      <FiEyeOff className='text-gray-400 hover:text-gray-600' />
+                      <FiEyeOff className='text-gray-400 hover:text-gray-600 w-5 h-5' />
                     ) : (
-                      <FiEye className='text-gray-400 hover:text-gray-600' />
+                      <FiEye className='text-gray-400 hover:text-gray-600 w-5 h-5' />
                     )}
                   </button>
                 </div>
+                {touchedFields.password && fieldErrors.password ? (
+                  <p className='text-xs text-red-500 mt-1'>{fieldErrors.password}</p>
+                ) : (
+                  <p className='text-xs text-gray-500 mt-1'>
+                    8 caractères min, avec majuscule, minuscule et chiffre
+                  </p>
+                )}
               </div>
 
               {/* Confirmation mot de passe */}
@@ -323,10 +414,12 @@ const Register: React.FC = () => {
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className='pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:ring-none focus:outline-none focus:border-sky-500 pr-9 transition-colors'
+                    onBlur={() => handleBlur('confirmPassword')}
+                    className={getFieldClassName('confirmPassword')}
                     placeholder='••••••••'
                     required
                     minLength={8}
+                    maxLength={72}
                     disabled={isLoading}
                     autoComplete='new-password'
                   />
@@ -335,29 +428,28 @@ const Register: React.FC = () => {
                     className='absolute inset-y-0 right-0 pr-3 flex items-center'
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     disabled={isLoading}
-                    aria-label={
-                      showConfirmPassword
-                        ? 'Cacher le mot de passe'
-                        : 'Afficher le mot de passe'
-                    }
+                    aria-label={showConfirmPassword ? 'Cacher le mot de passe' : 'Afficher le mot de passe'}
                   >
                     {showConfirmPassword ? (
-                      <FiEyeOff className='text-gray-400 hover:text-gray-600' />
+                      <FiEyeOff className='text-gray-400 hover:text-gray-600 w-5 h-5' />
                     ) : (
-                      <FiEye className='text-gray-400 hover:text-gray-600' />
+                      <FiEye className='text-gray-400 hover:text-gray-600 w-5 h-5' />
                     )}
                   </button>
                 </div>
+                {touchedFields.confirmPassword && fieldErrors.confirmPassword && (
+                  <p className='text-xs text-red-500 mt-1'>{fieldErrors.confirmPassword}</p>
+                )}
               </div>
 
-              {/* Erreur */}
-              {formError && (
+              {/* Erreur générale */}
+              {formError && !Object.values(fieldErrors).some(error => error) && (
                 <div
                   className='p-3 text-red-600 text-sm bg-red-50 rounded-md border border-red-200'
                   role='alert'
                 >
                   <div className='flex items-center'>
-                    <FiAlertCircle className='mr-2 shrink-0' />
+                    <FiAlertCircle className='mr-2 flex-shrink-0' />
                     <span>{formError}</span>
                   </div>
                 </div>
@@ -367,17 +459,27 @@ const Register: React.FC = () => {
               <button
                 type='submit'
                 disabled={isLoading}
-                className={`w-full py-2 px-4 rounded-md text-white bg-linear-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 font-medium transition-all duration-200 ${
+                className={`w-full py-2.5 px-4 rounded-md text-white font-medium transition-all duration-200 ${
                   isLoading
-                    ? 'opacity-60 cursor-not-allowed'
-                    : 'hover:shadow-md active:scale-[0.98]'
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 hover:shadow-md active:scale-[0.98]'
                 }`}
               >
-                {isLoading ? 'Création en cours...' : 'Créer mon compte'}
+                {isLoading ? (
+                  <span className='flex items-center justify-center'>
+                    <svg className='animate-spin -ml-1 mr-2 h-4 w-4 text-white' xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24'>
+                      <circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4'></circle>
+                      <path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'></path>
+                    </svg>
+                    Création en cours...
+                  </span>
+                ) : (
+                  'Créer mon compte'
+                )}
               </button>
 
-              <div className='text-center'>
-                <p className='text-xs text-gray-600'>
+              <div className='text-center space-y-2'>
+                <p className='text-sm text-gray-600'>
                   Vous avez déjà un compte?{' '}
                   <Link
                     to='/connexion'
@@ -386,7 +488,7 @@ const Register: React.FC = () => {
                     Se connecter
                   </Link>
                 </p>
-                <p className='text-xs text-gray-500 mt-2'>
+                <p className='text-xs text-gray-400'>
                   * Champs obligatoires
                 </p>
               </div>

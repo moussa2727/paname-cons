@@ -342,7 +342,7 @@ function Header(): React.JSX.Element {
             >
               <div className='w-12 h-12 md:w-16 md:h-16 rounded-full shadow-sm'>
                 <img
-                  src='/paname-consulting.jpg'
+                  src='/images/paname-consulting.jpg'
                   alt='Logo Paname Consulting'
                   className='w-full h-auto rounded'
                   width={64}

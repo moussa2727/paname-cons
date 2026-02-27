@@ -1,6 +1,27 @@
 User-agent: *
-Disallow: /admin/
-Disallow: /gestionnaire/
 Allow: /
 
+# Pages admin et gestion - interdites
+Disallow: /admin/
+Disallow: /gestionnaire/
+Disallow: /gestionnaire/*
+
+# Pages utilisateur protégées - interdites
+Disallow: /mon-profil
+Disallow: /mes-rendez-vous
+Disallow: /ma-procedure
+
+# Pages auth - interdites
+Disallow: /connexion
+Disallow: /inscription
+Disallow: /mot-de-passe-oublie
+Disallow: /reset-password
+
+# Fichiers système et documents
+Disallow: /*.json$
+Disallow: /documents/
+Crawl-delay: 1
+
+# Sitemaps
 Sitemap: https://panameconsulting.com/sitemap.xml
+Sitemap: https://panameconsulting.vercel.app/sitemap.xml

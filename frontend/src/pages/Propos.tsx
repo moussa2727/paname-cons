@@ -4,7 +4,7 @@ import CTASection from '../components/CtaSection';
 
 import Valeur from '../components/Valeur';
 import '../index.css';
-
+import FrenchSchool from '../components/FrenchSchool';
 export default function Propos() {
   return (
     <>
@@ -48,6 +48,7 @@ export default function Propos() {
         <main className='flex-1 bg-linear-to-b from-white via-sky-50 to-white'>
           <About />
           <Valeur />
+          <FrenchSchool />
           <CTASection />
         </main>
       </div>

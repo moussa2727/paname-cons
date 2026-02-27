@@ -51,8 +51,6 @@ const ResetPassword: React.FC = () => {
     hasUpperCase: false,
     hasLowerCase: false,
     hasNumber: false,
-    // SUPPRIMÉ: Caractère spécial NON REQUIS par le backend
-    // hasSpecialChar: false,
   });
 
   useEffect(() => {
@@ -69,26 +67,21 @@ const ResetPassword: React.FC = () => {
   }, [formData.newPassword]);
 
   const checkPasswordStrength = (password: string) => {
-    // SYNCHRONISÉ AVEC BACKEND (update-password.dto.ts, reset-password.dto.ts)
-    // Backend: (?=.*[a-z])(?=.*[A-Z])(?=.*\d) - Pas de caractère spécial requis
+ 
     setPasswordStrength({
       hasMinLength: password.length >= 8,
       hasUpperCase: /[A-Z]/.test(password),
       hasLowerCase: /[a-z]/.test(password),
       hasNumber: /[0-9]/.test(password),
-      // SUPPRIMÉ: Pas de caractère spécial requis
-      // hasSpecialChar: /[!@#$%^&*(),.?":{}|<>]/.test(password),
     });
   };
 
-  // CORRECT: Validation synchronisée avec backend
   const isPasswordValid =
     passwordStrength.hasMinLength &&
     passwordStrength.hasUpperCase &&
     passwordStrength.hasLowerCase &&
     passwordStrength.hasNumber;
-  // SUPPRIMÉ: Pas de caractère spécial requis
-  // && passwordStrength.hasSpecialChar;
+ 
 
   const canSubmit =
     isPasswordValid &&

@@ -13,7 +13,7 @@ const partners = [
     id: 1,
     name: 'Supemir',
     location: 'Casablanca, Maroc',
-    image: '/supemir.webp',
+    image: '/images/supemir.webp',
     link: 'https://www.supemir.com/',
     description:
       'École supérieure de commerce et de management renommée au Maroc.',
@@ -24,7 +24,7 @@ const partners = [
     id: 2,
     name: "L'École Multimédia",
     location: 'Paris, France',
-    image: '/Ecolemultimediafrance.webp',
+    image: '/images/Ecolemultimediafrance.webp',
     link: 'https://www.ecole-multimedia.com/',
     description:
       'École pionnière dans la formation aux métiers du digital à Paris.',
@@ -35,7 +35,7 @@ const partners = [
     id: 3,
     name: 'International Institute Ford Ghana',
     location: 'Accra, Ghana',
-    image: '/internationalinstitute.png',
+    image: '/images/internationalinstitute.png',
     link: 'https://visionfordgh.com/',
     description:
       "Institut international de formation innovant au Ghana et en Afrique de l'Ouest.",
@@ -46,7 +46,7 @@ const partners = [
     id: 4,
     name: 'Université de Chongqing',
     location: 'Chongqing, Chine',
-    image: '/universitechiongqing.png',
+    image: '/images/universitechiongqing.png',
     link: 'https://english.cqu.edu.cn/',
     description:
       'Université prestigieuse classée parmi les meilleures institutions de recherche en Chine.',
@@ -57,7 +57,7 @@ const partners = [
     id: 5,
     name: 'HECF',
     location: 'Fès, Maroc',
-    image: '/hecf.webp',
+    image: '/images/hecf.webp',
     link: 'https://hecf.ac.ma/',
     description:
       'HECF Fès, institut international de formation avec des programmes innovants.',
@@ -68,7 +68,7 @@ const partners = [
     id: 6,
     name: "SUP'MANAGEMENT",
     location: 'Fès, Maroc',
-    image: '/supmanagement.webp',
+    image: '/images/supmanagement.webp',
     link: 'https://www.supmanagement.ma/',
     description:
       "Sup'Management, école de management et d'informatique internationale.",
@@ -79,7 +79,7 @@ const partners = [
     id: 7,
     name: 'Univers France Succès',
     location: 'Sarcelles, France',
-    image: '/francesucces.webp',
+    image: '/images/francesucces.webp',
     link: 'https://universfrancesucces.com/',
     description:
       "Organisme d'accompagnement international pour études en France et Afrique.",
@@ -89,7 +89,7 @@ const partners = [
     id: 8,
     name: 'Inted Group',
     location: 'Paris, France',
-    image: '/inted.webp',
+    image: '/images/inted.webp',
     link: 'https://www.intedgroup.com/',
     description:
       'Groupe international de formation basé à Paris avec programmes innovants.',

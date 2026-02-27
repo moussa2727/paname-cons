@@ -9,27 +9,27 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "/paname-consulting.png",
+      "src": "/images/paname-consulting.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "/paname-consulting.png",
+      "src": "/images/paname-consulting.png",
       "type": "image/png",
       "sizes": "512x512"
     },
     {
-      "src": "/paname-consulting.png",
+      "src": "/images/paname-consulting.png",
       "sizes": "512x512",
       "type": "image/png"
     },
     {
-      "src": "/paname-consulting.jpg",
+      "src": "/images/paname-consulting.jpg",
       "sizes": "1024x1024",
       "type": "image/jpeg"
     },
     {
-      "src": "/paname-consulting.svg",
+      "src": "/images/paname-consulting.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
@@ -37,25 +37,25 @@
   ],
   "screenshots": [
     {
-      "src": "/paname-consulting.png",
+      "src": "/images/paname-consulting.png",
       "sizes": "640x1136",
       "type": "image/png",
       "form_factor": "narrow"
     },
     {
-      "src": "/paname-consulting.png",
+      "src": "/images/paname-consulting.png",
       "sizes": "1536x2048",
       "type": "image/png",
       "form_factor": "wide"
     },
     {
-      "src": "/paname-consulting.jpg",
+      "src": "/images/paname-consulting.jpg",
       "sizes": "1920x1080",
       "type": "image/jpeg",
       "form_factor": "wide"
     }
   ],
-  "categories": ["consulting", "services"],
+  "categories": ["consulting", "services", "accompagnement", "études à l'étranger", "voyages d'affaires", "demandes de visa"],
   "lang": "fr",
   "dir": "ltr",
   "scope": "/"

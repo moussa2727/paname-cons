@@ -31,7 +31,7 @@ export default function Footer() {
           >
             <div className='flex items-center'>
               <img
-                src='/paname-consulting.png'
+                src='/images/paname-consulting.png'
                 alt='Logo Paname Consulting'
                 className='w-16 h-auto mr-3'
                 loading='lazy'

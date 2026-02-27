@@ -27,7 +27,7 @@ const Inscription = () => {
         <meta property='og:type' content='website' />
         <meta
           property='og:image'
-          content='https://panameconsulting.com/paname-consulting.jpg'
+          content='https://panameconsulting.com/images/paname-consulting.jpg'
         />
         <meta property='og:image:alt' content='Logo Paname Consulting' />
 
@@ -37,27 +37,27 @@ const Inscription = () => {
         <meta name='twitter:description' content={pageDescription} />
         <meta
           name='twitter:image'
-          content='https://panameconsulting.com/paname-consulting.jpg'
+          content='https://panameconsulting.com/images/paname-consulting.jpg'
         />
 
         {/* Favicon et icônes */}
-        <link rel='icon' href='/paname-consulting.ico' />
+        <link rel='icon' href='/images/paname-consulting.ico' />
         <link
           rel='apple-touch-icon'
           sizes='180x180'
-          href='/paname-consulting.png'
+          href='/images/paname-consulting.png'
         />
         <link
           rel='icon'
           type='image/png'
           sizes='32x32'
-          href='/paname-consulting.png'
+          href='/images/paname-consulting.png'
         />
         <link
           rel='icon'
           type='image/png'
           sizes='16x16'
-          href='/paname-consulting.png'
+          href='/images/paname-consulting.png'
         />
         <link rel='manifest' href='/paname-consulting-site.webmanifest' />
         <meta name='theme-color' content='#0369a1' />

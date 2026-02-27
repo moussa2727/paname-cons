@@ -2089,9 +2089,6 @@ const AdminRendezVous = (): React.JSX.Element => {
                           placeholder='+228 XX XX XX XX'
                           required
                         />
-                        <span className='absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded'>
-                          🇹🇬 Togo
-                        </span>
                       </div>
                     </div>
                   </div>
