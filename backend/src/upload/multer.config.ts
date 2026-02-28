@@ -24,12 +24,12 @@ export const multerConfig = {
     cb: (arg0: Error | null, arg1: boolean) => void,
   ) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const allowed = [".webp", ".png", ".jpg", ".jpeg", ".avif"];
+    const imageExts = [".webp", ".png", ".jpg", ".jpeg", ".avif", ".svg", ".gif", ".bmp", ".tiff", ".ico"];
 
-    if (allowed.includes(ext)) {
+    if (imageExts.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error(`Type de fichier non supporté: ${ext}`), false);
+      cb(new Error(`Type de fichier non supporté: ${ext}. Seuls les images sont autorisées.`), false);
     }
   },
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB

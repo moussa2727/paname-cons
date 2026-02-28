@@ -49,7 +49,7 @@ export class AdminDestinationService {
       options?: RequestInit
     ) => Promise<T>
   ) {
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:10000';
+    this.baseUrl = import.meta.env.VITE_API_URL;
   }
 
   // ==================== MÉTHODES BACKEND ====================
@@ -173,26 +173,19 @@ export class AdminDestinationService {
    */
   validateImage(file: File): { isValid: boolean; error?: string } {
     const maxSize = 5 * 1024 * 1024; // 5MB
-    const allowedTypes = [
-      'image/jpeg', 
-      'image/jpg', 
-      'image/png', 
-      'image/webp', 
-      'image/avif', 
-      'image/svg+xml'
-    ];
+    
+    // Vérifier uniquement que c'est une image et la taille
+    if (!file.type.startsWith('image/')) {
+      return {
+        isValid: false,
+        error: "Le fichier doit être une image"
+      };
+    }
 
     if (file.size > maxSize) {
       return {
         isValid: false,
         error: "L'image ne doit pas dépasser 5MB"
-      };
-    }
-
-    if (!allowedTypes.includes(file.type)) {
-      return {
-        isValid: false,
-        error: "Format d'image non supporté. Utilisez JPEG, PNG, WEBP, AVIF ou SVG"
       };
     }
 
@@ -203,7 +196,11 @@ export class AdminDestinationService {
    * Construit l'URL complète de l'image
    */
   getImageUrl(imagePath: string): string {
-    if (!imagePath) return '/images/placeholder.jpg';
+    console.log('[AdminDestinationService] imagePath reçu:', imagePath);
+    if (!imagePath || imagePath.trim() === '') {
+      console.log('[AdminDestinationService] imagePath vide, utilisation de fallback');
+      return '/images/paname-consulting.webp';
+    }
 
     // URLs déjà complètes
     if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {

@@ -206,7 +206,7 @@ export class ProcedureApiService {
         throw new ProcedureError(
           'Erreur serveur, veuillez réessayer',
           'SERVER_ERROR'
-        );
+        ) as Error & { cause: 'SERVER_ERROR' };
       }
       
       if (error instanceof ProcedureError) {
@@ -327,7 +327,7 @@ export class ProcedureApiService {
   canModifyStep(
     procedure: Procedure,
     stepName: StepName,
-    _newStatus: StepStatus
+    newStatus: StepStatus
   ): { canModify: boolean; reason?: string } {
     const step = procedure.steps.find(s => s.nom === stepName);
     

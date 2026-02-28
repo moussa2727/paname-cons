@@ -15,7 +15,7 @@ import { ADMIN_OPINION, Rendezvous, RENDEZVOUS_STATUS } from '../schemas/rendezv
 import { CreateRendezvousDto } from './dto/create-rendezvous.dto';
 import { UpdateRendezvousDto } from './dto/update-rendezvous.dto';
 import { CreateProcedureDto } from '../procedure/dto/create-procedure.dto';
-const Holidays = require('date-holidays');
+const Holidays = require('date-holidays') as any;
 
 
 
@@ -53,7 +53,7 @@ export class RendezvousService {
       this.logger.log(
         `Bibliothèque date-holidays initialisée pour le Mali avec succès.`
       );
-    } catch (error) {
+    } catch {
       this.logger.error("Erreur d'initialisation de date-holidays");
       this.holidays = null;
     }

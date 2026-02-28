@@ -94,7 +94,7 @@ async function bootstrapServer() {
           if (buf && buf.length) {
             try {
               JSON.parse(buf.toString(encoding || 'utf8'));
-            } catch (e) {
+            } catch {
               if (!isVercel) {
                 logger.warn('Invalid JSON payload received');
               }

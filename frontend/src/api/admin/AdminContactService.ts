@@ -101,27 +101,27 @@ export const useContactService = () => {
       } catch (err: any) {
         // Gestion des erreurs spécifiques
         if (err.name === 'AbortError') {
-          throw new Error('La requête a expiré (timeout de 15s)');
+          throw new Error('La requête a expiré (timeout de 15s)') as Error & { cause: 'TIMEOUT' };
         }
 
         if (err.message === 'UNAUTHORIZED' || err.message === 'SESSION_EXPIRED') {
-          throw new Error('Session expirée, veuillez vous reconnecter');
+          throw new Error('Session expirée, veuillez vous reconnecter') as Error & { cause: 'SESSION_EXPIRED' };
         }
 
         if (err.status === 403) {
-          throw new Error('Accès refusé : droits insuffisants');
+          throw new Error('Accès refusé : droits insuffisants') as Error & { cause: 'FORBIDDEN' };
         }
 
         if (err.status === 404) {
-          throw new Error('Ressource non trouvée');
+          throw new Error('Ressource non trouvée') as Error & { cause: 'NOT_FOUND' };
         }
 
         if (err.status === 429) {
-          throw new Error('Trop de requêtes, veuillez patienter quelques instants');
+          throw new Error('Trop de requêtes, veuillez patienter quelques instants') as Error & { cause: 'TOO_MANY_REQUESTS' };
         }
 
         if (err.status >= 500) {
-          throw new Error('Erreur serveur, veuillez réessayer ultérieurement');
+          throw new Error('Erreur serveur, veuillez réessayer ultérieurement') as Error & { cause: 'SERVER_ERROR' };
         }
 
         // Si l'erreur a déjà un message, la propager
@@ -129,7 +129,7 @@ export const useContactService = () => {
           throw err;
         }
 
-        throw new Error('Une erreur inattendue est survenue');
+        throw new Error('Une erreur inattendue est survenue') as Error & { cause: 'UNKNOWN_ERROR' };
       }
     },
     [fetchWithAuth, access_token, isAuthenticated, user, API_URL]

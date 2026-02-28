@@ -77,23 +77,25 @@ const Register: React.FC = () => {
     let error = '';
     
     switch (field) {
-      case 'firstName':
+      case 'firstName': {
         if (!formData.firstName.trim()) {
           error = 'Le prénom est requis';
         } else if (formData.firstName.length < 2) {
           error = 'Le prénom doit contenir au moins 2 caractères';
         }
         break;
+      }
         
-      case 'lastName':
+      case 'lastName': {
         if (!formData.lastName.trim()) {
           error = 'Le nom est requis';
         } else if (formData.lastName.length < 2) {
           error = 'Le nom doit contenir au moins 2 caractères';
         }
         break;
+      }
         
-      case 'email':
+      case 'email': {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!formData.email) {
           error = "L'email est requis";
@@ -101,19 +103,21 @@ const Register: React.FC = () => {
           error = "Format d'email invalide";
         }
         break;
+      }
         
-      case 'telephone':
+      case 'telephone': {
         const phoneDigits = formData.telephone.replace(/\D/g, '');
         if (!formData.telephone) {
           error = 'Le téléphone est requis';
         } else if (phoneDigits.length < 8) {
-          error = 'Le téléphone doit contenir au moins 8 chiffres';
+          error = 'Format invalide (minimum 8 chiffres)';
         } else if (phoneDigits.length > 15) {
           error = 'Le téléphone est trop long';
         }
         break;
+      }
         
-      case 'password':
+      case 'password': {
         if (!formData.password) {
           error = 'Le mot de passe est requis';
         } else if (formData.password.length < 8) {
@@ -125,6 +129,7 @@ const Register: React.FC = () => {
           }
         }
         break;
+      }
         
       case 'confirmPassword':
         if (!formData.confirmPassword) {

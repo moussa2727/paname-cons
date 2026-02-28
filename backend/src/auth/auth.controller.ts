@@ -5,7 +5,6 @@ import {
   Get,
   Post,
   Request,
-  Req,
   Res,
   UseGuards,
   UseInterceptors,
@@ -183,11 +182,11 @@ export class AuthController {
       this.clearAuthCookies(res);
 
       let errorMessage = 'Session expirée - veuillez vous reconnecter';
-      let statusCode = 401;
+      let _statusCode = 401;
 
       if (error instanceof BadRequestException) {
         errorMessage = error.message;
-        statusCode = 400;
+        _statusCode = 400;
       }
 
       return {

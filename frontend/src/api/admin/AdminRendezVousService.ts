@@ -519,7 +519,7 @@ export class AdminRendezVousService {
             toast.error('La requête a expiré. Veuillez réessayer.', {
               autoClose: 3000,
             });
-            throw new Error('Request timeout');
+            throw new Error('Request timeout') as Error & { cause: 'TIMEOUT' };
           }
         }
         await this.handleResponseError(error);

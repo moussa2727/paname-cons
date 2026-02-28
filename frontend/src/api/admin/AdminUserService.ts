@@ -105,7 +105,7 @@ export const useAdminUserService = () => {
     timeout = 15000
   ): Promise<T> => {
     if (!isAuthenticated || !isUserAdmin(user)) {
-      throw new Error('Accès refusé : droits administrateur requis');
+      throw new Error('Accès refusé : droits administrateur requis') as Error & { cause: 'FORBIDDEN' };
     }
 
     const controller = new AbortController();
@@ -132,15 +132,15 @@ export const useAdminUserService = () => {
       clearTimeout(timeoutId);
 
       if (err.name === 'AbortError') {
-        throw new Error('La requête a expiré. Veuillez réessayer.');
+        throw new Error('La requête a expiré. Veuillez réessayer.') as Error & { cause: 'TIMEOUT' };
       }
 
       if (err.message === 'UNAUTHORIZED' || err.message === 'SESSION_EXPIRED') {
-        throw new Error('Session expirée, veuillez vous reconnecter');
+        throw new Error('Session expirée, veuillez vous reconnecter') as Error & { cause: 'SESSION_EXPIRED' };
       }
 
       if (err.status === 403) {
-        throw new Error('Accès refusé : droits administrateur requis');
+        throw new Error('Accès refusé : droits administrateur requis') as Error & { cause: 'FORBIDDEN' };
       }
 
       // Extraire le message d'erreur spécifique du backend
