@@ -387,7 +387,7 @@ export class DestinationService {
       // Mise à jour dans la base
       const updatedDestination = await this.destinationModel
         .findByIdAndUpdate(id, updateData, {
-          returnDocument: 'after',
+          new: true,
           runValidators: true,
         })
         .select("country imagePath text createdAt updatedAt")
