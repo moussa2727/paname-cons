@@ -39,7 +39,7 @@ export class DestinationController {
   constructor(private readonly destinationService: DestinationService) {}
 
   private validateImageFile(file: Express.Multer.File): void {
-    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/avif'];
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/avif', 'image/svg'];
     
     if (!allowedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException(

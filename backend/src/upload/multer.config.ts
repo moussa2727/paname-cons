@@ -24,7 +24,7 @@ export const multerConfig = {
     cb: (arg0: Error | null, arg1: boolean) => void,
   ) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const allowed = [".webp", ".png", ".jpg", ".jpeg", ".avif"];
+    const allowed = [".webp", ".png", ".jpg", ".jpeg", ".avif", ".svg"];
 
     if (allowed.includes(ext)) {
       cb(null, true);
