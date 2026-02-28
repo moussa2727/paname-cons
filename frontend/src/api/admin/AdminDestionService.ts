@@ -173,19 +173,26 @@ export class AdminDestinationService {
    */
   validateImage(file: File): { isValid: boolean; error?: string } {
     const maxSize = 5 * 1024 * 1024; // 5MB
-    
-    // Vérifier uniquement que c'est une image et la taille
-    if (!file.type.startsWith('image/')) {
-      return {
-        isValid: false,
-        error: "Le fichier doit être une image"
-      };
-    }
+    const allowedTypes = [
+      'image/jpeg', 
+      'image/jpg', 
+      'image/png', 
+      'image/webp', 
+      'image/avif', 
+      'image/svg+xml'
+    ];
 
     if (file.size > maxSize) {
       return {
         isValid: false,
         error: "L'image ne doit pas dépasser 5MB"
+      };
+    }
+
+    if (!allowedTypes.includes(file.type)) {
+      return {
+        isValid: false,
+        error: "Format d'image non supporté. Utilisez JPEG, PNG, WEBP, AVIF ou SVG. Erreur possible: le backend n'est pas à jour avec la correction de validation."
       };
     }
 
