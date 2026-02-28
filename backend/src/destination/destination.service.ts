@@ -109,43 +109,50 @@ export class DestinationService {
         throw new ConflictException("Cette destination existe déjà");
       }
 
-      // Upload de l'image
-      const fileName = await this.storageService.uploadFile(imageFile);
-      const imagePath = `uploads/${fileName}`;
+      let uploadedFileName: string | null = null;
 
-      // Création de la destination
-      const createdDestination = new this.destinationModel({
-        country: createDestinationDto.country.trim(),
-        text: createDestinationDto.text.trim(),
-        imagePath,
-      });
+      try {
+        // Upload de l'image
+        uploadedFileName = await this.storageService.uploadFile(imageFile);
+        const imagePath = `uploads/${uploadedFileName}`;
 
-      const savedDestination = await createdDestination.save();
+        // Création de la destination
+        const createdDestination = new this.destinationModel({
+          country: createDestinationDto.country.trim(),
+          text: createDestinationDto.text.trim(),
+          imagePath,
+        });
 
-      this.logger.log(`Destination créée: ${savedDestination.country} (ID: ${savedDestination._id})`);
-      return savedDestination;
+        const savedDestination = await createdDestination.save();
+
+        this.logger.log(`Destination créée: ${savedDestination.country} (ID: ${savedDestination._id})`);
+        return savedDestination;
+      } catch (error) {
+        this.logger.error(`Erreur création destination ${createDestinationDto.country}: ${error.message}`, error.stack);
+
+        // Nettoyage en cas d'erreur
+        if (uploadedFileName) {
+          try {
+            await this.storageService.deleteFile(`uploads/${uploadedFileName}`);
+          } catch (cleanupError) {
+            this.logger.error("Erreur nettoyage fichier:", cleanupError.stack);
+          }
+        }
+
+        if (
+          error instanceof BadRequestException ||
+          error instanceof ConflictException
+        ) {
+          throw error;
+        }
+
+        throw new InternalServerErrorException(
+          "Erreur lors de la création de la destination",
+        );
+      }
     } catch (error) {
       this.logger.error(`Erreur création destination ${createDestinationDto.country}: ${error.message}`, error.stack);
-
-      // Nettoyage en cas d'erreur
-      if (imageFile) {
-        try {
-          await this.storageService.deleteFile(`uploads/${imageFile.filename}`);
-        } catch (cleanupError) {
-          this.logger.error("Erreur nettoyage fichier:", cleanupError.stack);
-        }
-      }
-
-      if (
-        error instanceof BadRequestException ||
-        error instanceof ConflictException
-      ) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(
-        "Erreur lors de la création de la destination",
-      );
+      throw error;
     }
   }
 
@@ -318,6 +325,8 @@ export class DestinationService {
   ): Promise<Destination> {
     this.logger.log(`Tentative mise à jour destination: ${id}`);
 
+    let uploadedFileName: string | null = null;
+
     try {
       // Validation de l'ID
       if (!id || id.length !== 24) {
@@ -362,8 +371,8 @@ export class DestinationService {
       // Gestion de la nouvelle image
       if (imageFile) {
         // Upload de la nouvelle image
-        const fileName = await this.storageService.uploadFile(imageFile);
-        imagePath = `uploads/${fileName}`;
+        uploadedFileName = await this.storageService.uploadFile(imageFile);
+        imagePath = `uploads/${uploadedFileName}`;
 
         // Marquer l'ancienne image pour suppression
         oldImagePath = existingDestination.imagePath;
@@ -423,9 +432,9 @@ export class DestinationService {
       );
 
       // Nettoyage en cas d'erreur
-      if (imageFile) {
+      if (uploadedFileName) {
         try {
-          await this.storageService.deleteFile(`uploads/${imageFile.filename}`);
+          await this.storageService.deleteFile(`uploads/${uploadedFileName}`);
         } catch (cleanupError) {
           this.logger.error("Erreur nettoyage fichier:", cleanupError.stack);
         }
