@@ -113,6 +113,15 @@ export class DestinationService {
       const fileName = await this.storageService.uploadFile(imageFile);
       const imagePath = `uploads/${fileName}`;
 
+      // Nettoyage en cas d'erreur
+      if (imageFile) {
+        try {
+          await this.storageService.deleteFile(imagePath);
+        } catch (cleanupError) {
+          this.logger.error("Erreur nettoyage fichier:", cleanupError.stack);
+        }
+      }
+
       // Création de la destination
       const createdDestination = new this.destinationModel({
         country: createDestinationDto.country.trim(),
