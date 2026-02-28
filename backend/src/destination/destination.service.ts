@@ -16,32 +16,32 @@ import { Destination } from "../schemas/destination.schema";
 const defaultDestinations = [
   {
     country: "Russie",
-    imagePath: "/russie.png",
+    imagePath: "/images/russie.png",
     text: "La Russie propose un enseignement supérieur d'excellence avec des universités historiques comme MGU. Système éducatif combinant tradition et recherche de pointe dans un environnement multiculturel.",
   },
   {
     country: "Chine",
-    imagePath: "/chine.jpg",
+    imagePath: "/images/chine.jpg",
     text: "La Chine développe des pôles universitaires high-tech avec des programmes innovants en IA et commerce international. Universités comme Tsinghua rivalisent avec les meilleures mondiales.",
   },
   {
     country: "Maroc",
-    imagePath: "/maroc.webp",
+    imagePath: "/images/maroc.webp",
     text: "Le Maroc offre un enseignement de qualité en français/arabe avec des frais accessibles. Universités reconnues en Afrique et programmes d'échange avec l'Europe.",
   },
   {
     country: "Algérie",
-    imagePath: "/algerie.png",
+    imagePath: "/images/algerie.png",
     text: "L'Algérie dispose d'universités performantes en sciences et médecine avec des coûts très abordables. Système éducatif francophone et infrastructures récentes.",
   },
   {
     country: "Turquie",
-    imagePath: "/turquie.webp",
+    imagePath: "/images/turquie.webp",
     text: "La Turquie combine éducation de qualité et frais modestes avec des universités accréditées internationalement. Position géographique unique entre Europe et Asie.",
   },
   {
     country: "France",
-    imagePath: "/france.svg",
+    imagePath: "/images/france.svg",
     text: "La France maintient sa tradition d'excellence académique avec des universités historiques et grandes écoles renommées. Système éducatif diversifié offrant des formations pointues.",
   },
 ];

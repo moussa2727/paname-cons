@@ -19,7 +19,7 @@ export class Destination extends Document {
   country: string;
 
   @ApiProperty({
-    example: '/france.webp',
+    example: '/images/france.webp',
     description: "Chemin de l'image",
   })
   @Prop({
@@ -32,7 +32,7 @@ export class Destination extends Document {
     example: 'Procédure complète pour visa étudiant',
     description: 'Description de la destination',
   })
-  @Prop({
+  @Prop({ 
     type: String,
     required: true,
     trim: true,
