@@ -29,6 +29,16 @@ export class Destination extends Document {
   imagePath: string;
 
   @ApiProperty({
+    example: 'data:image/png;base64,iVBORw0KGgoAAAANS...',
+    description: "Image en base64 (pour Vercel)",
+  })
+  @Prop({
+    type: String,
+    required: false,
+  })
+  imageData?: string;
+
+  @ApiProperty({
     example: 'Procédure complète pour visa étudiant',
     description: 'Description de la destination',
   })

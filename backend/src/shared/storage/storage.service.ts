@@ -16,17 +16,17 @@ export class StorageService {
   async uploadFile(
     file: Express.Multer.File,
     customName?: string,
-  ): Promise<string> {
-    // Pour Vercel/Production : retourner une URL temporaire ou base64
+  ): Promise<{ filename: string; imageData: string }> {
+    const filename = customName || `${Date.now()}-${file.originalname}`;
+    
+    // Pour Vercel/Production : retourner base64
     if (this.isVercel || this.isProduction) {
-      // Solution temporaire : encoder en base64
       const base64 = file.buffer.toString('base64');
-      const filename = customName || `${Date.now()}-${file.originalname}`;
+      const mimeType = file.mimetype;
+      const imageData = `data:${mimeType};base64,${base64}`;
       
-      // Pour l'instant, on retourne un nom de fichier simulé
-      // En production, vous devriez utiliser un service comme AWS S3, Cloudinary, etc.
       this.logger.warn(`Upload sur Vercel: fichier ${filename} (${file.size} bytes)`);
-      return filename;
+      return { filename, imageData };
     }
 
     // Pour développement local : système de fichiers normal
@@ -34,11 +34,12 @@ export class StorageService {
       fs.mkdirSync(this.uploadDir, { recursive: true });
     }
 
-    const filename = customName || `${Date.now()}-${file.originalname}`;
     const filePath = path.join(this.uploadDir, filename);
-
     await writeFile(filePath, file.buffer);
-    return filename;
+    
+    // Retourner le chemin relatif pour le développement
+    const imageData = `/uploads/${filename}`;
+    return { filename, imageData };
   }
 
   async deleteFile(filename: string): Promise<void> {
