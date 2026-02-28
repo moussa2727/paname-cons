@@ -195,7 +195,7 @@ const AdminRendezVous = (): React.JSX.Element => {
   const fetchDestinations = async () => {
     setIsLoadingDestinations(true);
     try {
-      const response = await destinationService.findAll(1, 1000);
+      const response = await destinationService.getAllDestinations(1, 1000);
       const compatibleDestinations: Destination[] = response?.data?.map((dest: Destination) => ({
         _id: dest._id,
         country: dest.country,

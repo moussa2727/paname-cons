@@ -485,3 +485,8 @@ class DestinationService {
 // Export singleton
 export const destinationService = new DestinationService();
 export default DestinationService;
+
+// Hook React pour compatibilité
+export const useAdminDestinationService = () => {
+  return destinationService;
+};

@@ -1,7 +1,7 @@
 import { Helmet } from 'react-helmet-async';
 import About from '../components/About';
 import CTASection from '../components/CtaSection';
-
+import Mission from '../components/Mission'
 import Valeur from '../components/Valeur';
 import '../index.css';
 import FrenchSchool from '../components/FrenchSchool';
@@ -47,6 +47,7 @@ export default function Propos() {
         </Helmet>
         <main className='flex-1 bg-linear-to-b from-white via-sky-50 to-white'>
           <About />
+          <Mission/>
           <Valeur />
           <FrenchSchool />
           <CTASection />

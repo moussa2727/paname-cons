@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-// Renommer l'interface pour éviter le conflit avec le composant
 interface DestinationType {
   _id: string;
   country: string;
@@ -65,7 +64,6 @@ const Destination = () => {
       return imagePath;
     }
 
-    // Images dans public (par défaut)
     if (imagePath.startsWith('/')) {
       return imagePath;
     }

@@ -1,825 +1,380 @@
-# Paname Consulting
+# Paname Consulting - Plateforme Complète
 
-🌍 Plateforme de consultation et d'accompagnement pour les études à l'international.
+## 🌍 Vue d'Ensemble
 
-## 📋 Table des matières
+Paname Consulting est une plateforme web complète pour la gestion des services de conseil en études à l'étranger, voyages d'affaires et tourisme. L'application offre une interface moderne et intuitive pour les clients et une administration robuste pour la gestion interne.
 
-- [À propos](#à-propos)
-- [Architecture](#architecture)
-- [Prérequis](#prérequis)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Démarrage](#démarrage)
-- [Documentation](#documentation)
-- [Système de Rendez-vous](#système-de-rendez-vous)
-- [Mode Maintenance](#mode-maintenance)
-- [Support](#support)
+### 🎯 Mission
+
+Faciliter l'accès aux opportunités internationales en proposant :
+- Accompagnement personnalisé pour études à l'étranger
+- Organisation de voyages d'affaires  
+- Assistance dans les démarches de visa
+- Services touristiques sur mesure
 
 ---
 
-## À propos
+## 🏗️ Architecture Technique
 
-Paname Consulting est une plateforme complète permettant aux utilisateurs de :
-- 📅 Prendre rendez-vous avec des conseillers
-- 📋 Gérer leurs procédures administratives
-- 💬 Contacter l'équipe via des formulaires de contact
-- 👤 Gérer leur profil et préférences
-- 🌍 Accéder à des services d'orientation académique internationale
+### Stack Technologique
 
-### Caractéristiques principales
+#### Backend (NestJS)
+- **Framework**: NestJS 11.x avec TypeScript
+- **Base de données**: MongoDB avec Mongoose
+- **Authentification**: JWT + Passport.js
+- **Email**: Nodemailer + Resend
+- **Cache**: Redis (optionnel)
+- **Upload**: Multer
+- **Logging**: Winston
+- **Validation**: Class-validator
+- **Documentation**: Swagger/OpenAPI
 
-- ✅ Authentification JWT sécurisée avec tokens d'accès et rafraîchissement
-- ✅ Tableaux de bord administrateur avancés avec statistiques en temps réel
-- ✅ Système d'email SMTP intégré (Gmail/Resend)
-- ✅ Logs centralisés et sécurisés avec rotation automatique
-- ✅ Mode maintenance configurable avec protection admin
-- ✅ API REST documentée avec Swagger
-- ✅ Interface responsive (mobile-first)
-- ✅ SEO optimisé avec meta tags
-- ✅ Système de rendez-vous avec gestion des créneaux horaires
-- ✅ Système de procédures administratives multi-étapes
-- ✅ Gestion des destinations d'études internationales
-- ✅ Validation des données en temps réel
+#### Frontend (React)
+- **Framework**: React 19.x avec TypeScript
+- **Routing**: React Router v7
+- **Styling**: TailwindCSS 4.x
+- **Animations**: Framer Motion + AOS
+- **HTTP Client**: Axios
+- **UI Components**: Lucide React, React Icons
+- **Notifications**: React Toastify
+- **SEO**: React Helmet Async
+
+#### Infrastructure
+- **Déploiement**: Vercel (Frontend) + Vercel Functions (Backend)
+- **Package Manager**: pnpm
+- **Code Quality**: ESLint + Prettier
+- **Build Tools**: Vite (Frontend) + SWC (Backend)
 
 ---
 
-## Architecture
-
-### Structure du projet
+## 📁 Structure du Projet
 
 ```
 panameconsulting/
-├── backend/                 # API NestJS
+├── backend/                    # API NestJS
 │   ├── src/
-│   │   ├── auth/           # Authentification
-│   │   ├── users/          # Gestion des utilisateurs
-│   │   ├── contact/        # Formulaires de contact
-│   │   ├── procedures/     # Procédures
-│   │   ├── rendezvous/     # Rendez-vous
-│   │   ├── destination/    # Destinations d'études
-│   │   ├── config/         # Configuration (SMTP, Logger)
-│   │   └── shared/         # Utilitaires partagés
-│   ├── .env                # Variables d'environnement
-│   ├── docker-compose.yml  # Configuration Docker
-│   └── Dockerfile          # Image Docker
-│
-├── frontend/                # Application React/TypeScript
+│   │   ├── auth/              # Authentification & JWT
+│   │   ├── users/             # Gestion utilisateurs
+│   │   ├── contact/           # Formulaires de contact
+│   │   ├── destination/       # Gestion destinations
+│   │   ├── mail/              # Services email
+│   │   ├── rendez-vous/       # Gestion rendez-vous
+│   │   ├── procedure/         # Procédures administratives
+│   │   ├── notification/      # Système de notifications
+│   │   ├── config/            # Configuration app
+│   │   ├── schemas/           # Schémas MongoDB
+│   │   ├── shared/           # Utils & décorateurs
+│   │   └── upload/            # Gestion fichiers
+│   ├── uploads/               # Fichiers statiques
+│   └── .env.example           # Variables d'environnement
+├── frontend/                   # Application React
 │   ├── src/
-│   │   ├── pages/          # Pages principales
-│   │   │   ├── admin/      # Dashboard admin
-│   │   │   ├── user/       # Pages utilisateur
-│   │   │   ├── auth/         # Login, Register
-│   │   │   └── ...         # Autres pages publiques
-│   │   ├── components/     # Composants réutilisables
-│   │   ├── context/        # Context API (Auth)
-│   │   ├── api/            # Appels API
-│   │   └── assets/         # Images/ressources
-│   ├── .env                # Variables d'environnement
-│   └── vite.config.ts      # Configuration Vite
-│
-└── README.md               # Ce fichier
-```
-
-### Stack technique
-
-**Backend:**
-- NestJS 11.1.13
-- MongoDB avec Mongoose 9.1.6
-- JWT 11.0.2 (Authentification)
-- Bcryptjs 3.0.3 (Hachage mots de passe)
-- Nodemailer 7.0.13 (SMTP)
-- Passport 0.7.0 (Stratégies d'authentification)
-- Redis 5.10.0 (Cache)
-- Winston 3.19.0 (Logs centralisés)
-- Socket.io 4.8.3 (WebSockets)
-- Resend 6.9.1 (Notifications email)
-- Date-holidays 3.26.8 (Jours fériés)
-- Rate limiting (Express-rate-limit 8.2.1)
-- Compression, Helmet, CORS
-
-**Frontend:**
-- React 19.2.4 avec TypeScript 5.9.3
-- Vite 7.3.1 (Build tool)
-- Tailwind CSS 4.1.18 (Styling)
-- React Router DOM 7.13.0 (Routing)
-- Axios 1.13.4 (Appels API)
-- React Helmet Async 2.0.5 (SEO)
-- Framer Motion 12.33.0 (Animations)
-- AOS 2.3.4 (Animations on scroll)
-- React Toastify 11.0.5 (Notifications)
-- JWT-decode 4.0.0 (Token parsing)
-- Lucide React 0.563.0 (Icônes)
-- Date-fns 4.1.0 (Manipulation dates)
-- Context API (Gestion d'état)
-
-**DevOps:**
-- Docker & Docker Compose
-- Git/GitHub
-- Vercel (Déploiement)
-
----
-
-## Système de Rendez-vous
-
-L'application gère les rendez-vous avec un système complet et centralisé :
-
-### **Statuts des rendez-vous**
-- **En attente** : Rendez-vous créé en attente de confirmation
-- **Confirmé** : Rendez-vous validé par l'administrateur
-- **Terminé** : Rendez-vous terminé avec avis administratif
-- **Annulé** : Rendez-vous annulé (soft delete)
-
-### **Gestion des créneaux horaires**
-- **Horaires** : 9h00 à 16h30 par créneaux de 30 minutes
-- **Jours ouvrés** : Lundi au vendredi (week-end fermé)
-- **Jours fériés** : Jours fériés du Mali automatiquement exclus
-- **Limite quotidienne** : Maximum 24 rendez-vous par jour
-- **Disponibilité** : Vérification en temps réel des créneaux
-
-### **Destinations d'études disponibles**
-- Russie, Chypre, Chine, Maroc, Algérie, Turquie, France
-- Option "Autre" avec précision personnalisée
-
-### **Filières d'études disponibles**
-- Informatique, Médecine, Droit, Commerce, Ingénierie, Architecture
-- Option "Autre" avec précision personnalisée
-
-### **Niveaux d'étude supportés**
-- Bac, Bac+1, Bac+2, Licence, Master I, Master II, Doctorat
-
-### **Permissions et restrictions**
-- **Utilisateurs** : Peuvent créer/modifier leurs propres rendez-vous
-- **Administrateurs** : Gestion complète de tous les rendez-vous
-- **Confirmation** : Réservée aux administrateurs
-- **Terminaison** : Réservée aux administrateurs avec avis obligatoire
-- **Annulation** : Possible jusqu'à 2 heures avant le RDV
-
----
-
-## Prérequis
-
-### Système
-
-- **Node.js** : v22.13.1 ou supérieur
-- **Docker** : Latest version (optionnel mais recommandé)
-- **MongoDB** : v5.0+ (local ou cloud)
-- **Git**
-
-### Variables d'environnement
-
-#### Backend (.env)
-Copiez `.env.example` vers `.env` et configurez les variables :
-
-```env
-# ===== DATABASE =====
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/DATABASE_NAME
-
-# ===== SERVER =====
-PORT=10000
-NODE_ENV=development
-HOST=0.0.0.0
-
-# ===== JWT =====
-JWT_SECRET=votre_secret_jwt_tres_securise_minimum_32_caracteres
-JWT_EXPIRES_IN=24h
-COOKIE_SECRET=votre_cookie_secret_pour_la_securite
-
-# ===== EMAIL/SMTP =====
-SMTP_USER=votre_email@gmail.com
-SMTP_PASS=votre_mot_de_passe_application_gmail
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-
-# ===== ADMIN CONFIGURATION =====
-EMAIL_USER=admin@panameconsulting.com
-
-# ===== MAINTENANCE MODE =====
-MAINTENANCE_MODE=false
-
-# ===== FRONTEND =====
-FRONTEND_URL=http://localhost:5173
-BASE_URL=http://localhost:10000
-
-# ===== FILE UPLOAD =====
-UPLOAD_DIR=./uploads
-LOAD_DIR=./uploads
-
-# ===== LOGGING =====
-LOG_DIR=./logs
-LOG_RETENTION_DAYS=3
-
-# ===== REDIS (Optionnel) =====
-REDIS_URL=redis://localhost:6379
-
-# ===== SECURITY =====
-CORS_ORIGIN=http://localhost:5173
-
-# ===== NOTIFICATIONS =====
-RESEND_API_KEY=votre_cle_api_resend
-```
-
-#### Frontend (.env)
-```env
-VITE_API_URL=http://localhost:10000
-VITE_APP_NAME=Paname-Consulting
+│   │   ├── api/               # Services API
+│   │   ├── components/        # Composants réutilisables
+│   │   ├── context/           # Contexte React (Auth)
+│   │   ├── pages/             # Pages de l'application
+│   │   │   ├── admin/         # Interface admin
+│   │   │   └── user/          # Interface client
+│   │   ├── types/             # Types TypeScript
+│   │   └── main.tsx           # Point d'entrée
+│   └── public/                # Assets statiques
+└── README.md                  # Ce fichier
 ```
 
 ---
 
-## Installation
+## 🚀 Fonctionnalités Principales
 
-### Option 1 : Avec Docker (Recommandé)
+### Interface Publique
+- **Page d'accueil** avec animations et présentation des services
+- **Présentation des services** (études, voyages, tourisme)
+- **Formulaire de contact** avec notifications
+- **Prise de rendez-vous** en ligne
+- **Authentification** client (connexion/inscription)
+- **Espace personnel** pour suivre ses démarches
 
+### Interface Client
+- **Gestion du profil** personnel
+- **Prise de rendez-vous** en ligne
+- **Suivi des procédures** administratives
+- **Historique des rendez-vous**
+- **Messagerie** avec l'administration
+
+### Interface Administration
+- **Tableau de bord** avec statistiques
+- **Gestion des utilisateurs** et rôles
+- **Gestion des destinations** et services
+- **Gestion des rendez-vous** et calendrier
+- **Gestion des procédures** administratives
+- **Messagerie interne**
+- **Mode maintenance** contrôlé
+
+---
+
+## 🔧 Installation et Configuration
+
+### Prérequis
+- Node.js >= 18.20.3
+- pnpm >= 8.15.0
+- MongoDB Atlas ou local
+- Compte Gmail pour SMTP (optionnel)
+
+### Installation
+
+1. **Cloner le projet**
 ```bash
-# Clone le repository
-git clone https://github.com/yourusername/panameconsulting.git
+git clone <repository-url>
 cd panameconsulting
-
-# Démarrer les services
-docker compose up --build
 ```
 
-### Option 2 : Installation locale
-
-#### Backend
-
+2. **Installer les dépendances**
 ```bash
+# Backend
 cd backend
+pnpm install
 
-# Installer les dépendances
-npm install
-
-# Démarrer le serveur de développement
-npm run start:dev
-
-# Démarrer en production
-npm run build
-npm run start:prod
+# Frontend  
+cd ../frontend
+pnpm install
 ```
 
-#### Frontend
-
+3. **Configurer l'environnement**
 ```bash
-cd frontend
-
-# Installer les dépendances
-npm install
-
-# Démarrer le serveur de développement
-npm run dev
-
-# Build pour production
-npm run build
-```
-
----
-
-## Configuration
-
-### Backend - Variables essentielles
-
-| Variable | Description | Exemple |
-|----------|-------------|---------|
-| `NODE_ENV` | Environnement | `development`, `production` |
-| `PORT` | Port du serveur | `10000` |
-| `MONGODB_URI` | URI MongoDB | `mongodb://localhost:27017/db` |
-| `JWT_SECRET` | Secret JWT | `random_secret_key` |
-| `EMAIL_USER` | Email SMTP | `your_email@gmail.com` |
-| `LOG_DIR` | Dossier logs | `./logs` |
-| `LOG_RETENTION_DAYS` | Rétention logs | `3` |
-
-### Frontend - Variables essentielles
-
-| Variable | Description | Exemple |
-|----------|-------------|---------|
-| `VITE_API_URL` | URL API backend | `http://localhost:10000` |
-| `VITE_APP_NAME` | Nom app | `Paname-Consulting` |
-
----
-
-## Démarrage
-
-### Avec Docker Compose
-
-```bash
-# Démarrer en arrière-plan
-docker compose up -d
-
-# Consulter les logs
-docker compose logs -f ts-app
-
-# Arrêter les services
-docker compose down
-```
-
-### En local (développement)
-
-**Terminal 1 - Backend:**
-```bash
+# Backend
 cd backend
-npm run start:dev
-# Serveur disponible sur http://localhost:10000
+cp .env.example .env
+# Éditer .env avec vos configurations
+
+# Variables requises:
+# - MONGODB_URI
+# - JWT_SECRET
+# - SMTP_USER/SMTP_PASS
+# - EMAIL_USER (admin)
 ```
 
-**Terminal 2 - Frontend:**
+4. **Démarrer le développement**
 ```bash
+# Backend (terminal 1)
+cd backend
+pnpm dev
+
+# Frontend (terminal 2)  
 cd frontend
-npm run dev
-# App disponible sur http://localhost:5173
+pnpm start
 ```
 
-### Accès aux services
-
-- **API Backend** : http://localhost:10000
-- **Frontend** : http://localhost:5173
-- **Admin Dashboard** : http://localhost:5173/gestionnaire/statistiques
-- **API Docs** : http://localhost:10000/api
+L'application sera disponible sur :
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:10000
+- Documentation API: http://localhost:10000/api
 
 ---
 
-## Documentation
+## 🔐 Sécurité
 
-### Documentation spécifique
+### Authentification
+- JWT tokens avec expiration configurable
+- Cookies sécurisés HTTP-only
+- Rate limiting sur les endpoints sensibles
+- Validation des entrées avec class-validator
 
-- [Backend Documentation](./backend/README.md) - API, architecture, configuration
-- [Frontend Documentation](./frontend/README.md) - Composants, structure, développement
+### Protection
+- Helmet.js pour headers HTTP sécurisés
+- CORS configuré pour les origines autorisées
+- Compression Gzip
+- Mode maintenance pour les mises à jour
 
-### Pages légales
-
-Les pages légales suivantes sont disponibles côté frontend :
-
-- **Politique de confidentialité** : route `/politique-de-confidentialite`
-- **Conditions Générales d'utilisation** : route `/conditions-generales`
-- **Mentions légales** : route `/mentions-legales`
-
-### ✅ Cohérence Garantie
-
-Le projet maintient une **cohérence stricte et automatique** entre backend et frontend :
-
-#### Source de vérité unique
-- **Backend** : `schemas/rendezvous.schema.ts` contient toutes les constantes
-- **Frontend** : Services API importent et utilisent ces constantes
-- **Composants** : Utilisation exclusive des constantes centralisées
-
-#### Constantes synchronisées
-- **Statuts** : `En attente`, `Confirmé`, `Terminé`, `Annulé`
-- **Avis** : `Favorable`, `Défavorable`
-- **Destinations** : Russie, Chypre, Chine, Maroc, Algérie, Turquie, France, Autre
-- **Filières** : Informatique, Médecine, Droit, Commerce, Ingénierie, Architecture, Autre
-- **Niveaux** : Bac à Doctorat
-- **Créneaux** : 9h00-16h30 par pas de 30 minutes
-
-#### Architecture centralisée
-- **Services API** : `AdminRendezVousService` et `UserRendezvousService`
-- **Validation** : Fonctions `validateRendezvousData()` partagées
-- **Types** : Interfaces TypeScript identiques entre admin et user
-
-### Points clés
-
-### Système de Rendez-vous
-
-L'application gère les rendez-vous avec un système complet :
-
-#### **Statuts des rendez-vous**
-- **En attente** : Rendez-vous créé en attente de confirmation
-- **Confirmé** : Rendez-vous validé par l'administrateur
-- **Terminé** : Rendez-vous terminé avec avis administratif
-- **Annulé** : Rendez-vous annulé (soft delete)
-
-#### **Gestion des créneaux**
-- **Horaires** : 9h00 à 16h30 par créneaux de 30 minutes
-- **Jours ouvrés** : Lundi au vendredi (week-end fermé)
-- **Jours fériés** : Jours fériés du Mali automatiquement exclus
-- **Limite quotidienne** : Maximum 24 rendez-vous par jour
-- **Disponibilité** : Vérification en temps réel des créneaux
-
-#### **Permissions**
-- **Utilisateurs** : Peuvent créer/modifier leurs propres rendez-vous
-- **Administrateurs** : Gestion complète de tous les rendez-vous
-- **Confirmation** : Réservée aux administrateurs
-- **Terminaison** : Réservée aux administrateurs avec avis obligatoire
-
-#### **Restrictions**
-- **Compte requis** : Un utilisateur doit avoir un compte pour prendre RDV
-- **Email unique** : Un seul rendez-vous confirmé par utilisateur
-- **Annulation** : Possible jusqu'à 2 heures avant le RDV
-- **Modification** : Impossible pour les rendez-vous terminés
-
-#### **Avis administratif**
-- **Favorable** : Permet de créer automatiquement une procédure
-- **Défavorable** : Refus de la demande
-- **Obligatoire** : Pour tout rendez-vous terminé
-
-#### **Notifications**
-- **Email de confirmation** : À la création du RDV
-- **Rappel quotidien** : 9h le jour du RDV
-- **Rappel veille** : 18h la veille du RDV
-- **Rappel 2h** : 2 heures avant le RDV
-- **Changement de statut** : Notification des mises à jour
-
-#### **Validation des données**
-- **Destinations** : Russie, Chypre, Chine, Maroc, Algérie, Turquie, France, ou "Autre"
-- **Filières** : Informatique, Médecine, Droit, Commerce, Ingénierie, Architecture, ou "Autre"
-- **Niveaux d'étude** : Bac à Doctorat
-- **Format téléphone** : International (+228...)
-
-### Système d'authentification
-
-L'application utilise un système JWT complet avec :
-- **Tokens d'accès** : 15 minutes de durée de vie
-- **Tokens de rafraîchissement** : 30 minutes de durée de vie
-- **Session maximum** : 30 minutes d'inactivité
-- **Déconnexion automatique** : Après 30 minutes d'inactivité
-- **Gestion des sessions** : Tracking en base de données MongoDB
-- **Rate limiting** : Protection contre les attaques brute force
-- **Rôles** : `USER`, `ADMIN`
-- **Cookies HTTP-only** : Sécurité renforcée
-- **Refresh automatique** : 5 minutes avant la fin de validité du token
-- **Nettoyage des sessions inactives** : Toutes les 15 minutes
-
-#### Sécurité des tokens
-- Stockage dans localStorage et cookies HTTP-only
-- Masquage des données sensibles dans les logs
-- Révocation des tokens lors de la déconnexion
-- Protection CSRF avec sameSite=none
-- Support des environnements de production HTTPS
-
-#### Gestion des sessions
-
-Système complet de gestion des sessions :
-- **Durée de session** : 30 minutes maximum
-- **Check d'inactivité** : Toutes les minutes
-- **Déconnexion automatique** : Après la fin de session
-- **Sessions simultanées** : Maximum 5 par utilisateur
-- **Nettoyage automatique** : Sessions inactives supprimées toutes les 15 minutes
-- **Tracking d'activité** : Dernière activité enregistrée
-- **Révocation manuelle** : Admin peut révoquer des sessions
-
-#### Service SMTP
-
-Configuration email via Gmail SMTP :
-- Supporté : Bienvenue, Réinitialisation mot de passe, Vérification email
-- Logs centralisés dans `./backend/logs/`
-- Masquage automatique des données sensibles
-- Template emails HTML personnalisés
-- Gestion des erreurs d'envoi
-
-#### Logs
-
-Tous les logs sont centralisés dans `backend/logs/` :
-- Fichiers datés : `YYYY-MM-DD-app.log`
-- Rétention automatique : 3 jours par défaut
-- Suppression des fichiers anciens au démarrage
-- Niveaux de log : ERROR, WARN, LOG, DEBUG
-- Masquage des données sensibles (tokens, emails)
-- Rotation automatique avec Winston Daily Rotate
-
-#### Mode Maintenance
-
-Gérable depuis le tableau de bord admin :
-- Endpoint : `PATCH /api/users/maintenance-mode/toggle`
-- Logs dans les fichiers centralisés
-- Accessible pour les admins uniquement
-- **Admin principal protégé** : L'admin avec `EMAIL_USER` a un accès illimité
-- **Détection en temps réel** : `AdminSidebar` et `AdminDashboard` affichent l'état
-- **Contrôle utilisateur** : Bloque les utilisateurs normaux, épargne les admins
+### Données
+- Hashage des mots de passe avec bcryptjs
+- Validation et sanitization des données
+- Logging des activités sensibles
 
 ---
 
-### Système de Suppression
+## 📊 État Actuel du Projet
 
-### Fonctionnalités
+### ✅ Fonctionnalités Implémentées
 
-- **Suppression en cascade** : Les étapes en cours sont automatiquement annulées
-- **Confirmation améliorée** : Résumé de l'impact avant validation
-- **Animation de traitement** : Feedback visuel pendant l'annulation
-- **Historique préservé** : Les procédures annulées restent consultables
-- **Email de notification** : Utilisateur informé des changements
+#### Backend (NestJS)
+- [x] Architecture modulaire complète
+- [x] Authentification JWT robuste
+- [x] Gestion utilisateurs avec rôles
+- [x] API RESTful avec validation
+- [x] Upload de fichiers sécurisé
+- [x] Envoi d'emails (SMTP/Resend)
+- [x] Gestion des rendez-vous
+- [x] Mode maintenance
+- [x] Logging avec Winston
+- [x] Documentation Swagger
 
-### Flux de suppression
+#### Frontend (React)
+- [x] Architecture composants moderne
+- [x] Routing complet avec lazy loading
+- [x] Authentification avec contexte
+- [x] Interface responsive
+- [x] Animations et transitions fluides
+- [x] Gestion des erreurs
+- [x] SEO optimisé
+- [x] Interface admin complète
 
-1. **Clic sur "Supprimer"** → Calcul des étapes impactées
-2. **Modal de résumé** → Affichage des étapes qui seront annulées
-3. **Confirmation finale** → Raison optionnelle et validation
-4. **Traitement avec animation** → Mise à jour en cascade
-5. **Notification** → Confirmation du nombre d'étapes affectées
+#### Infrastructure
+- [x] Déploiement Vercel configuré
+- [x] Variables d'environnement
+- [x] CI/CD de base
+- [x] Monitoring Vercel Analytics
 
-### Règles de suppression
-
-- ✅ Utilisateurs ne peuvent supprimer que leurs propres procédures
-- ✅ Les procédures terminées/annulées/rejetées ne peuvent plus être modifiées
-- ✅ Les étapes `IN_PROGRESS` et `PENDING` deviennent `CANCELLED`
-- ✅ Les étapes `COMPLETED` restent `COMPLETED`
-- ✅ Email de notification envoyé à l'utilisateur
-
-### Déconnexion Automatique
-
-#### Fonctionnalités
-
-- **Session timeout** : 30 minutes d'inactivité maximum
-- **Check régulier** : Vérification toutes les minutes
-- **Notification utilisateur** : Toast informant de l'expiration
-- **Redirection automatique** : Vers page de connexion
-- **Nettoyage complet** : Suppression des données locales
-- **Protection admin** : Même les admins sont déconnectés après timeout
-
-#### Implémentation
-
-```typescript
-// Frontend - AuthContext.tsx
-const SESSION_CHECK_INTERVAL = 60 * 1000; // 1 minute
-const MAX_SESSION_DURATION_MS = 30 * 60 * 1000; // 30 minutes
-
-// Vérification régulière de la session
-sessionCheckIntervalRef.current = window.setInterval(() => {
-  const sessionStart = localStorage.getItem('session_start');
-  if (sessionStart) {
-    const sessionAge = Date.now() - parseInt(sessionStart);
-    if (sessionAge > MAX_SESSION_DURATION_MS) {
-      cleanupAuthData();
-      toast.info('Votre session a atteint sa durée maximale (30 minutes). Veuillez vous reconnecter.');
-    }
-  }
-}, SESSION_CHECK_INTERVAL);
-```
+### 🚧 Fonctionnalités en Développement
+- [ ] Tests unitaires et e2e
+- [ ] Internationalisation (i18n)
+- [ ] Notifications push
+- [ ] Paiements en ligne
+- [ ] Chat en temps réel (WebSocket)
 
 ---
 
-## Mode Maintenance
+## 🎯 Perspectives d'Amélioration
 
-### Protection administrative
+### 📈 Court Terme (2 mois)
 
-Le mode maintenance est conçu pour protéger l'accès administrateur tout en bloquant les utilisateurs :
+#### Technique
+- **Tests automatisés**: Mise en place Jest + Testing Library
+- **Performance**: Optimisation des bundles et lazy loading
+- **Accessibilité**: Audit WCAG 2.1 et corrections
+- **Monitoring**: Intégration Sentry pour les erreurs
 
-#### **Admin principal (EMAIL_USER)**
-- ✅ **Accès illimité** : Contourne toutes les restrictions
-- ✅ **Accès permanent** : Jamais affecté par le mode maintenance
-- ✅ **Contrôle total** : Peut activer/désactiver le mode maintenance
+#### Fonctionnel
+- **Notifications push**: Service Workers pour les alertes
+- **Export PDF**: Génération de documents administratifs
+- **Calendrier partagé**: Synchronisation avec Google Calendar
+- **Messagerie temps réel**: WebSocket avec Socket.io
 
-#### **Autres administrateurs**
-- ⚠️ **Accès limité** : Peuvent être affectés selon la configuration
-- 🔧 **Contrôle partagé** : Peuvent gérer le mode maintenance si autorisés
+#### UX/UI
+- **Mode sombre**: Thème dark/light
+- **Mobile first**: Optimisation mobile avancée
+- **Animations micro-interactions**: Amélioration de l'engagement
+- **Guidage utilisateur**: Onboarding interactif
 
-#### **Utilisateurs normaux**
-- ❌ **Accès bloqué** : Redirection vers page d'accueil
-- 📱 **Message clair** : Notification de maintenance
-- 🔄 **État préservé** : Session maintenue
+### 🚀 Moyen Terme (4 mois)
 
-### Interface de contrôle
+#### Architecture
+- **Microservices**: Découpage des services critiques
+- **GraphQL**: Migration progressive vers GraphQL
+- **Cache avancé**: Redis Cluster pour la scalabilité
+- **CDN**: CloudFlare pour les assets statiques
 
-- **AdminSidebar** : Bouton toggle avec indicateur visuel
-- **AdminDashboard** : Carte de statistique avec état temps réel
-- **Confirmation** : Modal de validation avant changement
-- **Logging** : Traçabilité complète des actions
+#### Fonctionnalités métier
+- **Paiements en ligne**: Stripe/PayPal integration
+- **API tierces**: Intégration services gouvernementaux
+- **Gestion multilingue**: Support anglais/espagnol
+- **Dashboard analytique**: PowerBI/Tableau intégrés
+
+#### DevOps
+- **CI/CD avancé**: GitHub Actions avec tests
+- **Monitoring**: Prometheus + Grafana
+- **Sécurité**: SAST/DAST automatisé
+- **Backup**: Automatisation des sauvegardes
+
+### 🌟 Long Terme (6 mois)
+
+#### Innovation
+- **IA/ML**: Recommandations personnalisées
+- **Chatbot**: Assistant virtuel 24/7
+- **Blockchain**: Vérification des documents
+- **AR/VR**: Visites virtuelles des destinations
+
+#### Scalabilité
+- **Architecture serverless**: Migration complète
+- **Edge computing**: CloudFlare Workers
+- **Base de données distribuée**: MongoDB Atlas Global
+- **Load balancing**: Multi-régions
+
+#### Écosystème
+- **API publique**: Partenaires développeurs
+- **Marketplace**: Services tiers
+- **Mobile apps**: React Native
+- **Intégrations**: ERP/CRM tiers
 
 ---
 
-## Structure des répertoires
+## 🛠️ Scripts Utiles
 
 ### Backend
-
-```
-backend/
-├── src/
-│   ├── auth/              # Authentification JWT
-│   ├── users/             # Gestion utilisateurs
-│   ├── contact/           # Formulaires contact
-│   ├── procedures/        # Procédures
-│   ├── rendezvous/        # Rendez-vous
-│   ├── destination/       # Destinations d'études
-│   ├── config/
-│   │   ├── smtp.service.ts      # Service email SMTP
-│   │   └── logger.service.ts    # Service logging
-│   ├── shared/
-│   │   ├── guards/        # Guards JWT, Roles
-│   │   ├── decorators/    # Décorateurs custom
-│   │   └── interfaces/    # Types TypeScript
-│   └── main.ts            # Point d'entrée
-├── logs/                  # Fichiers de logs
-├── uploads/               # Fichiers uploadés
-├── .env                   # Variables d'environnement
-└── docker-compose.yml     # Configuration Docker
+```bash
+pnpm dev          # Développement avec hot-reload
+pnpm build        # Build production
+pnpm start        # Démarrer production
+pnpm lint         # Linting automatique
+pnpm format       # Formatage Prettier
+pnpm lint:format  # Lint + Format
 ```
 
 ### Frontend
-
-```
-frontend/
-├── src/
-│   ├── pages/            # Pages principales
-│   │   ├── admin/        # Dashboard admin
-│   │   ├── user/         # Pages utilisateur
-│   │   ├── auth/         # Login, Register
-│   │   └── ...           # Autres pages publiques
-│   ├── components/       # Composants réutilisables
-│   │   ├── Header.tsx    # Navigation principale
-│   │   ├── Footer.tsx    # Pied de page
-│   │   └── ...           # Autres composants
-│   ├── context/          # Context API (Auth)
-│   ├── api/              # Appels API centralisés
-│   │   ├── admin/        # Services admin
-│   │   └── user/         # Services utilisateur
-│   ├── assets/           # Images/ressources
-│   └── main.tsx          # Point d'entrée
-├── .env                  # Variables d'environnement
-└── vite.config.ts        # Configuration Vite
-```
-
----
-
-## Développement
-
-### Commits
-
-Suivez le format conventional commits :
-```
-feat: nouvelle fonctionnalité
-fix: correction de bug
-docs: documentation
-style: formatage
-refactor: refactoring
-test: tests
-```
-
-### Workflow
-
-1. Créer une branche : `git checkout -b feature/ma-feature`
-2. Committer : `git commit -m "feat: description"`
-3. Pousser : `git push origin feature/ma-feature`
-4. Créer une PR
-
-### Tests
-
 ```bash
-# Backend
-cd backend
-npm run test
-
-# Frontend
-cd frontend
-npm run test
+pnpm start        # Développement Vite
+pnpm build        # Build production
+pnpm preview      # Preview build
+pnpm lint         # Linting ESLint
+pnpm format       # Formatage Prettier
+pnpm vercel       # Déploiement Vercel
 ```
 
 ---
 
-## Déploiement
+## 📝 Notes de Déploiement
 
-### Préparation
+### Vercel Configuration
+- **Frontend**: Déployé automatiquement sur chaque push
+- **Backend**: Functions serverless avec cache
+- **Domaines**: panameconsulting.vercel.app
+- **Environment**: Variables configurées dans dashboard
 
-1. Mettre à jour les versions dans `package.json`
-2. Tester en local : `npm run build`
-3. Vérifier les variables d'environnement production
-4. Créer un tag : `git tag v1.0.0`
+### Base de Données
+- **MongoDB Atlas**: Cluster M0 gratuit pour développement
+- **Backup**: Automatique tous les 7 jours
+- **Monitoring**: Compteur de requêtes actif
 
-### Production
-
-```bash
-# Backend
-npm run build
-npm run start:prod
-
-# Frontend
-npm run build
-# Servir le dossier dist/
-```
-
-### Déploiement sur Vercel
-
-Le frontend est configuré pour Vercel :
-- Build automatique via GitHub
-- Variables d'environnement configurées
-- Domaine personnalisé : `panameconsulting.vercel.app`
+### Emails
+- **SMTP**: Gmail pour le développement
+- **Resend**: Production (templates HTML)
+- **Templates**: Handlebars pour personnalisation
 
 ---
 
-## Troubleshooting
+## 🤝 Contribuer
 
-### Problèmes courants
+### Guidelines
+- Code style avec ESLint + Prettier
+- Commits conventionnels (Conventional Commits)
+- Pull requests avec description détaillée
+- Tests requis pour nouvelles fonctionnalités
 
-**Backend refuse de démarrer**
-- ✅ Vérifier MongoDB est actif
-- ✅ Vérifier les variables `.env`
-- ✅ Vérifier le port 10000 est disponible
-
-**Frontend ne se connecte pas**
-- ✅ Vérifier `VITE_API_URL` dans `.env`
-- ✅ Vérifier backend est en ligne
-- ✅ Vérifier CORS dans backend
-
-**Emails ne s'envoient pas**
-- ✅ Vérifier `EMAIL_USER` et `EMAIL_PASS`
-- ✅ Consulter logs : `backend/logs/`
-- ✅ Vérifier les filtres spam
-
-**Logs ne s'écrivent pas**
-- ✅ Vérifier dossier `backend/logs/` existe
-- ✅ Vérifier permissions d'écriture
-- ✅ Redémarrer le backend
+### Développement
+1. Forker le projet
+2. Créer une branche feature/nom-feature
+3. Commiter avec messages clairs
+4. Pusher et créer une PR
+5. Review et merge
 
 ---
 
-## Améliorations Possibles
+## 📞 Support
 
-### ✅ État Actuel du Projet
+### Contact Technique
+- **Email**: admin@panameconsulting.com
+- **Documentation**: `/api` (Swagger)
+- **Issues**: GitHub Issues
 
-Le projet est actuellement **100% cohérent** entre backend et frontend :
-
-#### Cohérence des constantes
-- **Statuts des rendez-vous** : `En attente`, `Confirmé`, `Terminé`, `Annulé` (identiques partout)
-- **Avis administratifs** : `Favorable`, `Défavorable` (identiques partout)
-- **Destinations d'études** : Russie, Chypre, Chine, Maroc, Algérie, Turquie, France, Autre (identiques partout)
-- **Filières d'études** : Informatique, Médecine, Droit, Commerce, Ingénierie, Architecture, Autre (identiques partout)
-- **Niveaux d'étude** : Bac à Doctorat (identiques partout)
-- **Créneaux horaires** : 9h00-16h30 par pas de 30 minutes (identiques partout)
-
-#### Architecture centralisée
-- **Backend** : Toutes les constantes définies dans `schemas/rendezvous.schema.ts`
-- **Frontend** : Services API importent les constantes du backend
-- **Composants** : Utilisation unique des constantes centralisées
-
-### À court terme (1-2 semaines)
-
-#### Sécurité renforcée
-- **2FA/MFA** : Authentification à deux facteurs
-- **Password policies** : Complexité renforcée avec historique
-- **IP whitelisting** : Restriction par adresse IP
-- **Device fingerprinting** : Détection d'appareils inhabituels
-
-#### Performance
-- **Caching Redis** : Mise en cache des requêtes fréquentes
-- **Database indexing** : Optimisation des requêtes MongoDB
-- **Image optimization** : Compression et WebP
-- **Code splitting** : Chargement progressif des composants
-
-#### UX/UI
-- **Language switch** : Support multilingue (FR/EN)
-- **Accessibility** : WCAG 2.1 AA compliance
-- **Mobile PWA** : Application mobile progressive
-
-### À moyen terme (1-2 mois)
-
-#### Fonctionnalités avancées
-- **File management** : Upload/Download de documents
-- **Calendar integration** : Google Calendar/Outlook sync
-- **Payment system** : Stripe/PayPal integration
-- **Video conferencing** : Zoom/Teams integration
-- **Chat system** : Messaging temps réel avec Socket.io
-- **Advanced filtering** : Filtres multi-critères pour rendez-vous
-- **Real-time updates** : Mises à jour en temps réel des statuts
-
-#### Analytics & Monitoring
-- **User analytics** : Tracking comportement utilisateur
-- **Error monitoring** : Sentry integration
-- **Performance monitoring** : APM (New Relic/DataDog)
-- **Business intelligence** : Tableaux de bord analytiques
-
-### À long terme (3-6 mois)
-
-#### Architecture
-- **Microservices** : Découpage en services indépendants
-- **Event sourcing** : Architecture événementielle
-- **CQRS pattern** : Séparation lecture/écriture
-- **API Gateway** : Point d'entrée unique pour tous les services
-- **Message Queue** : RabbitMQ/Apache Kafka pour les traitements asynchrones
-
-#### DevOps & Scalabilité
-- **Kubernetes** : Orchestration conteneurs
-- **CI/CD pipeline** : GitHub Actions complet avec tests automatisés
-- **Load balancing** : HAProxy/Nginx avec health checks
-- **Auto-scaling** : Scaling automatique basé sur la charge
-- **Monitoring avancé** : Prometheus + Grafana pour métriques détaillées
-- **Security scanning** : Snyk/OWASP ZAP automatisé dans CI/CD
-
-#### IA & Machine Learning
-- **Recommendation engine** : Algorithmes de suggestion basés sur l'historique
-- **Chatbot intelligent** : Bot conversationnel avec NLP pour support client
-- **Predictive analytics** : Prédictions des tendances et comportements utilisateurs
-- **Automated testing** : Tests E2E avec Playwright
-
-## Support
-
-### Resources
-
-- 📚 [Documentation NestJS](https://docs.nestjs.com)
-- ⚛️ [Documentation React](https://react.dev)
-- 🎨 [Documentation Tailwind](https://tailwindcss.com/docs)
-- 🐳 [Documentation Docker](https://docs.docker.com)
-- 🌐 [Documentation Vercel](https://vercel.com/docs)
-- 🔐 [Documentation JWT](https://jwt.io)
-- 📧 [Documentation Nodemailer](https://nodemailer.com)
-- 🗄️ [Documentation MongoDB](https://docs.mongodb.com)
-- ⚡ [Documentation Redis](https://redis.io/docs)
-
-### Contact
-
-Pour les questions ou bugs, créez une issue sur GitHub.
-
-**Paname Consulting**
-- 📧 Email : panameconsulting906@gmail.com
-- 📞 Téléphone : +223 91 83 09 41
+### Maintenance
+- **Mode maintenance**: Activable via admin
+- **Monitoring**: Vercel Analytics
+- **Logs**: Winston + Vercel Logs
 
 ---
 
-**Dernière mise à jour** : Février 2026
-**Version** : 2.1.0
-**Licence** : MIT
+## 📄 Licence
+
+MIT License - Copyright © 2024 Paname Consulting
+
+---
+
+*Ce document reflète l'état actuel du projet au février 2026 et est destiné à évoluer avec le développement.*
