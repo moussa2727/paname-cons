@@ -96,7 +96,7 @@ const Hero = () => {
     { name: 'France', slug: 'france' },
     { name: 'Chypre', slug: 'chypre' },
     { name: 'Maroc', slug: 'maroc' },
-    { name: 'Allemagne', slug: 'allemagne' },
+    { name: 'Turquie', slug: 'turquie' },
     { name: 'Tunisie', slug: 'tunisie' },
     { name: 'Espagne', slug: 'espagne' },
     { name: 'Russie', slug: 'russie' },
