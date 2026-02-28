@@ -327,7 +327,7 @@ export class ProcedureApiService {
   canModifyStep(
     procedure: Procedure,
     stepName: StepName,
-    newStatus: StepStatus
+    _newStatus: StepStatus
   ): { canModify: boolean; reason?: string } {
     const step = procedure.steps.find(s => s.nom === stepName);
     
