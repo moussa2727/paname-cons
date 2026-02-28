@@ -7,7 +7,6 @@ const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
-
 export const multerConfig = {
   storage: diskStorage({
     destination: (_req, _file, cb) => {
@@ -20,17 +19,34 @@ export const multerConfig = {
   }),
   fileFilter: (
     _req: any,
-    file: { originalname: string },
+    file: { mimetype: string; originalname: string },
     cb: (arg0: Error | null, arg1: boolean) => void,
   ) => {
+    // Validation par extension
     const ext = path.extname(file.originalname).toLowerCase();
     const imageExts = [".webp", ".png", ".jpg", ".jpeg", ".avif", ".svg", ".gif", ".bmp", ".tiff", ".ico"];
+    
+    // Validation par MIME type (double sécurité)
+    const validMimeTypes = [
+      'image/webp', 'image/png', 'image/jpeg', 'image/jpg', 
+      'image/avif', 'image/svg+xml', 'image/gif', 'image/bmp', 
+      'image/tiff', 'image/x-icon', 'image/vnd.microsoft.icon'
+    ];
 
-    if (imageExts.includes(ext)) {
+    const isValidExt = imageExts.includes(ext);
+    const isValidMime = validMimeTypes.includes(file.mimetype);
+
+    if (isValidExt && isValidMime) {
       cb(null, true);
     } else {
-      cb(new Error(`Type de fichier non supporté: ${ext}. Seuls les images sont autorisées.`), false);
+      cb(
+        new Error(
+          `Type de fichier non supporté: ${ext} (${file.mimetype}). ` +
+          `Formats acceptés: ${imageExts.join(', ')}`
+        ), 
+        false
+      );
     }
   },
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 },
 };

@@ -31,6 +31,7 @@ import { RolesGuard } from '../shared/guards/roles.guard';
 import { DestinationService } from './destination.service';
 import { CreateDestinationDto } from './dto/create-destination.dto';
 import { UpdateDestinationDto } from './dto/update-destination.dto';
+import { multerConfig } from '../upload/multer.config';
 
 @ApiTags('Destinations')
 @Controller('destinations')
@@ -49,15 +50,7 @@ export class DestinationController {
   @ApiResponse({ status: 201, description: 'Destination créée avec succès' })
   async create(
     @Body() createDestinationDto: CreateDestinationDto,
-    @UploadedFile(
-       new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          new FileTypeValidator({ fileType: "image/*" }),
-        ],
-      }),
-    )
-    imageFile: Express.Multer.File
+    @UploadedFile() imageFile: Express.Multer.File,
   ) {
     this.logger.log(
       `Création d'une nouvelle destination: ${createDestinationDto.country}`
@@ -137,18 +130,7 @@ export class DestinationController {
   async update(
     @Param('id') id: string,
     @Body() updateDestinationDto: UpdateDestinationDto,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ 
-            fileType: /^image\/.*$/
-          }),
-        ],
-        fileIsRequired: false,
-      })
-    )
-    imageFile?: Express.Multer.File
+    @UploadedFile() imageFile: Express.Multer.File,
   ) {
     this.logger.log(`Mise à jour de la destination ID: ${id}`);
 

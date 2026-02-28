@@ -49,7 +49,7 @@ export class SmtpService {
 
     const maskedEmail = this.maskEmail(this.fromEmail);
     this.logger.log(
-      `Service SMTP initialisé avec: ${maskedEmail} (${this.configService.get<string>('EMAIL_USER')}:${this.configService.get<number>('EMAIL_PORT')})`,
+      `Service SMTP initialisé avec: ${maskedEmail}: ${this.configService.get<number>('EMAIL_PORT')}`,
       'SmtpService'
     );
   }

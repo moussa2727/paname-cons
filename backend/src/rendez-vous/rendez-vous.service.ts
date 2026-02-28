@@ -50,8 +50,10 @@ export class RendezvousService {
   private initializeHolidays(): void {
     try {
       this.holidays = new Holidays('ML');
+      // nombre de jour féris 
+      const holidaysList = this.holidays.getHolidays(new Date().getFullYear());
       this.logger.log(
-        `Bibliothèque date-holidays initialisée pour le Mali avec succès.`
+        `Bibliothèque date-holidays initialisée pour le Mali avec succès.\n Le nombre de jours de fériés est de : ${holidaysList.length}`
       );
     } catch {
       this.logger.error("Erreur d'initialisation de date-holidays");
@@ -101,7 +103,7 @@ export class RendezvousService {
       this.cachedHolidays.set(cacheKey, allHolidays);
 
       this.logger.log(
-        `${allHolidays.length} jours fériés chargés pour l'année ${year}`
+        `${allHolidays.length} jours fériés chargés pour l'année ${year}\n`
       );
       return allHolidays;
     } catch {

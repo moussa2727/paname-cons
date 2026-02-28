@@ -168,36 +168,37 @@ export class AdminDestinationService {
 
   // ==================== MÉTHODES UTILITAIRES ====================
 
-  /**
-   * Valide un fichier image selon les règles backend
-   */
-  validateImage(file: File): { isValid: boolean; error?: string } {
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    const allowedTypes = [
-      'image/jpeg', 
-      'image/jpg', 
-      'image/png', 
-      'image/webp', 
-      'image/avif', 
-      'image/svg+xml'
-    ];
+validateImage(file: File): { isValid: boolean; error?: string } {
+  const maxSize = 5 * 1024 * 1024; // 5MB
+  
+  // Liste exhaustive des types MIME
+  const allowedTypes = [
+    'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 
+    'image/avif', 'image/gif', 'image/svg+xml', 'image/bmp',
+    'image/tiff', 'image/x-icon', 'image/vnd.microsoft.icon',
+    'image/heic', 'image/heif'
+  ];
 
-    if (file.size > maxSize) {
-      return {
-        isValid: false,
-        error: "L'image ne doit pas dépasser 5MB"
-      };
-    }
-
-    if (!allowedTypes.includes(file.type)) {
-      return {
-        isValid: false,
-        error: "Format d'image non supporté. Utilisez JPEG, PNG, WEBP, AVIF ou SVG. Erreur possible: le backend n'est pas à jour avec la correction de validation."
-      };
-    }
-
-    return { isValid: true };
+  if (file.size > maxSize) {
+    return {
+      isValid: false,
+      error: "L'image ne doit pas dépasser 5MB"
+    };
   }
+
+  // Vérification plus souple
+  const isValidType = allowedTypes.includes(file.type) || 
+                     file.type.startsWith('image/');
+  
+  if (!isValidType) {
+    return {
+      isValid: false,
+      error: "Format d'image non supporté. Utilisez un format d'image standard (JPEG, PNG, WEBP, AVIF, GIF, SVG, etc.)"
+    };
+  }
+
+  return { isValid: true };
+}
 
   /**
    * Construit l'URL complète de l'image
