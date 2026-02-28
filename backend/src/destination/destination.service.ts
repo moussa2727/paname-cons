@@ -110,24 +110,14 @@ export class DestinationService {
       }
 
       // Upload de l'image
-      const uploadResult = await this.storageService.uploadFile(imageFile);
-      const imagePath = `uploads/${uploadResult.filename}`;
-
-      // Nettoyage en cas d'erreur
-      if (imageFile) {
-        try {
-          await this.storageService.deleteFile(imagePath);
-        } catch (cleanupError) {
-          this.logger.error("Erreur nettoyage fichier:", cleanupError.stack);
-        }
-      }
+      const fileName = await this.storageService.uploadFile(imageFile);
+      const imagePath = `uploads/${fileName}`;
 
       // Création de la destination
       const createdDestination = new this.destinationModel({
         country: createDestinationDto.country.trim(),
         text: createDestinationDto.text.trim(),
         imagePath,
-        imageData: uploadResult.imageData, // Stocker base64 pour Vercel
       });
 
       const savedDestination = await createdDestination.save();
@@ -193,7 +183,7 @@ export class DestinationService {
       const [data, total] = await Promise.all([
         this.destinationModel
           .find(filters)
-          .select("country imagePath text imageData createdAt updatedAt")
+          .select("country imagePath text createdAt updatedAt")
           .skip(skip)
           .limit(limit)
           .sort({ country: 1 })
@@ -234,7 +224,7 @@ export class DestinationService {
       
       const destinations = await this.destinationModel
         .find()
-        .select("country imagePath text imageData createdAt updatedAt")
+        .select("country imagePath text createdAt updatedAt")
         .sort({ country: 1 })
         .exec();
 
@@ -265,7 +255,7 @@ export class DestinationService {
 
       const destination = await this.destinationModel
         .findById(id)
-        .select("country imagePath text imageData createdAt updatedAt")
+        .select("country imagePath text createdAt updatedAt")
         .exec();
 
       if (!destination) {
@@ -369,21 +359,18 @@ export class DestinationService {
       let imagePath = existingDestination.imagePath;
       let oldImagePath: string | null = null;
 
-      // Préparation des données de mise à jour
-      const updateData: any = {};
-
       // Gestion de la nouvelle image
       if (imageFile) {
         // Upload de la nouvelle image
-        const uploadResult = await this.storageService.uploadFile(imageFile);
-        imagePath = `uploads/${uploadResult.filename}`;
+        const fileName = await this.storageService.uploadFile(imageFile);
+        imagePath = `uploads/${fileName}`;
 
         // Marquer l'ancienne image pour suppression
         oldImagePath = existingDestination.imagePath;
-
-        // Ajouter imageData au updateData
-        updateData.imageData = uploadResult.imageData;
       }
+
+      // Préparation des données de mise à jour
+      const updateData: any = {};
 
       if (updateDestinationDto.country) {
         updateData.country = updateDestinationDto.country.trim();
@@ -403,7 +390,7 @@ export class DestinationService {
           new: true,
           runValidators: true,
         })
-        .select("country imagePath text imageData createdAt updatedAt")
+        .select("country imagePath text createdAt updatedAt")
         .exec();
 
       if (!updatedDestination) {

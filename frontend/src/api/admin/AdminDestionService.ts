@@ -7,8 +7,8 @@ export interface Destination {
   country: string;
   text: string;
   imagePath: string;
-  createdAt?: string | Date;
-  updatedAt?: string | Date;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface PaginatedResponse {
@@ -61,7 +61,7 @@ class DestinationService {
   private handleError(error: any, defaultMessage: string): never {
     // Gestion d'erreur silencieuse en développement uniquement
     if (import.meta.env.DEV) {
-      globalThis.console.error(' Erreur DestinationService:', error);
+      globalThis.console.error('❌ Erreur DestinationService:', error);
     }
 
     if (error.name === 'AbortError') {
@@ -438,7 +438,6 @@ class DestinationService {
     // Types MIME autorisés
     const allowedTypes = [
       'image/jpeg',
-      'image/jpg',
       'image/png',
       'image/webp',
       'image/svg+xml',
@@ -456,7 +455,8 @@ class DestinationService {
   /**
    * Générer l'URL complète d'une image
    */
-  getFullImageUrl(imagePath: string): string {
+ 
+  getFullImageUrl = (imagePath: string) => {
     if (!imagePath) return '/paname-consulting.jpg';
 
     // URLs déjà complètes
@@ -479,14 +479,9 @@ class DestinationService {
     cleanPath = cleanPath.replace(/\/\//g, '/');
 
     return `${baseUrl}/${cleanPath}`;
-  }
+  };
 }
 
 // Export singleton
 export const destinationService = new DestinationService();
 export default DestinationService;
-
-// Hook React pour compatibilité
-export const useAdminDestinationService = () => {
-  return destinationService;
-};

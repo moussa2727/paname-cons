@@ -45,7 +45,7 @@ import {
   RENDEZVOUS_STATUS,
   ADMIN_OPINION as CENTRAL_ADMIN_OPINION
 } from '../../api/admin/AdminRendezVousService';
-import { useAdminDestinationService, type Destination } from '../../api/admin/AdminDestionService';
+import { destinationService as destinationServiceInstance, type Destination } from '../../api/admin/AdminDestionService';
 
 interface LocalRendezvous {
   id: string;
@@ -92,7 +92,6 @@ const ADMIN_AVIS = Object.values(CENTRAL_ADMIN_OPINION);
 
 const AdminRendezVous = (): React.JSX.Element => {
   const { access_token, user } = useAuth();
-  const destinationService = useAdminDestinationService();
   const [service, setService] = useState<AdminRendezVousService | null>(null);
   const [rendezvous, setRendezvous] = useState<LocalRendezvous[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -195,7 +194,7 @@ const AdminRendezVous = (): React.JSX.Element => {
   const fetchDestinations = async () => {
     setIsLoadingDestinations(true);
     try {
-      const response = await destinationService.getAllDestinations(1, 1000);
+      const response = await destinationServiceInstance.getAllDestinations(1, 1000);
       const compatibleDestinations: Destination[] = response?.data?.map((dest: Destination) => ({
         _id: dest._id,
         country: dest.country,
