@@ -1,22 +1,20 @@
 import {
-  Body,
   Controller,
-  Delete,
   Get,
-  Param,
-  ParseFilePipe,
   Post,
   Put,
-  Query,
+  Delete,
+  Param,
+  Body,
   UploadedFile,
   UseGuards,
   UseInterceptors,
   BadRequestException,
-  FileTypeValidator,
-  MaxFileSizeValidator,
   Logger,
+  Query,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { multerConfig } from "../upload/multer.config";
 import {
   ApiTags,
   ApiOperation,
@@ -42,23 +40,14 @@ export class DestinationController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @UseInterceptors(FileInterceptor("image"))
+  @UseInterceptors(FileInterceptor("image", multerConfig))
   @ApiOperation({ summary: "Créer une nouvelle destination" })
   @ApiConsumes("multipart/form-data")
   @ApiBody({ type: CreateDestinationDto })
   @ApiResponse({ status: 201, description: "Destination créée avec succès" })
   async create(
     @Body() createDestinationDto: CreateDestinationDto,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          new FileTypeValidator({ 
-            fileType: /(image\/(jpeg|png|jpg|webp|avif))/ 
-          }),
-        ],
-      }),
-    )
+    @UploadedFile() 
     imageFile: Express.Multer.File,
   ) {
     this.logger.log(`Création d'une nouvelle destination: ${createDestinationDto.country}`);
@@ -118,24 +107,14 @@ export class DestinationController {
   @Put(":id")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @UseInterceptors(FileInterceptor("image"))
+  @UseInterceptors(FileInterceptor("image", multerConfig))
   @ApiOperation({ summary: "Mettre à jour une destination" })
   @ApiConsumes("multipart/form-data")
   @ApiBody({ type: UpdateDestinationDto })
   async update(
     @Param("id") id: string,
     @Body() updateDestinationDto: UpdateDestinationDto,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ 
-            fileType: /(image\/(jpeg|png|jpg|webp|avif))/ 
-          }),
-        ],
-        fileIsRequired: false,
-      }),
-    )
+    @UploadedFile() 
     imageFile?: Express.Multer.File,
   ) {
     this.logger.log(`Mise à jour de la destination ID: ${id}`);
