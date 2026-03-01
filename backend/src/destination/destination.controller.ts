@@ -13,9 +13,11 @@ import {
   UseInterceptors,
   BadRequestException,
   MaxFileSizeValidator,
+  FileTypeValidator,
   Logger,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { diskStorage } from "multer";
 import {
   ApiTags,
   ApiOperation,
@@ -134,47 +136,39 @@ export class DestinationController {
   @Put(":id")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @UseInterceptors(FileInterceptor("image"))
   @ApiOperation({ summary: "Mettre à jour une destination" })
-  @ApiConsumes("multipart/form-data")
-  @ApiBody({ type: UpdateDestinationDto })
   async update(
     @Param("id") id: string,
-    @Body() updateDestinationDto: UpdateDestinationDto,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-        ],
-        fileIsRequired: false,
-      }),
-    )
-    imageFile?: Express.Multer.File,
+    @Body() updateDestinationDto: any,
   ) {
-    if (imageFile) {
-      this.validateImageFile(imageFile);
-    }
-    this.logger.log(`Mise à jour de la destination ID: ${id}`);
+    this.logger.log(`Début mise à jour destination ID: ${id}`);
+    this.logger.log(`Données reçues: ${JSON.stringify(updateDestinationDto)}`);
     
-    if (Object.keys(updateDestinationDto).length === 0 && !imageFile) {
-      this.logger.warn(`Tentative de mise à jour sans données pour la destination ID: ${id}`);
-      throw new BadRequestException("Aucune donnée à mettre à jour fournie");
+    try {
+      // Convertir les données si nécessaire
+      const cleanDto: UpdateDestinationDto = {};
+      if (updateDestinationDto.country) {
+        cleanDto.country = updateDestinationDto.country;
+      }
+      if (updateDestinationDto.text) {
+        cleanDto.text = updateDestinationDto.text;
+      }
+      
+      this.logger.log(`Données nettoyées: ${JSON.stringify(cleanDto)}`);
+      this.logger.log(`Appel du service update...`);
+      
+      const destination = await this.destinationService.update(
+        id,
+        cleanDto,
+        undefined, // Pas de fichier pour l'instant
+      );
+      this.logger.log(`Destination mise à jour avec succès: ${destination.country}`);
+      
+      return destination;
+    } catch (error) {
+      this.logger.error(`Erreur lors de la mise à jour: ${error.message}`, error.stack);
+      throw error;
     }
-
-    let filename: string | undefined;
-    if (imageFile) {
-      filename = await this.storageService.uploadFile(imageFile);
-    }
-
-    const destination = await this.destinationService.update(
-      id, 
-      updateDestinationDto, 
-      filename
-    );
-    
-    this.logger.log(`Destination mise à jour avec succès: ${destination.country} (ID: ${id})`);
-    
-    return destination;
   }
 
   @Delete(":id")

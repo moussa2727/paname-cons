@@ -242,26 +242,47 @@ class DestinationService {
    */
   async updateDestination(id: string, data: UpdateDestinationData): Promise<Destination> {
   try {
-    const formData = new FormData();
-    if (data.country) formData.append('country', data.country.trim());
-    if (data.text) formData.append('text', data.text.trim());
-    if (data.imageFile) formData.append('image', data.imageFile);
+    let response: Response;
 
-    // LOG pour debug
-    console.log('Envoi PUT vers:', `${this.baseUrl}/${id}`);
-    for (let pair of formData.entries()) {
-      console.log(pair[0], pair[1]);
+    // Si pas de fichier, envoyer du JSON simple
+    if (!data.imageFile) {
+      const jsonData: { country?: string; text?: string } = {};
+      if (data.country) jsonData.country = data.country.trim();
+      if (data.text) jsonData.text = data.text.trim();
+
+      console.log('Envoi PUT JSON vers:', `${this.baseUrl}/${id}`);
+      console.log('Données JSON:', jsonData);
+
+      response = await fetch(`${this.baseUrl}/${id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(jsonData),
+      });
+    } else {
+      // Sinon, envoyer FormData
+      const formData = new FormData();
+      if (data.country) formData.append('country', data.country.trim());
+      if (data.text) formData.append('text', data.text.trim());
+      if (data.imageFile) formData.append('image', data.imageFile);
+
+      console.log('Envoi PUT FormData vers:', `${this.baseUrl}/${id}`);
+      for (let pair of formData.entries()) {
+        console.log(pair[0], pair[1]);
+      }
+
+      response = await fetch(`${this.baseUrl}/${id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        body: formData,
+      });
     }
-
-    const response = await fetch(`${this.baseUrl}/${id}`, {
-      method: 'PUT',
-      credentials: 'include',
-      body: formData,
-    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Réponse erreur:', errorText); // ← Voir l'erreur exacte
+      console.error('Réponse erreur:', errorText);
       throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
