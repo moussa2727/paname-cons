@@ -40,6 +40,8 @@ async function bootstrapServer() {
     // Créer l'application Express
     const expressApp = express();
 
+    expressApp.set('trust proxy', true);
+
     // ========== MIDDLEWARE GLOBAL ==========
 
     // 1. CORS MIDDLEWARE - DOIT ÊTRE EN PREMIER
