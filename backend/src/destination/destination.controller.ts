@@ -12,10 +12,8 @@ import {
   UseGuards,
   UseInterceptors,
   BadRequestException,
-  FileTypeValidator,
   MaxFileSizeValidator,
   Logger,
-  FileValidator,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
@@ -33,29 +31,26 @@ import { DestinationService } from "./destination.service";
 import { CreateDestinationDto } from "./dto/create-destination.dto";
 import { UpdateDestinationDto } from "./dto/update-destination.dto";
 
-class CustomImageValidator extends FileValidator {
-  constructor() {
-    super({});
+// Fonction de validation personnalisée
+const validateImageFile = (file: Express.Multer.File): Express.Multer.File => {
+  const allowedTypes = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png', 
+    'image/webp',
+    'image/svg+xml',
+    'image/gif',
+    'image/avif'
+  ];
+  
+  if (!allowedTypes.includes(file.mimetype)) {
+    throw new BadRequestException(
+      `Type de fichier non supporté: ${file.mimetype}. Types autorisés: ${allowedTypes.join(', ')}`
+    );
   }
-
-  isValid(file: Express.Multer.File): boolean {
-    const allowedTypes = [
-      'image/jpeg',
-      'image/jpg',
-      'image/png', 
-      'image/webp',
-      'image/svg+xml',
-      'image/gif',
-      'image/avif'
-    ];
-    
-    return allowedTypes.includes(file.mimetype);
-  }
-
-  buildErrorMessage(): string {
-    return 'Type de fichier non supporté. Types autorisés: image/jpeg, image/jpg, image/png, image/webp, image/svg+xml, image/gif, image/avif';
-  }
-}
+  
+  return file;
+};
 
 @ApiTags("Destinations")
 @Controller("destinations")
@@ -74,16 +69,15 @@ export class DestinationController {
   @ApiResponse({ status: 201, description: "Destination créée avec succès" })
   async create(
     @Body() createDestinationDto: CreateDestinationDto,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          new CustomImageValidator(),
-        ],
-      }),
-    )
-    imageFile: Express.Multer.File,
+    @UploadedFile() imageFile: Express.Multer.File,
   ) {
+    // Validation manuelle du fichier
+    validateImageFile(imageFile);
+    
+    // Validation de la taille
+    if (imageFile.size > 5 * 1024 * 1024) {
+      throw new BadRequestException('L\'image ne doit pas dépasser 5MB');
+    }
     this.logger.log(`Création d'une nouvelle destination: ${createDestinationDto.country}`);
     
     const destination = await this.destinationService.create(createDestinationDto, imageFile);
@@ -148,17 +142,17 @@ export class DestinationController {
   async update(
     @Param("id") id: string,
     @Body() updateDestinationDto: UpdateDestinationDto,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new CustomImageValidator(),
-        ],
-        fileIsRequired: false,
-      }),
-    )
-    imageFile?: Express.Multer.File,
+    @UploadedFile() imageFile?: Express.Multer.File,
   ) {
+    // Validation manuelle du fichier si présent
+    if (imageFile) {
+      validateImageFile(imageFile);
+      
+      // Validation de la taille
+      if (imageFile.size > 5 * 1024 * 1024) {
+        throw new BadRequestException('L\'image ne doit pas dépasser 5MB');
+      }
+    }
     this.logger.log(`Mise à jour de la destination ID: ${id}`);
     
     // Vérifier qu'au moins un champ est fourni
