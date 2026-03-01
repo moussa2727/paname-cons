@@ -15,6 +15,7 @@ import {
   FileTypeValidator,
   MaxFileSizeValidator,
   Logger,
+  FileValidator,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
@@ -32,16 +33,29 @@ import { DestinationService } from "./destination.service";
 import { CreateDestinationDto } from "./dto/create-destination.dto";
 import { UpdateDestinationDto } from "./dto/update-destination.dto";
 
-// Types MIME valides pour les images
-const VALID_IMAGE_TYPES = [
-  'image/jpeg',
-  'image/jpg', 
-  'image/png',
-  'image/webp',
-  'image/svg+xml',
-  'image/gif',
-  'image/avif'
-];
+class CustomImageValidator extends FileValidator {
+  constructor() {
+    super({});
+  }
+
+  isValid(file: Express.Multer.File): boolean {
+    const allowedTypes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png', 
+      'image/webp',
+      'image/svg+xml',
+      'image/gif',
+      'image/avif'
+    ];
+    
+    return allowedTypes.includes(file.mimetype);
+  }
+
+  buildErrorMessage(): string {
+    return 'Type de fichier non supporté. Types autorisés: image/jpeg, image/jpg, image/png, image/webp, image/svg+xml, image/gif, image/avif';
+  }
+}
 
 @ApiTags("Destinations")
 @Controller("destinations")
@@ -64,7 +78,7 @@ export class DestinationController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          new FileTypeValidator({ fileType: /(jpeg|jpg|png|webp|svg|gif|avif)$/ }),
+          new CustomImageValidator(),
         ],
       }),
     )
@@ -138,7 +152,7 @@ export class DestinationController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: /(jpeg|jpg|png|webp|svg|gif|avif)$/ }),
+          new CustomImageValidator(),
         ],
         fileIsRequired: false,
       }),
