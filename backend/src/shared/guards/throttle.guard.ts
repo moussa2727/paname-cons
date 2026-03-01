@@ -5,8 +5,8 @@ import {
   HttpException,
   HttpStatus,
   Logger,
-} from '@nestjs/common';
-import { AuthConstants } from '../../auth/auth.constants';
+} from "@nestjs/common";
+import { AuthConstants } from "../../auth/auth.constants";
 
 @Injectable()
 export class ThrottleGuard implements CanActivate {
@@ -26,8 +26,8 @@ export class ThrottleGuard implements CanActivate {
 
     if (!email) {
       throw new HttpException(
-        'Email is required for rate limiting',
-        HttpStatus.BAD_REQUEST
+        "Email is required for rate limiting",
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -38,32 +38,29 @@ export class ThrottleGuard implements CanActivate {
       ? (now.getTime() - attempts.lastAttempt.getTime()) / (1000 * 60)
       : 999; // en minutes
 
-    //  Utiliser les constantes définies
+    // ✅ Utiliser les constantes définies
     const windowMinutes = AuthConstants.RATE_LIMIT_WINDOW_MS / (1000 * 60); // Convertir ms en minutes
     const maxAttempts = AuthConstants.MAX_LOGIN_ATTEMPTS;
 
     // Vérifier les tentatives
-    if (
-      attempts.attempts >= maxAttempts &&
-      timeSinceLastAttempt < windowMinutes
-    ) {
+    if (attempts.attempts >= maxAttempts && timeSinceLastAttempt < windowMinutes) {
       const remainingTime = Math.ceil(windowMinutes - timeSinceLastAttempt);
-
+      
       this.logger.warn(
         `Trop de tentatives de connexion pour ${this.maskEmail(email)}: ${attempts.attempts} tentatives`
       );
-
+      
       throw new HttpException(
         {
           status: HttpStatus.TOO_MANY_REQUESTS,
-          error: 'Too many login attempts',
+          error: "Too many login attempts",
           message: `Please try again in ${remainingTime} minutes`,
           retryAfter: `${remainingTime} minutes`,
           attempts: attempts.attempts,
           maxAttempts,
           windowMinutes,
         },
-        HttpStatus.TOO_MANY_REQUESTS
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
 
@@ -99,16 +96,15 @@ export class ThrottleGuard implements CanActivate {
 
     current.attempts++;
     current.lastAttempt = new Date();
-    //  Utiliser la constante LOGIN_ATTEMPTS_TTL_MINUTES
+    // ✅ Utiliser la constante LOGIN_ATTEMPTS_TTL_MINUTES
     current.ttl = new Date(
       Date.now() + AuthConstants.LOGIN_ATTEMPTS_TTL_MINUTES * 60 * 1000
     );
 
     // Limiter la taille du cache pour éviter les fuites mémoire
     if (this.loginAttempts.size >= 1000) {
-      const oldestKey = Array.from(this.loginAttempts.entries()).sort(
-        (a, b) => a[1].ttl.getTime() - b[1].ttl.getTime()
-      )[0]?.[0];
+      const oldestKey = Array.from(this.loginAttempts.entries())
+        .sort((a, b) => a[1].ttl.getTime() - b[1].ttl.getTime())[0]?.[0];
       if (oldestKey) {
         this.loginAttempts.delete(oldestKey);
       }
@@ -139,14 +135,11 @@ export class ThrottleGuard implements CanActivate {
     if (!email) return '***@***';
     const [name, domain] = email.split('@');
     if (!name || !domain) return '***@***';
-
-    const maskedName =
-      name.length <= 2
-        ? name.charAt(0) + '*'
-        : name.charAt(0) +
-          '***' +
-          (name.length > 1 ? name.charAt(name.length - 1) : '');
-
+    
+    const maskedName = name.length <= 2 
+      ? name.charAt(0) + '*'
+      : name.charAt(0) + '***' + (name.length > 1 ? name.charAt(name.length - 1) : '');
+    
     return `${maskedName}@${domain}`;
   }
 }

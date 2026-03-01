@@ -1,3 +1,5 @@
+/* eslint-disable no-undef */
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -5,9 +7,12 @@ import {
   type Destination,
   type CreateDestinationData,
   type UpdateDestinationData,
+  
 } from '../../api/admin/AdminDestionService';
 import { Helmet } from 'react-helmet-async';
 import RequireAdmin from '../../context/RequireAdmin';
+
+
 
 interface DataSourceInfo {
   count: number;
@@ -20,7 +25,7 @@ const initialForm = {
 };
 
 const AdminDestinations: React.FC = (): React.JSX.Element => {
-  const { user } = useAuth();
+  const { access_token, user, isAuthenticated } = useAuth();
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -39,26 +44,44 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
   );
   const popoverTimeout = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Initialiser le service avec le contexte d'authentification
+  const authContext = useAuth();
+  
+  useEffect(() => {
+    destinationService.setAuthContext(authContext);
+  }, [authContext]);
 
+  // Affiche un popover animé
   const showPopover = (message: string, type: 'success' | 'error'): void => {
     setPopover({ message, type });
     if (popoverTimeout.current) clearTimeout(popoverTimeout.current);
     popoverTimeout.current = window.setTimeout(() => setPopover(null), 3000);
   };
 
+  // Charger les destinations
   const fetchDestinations = async (): Promise<void> => {
     setLoading(true);
     try {
-      const data = await destinationService.getAllDestinationsWithoutPagination();
-
-      const transformedData = data.map((dest: Destination) => ({
-        ...dest,
-        imagePath: destinationService.getFullImageUrl(dest.imagePath),
-      }));
-
+      const data =
+        await destinationService.getAllDestinationsWithoutPagination();
+      
+      // Transformer les données pour inclure les URLs complètes des images
+     const transformedData = data.map((dest: Destination) => ({
+      ...dest,
+      imagePath: destinationService.getFullImageUrl(dest.imagePath),  // ← Utiliser le service
+    }));
+      
       setDestinations(transformedData);
 
+
+
+      // Mettre à jour les informations de source de données
       const stats = await destinationService.getStatistics();
+
+      // if (import.meta.env.DEV) {
+      //   console.log('Stats:', stats);
+      // }
 
       setDataSourceInfo({
         count: data.length,
@@ -73,6 +96,9 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           }),
       });
     } catch (error: any) {
+      if (import.meta.env.DEV) {
+        console.error('Erreur détaillée:', error);
+      }
       showPopover(
         error.message || 'Erreur lors du chargement des destinations',
         'error'
@@ -82,24 +108,54 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     }
   };
 
+  // Vérifier les droits admin - Simplifié avec AuthContext
+  const hasAdminRights = (): boolean => {
+    return isAuthenticated && (user?.isAdmin === true || user?.role === 'admin');
+  };
+
+  // Soumission du formulaire
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
+
+    const isAdmin = hasAdminRights();
+    if (!isAdmin) {
+      showPopover('Droits administrateur requis pour cette action', 'error');
+      return;
+    }
+
     setLoading(true);
 
     try {
+      if (!form.country.trim() || !form.text.trim()) {
+        showPopover('Veuillez remplir tous les champs obligatoires', 'error');
+        return;
+      }
+
+      if (form.text.length < 10 || form.text.length > 2000) {
+        showPopover(
+          'La description doit contenir entre 10 et 2000 caractères',
+          'error'
+        );
+        return;
+      }
+
       if (editingId) {
+        // Mise à jour destination existante
         const updateData: UpdateDestinationData = {
           country: form.country.trim(),
           text: form.text.trim(),
           ...(imageFile && { imageFile }),
         };
 
-        await destinationService.updateDestination(editingId, updateData);
+        await destinationService.updateDestination(
+          editingId,
+          updateData
+        );
         showPopover('Destination modifiée avec succès', 'success');
       } else {
+        // Création nouvelle destination
         if (!imageFile) {
           showPopover('Veuillez sélectionner une image', 'error');
-          setLoading(false);
           return;
         }
 
@@ -113,40 +169,56 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
         showPopover('Destination ajoutée avec succès', 'success');
       }
 
+      // Réinitialiser et rafraîchir
       handleCancelEdit();
       fetchDestinations();
     } catch (error: any) {
-      // Les erreurs sont déjà gérées et toastées par le service
-      // On ne fait rien ici
+      if (import.meta.env.DEV) {
+        console.error('Erreur détaillée:', error);
+      }
+      // Le message d'erreur est déjà géré par le service
     } finally {
       setLoading(false);
     }
   };
 
+  // Suppression
   const handleDelete = async (id: string): Promise<void> => {
+    const isAdmin = hasAdminRights();
+    if (!isAdmin) {
+      showPopover('Droits administrateur requis pour cette action', 'error');
+      return;
+    }
+
     setLoading(true);
     try {
       await destinationService.deleteDestination(id);
       showPopover('Destination supprimée avec succès', 'success');
       setShowDeleteConfirm(null);
       fetchDestinations();
-    } catch {
-      // Les erreurs sont déjà gérées par le service
+    } catch (error: any) {
+      // if (import.meta.env.DEV) {
+      //   console.error('Erreur détaillée:', error);
+      // }
+      // Le message d'erreur est déjà géré par le service
     } finally {
       setLoading(false);
     }
   };
 
+  // Gestion des changements de formulaire
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ): void => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+  // Gestion de l'image
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
 
+      // Validation via le service
       const validation = destinationService.validateImageFile(file);
       if (!validation.isValid) {
         showPopover(validation.error!, 'error');
@@ -158,6 +230,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     }
   };
 
+  // Édition
   const handleEdit = (dest: Destination): void => {
     setForm({
       country: dest.country,
@@ -167,6 +240,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     setImageFile(null);
   };
 
+  // Annuler l'édition
   const handleCancelEdit = (): void => {
     setForm(initialForm);
     setEditingId(null);
@@ -178,13 +252,15 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
   };
 
   useEffect(() => {
+  
+
     fetchDestinations();
     return () => {
       if (popoverTimeout.current) clearTimeout(popoverTimeout.current);
     };
-  }, []);
+  }, [access_token, user, isAuthenticated]);
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = hasAdminRights();
 
   return (
     <>
@@ -195,10 +271,18 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           content="Interface d'administration pour gérer les destinations de voyage sur Paname Consulting. Accès réservé aux administrateurs."
         />
         <meta name='robots' content='noindex, nofollow' />
+        <meta name='googlebot' content='noindex, nofollow' />
+        <meta name='bingbot' content='noindex, nofollow' />
+        <meta name='yandexbot' content='noindex, nofollow' />
+        <meta name='duckduckbot' content='noindex, nofollow' />
+        <meta name='baidu' content='noindex, nofollow' />
+        <meta name='naver' content='noindex, nofollow' />
+        <meta name='seznam' content='noindex, nofollow' />
       </Helmet>
 
       <RequireAdmin>
         <div className='min-h-screen max-w-5xl mx-auto overflow-x-hidden'>
+          {/* Header */}
           <div className='mb-4 px-4'>
             <div className='flex items-center gap-2 mb-1'>
               <div className='p-2 bg-blue-500 rounded-lg'>
@@ -223,6 +307,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
             </div>
           </div>
 
+          {/* Cartes de statistiques */}
           {dataSourceInfo && (
             <div className='grid grid-cols-2 lg:grid-cols-3 gap-2 mb-4 px-4'>
               <div className='bg-white rounded-xl border border-slate-200/60 p-3 shadow-sm'>
@@ -305,6 +390,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
             </div>
           )}
 
+          {/* Popover global */}
           {popover && (
             <div
               className={`fixed top-4 left-1/2 z-50 -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg text-white font-semibold transition-all duration-300 flex items-center gap-2
@@ -343,6 +429,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
             </div>
           )}
 
+          {/* Formulaire */}
           <div className='bg-white rounded-xl border border-slate-200/60 p-4 mb-4 shadow-sm mx-4'>
             <div className='flex items-center justify-between mb-4'>
               <h2 className='text-lg font-bold text-slate-800 flex items-center gap-2'>
@@ -383,6 +470,27 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                 )}
               </h2>
             </div>
+
+            {!isAdmin && (
+              <div className='mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg'>
+                <p className='text-amber-800 text-sm flex items-center gap-2'>
+                  <svg
+                    className='w-4 h-4'
+                    fill='none'
+                    stroke='currentColor'
+                    viewBox='0 0 24 24'
+                  >
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth='2'
+                      d='M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'
+                    />
+                  </svg>
+                  Droits administrateur requis pour modifier les destinations
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className='space-y-4'>
               <div className='space-y-3'>
@@ -616,7 +724,9 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
             </form>
           </div>
 
+          {/* Liste des destinations */}
           <div className='bg-white rounded-xl border border-slate-200/60 overflow-hidden shadow-sm mx-4'>
+            {/* En-tête */}
             <div className='px-4 py-3 bg-linear-to-r from-blue-500 to-blue-600 text-white'>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
@@ -643,12 +753,13 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
               </div>
             </div>
 
+            {/* Version tablette - Cartes améliorées */}
             <div className='lg:hidden'>
               {loading ? (
                 <div className='p-4 text-center'>
                   <div className='animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto'></div>
                   <p className='text-slate-600 mt-2 text-sm'>
-                    Chargement...
+                    Chargement sécurisé...
                   </p>
                 </div>
               ) : destinations.length === 0 ? (
@@ -753,6 +864,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
               )}
             </div>
 
+            {/* Version desktop - Tableau */}
             <div className='hidden lg:block overflow-x-auto'>
               <table className='w-full min-w-150'>
                 <thead className='bg-slate-50'>
@@ -791,7 +903,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                           <div className='animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500'></div>
                         </div>
                         <p className='text-slate-600 mt-2 text-sm'>
-                          Chargement...
+                          Chargement sécurisé...
                         </p>
                       </td>
                     </tr>
@@ -900,6 +1012,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
             </div>
           </div>
 
+          {/* Modal de confirmation suppression */}
           {showDeleteConfirm && (
             <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
               <div className='bg-white rounded-xl border border-slate-200/60 max-w-md w-full'>

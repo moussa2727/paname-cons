@@ -1,24 +1,12 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import * as path from "path";
-import { StorageService } from "../shared/storage/storage.service";
+import path from "path";
 
 @Injectable()
 export class UploadService {
   private readonly logger = new Logger(UploadService.name);
 
-  constructor(
-    private configService: ConfigService,
-    private storageService: StorageService,
-  ) {}
-
-  async uploadFile(file: Express.Multer.File): Promise<string> {
-    return this.storageService.uploadFile(file);
-  }
-
-  async deleteFile(filename: string): Promise<void> {
-    return this.storageService.deleteFile(filename);
-  }
+  constructor(private configService: ConfigService) {}
 
   getFileUrl(filename: string): string {
     const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -28,11 +16,13 @@ export class UploadService {
 
       const baseUrl = this.configService.get("BASE_URL");
 
+      // Validation critique
       if (!baseUrl) {
         this.logger.error(`[${requestId}] BASE_URL non définie dans les variables d'environnement`);
         throw new Error("BASE_URL is not defined in environment variables");
       }
 
+      // Nettoyage de l'URL
       const cleanedBaseUrl = baseUrl.endsWith("/")
         ? baseUrl.slice(0, -1)
         : baseUrl;
@@ -73,6 +63,7 @@ export class UploadService {
       const parts = domain.split('.');
       
       if (parts.length >= 2) {
+        // Masque le sous-domaine s'il existe
         if (parts.length > 2) {
           parts[0] = '***';
         }
@@ -81,6 +72,7 @@ export class UploadService {
       
       return domain;
     } catch {
+      // Si l'URL n'est pas valide, retourne une version masquée
       return url.length <= 10 ? url : url.substring(0, 5) + '***' + url.substring(url.length - 5);
     }
   }

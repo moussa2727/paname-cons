@@ -1,5 +1,5 @@
 // src/shared/interfaces/destination.interface.ts
-import { Document } from 'mongoose';
+import { Document } from "mongoose";
 
 export interface Destination extends Document {
   country: string;

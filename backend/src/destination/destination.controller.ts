@@ -12,12 +12,11 @@ import {
   UseGuards,
   UseInterceptors,
   BadRequestException,
-  MaxFileSizeValidator,
   FileTypeValidator,
+  MaxFileSizeValidator,
   Logger,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { diskStorage } from "multer";
 import {
   ApiTags,
   ApiOperation,
@@ -32,27 +31,13 @@ import { RolesGuard } from "../shared/guards/roles.guard";
 import { DestinationService } from "./destination.service";
 import { CreateDestinationDto } from "./dto/create-destination.dto";
 import { UpdateDestinationDto } from "./dto/update-destination.dto";
-import { StorageService } from "../shared/storage/storage.service";
 
 @ApiTags("Destinations")
 @Controller("destinations")
 export class DestinationController {
   private readonly logger = new Logger(DestinationController.name);
 
-  constructor(
-    private readonly destinationService: DestinationService,
-    private readonly storageService: StorageService,
-  ) {}
-
-  private validateImageFile(file: Express.Multer.File): void {
-    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/avif', 'image/svg+xml'];
-    
-    if (!allowedMimeTypes.includes(file.mimetype)) {
-      throw new BadRequestException(
-        `Type de fichier non supporté: ${file.mimetype}. Types acceptés: ${allowedMimeTypes.join(', ')}`
-      );
-    }
-  }
+  constructor(private readonly destinationService: DestinationService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -67,21 +52,16 @@ export class DestinationController {
     @UploadedFile(
       new ParseFilePipe({
         validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
+          new FileTypeValidator({ fileType: "image/*" }),
         ],
       }),
     )
     imageFile: Express.Multer.File,
   ) {
-    this.validateImageFile(imageFile);
     this.logger.log(`Création d'une nouvelle destination: ${createDestinationDto.country}`);
     
-    const filename = await this.storageService.uploadFile(imageFile);
-    
-    const destination = await this.destinationService.create(
-      createDestinationDto, 
-      filename
-    );
+    const destination = await this.destinationService.create(createDestinationDto, imageFile);
     
     this.logger.log(`Destination créée avec succès: ${destination.country} (ID: ${destination._id})`);
     
@@ -136,39 +116,37 @@ export class DestinationController {
   @Put(":id")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
+  @UseInterceptors(FileInterceptor("image"))
   @ApiOperation({ summary: "Mettre à jour une destination" })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({ type: UpdateDestinationDto })
   async update(
     @Param("id") id: string,
-    @Body() updateDestinationDto: any,
+    @Body() updateDestinationDto: UpdateDestinationDto,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
+          new FileTypeValidator({ fileType: "image/*" }),
+        ],
+        fileIsRequired: false,
+      }),
+    )
+    imageFile?: Express.Multer.File,
   ) {
-    this.logger.log(`Début mise à jour destination ID: ${id}`);
-    this.logger.log(`Données reçues: ${JSON.stringify(updateDestinationDto)}`);
+    this.logger.log(`Mise à jour de la destination ID: ${id}`);
     
-    try {
-      // Convertir les données si nécessaire
-      const cleanDto: UpdateDestinationDto = {};
-      if (updateDestinationDto.country) {
-        cleanDto.country = updateDestinationDto.country;
-      }
-      if (updateDestinationDto.text) {
-        cleanDto.text = updateDestinationDto.text;
-      }
-      
-      this.logger.log(`Données nettoyées: ${JSON.stringify(cleanDto)}`);
-      this.logger.log(`Appel du service update...`);
-      
-      const destination = await this.destinationService.update(
-        id,
-        cleanDto,
-        undefined, // Pas de fichier pour l'instant
-      );
-      this.logger.log(`Destination mise à jour avec succès: ${destination.country}`);
-      
-      return destination;
-    } catch (error) {
-      this.logger.error(`Erreur lors de la mise à jour: ${error.message}`, error.stack);
-      throw error;
+    // Vérifier qu'au moins un champ est fourni
+    if (Object.keys(updateDestinationDto).length === 0 && !imageFile) {
+      this.logger.warn(`Tentative de mise à jour sans données pour la destination ID: ${id}`);
+      throw new BadRequestException("Aucune donnée à mettre à jour fournie");
     }
+
+    const destination = await this.destinationService.update(id, updateDestinationDto, imageFile);
+    
+    this.logger.log(`Destination mise à jour avec succès: ${destination.country} (ID: ${id})`);
+    
+    return destination;
   }
 
   @Delete(":id")

@@ -2,8 +2,8 @@ import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 import { DestinationController } from "./destination.controller";
 import { DestinationService } from "./destination.service";
-import { Destination, DestinationSchema } from "../schemas/destination.schema";
-import { StorageModule, StorageService } from "../shared/storage/storage.module";
+import { Destination, DestinationSchema } from "./entities/destination.entity";
+import { StorageModule } from "../shared/storage/storage.module";
 
 @Module({
   imports: [
@@ -13,7 +13,7 @@ import { StorageModule, StorageService } from "../shared/storage/storage.module"
     StorageModule,
   ],
   controllers: [DestinationController],
-  providers: [DestinationService, StorageService],
+  providers: [DestinationService],
   exports: [DestinationService],
 })
 export class DestinationModule {}

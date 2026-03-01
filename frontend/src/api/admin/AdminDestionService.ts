@@ -1,4 +1,5 @@
 import { toast } from 'react-toastify';
+import { useAuth } from '../../context/AuthContext';
 
 const API_URL = (import.meta as any).env.VITE_API_URL;
 
@@ -41,18 +42,39 @@ export interface Statistics {
 
 class DestinationService {
   private baseUrl: string;
+  private authContext: ReturnType<typeof useAuth> | null = null;
 
   constructor() {
     this.baseUrl = `${API_URL}/api/destinations`;
   }
 
   /**
+   * Initialiser le contexte d'authentification
+   */
+  setAuthContext(authContext: ReturnType<typeof useAuth>) {
+    this.authContext = authContext;
+  }
+
+  /**
+   * Headers communs pour les requêtes authentifiées
+   */
+  private getAuthHeaders() {
+    const token = this.authContext?.access_token;
+    if (!token) {
+      throw new Error('Token d\'authentification non disponible');
+    }
+    return {
+      Authorization: `Bearer ${token}`,
+    };
+  }
+
+  /**
    * Gestion centralisée des erreurs
    */
   private handleError(error: any, defaultMessage: string): never {
-    // Log silencieux en développement uniquement
+    // Gestion d'erreur silencieuse en développement uniquement
     if (import.meta.env.DEV) {
-      console.error('Erreur DestinationService:', error);
+      globalThis.console.error('Erreur DestinationService:', error);
     }
 
     if (error.name === 'AbortError') {
@@ -93,9 +115,8 @@ class DestinationService {
         ...(search && { search }),
       });
 
-      const response = await fetch(`${this.baseUrl}?${params}`, {
+      const response = await globalThis.fetch(`${this.baseUrl}?${params}`, {
         method: 'GET',
-        credentials: 'include', // Inclut automatiquement les cookies
         headers: {
           'Content-Type': 'application/json',
         },
@@ -108,7 +129,7 @@ class DestinationService {
 
       return await response.json();
     } catch (error: any) {
-      return this.handleError(error, 'Erreur lors du chargement des destinations');
+      this.handleError(error, 'Erreur lors du chargement des destinations');
     }
   }
 
@@ -117,9 +138,8 @@ class DestinationService {
    */
   async getAllDestinationsWithoutPagination(): Promise<Destination[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/all`, {
+      const response = await globalThis.fetch(`${this.baseUrl}/all`, {
         method: 'GET',
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -132,7 +152,7 @@ class DestinationService {
 
       return await response.json();
     } catch (error: any) {
-      return this.handleError(error, 'Erreur lors du chargement des destinations');
+      this.handleError(error, 'Erreur lors du chargement des destinations');
     }
   }
 
@@ -145,9 +165,8 @@ class DestinationService {
         throw new Error('ID de destination requis');
       }
 
-      const response = await fetch(`${this.baseUrl}/${id}`, {
+      const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
         method: 'GET',
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -163,7 +182,7 @@ class DestinationService {
 
       return await response.json();
     } catch (error: any) {
-      return this.handleError(
+      this.handleError(
         error,
         'Erreur lors de la récupération de la destination'
       );
@@ -172,7 +191,6 @@ class DestinationService {
 
   /**
    * Créer une nouvelle destination (Admin seulement)
-   * L'authentification se fait via les cookies, pas besoin de token
    */
   async createDestination(
     data: CreateDestinationData
@@ -203,11 +221,11 @@ class DestinationService {
       formData.append('text', data.text.trim());
       formData.append('image', data.imageFile);
 
-      const response = await fetch(this.baseUrl, {
+      const response = await globalThis.fetch(this.baseUrl, {
         method: 'POST',
-        credentials: 'include', // Le cookie JWT est envoyé automatiquement
+        headers: this.getAuthHeaders(),
         body: formData,
-        // Pas de headers Authorization, le cookie suffit
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -218,7 +236,7 @@ class DestinationService {
         }
 
         if (response.status === 401) {
-          throw new Error('Session expirée. Veuillez vous reconnecter.');
+          throw new Error('Token invalide ou expiré');
         }
 
         if (response.status === 403) {
@@ -233,65 +251,89 @@ class DestinationService {
       return result;
     } catch (error: any) {
       toast.error(error.message);
-      return this.handleError(error, 'Erreur lors de la création de la destination');
+      this.handleError(error, 'Erreur lors de la création de la destination');
     }
   }
 
   /**
    * Mettre à jour une destination (Admin seulement)
    */
-  async updateDestination(id: string, data: UpdateDestinationData): Promise<Destination> {
-  try {
-    let response: Response;
-
-    // Si pas de fichier, envoyer du JSON simple
-    if (!data.imageFile) {
-      const jsonData: { country?: string; text?: string } = {};
-      if (data.country) jsonData.country = data.country.trim();
-      if (data.text) jsonData.text = data.text.trim();
-
-      console.log('Envoi PUT JSON vers:', `${this.baseUrl}/${id}`);
-      console.log('Données JSON:', jsonData);
-
-      response = await fetch(`${this.baseUrl}/${id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(jsonData),
-      });
-    } else {
-      // Sinon, envoyer FormData
-      const formData = new FormData();
-      if (data.country) formData.append('country', data.country.trim());
-      if (data.text) formData.append('text', data.text.trim());
-      if (data.imageFile) formData.append('image', data.imageFile);
-
-      console.log('Envoi PUT FormData vers:', `${this.baseUrl}/${id}`);
-      for (let pair of formData.entries()) {
-        console.log(pair[0], pair[1]);
+  async updateDestination(
+    id: string,
+    data: UpdateDestinationData
+  ): Promise<Destination> {
+    try {
+      if (!id) {
+        throw new Error('ID de destination requis');
       }
 
-      response = await fetch(`${this.baseUrl}/${id}`, {
+      // Validation des données
+      if (data.country && data.country.trim().length === 0) {
+        throw new Error('Le nom du pays ne peut pas être vide');
+      }
+
+      if (data.text && (data.text.length < 10 || data.text.length > 2000)) {
+        throw new Error(
+          'La description doit contenir entre 10 et 2000 caractères'
+        );
+      }
+
+      // Préparation FormData
+      const formData = new FormData();
+
+      if (data.country) {
+        formData.append('country', data.country.trim());
+      }
+
+      if (data.text) {
+        formData.append('text', data.text.trim());
+      }
+
+      if (data.imageFile) {
+        formData.append('image', data.imageFile);
+      }
+
+      const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
         method: 'PUT',
-        credentials: 'include',
+        headers: this.getAuthHeaders(),
         body: formData,
+        credentials: 'include',
       });
-    }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Réponse erreur:', errorText);
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
 
-    return await response.json();
-  } catch (error) {
-    console.error('Erreur complète:', error);
-    throw error;
+        if (response.status === 404) {
+          throw new Error('Destination non trouvée');
+        }
+
+        if (response.status === 409) {
+          throw new Error('Une destination avec ce nom existe déjà');
+        }
+
+        if (response.status === 401) {
+          throw new Error('Token invalide ou expiré');
+        }
+
+        if (response.status === 403) {
+          throw new Error('Droits administrateur requis');
+        }
+
+        throw new Error(errorData.message || `Erreur ${response.status}`);
+      }
+
+      const result = await response.json();
+      toast.success('Destination modifiée avec succès');
+      return result;
+    } catch (error: any) {
+      toast.error(error.message);
+      this.handleError(
+        error,
+        'Erreur lors de la modification de la destination'
+      );
+    }
   }
-}
+
   /**
    * Supprimer une destination (Admin seulement)
    */
@@ -301,12 +343,13 @@ class DestinationService {
         throw new Error('ID de destination requis');
       }
 
-      const response = await fetch(`${this.baseUrl}/${id}`, {
+      const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
         method: 'DELETE',
-        credentials: 'include', // Authentification via cookie
         headers: {
+          ...this.getAuthHeaders(),
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -317,7 +360,7 @@ class DestinationService {
         }
 
         if (response.status === 401) {
-          throw new Error('Session expirée. Veuillez vous reconnecter.');
+          throw new Error('Token invalide ou expiré');
         }
 
         if (response.status === 403) {
@@ -330,7 +373,7 @@ class DestinationService {
       toast.success('Destination supprimée avec succès');
     } catch (error: any) {
       toast.error(error.message);
-      return this.handleError(
+      this.handleError(
         error,
         'Erreur lors de la suppression de la destination'
       );
@@ -342,6 +385,8 @@ class DestinationService {
    */
   async getStatistics(): Promise<Statistics> {
     try {
+      // Pour l'instant, on utilise la liste complète pour calculer les stats
+      // Vous pourriez ajouter un endpoint spécifique /api/destinations/stats dans le backend
       const destinations = await this.getAllDestinationsWithoutPagination();
 
       const uniqueCountries = new Set(
@@ -367,7 +412,7 @@ class DestinationService {
         lastUpdated,
       };
     } catch (error: any) {
-      return this.handleError(
+      this.handleError(
         error,
         'Erreur lors de la récupération des statistiques'
       );
@@ -386,7 +431,7 @@ class DestinationService {
       const response = await this.getAllDestinations(1, 50, query.trim());
       return response.data;
     } catch (error: any) {
-      return this.handleError(error, 'Erreur lors de la recherche des destinations');
+      this.handleError(error, 'Erreur lors de la recherche des destinations');
     }
   }
 
@@ -394,7 +439,8 @@ class DestinationService {
    * Valider une image avant upload
    */
   validateImageFile(file: File): { isValid: boolean; error?: string } {
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    // Taille max: 5MB
+    const maxSize = 5 * 1024 * 1024;
 
     if (file.size > maxSize) {
       return {
@@ -403,19 +449,19 @@ class DestinationService {
       };
     }
 
+    // Types MIME autorisés
     const allowedTypes = [
       'image/jpeg',
-      'image/jpg',
       'image/png',
+      'image/jpg',
+      'image/svg',
       'image/webp',
       'image/svg+xml',
-      'image/avif'
     ];
-    
     if (!allowedTypes.includes(file.type)) {
       return {
         isValid: false,
-        error: "Format d'image non supporté. Utilisez JPEG, PNG, WEBP, AVIF ou SVG",
+        error: "Format d'image non supporté. Utilisez JPEG, PNG, JPG, SVG ou WEBP",
       };
     }
 
@@ -425,19 +471,23 @@ class DestinationService {
   /**
    * Générer l'URL complète d'une image
    */
-  getFullImageUrl = (imagePath: string): string => {
-    if (!imagePath) return '/paname-consulting.jpg';
+ 
+  getFullImageUrl = (imagePath: string) => {
+    if (!imagePath) return '/images/paname-consulting.jpg';
 
+    // URLs déjà complètes
     if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
       return imagePath;
     }
 
+    // Images dans public (par défaut)
     if (imagePath.startsWith('/')) {
       return imagePath;
     }
 
     const baseUrl = (import.meta as any).env.VITE_API_URL;
 
+    // Images uploadées
     let cleanPath = imagePath;
     if (!cleanPath.startsWith('uploads/')) {
       cleanPath = `uploads/${cleanPath}`;
