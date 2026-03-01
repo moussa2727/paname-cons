@@ -291,7 +291,8 @@ export class DestinationService {
     filename?: string,
   ): Promise<Destination> {
     this.logger.log(`Tentative mise à jour destination: ${id}`);
-
+    this.logger.log(`StorageService disponible: ${!!this.storageService}`);
+    
     try {
       if (!id || id.length !== 24) {
         throw new BadRequestException("ID de destination invalide");
