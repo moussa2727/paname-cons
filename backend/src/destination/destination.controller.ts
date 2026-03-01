@@ -32,6 +32,17 @@ import { DestinationService } from "./destination.service";
 import { CreateDestinationDto } from "./dto/create-destination.dto";
 import { UpdateDestinationDto } from "./dto/update-destination.dto";
 
+// Types MIME valides pour les images
+const VALID_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/jpg', 
+  'image/png',
+  'image/webp',
+  'image/svg+xml',
+  'image/gif',
+  'image/avif'
+];
+
 @ApiTags("Destinations")
 @Controller("destinations")
 export class DestinationController {
@@ -53,7 +64,7 @@ export class DestinationController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          new FileTypeValidator({ fileType: "image/*" }),
+          new FileTypeValidator({ fileType: /(jpeg|jpg|png|webp|svg|gif|avif)$/ }),
         ],
       }),
     )
@@ -127,7 +138,7 @@ export class DestinationController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: "image/*" }),
+          new FileTypeValidator({ fileType: /(jpeg|jpg|png|webp|svg|gif|avif)$/ }),
         ],
         fileIsRequired: false,
       }),
