@@ -165,7 +165,7 @@ const Destination = () => {
                   className='w-full h-full object-cover transition-transform duration-500 group-hover:scale-105'
                   onError={e => {
                     (e.target as HTMLImageElement).src =
-                      '/paname-consulting.jpg';
+                      '/images/paname-consulting.jpg';
                   }}
                   loading='lazy'
                 />
