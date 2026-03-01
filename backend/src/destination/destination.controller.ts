@@ -68,7 +68,7 @@ export class DestinationController {
   @ApiBody({ type: CreateDestinationDto })
   @ApiResponse({ status: 201, description: "Destination créée avec succès" })
   async create(
-    @Body() body: CreateDestinationDto,
+    @Body() body: any,
     @UploadedFile() imageFile: Express.Multer.File,
   ) {
     // Validation manuelle du fichier
@@ -79,28 +79,29 @@ export class DestinationController {
       throw new BadRequestException('L\'image ne doit pas dépasser 5MB');
     }
     
-    // Créer le DTO manuellement à partir du FormData
-    const createDestinationDto: CreateDestinationDto = {
-      country: body.country,
-      text: body.text,
-    };
-    
     // Validation manuelle des champs
-    if (!createDestinationDto.country?.trim()) {
+    if (!body.country?.trim()) {
       throw new BadRequestException('Le pays est obligatoire');
     }
     
-    if (createDestinationDto.country.length < 2 || createDestinationDto.country.length > 100) {
+    if (body.country.length < 2 || body.country.length > 100) {
       throw new BadRequestException('Le pays doit contenir entre 2 et 100 caractères');
     }
     
-    if (!createDestinationDto.text?.trim()) {
+    if (!body.text?.trim()) {
       throw new BadRequestException('La description est obligatoire');
     }
     
-    if (createDestinationDto.text.length < 10 || createDestinationDto.text.length > 2000) {
+    if (body.text.length < 10 || body.text.length > 2000) {
       throw new BadRequestException('La description doit contenir entre 10 et 2000 caractères');
     }
+    
+    // Créer le DTO manuellement
+    const createDestinationDto: CreateDestinationDto = {
+      country: body.country.trim(),
+      text: body.text.trim(),
+    };
+    
     this.logger.log(`Création d'une nouvelle destination: ${createDestinationDto.country}`);
     
     const destination = await this.destinationService.create(createDestinationDto, imageFile);
@@ -164,7 +165,7 @@ export class DestinationController {
   @ApiBody({ type: UpdateDestinationDto })
   async update(
     @Param("id") id: string,
-    @Body() body: UpdateDestinationDto,
+    @Body() body: any,
     @UploadedFile() imageFile?: Express.Multer.File,
   ) {
     // Validation manuelle du fichier si présent
@@ -177,7 +178,7 @@ export class DestinationController {
       }
     }
     
-    // Créer le DTO manuellement à partir du FormData
+    // Créer le DTO manuellement
     const updateDestinationDto: UpdateDestinationDto = {};
     
     if (body.country) {
@@ -193,6 +194,7 @@ export class DestinationController {
       }
       updateDestinationDto.text = body.text.trim();
     }
+    
     this.logger.log(`Mise à jour de la destination ID: ${id}`);
     
     // Vérifier qu'au moins un champ est fourni

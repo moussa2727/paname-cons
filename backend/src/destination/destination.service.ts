@@ -134,14 +134,8 @@ export class DestinationService {
     } catch (error) {
       this.logger.error(`Erreur création destination ${createDestinationDto.country}: ${error.message}`, error.stack);
 
-      // Nettoyage en cas d'erreur
-      if (imageFile) {
-        try {
-          await this.storageService.deleteFile(`uploads/${imageFile.filename}`);
-        } catch (cleanupError) {
-          this.logger.error("Erreur nettoyage fichier:", cleanupError.stack);
-        }
-      }
+      // Nettoyage en cas d'erreur - pas de nettoyage complexe nécessaire
+      this.logger.log("Nettoyage en cas d'erreur de création");
 
       if (
         error instanceof BadRequestException ||
@@ -263,14 +257,8 @@ export class DestinationService {
         error.stack,
       );
 
-      // Nettoyage en cas d'erreur
-      if (imageFile) {
-        try {
-          await this.storageService.deleteFile(`uploads/${imageFile.filename}`);
-        } catch (cleanupError) {
-          this.logger.error("Erreur nettoyage fichier:", cleanupError.stack);
-        }
-      }
+      // Nettoyage en cas d'erreur - pas de nettoyage complexe nécessaire
+      this.logger.log("Nettoyage en cas d'erreur de mise à jour");
 
       if (
         error instanceof BadRequestException ||
