@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "buildCommand": "pnpm build",
   "outputDirectory": "dist",
   "devCommand": "pnpm dev",
@@ -7,8 +7,12 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/:path*",
-      "destination": "/"
+      "source": "/api/(.*)",
+      "destination": "https://paname-consulting.vercel.app/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
@@ -26,6 +30,10 @@
         {
           "key": "X-XSS-Protection",
           "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
         }
       ]
     },

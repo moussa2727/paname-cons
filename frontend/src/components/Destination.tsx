@@ -49,7 +49,7 @@ const defaultDestinations: DestinationType[] = [
   },
 ];
 
-const VITE_API_URL = (import.meta as any).env.VITE_API_URL;
+const VITE_API_URL = import.meta.env.VITE_API_URL;
 
 const Destination = () => {
   const [destinations, setDestinations] =
