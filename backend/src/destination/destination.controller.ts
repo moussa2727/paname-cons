@@ -68,7 +68,7 @@ export class DestinationController {
   @ApiBody({ type: CreateDestinationDto })
   @ApiResponse({ status: 201, description: "Destination créée avec succès" })
   async create(
-    @Body() body: any,
+    @Body() body: CreateDestinationDto,
     @UploadedFile() imageFile: Express.Multer.File,
   ) {
     // Validation manuelle du fichier
@@ -164,7 +164,7 @@ export class DestinationController {
   @ApiBody({ type: UpdateDestinationDto })
   async update(
     @Param("id") id: string,
-    @Body() body: any,
+    @Body() body: UpdateDestinationDto,
     @UploadedFile() imageFile?: Express.Multer.File,
   ) {
     // Validation manuelle du fichier si présent
