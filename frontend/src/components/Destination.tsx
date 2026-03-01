@@ -1,25 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-// Générer l'URL complète de l'image selon l'environnement
-const getImageUrl = (imagePath: string): string => {
-  // Si c'est une image par défaut (commence par /images/)
-  if (imagePath.startsWith('/images/')) {
-    return `${process.env.VITE_API_URL || 'https://paname-consulting.vercel.app'}${imagePath}`;
-  }
-  
-  // Si c'est une image uploadée (commence par uploads/)
-  if (imagePath.startsWith('uploads/')) {
-    const filename = imagePath.replace('uploads/', '');
-    return `${process.env.VITE_API_URL || 'https://paname-consulting.vercel.app'}/api/destinations/uploads/${filename}`;
-  }
-  
-  // Fallback
-  return imagePath;
-};
-
+// Renommer l'interface pour éviter le conflit avec le composant
 interface DestinationType {
   _id: string;
   country: string;
@@ -31,42 +15,43 @@ const defaultDestinations: DestinationType[] = [
   {
     _id: '1',
     country: 'Russie',
-    imagePath: '/images/russie.png',
+    imagePath: '/iamges/russie.png',
     text: "La Russie propose un enseignement supérieur d'excellence avec des universités historiques comme MGU. Système éducatif combinant tradition et recherche de pointe dans un environnement multiculturel. Coûts de scolarité très compétitifs et bourses disponibles pour étudiants internationaux. Logements universitaires abordables et infrastructures modernes.",
   },
   {
     _id: '2',
     country: 'Chine',
-    imagePath: '/images/chine.jpg',
+    imagePath: '/iamges/chine.jpg',
     text: 'La Chine développe des pôles universitaires high-tech avec des programmes innovants en IA et commerce international. Universités comme Tsinghua rivalisent avec les meilleures mondiales. Environnement dynamique combinant technologie et culture millénaire. Cours en anglais disponibles avec des partenariats industriels solides pour des stages en entreprise.',
   },
   {
     _id: '3',
     country: 'Maroc',
-    imagePath: '/images/maroc.webp',
+    imagePath: '/iamges/maroc.webp',
     text: "Le Maroc offre un enseignement de qualité en français/arabe avec des frais accessibles. Universités reconnues en Afrique et programmes d'échange avec l'Europe. Environnement sécurisé et cadre de vie agréable. Spécialisations en ingénierie, médecine et commerce avec des liens forts vers le marché africain des parcours axés sur le professionnelisme.",
   },
   {
     _id: '4',
     country: 'Algérie',
-    imagePath: '/images/algerie.png',
+    imagePath: '/iamges/algerie.png',
     text: "L'Algérie dispose d'universités performantes en sciences et médecine avec des coûts très abordables. Système éducatif francophone et infrastructures récentes. Opportunités de recherche dans les énergies renouvelables et la pharmacologie. Vie étudiante riche et logements universitaires subventionnés / abordables.",
   },
   {
     _id: '5',
     country: 'Turquie',
-    imagePath: '/images/turquie.webp',
+    imagePath: '/iamges/turquie.webp',
     text: 'La Turquie combine éducation de qualité et frais modestes avec des universités accréditées internationalement. Position géographique unique entre Europe et Asie. Programmes en anglais disponibles avec spécialisation en ingénierie et relations internationales. Cadre de vie moderne préservant un riche héritage culturel.',
   },
   {
     _id: '6',
     country: 'France',
-    imagePath: '/images/france.svg',
+    imagePath: '/iamges/france.svg',
     text: "La France maintient sa tradition d'excellence académique avec des universités historiques et grandes écoles renommées. Système éducatif diversifié offrant des formations pointues dans tous les domaines. Réseau d'anciens élèves influents et forte employabilité internationale. Vie culturelle riche et nombreuses bourses disponibles.",
   },
 ];
 
-const VITE_API_URL = import.meta.env.VITE_API_URL;
+const VITE_API_URL =
+  (import.meta as any).env.VITE_API_URL;
 
 const Destination = () => {
   const [destinations, setDestinations] =
@@ -81,6 +66,7 @@ const Destination = () => {
       return imagePath;
     }
 
+    // Images dans public (par défaut)
     if (imagePath.startsWith('/')) {
       return imagePath;
     }
@@ -157,7 +143,7 @@ const Destination = () => {
       <ToastContainer position='bottom-right' />
       <div className='max-w-7xl mx-auto'>
         <div className='text-center mb-16'>
-          <span className='inline-block bg-sky-100 text-sky-600 px-4 py-1.5 rounded-full text-sm font-medium mb-3'>
+           <span className='inline-block bg-sky-100 text-sky-600 px-4 py-1.5 rounded-full text-sm font-medium mb-3'>
             Nos Destinations Phares
           </span>
           <p className='text-lg text-gray-600 max-w-3xl mx-auto lg:text-xl'>
@@ -174,11 +160,12 @@ const Destination = () => {
             >
               <div className='relative h-52 overflow-hidden rounded'>
                 <img
-                  src={getImageUrl(dest.imagePath)}
-                  alt={dest.country}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-                    e.currentTarget.src = '/images/paname-consulting.jpg';
+                  src={getFullImageUrl(dest.imagePath)}
+                  alt={`${dest.country} flag`}
+                  className='w-full h-full object-cover transition-transform duration-500 group-hover:scale-105'
+                  onError={e => {
+                    (e.target as HTMLImageElement).src =
+                      '/paname-consulting.jpg';
                   }}
                   loading='lazy'
                 />

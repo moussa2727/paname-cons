@@ -7,12 +7,36 @@ import {
   type Destination,
   type CreateDestinationData,
   type UpdateDestinationData,
-  
 } from '../../api/admin/AdminDestionService';
 import { Helmet } from 'react-helmet-async';
 import RequireAdmin from '../../context/RequireAdmin';
 
+const VITE_API_URL = (import.meta as any).env.VITE_API_URL;
 
+const getFullImageUrl = (imagePath: string) => {
+  if (!imagePath) return '/paname-consulting.jpg';
+
+  // URLs déjà complètes
+  if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
+    return imagePath;
+  }
+
+  // Images dans public (par défaut)
+  if (imagePath.startsWith('/')) {
+    return imagePath;
+  }
+
+  const baseUrl = VITE_API_URL;
+
+  // Images uploadées
+  let cleanPath = imagePath;
+  if (!cleanPath.startsWith('uploads/')) {
+    cleanPath = `uploads/${cleanPath}`;
+  }
+  cleanPath = cleanPath.replace(/\/\//g, '/');
+
+  return `${baseUrl}/${cleanPath}`;
+};
 
 interface DataSourceInfo {
   count: number;
@@ -44,13 +68,6 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
   );
   const popoverTimeout = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Initialiser le service avec le contexte d'authentification
-  const authContext = useAuth();
-  
-  useEffect(() => {
-    destinationService.setAuthContext(authContext);
-  }, [authContext]);
 
   // Affiche un popover animé
   const showPopover = (message: string, type: 'success' | 'error'): void => {
@@ -67,14 +84,21 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
         await destinationService.getAllDestinationsWithoutPagination();
       
       // Transformer les données pour inclure les URLs complètes des images
-     const transformedData = data.map((dest: Destination) => ({
-      ...dest,
-      imagePath: destinationService.getFullImageUrl(dest.imagePath),  // ← Utiliser le service
-    }));
+      const transformedData = data.map((dest: Destination) => ({
+        ...dest,
+        imagePath: getFullImageUrl(dest.imagePath),
+      }));
       
       setDestinations(transformedData);
 
-
+      // Pour déboguer - seulement en développement
+      // if (import.meta.env.DEV) {
+      //   console.log('Destinations loaded:', data);
+      //   console.log('Transformed destinations:', transformedData);
+      //   if (transformedData.length > 0) {
+      //     console.log('First destination image URL:', transformedData[0]?.imagePath);
+      //   }
+      // }
 
       // Mettre à jour les informations de source de données
       const stats = await destinationService.getStatistics();
@@ -108,9 +132,31 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     }
   };
 
-  // Vérifier les droits admin - Simplifié avec AuthContext
+  // Vérifier les droits admin - CORRIGÉ
   const hasAdminRights = (): boolean => {
-    return isAuthenticated && (user?.isAdmin === true || user?.role === 'admin');
+    if (!isAuthenticated || !user || !access_token) {
+      // if (import.meta.env.DEV) {
+      //   console.log(
+      //     'hasAdminRights: false - not authenticated/no user/no token'
+      //   );
+      // }
+      return false;
+    }
+
+    // Vérifier le rôle admin
+    const isAdminUser = user.role === 'admin';
+
+    // if (import.meta.env.DEV) {
+    //   console.log('hasAdminRights check:', {
+    //     isAuthenticated,
+    //     user,
+    //     role: user?.role,
+    //     hasToken: !!access_token,
+    //     isAdminUser,
+    //   });
+    // }
+
+    return isAdminUser;
   };
 
   // Soumission du formulaire
@@ -149,7 +195,8 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
 
         await destinationService.updateDestination(
           editingId,
-          updateData
+          updateData,
+          access_token!
         );
         showPopover('Destination modifiée avec succès', 'success');
       } else {
@@ -165,7 +212,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           imageFile,
         };
 
-        await destinationService.createDestination(createData);
+        await destinationService.createDestination(createData, access_token!);
         showPopover('Destination ajoutée avec succès', 'success');
       }
 
@@ -192,7 +239,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
 
     setLoading(true);
     try {
-      await destinationService.deleteDestination(id);
+      await destinationService.deleteDestination(id, access_token!);
       showPopover('Destination supprimée avec succès', 'success');
       setShowDeleteConfirm(null);
       fetchDestinations();
@@ -252,7 +299,16 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
   };
 
   useEffect(() => {
-  
+    // Log d'état d'authentification pour déboguer
+    // if (import.meta.env.DEV) {
+    //   console.log('AdminDestinations Auth State:', {
+    //     access_token,
+    //     user,
+    //     isAuthenticated,
+    //     isAdmin: user?.role === 'admin',
+    //     userObject: user,
+    //   });
+    // }
 
     fetchDestinations();
     return () => {
@@ -799,7 +855,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                             className='w-16 h-16 object-cover rounded-lg border border-slate-200 shadow-sm'
                             onError={e => {
                               (e.target as HTMLImageElement).src =
-                                '/images/paname-consulting.png';
+                                '/paname-placeholder.png';
                             }}
                           />
                         </div>
@@ -942,7 +998,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                               className='w-12 h-12 object-cover rounded-lg border border-slate-200 shadow-sm'
                               onError={e => {
                                 (e.target as HTMLImageElement).src =
-                                  '/images/paname-consulting.png';
+                                  '/paname-placeholder.png';
                               }}
                             />
                             <div className='ml-3'>

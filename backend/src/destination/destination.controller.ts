@@ -12,6 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
   BadRequestException,
+  FileTypeValidator,
   MaxFileSizeValidator,
   Logger,
 } from "@nestjs/common";
@@ -31,27 +32,6 @@ import { DestinationService } from "./destination.service";
 import { CreateDestinationDto } from "./dto/create-destination.dto";
 import { UpdateDestinationDto } from "./dto/update-destination.dto";
 
-// Fonction de validation personnalisée
-const validateImageFile = (file: Express.Multer.File): Express.Multer.File => {
-  const allowedTypes = [
-    'image/jpeg',
-    'image/jpg',
-    'image/png', 
-    'image/webp',
-    'image/svg+xml',
-    'image/gif',
-    'image/avif'
-  ];
-  
-  if (!allowedTypes.includes(file.mimetype)) {
-    throw new BadRequestException(
-      `Type de fichier non supporté: ${file.mimetype}. Types autorisés: ${allowedTypes.join(', ')}`
-    );
-  }
-  
-  return file;
-};
-
 @ApiTags("Destinations")
 @Controller("destinations")
 export class DestinationController {
@@ -68,54 +48,22 @@ export class DestinationController {
   @ApiBody({ type: CreateDestinationDto })
   @ApiResponse({ status: 201, description: "Destination créée avec succès" })
   async create(
-    @Body() body: any,
-    @UploadedFile() imageFile: Express.Multer.File,
+    @Body() createDestinationDto: CreateDestinationDto,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
+          new FileTypeValidator({ fileType: "image/*" }),
+        ],
+      }),
+    )
+    imageFile: Express.Multer.File,
   ) {
-    this.logger.log(`[DEBUG] Création destination - body: ${JSON.stringify(body)}, imageFile: ${imageFile ? imageFile.originalname : 'null'}`);
-    
-    // Validation manuelle du fichier
-    validateImageFile(imageFile);
-    
-    // Validation de la taille
-    if (imageFile.size > 5 * 1024 * 1024) {
-      this.logger.error(`[ERROR] Image trop volumineuse: ${imageFile.size} bytes`);
-      throw new BadRequestException('L\'image ne doit pas dépasser 5MB');
-    }
-    
-    // Validation manuelle des champs
-    if (!body.country?.trim()) {
-      this.logger.error(`[ERROR] Pays manquant`);
-      throw new BadRequestException('Le pays est obligatoire');
-    }
-    
-    if (body.country.length < 2 || body.country.length > 100) {
-      this.logger.error(`[ERROR] Pays invalide: ${body.country.length} caractères`);
-      throw new BadRequestException('Le pays doit contenir entre 2 et 100 caractères');
-    }
-    
-    if (!body.text?.trim()) {
-      this.logger.error(`[ERROR] Description manquante`);
-      throw new BadRequestException('La description est obligatoire');
-    }
-    
-    if (body.text.length < 10 || body.text.length > 2000) {
-      this.logger.error(`[ERROR] Description invalide: ${body.text.length} caractères`);
-      throw new BadRequestException('La description doit contenir entre 10 et 2000 caractères');
-    }
-    
-    // Créer le DTO manuellement
-    const createDestinationDto: CreateDestinationDto = {
-      country: body.country.trim(),
-      text: body.text.trim(),
-    };
-    
-    this.logger.log(`[DEBUG] DTO créé: ${JSON.stringify(createDestinationDto)}`);
-    this.logger.log(`[DEBUG] Appel service.create()`);
+    this.logger.log(`Création d'une nouvelle destination: ${createDestinationDto.country}`);
     
     const destination = await this.destinationService.create(createDestinationDto, imageFile);
     
-    this.logger.log(`[DEBUG] Service retourne: ${JSON.stringify(destination)}`);
-    this.logger.log(`[DEBUG] Destination créée avec succès: ${destination.country} (ID: ${destination._id})`);
+    this.logger.log(`Destination créée avec succès: ${destination.country} (ID: ${destination._id})`);
     
     return destination;
   }
@@ -132,7 +80,7 @@ export class DestinationController {
     
     const result = await this.destinationService.findAll(page, limit, search);
     
-    this.logger.log(`Récupération réussie: ${result.destinations.length} destinations sur ${result.total} total`);
+    this.logger.log(`Récupération réussie: ${result.data.length} destinations sur ${result.total} total`);
     
     return result;
   }
@@ -174,48 +122,29 @@ export class DestinationController {
   @ApiBody({ type: UpdateDestinationDto })
   async update(
     @Param("id") id: string,
-    @Body() body: any,
-    @UploadedFile() imageFile?: Express.Multer.File,
+    @Body() updateDestinationDto: UpdateDestinationDto,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
+          new FileTypeValidator({ fileType: "image/*" }),
+        ],
+        fileIsRequired: false,
+      }),
+    )
+    imageFile?: Express.Multer.File,
   ) {
-    this.logger.log(`[DEBUG] Mise à jour destination - ID: ${id}, body: ${JSON.stringify(body)}, imageFile: ${imageFile ? imageFile.originalname : 'null'}`);
+    this.logger.log(`Mise à jour de la destination ID: ${id}`);
     
-    // Validation manuelle du fichier si présent
-    if (imageFile) {
-      validateImageFile(imageFile);
-      
-      // Validation de la taille
-      if (imageFile.size > 5 * 1024 * 1024) {
-        this.logger.error(`[ERROR] Image trop volumineuse: ${imageFile.size} bytes`);
-        throw new BadRequestException('L\'image ne doit pas dépasser 5MB');
-      }
+    // Vérifier qu'au moins un champ est fourni
+    if (Object.keys(updateDestinationDto).length === 0 && !imageFile) {
+      this.logger.warn(`Tentative de mise à jour sans données pour la destination ID: ${id}`);
+      throw new BadRequestException("Aucune donnée à mettre à jour fournie");
     }
-    
-    // Créer le DTO manuellement
-    const updateDestinationDto: UpdateDestinationDto = {};
-    
-    if (body.country) {
-      if (body.country.length < 2 || body.country.length > 100) {
-        this.logger.error(`[ERROR] Pays invalide: ${body.country.length} caractères`);
-        throw new BadRequestException('Le pays doit contenir entre 2 et 100 caractères');
-      }
-      updateDestinationDto.country = body.country.trim();
-    }
-    
-    if (body.text) {
-      if (body.text.length < 10 || body.text.length > 2000) {
-        this.logger.error(`[ERROR] Description invalide: ${body.text.length} caractères`);
-        throw new BadRequestException('La description doit contenir entre 10 et 2000 caractères');
-      }
-      updateDestinationDto.text = body.text.trim();
-    }
-    
-    this.logger.log(`[DEBUG] DTO update créé: ${JSON.stringify(updateDestinationDto)}`);
-    this.logger.log(`[DEBUG] Appel service.update()`);
-    
+
     const destination = await this.destinationService.update(id, updateDestinationDto, imageFile);
     
-    this.logger.log(`[DEBUG] Service retourne: ${JSON.stringify(destination)}`);
-    this.logger.log(`[DEBUG] Destination mise à jour avec succès: ${destination.country} (ID: ${id})`);
+    this.logger.log(`Destination mise à jour avec succès: ${destination.country} (ID: ${id})`);
     
     return destination;
   }
@@ -229,9 +158,9 @@ export class DestinationController {
   async remove(@Param("id") id: string) {
     this.logger.log(`Suppression de la destination ID: ${id}`);
     
-    await this.destinationService.delete(id);
+    const result = await this.destinationService.remove(id);
     
-    this.logger.log(`Destination supprimée avec succès (ID: ${id})`);
+    this.logger.log(`Destination supprimée avec succès: ${result.deletedDestination.country} (ID: ${id})`);
     
     return { message: "Destination supprimée avec succès" };
   }

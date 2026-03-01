@@ -1,5 +1,4 @@
 import { toast } from 'react-toastify';
-import { useAuth } from '../../context/AuthContext';
 
 const API_URL = (import.meta as any).env.VITE_API_URL;
 
@@ -8,8 +7,8 @@ export interface Destination {
   country: string;
   text: string;
   imagePath: string;
-  createdAt?: string | Date;  
-  updatedAt?: string | Date;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface PaginatedResponse {
@@ -42,27 +41,15 @@ export interface Statistics {
 
 class DestinationService {
   private baseUrl: string;
-  private authContext: ReturnType<typeof useAuth> | null = null;
 
   constructor() {
     this.baseUrl = `${API_URL}/api/destinations`;
   }
 
   /**
-   * Initialiser le contexte d'authentification
-   */
-  setAuthContext(authContext: ReturnType<typeof useAuth>) {
-    this.authContext = authContext;
-  }
-
-  /**
    * Headers communs pour les requêtes authentifiées
    */
-  private getAuthHeaders() {
-    const token = this.authContext?.access_token;
-    if (!token) {
-      throw new Error('Token d\'authentification non disponible');
-    }
+  private getAuthHeaders(token: string) {
     return {
       Authorization: `Bearer ${token}`,
     };
@@ -74,7 +61,7 @@ class DestinationService {
   private handleError(error: any, defaultMessage: string): never {
     // Gestion d'erreur silencieuse en développement uniquement
     if (import.meta.env.DEV) {
-      globalThis.console.error('Erreur DestinationService:', error);
+      globalThis.console.error('❌ Erreur DestinationService:', error);
     }
 
     if (error.name === 'AbortError') {
@@ -193,7 +180,8 @@ class DestinationService {
    * Créer une nouvelle destination (Admin seulement)
    */
   async createDestination(
-    data: CreateDestinationData
+    data: CreateDestinationData,
+    token: string
   ): Promise<Destination> {
     try {
       // Validation des données
@@ -223,9 +211,8 @@ class DestinationService {
 
       const response = await globalThis.fetch(this.baseUrl, {
         method: 'POST',
-        headers: this.getAuthHeaders(),
+        headers: this.getAuthHeaders(token),
         body: formData,
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -260,7 +247,8 @@ class DestinationService {
    */
   async updateDestination(
     id: string,
-    data: UpdateDestinationData
+    data: UpdateDestinationData,
+    token: string
   ): Promise<Destination> {
     try {
       if (!id) {
@@ -295,9 +283,8 @@ class DestinationService {
 
       const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
         method: 'PUT',
-        headers: this.getAuthHeaders(),
+        headers: this.getAuthHeaders(token),
         body: formData,
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -337,7 +324,7 @@ class DestinationService {
   /**
    * Supprimer une destination (Admin seulement)
    */
-  async deleteDestination(id: string): Promise<void> {
+  async deleteDestination(id: string, token: string): Promise<void> {
     try {
       if (!id) {
         throw new Error('ID de destination requis');
@@ -346,10 +333,9 @@ class DestinationService {
       const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
         method: 'DELETE',
         headers: {
-          ...this.getAuthHeaders(),
+          ...this.getAuthHeaders(token),
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -453,15 +439,13 @@ class DestinationService {
     const allowedTypes = [
       'image/jpeg',
       'image/png',
-      'image/jpg',
-      'image/svg',
       'image/webp',
       'image/svg+xml',
     ];
     if (!allowedTypes.includes(file.type)) {
       return {
         isValid: false,
-        error: "Format d'image non supporté. Utilisez JPEG, PNG, JPG, SVG ou WEBP",
+        error: "Format d'image non supporté. Utilisez JPEG, PNG, WEBP ou SVG",
       };
     }
 
@@ -473,7 +457,7 @@ class DestinationService {
    */
  
   getFullImageUrl = (imagePath: string) => {
-    if (!imagePath) return '/images/paname-consulting.jpg';
+    if (!imagePath) return '/paname-consulting.jpg';
 
     // URLs déjà complètes
     if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
