@@ -30,16 +30,20 @@ import { RolesGuard } from "../shared/guards/roles.guard";
 import { DestinationService } from "./destination.service";
 import { CreateDestinationDto } from "./dto/create-destination.dto";
 import { UpdateDestinationDto } from "./dto/update-destination.dto";
+import { StorageService } from "../shared/storage/storage.service";
 
 @ApiTags("Destinations")
 @Controller("destinations")
 export class DestinationController {
   private readonly logger = new Logger(DestinationController.name);
 
-  constructor(private readonly destinationService: DestinationService) {}
+  constructor(
+    private readonly destinationService: DestinationService,
+    private readonly storageService: StorageService,
+  ) {}
 
   private validateImageFile(file: Express.Multer.File): void {
-    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/avif', 'image/svg'];
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/avif', 'image/svg+xml'];
     
     if (!allowedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException(
@@ -61,7 +65,7 @@ export class DestinationController {
     @UploadedFile(
       new ParseFilePipe({
         validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
         ],
       }),
     )
@@ -70,7 +74,12 @@ export class DestinationController {
     this.validateImageFile(imageFile);
     this.logger.log(`Création d'une nouvelle destination: ${createDestinationDto.country}`);
     
-    const destination = await this.destinationService.create(createDestinationDto, imageFile);
+    const filename = await this.storageService.uploadFile(imageFile);
+    
+    const destination = await this.destinationService.create(
+      createDestinationDto, 
+      filename
+    );
     
     this.logger.log(`Destination créée avec succès: ${destination.country} (ID: ${destination._id})`);
     
@@ -147,13 +156,21 @@ export class DestinationController {
     }
     this.logger.log(`Mise à jour de la destination ID: ${id}`);
     
-    // Vérifier qu'au moins un champ est fourni
     if (Object.keys(updateDestinationDto).length === 0 && !imageFile) {
       this.logger.warn(`Tentative de mise à jour sans données pour la destination ID: ${id}`);
       throw new BadRequestException("Aucune donnée à mettre à jour fournie");
     }
 
-    const destination = await this.destinationService.update(id, updateDestinationDto, imageFile);
+    let filename: string | undefined;
+    if (imageFile) {
+      filename = await this.storageService.uploadFile(imageFile);
+    }
+
+    const destination = await this.destinationService.update(
+      id, 
+      updateDestinationDto, 
+      filename
+    );
     
     this.logger.log(`Destination mise à jour avec succès: ${destination.country} (ID: ${id})`);
     
