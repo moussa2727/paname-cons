@@ -71,28 +71,35 @@ export class DestinationController {
     @Body() body: any,
     @UploadedFile() imageFile: Express.Multer.File,
   ) {
+    this.logger.log(`[DEBUG] Création destination - body: ${JSON.stringify(body)}, imageFile: ${imageFile ? imageFile.originalname : 'null'}`);
+    
     // Validation manuelle du fichier
     validateImageFile(imageFile);
     
     // Validation de la taille
     if (imageFile.size > 5 * 1024 * 1024) {
+      this.logger.error(`[ERROR] Image trop volumineuse: ${imageFile.size} bytes`);
       throw new BadRequestException('L\'image ne doit pas dépasser 5MB');
     }
     
     // Validation manuelle des champs
     if (!body.country?.trim()) {
+      this.logger.error(`[ERROR] Pays manquant`);
       throw new BadRequestException('Le pays est obligatoire');
     }
     
     if (body.country.length < 2 || body.country.length > 100) {
+      this.logger.error(`[ERROR] Pays invalide: ${body.country.length} caractères`);
       throw new BadRequestException('Le pays doit contenir entre 2 et 100 caractères');
     }
     
     if (!body.text?.trim()) {
+      this.logger.error(`[ERROR] Description manquante`);
       throw new BadRequestException('La description est obligatoire');
     }
     
     if (body.text.length < 10 || body.text.length > 2000) {
+      this.logger.error(`[ERROR] Description invalide: ${body.text.length} caractères`);
       throw new BadRequestException('La description doit contenir entre 10 et 2000 caractères');
     }
     
@@ -102,11 +109,13 @@ export class DestinationController {
       text: body.text.trim(),
     };
     
-    this.logger.log(`Création d'une nouvelle destination: ${createDestinationDto.country}`);
+    this.logger.log(`[DEBUG] DTO créé: ${JSON.stringify(createDestinationDto)}`);
+    this.logger.log(`[DEBUG] Appel service.create()`);
     
     const destination = await this.destinationService.create(createDestinationDto, imageFile);
     
-    this.logger.log(`Destination créée avec succès: ${destination.country} (ID: ${destination._id})`);
+    this.logger.log(`[DEBUG] Service retourne: ${JSON.stringify(destination)}`);
+    this.logger.log(`[DEBUG] Destination créée avec succès: ${destination.country} (ID: ${destination._id})`);
     
     return destination;
   }
@@ -168,12 +177,15 @@ export class DestinationController {
     @Body() body: any,
     @UploadedFile() imageFile?: Express.Multer.File,
   ) {
+    this.logger.log(`[DEBUG] Mise à jour destination - ID: ${id}, body: ${JSON.stringify(body)}, imageFile: ${imageFile ? imageFile.originalname : 'null'}`);
+    
     // Validation manuelle du fichier si présent
     if (imageFile) {
       validateImageFile(imageFile);
       
       // Validation de la taille
       if (imageFile.size > 5 * 1024 * 1024) {
+        this.logger.error(`[ERROR] Image trop volumineuse: ${imageFile.size} bytes`);
         throw new BadRequestException('L\'image ne doit pas dépasser 5MB');
       }
     }
@@ -183,6 +195,7 @@ export class DestinationController {
     
     if (body.country) {
       if (body.country.length < 2 || body.country.length > 100) {
+        this.logger.error(`[ERROR] Pays invalide: ${body.country.length} caractères`);
         throw new BadRequestException('Le pays doit contenir entre 2 et 100 caractères');
       }
       updateDestinationDto.country = body.country.trim();
@@ -190,22 +203,19 @@ export class DestinationController {
     
     if (body.text) {
       if (body.text.length < 10 || body.text.length > 2000) {
+        this.logger.error(`[ERROR] Description invalide: ${body.text.length} caractères`);
         throw new BadRequestException('La description doit contenir entre 10 et 2000 caractères');
       }
       updateDestinationDto.text = body.text.trim();
     }
     
-    this.logger.log(`Mise à jour de la destination ID: ${id}`);
+    this.logger.log(`[DEBUG] DTO update créé: ${JSON.stringify(updateDestinationDto)}`);
+    this.logger.log(`[DEBUG] Appel service.update()`);
     
-    // Vérifier qu'au moins un champ est fourni
-    if (Object.keys(updateDestinationDto).length === 0 && !imageFile) {
-      this.logger.warn(`Tentative de mise à jour sans données pour la destination ID: ${id}`);
-      throw new BadRequestException("Aucune donnée à mettre à jour fournie");
-    }
-
     const destination = await this.destinationService.update(id, updateDestinationDto, imageFile);
     
-    this.logger.log(`Destination mise à jour avec succès: ${destination.country} (ID: ${id})`);
+    this.logger.log(`[DEBUG] Service retourne: ${JSON.stringify(destination)}`);
+    this.logger.log(`[DEBUG] Destination mise à jour avec succès: ${destination.country} (ID: ${id})`);
     
     return destination;
   }
