@@ -240,82 +240,37 @@ class DestinationService {
   /**
    * Mettre à jour une destination (Admin seulement)
    */
-  async updateDestination(
-    id: string,
-    data: UpdateDestinationData
-  ): Promise<Destination> {
-    try {
-      if (!id) {
-        throw new Error('ID de destination requis');
-      }
+  async updateDestination(id: string, data: UpdateDestinationData): Promise<Destination> {
+  try {
+    const formData = new FormData();
+    if (data.country) formData.append('country', data.country.trim());
+    if (data.text) formData.append('text', data.text.trim());
+    if (data.imageFile) formData.append('image', data.imageFile);
 
-      // Validation des données
-      if (data.country && data.country.trim().length === 0) {
-        throw new Error('Le nom du pays ne peut pas être vide');
-      }
-
-      if (data.text && (data.text.length < 10 || data.text.length > 2000)) {
-        throw new Error(
-          'La description doit contenir entre 10 et 2000 caractères'
-        );
-      }
-
-      // Préparation FormData
-      const formData = new FormData();
-
-      if (data.country) {
-        formData.append('country', data.country.trim());
-      }
-
-      if (data.text) {
-        formData.append('text', data.text.trim());
-      }
-
-      if (data.imageFile) {
-        formData.append('image', data.imageFile);
-      }
-
-      const response = await fetch(`${this.baseUrl}/${id}`, {
-        method: 'PUT',
-        credentials: 'include', // Authentification via cookie
-        body: formData,
-        // Pas de headers Authorization
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-
-        if (response.status === 404) {
-          throw new Error('Destination non trouvée');
-        }
-
-        if (response.status === 409) {
-          throw new Error('Une destination avec ce nom existe déjà');
-        }
-
-        if (response.status === 401) {
-          throw new Error('Session expirée. Veuillez vous reconnecter.');
-        }
-
-        if (response.status === 403) {
-          throw new Error('Droits administrateur requis');
-        }
-
-        throw new Error(errorData.message || `Erreur ${response.status}`);
-      }
-
-      const result = await response.json();
-      toast.success('Destination modifiée avec succès');
-      return result;
-    } catch (error: any) {
-      toast.error(error.message);
-      return this.handleError(
-        error,
-        'Erreur lors de la modification de la destination'
-      );
+    // LOG pour debug
+    console.log('Envoi PUT vers:', `${this.baseUrl}/${id}`);
+    for (let pair of formData.entries()) {
+      console.log(pair[0], pair[1]);
     }
-  }
 
+    const response = await fetch(`${this.baseUrl}/${id}`, {
+      method: 'PUT',
+      credentials: 'include',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Réponse erreur:', errorText); // ← Voir l'erreur exacte
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Erreur complète:', error);
+    throw error;
+  }
+}
   /**
    * Supprimer une destination (Admin seulement)
    */
