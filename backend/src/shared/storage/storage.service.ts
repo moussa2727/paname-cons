@@ -9,7 +9,7 @@ const unlink = promisify(fs.unlink);
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
-  private readonly uploadDir = path.join(process.cwd(), "uploads");
+  private readonly uploadDir = "uploads";  // Chemin relatif simple
 
   async uploadFile(
     file: Express.Multer.File,
@@ -43,9 +43,13 @@ export class StorageService {
     const cleanFilename = filename.replace(/^uploads\//, "");
     const filePath = path.join(this.uploadDir, cleanFilename);
 
+    this.logger.log(`[DEBUG] Suppression fichier: ${filePath}`);
+
     if (fs.existsSync(filePath)) {
       await unlink(filePath);
       console.log(`[StorageService] Fichier ${cleanFilename} supprimé: ${filePath}`);
+    } else {
+      this.logger.warn(`[WARN] Fichier non trouvé pour suppression: ${filePath}`);
     }
   }
 }
