@@ -122,7 +122,11 @@ async function bootstrapServer() {
       expressApp.use(compression());
     }
 
-    // 5. Rate limiting (configuration différente pour Vercel)
+    // 5. Servir les fichiers uploadés statiquement (AVANT le préfixe API)
+    const path = require('path');
+    expressApp.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+
+    // 6. Rate limiting (configuration différente pour Vercel)
     const limiter = rateLimit({
       windowMs: isVercel ? 60 * 1000 : 15 * 60 * 1000, // 1 min sur Vercel, 15 min en local
       max: isVercel ? 100 : 1000, // Limite plus basse sur Vercel
