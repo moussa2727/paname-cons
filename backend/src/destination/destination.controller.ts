@@ -68,7 +68,7 @@ export class DestinationController {
   @ApiBody({ type: CreateDestinationDto })
   @ApiResponse({ status: 201, description: "Destination créée avec succès" })
   async create(
-    @Body() createDestinationDto: CreateDestinationDto,
+    @Body() body: any,
     @UploadedFile() imageFile: Express.Multer.File,
   ) {
     // Validation manuelle du fichier
@@ -77,6 +77,29 @@ export class DestinationController {
     // Validation de la taille
     if (imageFile.size > 5 * 1024 * 1024) {
       throw new BadRequestException('L\'image ne doit pas dépasser 5MB');
+    }
+    
+    // Créer le DTO manuellement à partir du FormData
+    const createDestinationDto: CreateDestinationDto = {
+      country: body.country,
+      text: body.text,
+    };
+    
+    // Validation manuelle des champs
+    if (!createDestinationDto.country?.trim()) {
+      throw new BadRequestException('Le pays est obligatoire');
+    }
+    
+    if (createDestinationDto.country.length < 2 || createDestinationDto.country.length > 100) {
+      throw new BadRequestException('Le pays doit contenir entre 2 et 100 caractères');
+    }
+    
+    if (!createDestinationDto.text?.trim()) {
+      throw new BadRequestException('La description est obligatoire');
+    }
+    
+    if (createDestinationDto.text.length < 10 || createDestinationDto.text.length > 2000) {
+      throw new BadRequestException('La description doit contenir entre 10 et 2000 caractères');
     }
     this.logger.log(`Création d'une nouvelle destination: ${createDestinationDto.country}`);
     
@@ -141,7 +164,7 @@ export class DestinationController {
   @ApiBody({ type: UpdateDestinationDto })
   async update(
     @Param("id") id: string,
-    @Body() updateDestinationDto: UpdateDestinationDto,
+    @Body() body: any,
     @UploadedFile() imageFile?: Express.Multer.File,
   ) {
     // Validation manuelle du fichier si présent
@@ -152,6 +175,23 @@ export class DestinationController {
       if (imageFile.size > 5 * 1024 * 1024) {
         throw new BadRequestException('L\'image ne doit pas dépasser 5MB');
       }
+    }
+    
+    // Créer le DTO manuellement à partir du FormData
+    const updateDestinationDto: UpdateDestinationDto = {};
+    
+    if (body.country) {
+      if (body.country.length < 2 || body.country.length > 100) {
+        throw new BadRequestException('Le pays doit contenir entre 2 et 100 caractères');
+      }
+      updateDestinationDto.country = body.country.trim();
+    }
+    
+    if (body.text) {
+      if (body.text.length < 10 || body.text.length > 2000) {
+        throw new BadRequestException('La description doit contenir entre 10 et 2000 caractères');
+      }
+      updateDestinationDto.text = body.text.trim();
     }
     this.logger.log(`Mise à jour de la destination ID: ${id}`);
     
