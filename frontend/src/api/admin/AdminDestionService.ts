@@ -1,6 +1,7 @@
 import { toast } from 'react-toastify';
+import { useAuth } from '../../context/AuthContext';
 
-const API_URL = (import.meta as any).env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL;
 
 export interface Destination {
   _id: string;
@@ -9,16 +10,6 @@ export interface Destination {
   imagePath: string;
   createdAt?: string;
   updatedAt?: string;
-}
-
-export interface PaginatedResponse {
-  data: Destination[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
 }
 
 export interface CreateDestinationData {
@@ -39,62 +30,23 @@ export interface Statistics {
   lastUpdated: string | null;
 }
 
-class DestinationService {
-  private baseUrl: string;
+// ==================== HOOKS PERSONNALISÉS ====================
 
-  constructor() {
-    this.baseUrl = `${API_URL}/api/destinations`;
-  }
-
-  /**
-   * Headers communs pour les requêtes authentifiées
-   */
-  private getAuthHeaders(token: string) {
-    return {
-      Authorization: `Bearer ${token}`,
-    };
-  }
+/**
+ * Hook pour gérer les destinations avec authentification automatique
+ */
+export const useDestinationService = () => {
+  const { fetchWithAuth } = useAuth();
 
   /**
-   * Gestion centralisée des erreurs
+   * Récupérer toutes les destinations avec pagination (Admin seulement)
    */
-  private handleError(error: any, defaultMessage: string): never {
-    // Gestion d'erreur silencieuse en développement uniquement
-    if (import.meta.env.DEV) {
-      globalThis.console.error('❌ Erreur DestinationService:', error);
-    }
-
-    if (error.name === 'AbortError') {
-      throw new Error('Timeout de la requête');
-    }
-
-    if (error.message?.includes('429')) {
-      throw new Error('Trop de requêtes. Veuillez patienter.');
-    }
-
-    if (error.message?.includes('401')) {
-      throw new Error('Session expirée. Veuillez vous reconnecter.');
-    }
-
-    if (error.message?.includes('403')) {
-      throw new Error('Droits administrateur requis.');
-    }
-
-    if (error.message) {
-      throw new Error(error.message);
-    }
-
-    throw new Error(defaultMessage);
-  }
-
-  /**
-   * Récupérer toutes les destinations avec pagination
-   */
-  async getAllDestinations(
-    page = 1,
-    limit = 10,
-    search?: string
-  ): Promise<PaginatedResponse> {
+  const getAllDestinations = async (page: number = 1, limit: number = 10, search?: string): Promise<{
+    data: Destination[];
+    total: number;
+    currentPage: number;
+    totalPages: number;
+  }> => {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -102,105 +54,67 @@ class DestinationService {
         ...(search && { search }),
       });
 
-      const response = await globalThis.fetch(`${this.baseUrl}?${params}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erreur ${response.status}`);
+      const response = await fetchWithAuth(`${API_URL}/api/destinations?${params}`);
+      
+      if (!response) {
+        throw new Error('Erreur de connexion au serveur');
       }
 
-      return await response.json();
+      return response;
     } catch (error: any) {
-      this.handleError(error, 'Erreur lors du chargement des destinations');
+      toast.error(error.message || 'Erreur lors de la récupération des destinations');
+      throw error;
     }
-  }
+  };
 
   /**
-   * Récupérer toutes les destinations sans pagination
+   * Récupérer toutes les destinations sans pagination (Admin seulement)
    */
-  async getAllDestinationsWithoutPagination(): Promise<Destination[]> {
+  const getAllDestinationsWithoutPagination = async (): Promise<Destination[]> => {
     try {
-      const response = await globalThis.fetch(`${this.baseUrl}/all`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erreur ${response.status}`);
+      const response = await fetchWithAuth(`${API_URL}/api/destinations/all`);
+      
+      if (!response) {
+        throw new Error('Erreur de connexion au serveur');
       }
 
-      return await response.json();
+      return response;
     } catch (error: any) {
-      this.handleError(error, 'Erreur lors du chargement des destinations');
+      toast.error(error.message || 'Erreur lors de la récupération des destinations');
+      throw error;
     }
-  }
+  };
 
   /**
-   * Récupérer une destination par ID
+   * Récupérer une destination par son ID (Admin seulement)
    */
-  async getDestinationById(id: string): Promise<Destination> {
+  const getDestinationById = async (id: string): Promise<Destination> => {
     try {
-      if (!id) {
-        throw new Error('ID de destination requis');
+      const response = await fetchWithAuth(`${API_URL}/api/destinations/${id}`);
+      
+      if (!response) {
+        throw new Error('Erreur de connexion au serveur');
       }
 
-      const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Destination non trouvée');
-        }
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erreur ${response.status}`);
-      }
-
-      return await response.json();
+      return response;
     } catch (error: any) {
-      this.handleError(
-        error,
-        'Erreur lors de la récupération de la destination'
-      );
+      toast.error(error.message || 'Erreur lors de la récupération de la destination');
+      throw error;
     }
-  }
+  };
 
   /**
    * Créer une nouvelle destination (Admin seulement)
    */
-  async createDestination(
-    data: CreateDestinationData,
-    token: string
-  ): Promise<Destination> {
+  const createDestination = async (data: CreateDestinationData): Promise<Destination> => {
     try {
       // Validation des données
-      if (!data.country?.trim()) {
-        throw new Error('Le nom du pays est obligatoire');
-      }
-
-      if (!data.text?.trim()) {
-        throw new Error('La description est obligatoire');
-      }
-
-      if (!data.imageFile) {
-        throw new Error("L'image est obligatoire");
+      if (data.country.trim().length === 0) {
+        throw new Error('Le nom du pays ne peut pas être vide');
       }
 
       if (data.text.length < 10 || data.text.length > 2000) {
-        throw new Error(
-          'La description doit contenir entre 10 et 2000 caractères'
-        );
+        throw new Error('La description doit contenir entre 10 et 2000 caractères');
       }
 
       // Préparation FormData
@@ -209,47 +123,30 @@ class DestinationService {
       formData.append('text', data.text.trim());
       formData.append('image', data.imageFile);
 
-      const response = await globalThis.fetch(this.baseUrl, {
+      const response = await fetchWithAuth(`${API_URL}/api/destinations`, {
         method: 'POST',
-        headers: this.getAuthHeaders(token),
         body: formData,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-
-        if (response.status === 409) {
-          throw new Error('Cette destination existe déjà');
-        }
-
-        if (response.status === 401) {
-          throw new Error('Token invalide ou expiré');
-        }
-
-        if (response.status === 403) {
-          throw new Error('Droits administrateur requis');
-        }
-
-        throw new Error(errorData.message || `Erreur ${response.status}`);
+      if (!response) {
+        throw new Error('Erreur de connexion au serveur');
       }
 
-      const result = await response.json();
       toast.success('Destination créée avec succès');
-      return result;
+      return response;
     } catch (error: any) {
-      toast.error(error.message);
-      this.handleError(error, 'Erreur lors de la création de la destination');
+      toast.error(error.message || 'Erreur lors de la création de la destination');
+      throw error;
     }
-  }
+  };
 
   /**
    * Mettre à jour une destination (Admin seulement)
    */
-  async updateDestination(
+  const updateDestination = async (
     id: string,
-    data: UpdateDestinationData,
-    token: string
-  ): Promise<Destination> {
+    data: UpdateDestinationData
+  ): Promise<Destination> => {
     try {
       if (!id) {
         throw new Error('ID de destination requis');
@@ -261,9 +158,7 @@ class DestinationService {
       }
 
       if (data.text && (data.text.length < 10 || data.text.length > 2000)) {
-        throw new Error(
-          'La description doit contenir entre 10 et 2000 caractères'
-        );
+        throw new Error('La description doit contenir entre 10 et 2000 caractères');
       }
 
       // Préparation FormData
@@ -281,207 +176,90 @@ class DestinationService {
         formData.append('image', data.imageFile);
       }
 
-      const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
+      const response = await fetchWithAuth(`${API_URL}/api/destinations/${id}`, {
         method: 'PUT',
-        headers: this.getAuthHeaders(token),
         body: formData,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-
-        if (response.status === 404) {
-          throw new Error('Destination non trouvée');
-        }
-
-        if (response.status === 409) {
-          throw new Error('Une destination avec ce nom existe déjà');
-        }
-
-        if (response.status === 401) {
-          throw new Error('Token invalide ou expiré');
-        }
-
-        if (response.status === 403) {
-          throw new Error('Droits administrateur requis');
-        }
-
-        throw new Error(errorData.message || `Erreur ${response.status}`);
+      if (!response) {
+        throw new Error('Erreur de connexion au serveur');
       }
 
-      const result = await response.json();
-      toast.success('Destination modifiée avec succès');
-      return result;
+      toast.success('Destination mise à jour avec succès');
+      return response;
     } catch (error: any) {
-      toast.error(error.message);
-      this.handleError(
-        error,
-        'Erreur lors de la modification de la destination'
-      );
+      toast.error(error.message || 'Erreur lors de la mise à jour de la destination');
+      throw error;
     }
-  }
+  };
 
   /**
    * Supprimer une destination (Admin seulement)
    */
-  async deleteDestination(id: string, token: string): Promise<void> {
+  const deleteDestination = async (id: string): Promise<void> => {
     try {
       if (!id) {
         throw new Error('ID de destination requis');
       }
 
-      const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
+      const response = await fetchWithAuth(`${API_URL}/api/destinations/${id}`, {
         method: 'DELETE',
-        headers: {
-          ...this.getAuthHeaders(token),
-          'Content-Type': 'application/json',
-        },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-
-        if (response.status === 404) {
-          throw new Error('Destination non trouvée');
-        }
-
-        if (response.status === 401) {
-          throw new Error('Token invalide ou expiré');
-        }
-
-        if (response.status === 403) {
-          throw new Error('Droits administrateur requis');
-        }
-
-        throw new Error(errorData.message || `Erreur ${response.status}`);
+      if (!response) {
+        throw new Error('Erreur de connexion au serveur');
       }
 
       toast.success('Destination supprimée avec succès');
     } catch (error: any) {
-      toast.error(error.message);
-      this.handleError(
-        error,
-        'Erreur lors de la suppression de la destination'
-      );
+      toast.error(error.message || 'Erreur lors de la suppression de la destination');
+      throw error;
     }
-  }
-
-  /**
-   * Récupérer les statistiques des destinations
-   */
-  async getStatistics(): Promise<Statistics> {
-    try {
-      // Pour l'instant, on utilise la liste complète pour calculer les stats
-      // Vous pourriez ajouter un endpoint spécifique /api/destinations/stats dans le backend
-      const destinations = await this.getAllDestinationsWithoutPagination();
-
-      const uniqueCountries = new Set(
-        destinations.map(dest => dest.country.toLowerCase().trim())
-      );
-
-      let lastUpdated: string | null = null;
-      if (destinations.length > 0) {
-        const dates = destinations
-          .filter(dest => dest.updatedAt)
-          .map(dest => new Date(dest.updatedAt!).getTime());
-
-        if (dates.length > 0) {
-          lastUpdated = new Date(Math.max(...dates)).toLocaleDateString(
-            'fr-FR'
-          );
-        }
-      }
-
-      return {
-        total: destinations.length,
-        countries: uniqueCountries.size,
-        lastUpdated,
-      };
-    } catch (error: any) {
-      this.handleError(
-        error,
-        'Erreur lors de la récupération des statistiques'
-      );
-    }
-  }
-
-  /**
-   * Rechercher des destinations
-   */
-  async searchDestinations(query: string): Promise<Destination[]> {
-    try {
-      if (!query.trim()) {
-        return this.getAllDestinationsWithoutPagination();
-      }
-
-      const response = await this.getAllDestinations(1, 50, query.trim());
-      return response.data;
-    } catch (error: any) {
-      this.handleError(error, 'Erreur lors de la recherche des destinations');
-    }
-  }
-
-  /**
-   * Valider une image avant upload
-   */
-  validateImageFile(file: File): { isValid: boolean; error?: string } {
-    // Taille max: 5MB
-    const maxSize = 5 * 1024 * 1024;
-
-    if (file.size > maxSize) {
-      return {
-        isValid: false,
-        error: "L'image ne doit pas dépasser 5MB",
-      };
-    }
-
-    // Types MIME autorisés
-    const allowedTypes = [
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-      'image/svg+xml',
-    ];
-    if (!allowedTypes.includes(file.type)) {
-      return {
-        isValid: false,
-        error: "Format d'image non supporté. Utilisez JPEG, PNG, WEBP ou SVG",
-      };
-    }
-
-    return { isValid: true };
-  }
-
-  /**
-   * Générer l'URL complète d'une image
-   */
- 
-  getFullImageUrl = (imagePath: string) => {
-    if (!imagePath) return '/paname-consulting.jpg';
-
-    // URLs déjà complètes
-    if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
-      return imagePath;
-    }
-
-    // Images dans public (par défaut)
-    if (imagePath.startsWith('/')) {
-      return imagePath;
-    }
-
-    const baseUrl = (import.meta as any).env.VITE_API_URL;
-
-    // Images uploadées
-    let cleanPath = imagePath;
-    if (!cleanPath.startsWith('uploads/')) {
-      cleanPath = `uploads/${cleanPath}`;
-    }
-    cleanPath = cleanPath.replace(/\/\//g, '/');
-
-    return `${baseUrl}/${cleanPath}`;
   };
+
+  /**
+   * Récupérer les statistiques des destinations (Admin seulement)
+   */
+  const getDestinationStatistics = async (): Promise<Statistics> => {
+    try {
+      const response = await fetchWithAuth(`${API_URL}/api/destinations/statistics`);
+      
+      if (!response) {
+        throw new Error('Erreur de connexion au serveur');
+      }
+
+      return response;
+    } catch (error: any) {
+      toast.error(error.message || 'Erreur lors de la récupération des statistiques');
+      throw error;
+    }
+  };
+
+  return {
+    getAllDestinations,
+    getAllDestinationsWithoutPagination,
+    getDestinationById,
+    createDestination,
+    updateDestination,
+    deleteDestination,
+    getDestinationStatistics,
+  };
+};
+
+// ==================== INSTANCE POUR RÉTROCOMPATIBILITÉ ====================
+// Garder l'export par défaut pour ne pas casser le code existant
+class DestinationService {
+
+  constructor() {
+  }
+
+  // Ces méthodes sont dépréciées mais gardées pour la rétrocompatibilité
+  async getAllDestinations(_page: number = 1, _limit: number = 10) {
+    console.warn('DestinationService est déprécié. Utilisez useDestinationService() hook à la place.');
+    // Cette méthode ne peut pas fonctionner hors d'un composant React
+    throw new Error('DestinationService doit être utilisé dans un composant React avec useDestinationService()');
+  }
 }
 
-// Export singleton
 export const destinationService = new DestinationService();
 export default DestinationService;
