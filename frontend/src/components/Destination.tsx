@@ -1,7 +1,24 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+
+// Générer l'URL complète de l'image selon l'environnement
+const getImageUrl = (imagePath: string): string => {
+  // Si c'est une image par défaut (commence par /images/)
+  if (imagePath.startsWith('/images/')) {
+    return `${process.env.VITE_API_URL || 'https://paname-consulting.vercel.app'}${imagePath}`;
+  }
+  
+  // Si c'est une image uploadée (commence par uploads/)
+  if (imagePath.startsWith('uploads/')) {
+    const filename = imagePath.replace('uploads/', '');
+    return `${process.env.VITE_API_URL || 'https://paname-consulting.vercel.app'}/api/destinations/uploads/${filename}`;
+  }
+  
+  // Fallback
+  return imagePath;
+};
 
 interface DestinationType {
   _id: string;
@@ -157,12 +174,11 @@ const Destination = () => {
             >
               <div className='relative h-52 overflow-hidden rounded'>
                 <img
-                  src={getFullImageUrl(dest.imagePath)}
-                  alt={`${dest.country} flag`}
-                  className='w-full h-full object-cover transition-transform duration-500 group-hover:scale-105'
-                  onError={e => {
-                    (e.target as HTMLImageElement).src =
-                      '/images/paname-consulting.jpg';
+                  src={getImageUrl(dest.imagePath)}
+                  alt={dest.country}
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+                    e.currentTarget.src = '/images/paname-consulting.jpg';
                   }}
                   loading='lazy'
                 />
