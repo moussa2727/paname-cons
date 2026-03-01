@@ -1,10 +1,18 @@
-/* eslint-disable no-undef */
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useDestinationService, type Destination, type CreateDestinationData, type UpdateDestinationData } from '../../api/admin/AdminDestionService';
+import {
+  destinationService,
+  type Destination,
+  type CreateDestinationData,
+  type UpdateDestinationData,
+} from '../../api/admin/AdminDestionService';
 import { Helmet } from 'react-helmet-async';
 import RequireAdmin from '../../context/RequireAdmin';
+
+interface DataSourceInfo {
+  count: number;
+  lastUpdated: string | null;
+}
 
 const initialForm = {
   country: '',
@@ -12,8 +20,7 @@ const initialForm = {
 };
 
 const AdminDestinations: React.FC = (): React.JSX.Element => {
-  const { access_token, user, isAuthenticated } = useAuth();
-  const destinationService = useDestinationService();
+  const { user } = useAuth();
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -23,59 +30,64 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     type: 'success' | 'error';
   } | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [dataSourceInfo, setDataSourceInfo] = useState<DataSourceInfo>({
+    count: 0,
+    lastUpdated: null,
+  });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
+    null
+  );
   const popoverTimeout = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Affiche un popover animé
   const showPopover = (message: string, type: 'success' | 'error'): void => {
     setPopover({ message, type });
     if (popoverTimeout.current) clearTimeout(popoverTimeout.current);
     popoverTimeout.current = window.setTimeout(() => setPopover(null), 3000);
   };
 
-  // Récupérer les destinations
-  const fetchDestinations = async () => {
+  const fetchDestinations = async (): Promise<void> => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const response = await destinationService.getAllDestinationsWithoutPagination();
-      setDestinations(response);
-    } catch (error) {
-      console.error('Erreur lors de la récupération des destinations:', error);
-      showPopover('Erreur lors du chargement des destinations', 'error');
+      const data = await destinationService.getAllDestinationsWithoutPagination();
+
+      const transformedData = data.map((dest: Destination) => ({
+        ...dest,
+        imagePath: destinationService.getFullImageUrl(dest.imagePath),
+      }));
+
+      setDestinations(transformedData);
+
+      const stats = await destinationService.getStatistics();
+
+      setDataSourceInfo({
+        count: data.length,
+        lastUpdated:
+          stats.lastUpdated ||
+          new Date().toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+      });
+    } catch (error: any) {
+      showPopover(
+        error.message || 'Erreur lors du chargement des destinations',
+        'error'
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // Vérifier les droits admin
-  const hasAdminRights = (): boolean => {
-    if (!isAuthenticated || !user || !access_token) {
-      return false;
-    }
-
-    return user.role === 'admin' || user.isAdmin === true;
-  };
-
-  // Soumettre le formulaire
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
-    
-    if (!hasAdminRights()) {
-      showPopover('Droits administrateur requis', 'error');
-      return;
-    }
-
-    // Validation pour la création : une image est obligatoire
-    if (!editingId && !imageFile) {
-      showPopover('Veuillez sélectionner une image', 'error');
-      return;
-    }
-
     setLoading(true);
+
     try {
       if (editingId) {
-        // Mise à jour destination existante
         const updateData: UpdateDestinationData = {
           country: form.country.trim(),
           text: form.text.trim(),
@@ -85,65 +97,60 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
         await destinationService.updateDestination(editingId, updateData);
         showPopover('Destination modifiée avec succès', 'success');
       } else {
-        // Création nouvelle destination
+        if (!imageFile) {
+          showPopover('Veuillez sélectionner une image', 'error');
+          setLoading(false);
+          return;
+        }
+
         const createData: CreateDestinationData = {
           country: form.country.trim(),
           text: form.text.trim(),
-          imageFile: imageFile!, // Safe car on a validé au début
+          imageFile,
         };
 
         await destinationService.createDestination(createData);
         showPopover('Destination ajoutée avec succès', 'success');
       }
-      
-      // Réinitialiser le formulaire
-      resetForm();
+
+      handleCancelEdit();
       fetchDestinations();
-    } catch (error) {
-      console.error('Erreur lors de la soumission:', error);
+    } catch (error: any) {
+      // Les erreurs sont déjà gérées et toastées par le service
+      // On ne fait rien ici
     } finally {
       setLoading(false);
     }
   };
 
-  // Supprimer une destination
-  const handleDelete = async (id: string) => {
-    if (!hasAdminRights()) {
-      showPopover('Droits administrateur requis', 'error');
-      return;
-    }
-
+  const handleDelete = async (id: string): Promise<void> => {
     setLoading(true);
     try {
       await destinationService.deleteDestination(id);
-      showPopover('Destination supprimée avec succès', 'error');
+      showPopover('Destination supprimée avec succès', 'success');
       setShowDeleteConfirm(null);
       fetchDestinations();
-    } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
+    } catch {
+      // Les erreurs sont déjà gérées par le service
     } finally {
       setLoading(false);
     }
   };
 
-  // Gérer les changements dans le formulaire
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ): void => {
+    setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  // Gérer le changement d'image
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validation basique du fichier
-      if (!file.type.startsWith('image/')) {
-        showPopover('Veuillez sélectionner une image valide', 'error');
-        return;
-      }
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
 
-      if (file.size > 5 * 1024 * 1024) { // 5MB
-        showPopover('L\'image ne doit pas dépasser 5MB', 'error');
+      const validation = destinationService.validateImageFile(file);
+      if (!validation.isValid) {
+        showPopover(validation.error!, 'error');
+        e.target.value = '';
         return;
       }
 
@@ -151,147 +158,457 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     }
   };
 
-  // Modifier une destination
-  const handleEdit = (destination: Destination) => {
+  const handleEdit = (dest: Destination): void => {
     setForm({
-      country: destination.country,
-      text: destination.text,
+      country: dest.country,
+      text: dest.text,
     });
-    setEditingId(destination._id);
+    setEditingId(dest._id);
     setImageFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
-  // Réinitialiser le formulaire
-  const resetForm = () => {
+  const handleCancelEdit = (): void => {
     setForm(initialForm);
     setEditingId(null);
     setImageFile(null);
+
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  // Nettoyer les timeouts
   useEffect(() => {
+    fetchDestinations();
     return () => {
       if (popoverTimeout.current) clearTimeout(popoverTimeout.current);
     };
-  }, [access_token, user, isAuthenticated]);
+  }, []);
 
-  const isAdmin = hasAdminRights();
-
-  useEffect(() => {
-    if (isAdmin) {
-      fetchDestinations();
-    }
-  }, [isAdmin]);
+  const isAdmin = user?.role === 'admin';
 
   return (
-    <RequireAdmin>
+    <>
       <Helmet>
-        <title>Gestion des Destinations - Paname Consulting</title>
-        <meta name="description" content="Gérez les destinations de voyages proposées par Paname Consulting" />
+        <title>Page de gestion des Destinations - Paname Consulting</title>
+        <meta
+          name='description'
+          content="Interface d'administration pour gérer les destinations de voyage sur Paname Consulting. Accès réservé aux administrateurs."
+        />
+        <meta name='robots' content='noindex, nofollow' />
       </Helmet>
 
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* En-tête */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Gestion des Destinations</h1>
-            <p className="mt-2 text-gray-600">Ajoutez, modifiez ou supprimez des destinations de voyage</p>
+      <RequireAdmin>
+        <div className='min-h-screen max-w-5xl mx-auto overflow-x-hidden'>
+          <div className='mb-4 px-4'>
+            <div className='flex items-center gap-2 mb-1'>
+              <div className='p-2 bg-blue-500 rounded-lg'>
+                <svg
+                  className='w-5 h-5 text-white'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2'
+                  viewBox='0 0 24 24'
+                >
+                  <path d='M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z' />
+                </svg>
+              </div>
+              <div>
+                <h1 className='text-xl font-bold text-slate-800'>
+                  Gestion des Destinations
+                </h1>
+                <p className='text-slate-600 text-sm'>
+                  Administrez les destinations de voyage
+                </p>
+              </div>
+            </div>
           </div>
 
-          {/* Popover */}
-          {popover && (
-            <div
-              className={`fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 ${
-                popover.type === 'success' 
-                  ? 'bg-green-500 text-white' 
-                  : 'bg-red-500 text-white'
-              }`}
-            >
-              {popover.message}
+          {dataSourceInfo && (
+            <div className='grid grid-cols-2 lg:grid-cols-3 gap-2 mb-4 px-4'>
+              <div className='bg-white rounded-xl border border-slate-200/60 p-3 shadow-sm'>
+                <div className='flex items-center'>
+                  <div className='p-2 bg-blue-500 rounded-lg'>
+                    <svg
+                      className='w-4 h-4 text-white'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth='2'
+                        d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
+                      />
+                    </svg>
+                  </div>
+                  <div className='ml-2'>
+                    <p className='text-xs text-slate-600'>Total</p>
+                    <p className='text-lg font-bold text-slate-800'>
+                      {dataSourceInfo.count}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className='bg-white rounded-xl border border-slate-200/60 p-3 shadow-sm'>
+                <div className='flex items-center'>
+                  <div className='p-2 bg-emerald-500 rounded-lg'>
+                    <svg
+                      className='w-4 h-4 text-white'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth='2'
+                        d='M5 13l4 4L19 7'
+                      />
+                    </svg>
+                  </div>
+                  <div className='ml-2'>
+                    <p className='text-xs text-slate-600'>Statut</p>
+                    <p className='text-lg font-bold text-slate-800'>Actif</p>
+                  </div>
+                </div>
+              </div>
+
+              {dataSourceInfo.lastUpdated && (
+                <div className='bg-white rounded-xl border border-slate-200/60 p-3 shadow-sm'>
+                  <div className='flex items-center'>
+                    <div className='p-2 bg-purple-500 rounded-lg'>
+                      <svg
+                        className='w-4 h-4 text-white'
+                        fill='none'
+                        stroke='currentColor'
+                        viewBox='0 0 24 24'
+                      >
+                        <path
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                          strokeWidth='2'
+                          d='M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
+                        />
+                      </svg>
+                    </div>
+                    <div className='ml-2'>
+                      <p className='text-xs text-slate-600'>Mise à jour</p>
+                      <p className='text-sm font-bold text-slate-800 truncate'>
+                        {dataSourceInfo.lastUpdated}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Formulaire */}
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 className="text-xl font-semibold mb-4">
-              {editingId ? 'Modifier une destination' : 'Ajouter une destination'}
-            </h2>
-            
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">
-                  Pays
-                </label>
-                <input
-                  type="text"
-                  id="country"
-                  name="country"
-                  value={form.country}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nom du pays"
-                />
+          {popover && (
+            <div
+              className={`fixed top-4 left-1/2 z-50 -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg text-white font-semibold transition-all duration-300 flex items-center gap-2
+              ${popover.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}
+            >
+              {popover.type === 'success' ? (
+                <svg
+                  className='w-5 h-5'
+                  fill='none'
+                  stroke='currentColor'
+                  viewBox='0 0 24 24'
+                >
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth='2'
+                    d='M5 13l4 4L19 7'
+                  />
+                </svg>
+              ) : (
+                <svg
+                  className='w-5 h-5'
+                  fill='none'
+                  stroke='currentColor'
+                  viewBox='0 0 24 24'
+                >
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth='2'
+                    d='M6 18L18 6M6 6l12 12'
+                  />
+                </svg>
+              )}
+              <span>{popover.message}</span>
+            </div>
+          )}
+
+          <div className='bg-white rounded-xl border border-slate-200/60 p-4 mb-4 shadow-sm mx-4'>
+            <div className='flex items-center justify-between mb-4'>
+              <h2 className='text-lg font-bold text-slate-800 flex items-center gap-2'>
+                {editingId ? (
+                  <>
+                    <svg
+                      className='w-5 h-5 text-blue-500'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth='2'
+                        d='M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'
+                      />
+                    </svg>
+                    Modifier une destination
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className='w-5 h-5 text-blue-500'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth='2'
+                        d='M12 4v16m8-8H4'
+                      />
+                    </svg>
+                    Nouvelle destination
+                  </>
+                )}
+              </h2>
+            </div>
+
+            <form onSubmit={handleSubmit} className='space-y-4'>
+              <div className='space-y-3'>
+                <div>
+                  <label
+                    htmlFor='country'
+                    className='text-sm font-medium text-slate-700 mb-1 flex items-center gap-2'
+                  >
+                    <svg
+                      className='w-4 h-4 text-slate-400'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth='2'
+                        d='M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+                      />
+                    </svg>
+                    Pays *
+                  </label>
+                  <input
+                    id='country'
+                    name='country'
+                    value={form.country}
+                    onChange={handleChange}
+                    required
+                    disabled={!isAdmin}
+                    className='w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                    placeholder='Nom du pays'
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor='image'
+                    className='text-sm font-medium text-slate-700 mb-1 flex items-center gap-2'
+                  >
+                    <svg
+                      className='w-4 h-4 text-slate-400'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth='2'
+                        d='M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z'
+                      />
+                    </svg>
+                    Image {!editingId && '*'}
+                  </label>
+                  <input
+                    id='image'
+                    name='image'
+                    type='file'
+                    accept='image/*'
+                    ref={fileInputRef}
+                    onChange={handleImageChange}
+                    disabled={!isAdmin}
+                    className='w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed'
+                  />
+                  <p className='text-xs text-slate-500 mt-1'>
+                    JPG, PNG, WEBP, SVG - Max 5MB
+                  </p>
+
+                  {imageFile && (
+                    <p className='text-sm text-green-600 mt-2 flex items-center gap-2'>
+                      <svg
+                        className='w-4 h-4'
+                        fill='none'
+                        stroke='currentColor'
+                        viewBox='0 0 24 24'
+                      >
+                        <path
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                          strokeWidth='2'
+                          d='M5 13l4 4L19 7'
+                        />
+                      </svg>
+                      Fichier sélectionné: {imageFile.name}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div>
-                <label htmlFor="text" className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
+                <label
+                  htmlFor='text'
+                  className='text-sm font-medium text-slate-700 mb-1 flex items-center gap-2'
+                >
+                  <svg
+                    className='w-4 h-4 text-slate-400'
+                    fill='none'
+                    stroke='currentColor'
+                    viewBox='0 0 24 24'
+                  >
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth='2'
+                      d='M4 6h16M4 12h16m-7 6h7'
+                    />
+                  </svg>
+                  Description *
                 </label>
                 <textarea
-                  id="text"
-                  name="text"
+                  id='text'
+                  name='text'
                   value={form.text}
                   onChange={handleChange}
                   required
+                  disabled={!isAdmin}
                   rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Description de la destination (10-2000 caractères)"
-                  minLength={10}
-                  maxLength={2000}
+                  className='w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                  placeholder='Description de la destination (10-2000 caractères)'
                 />
-              </div>
-
-              <div>
-                <label htmlFor="image" className="block text-sm font-medium text-gray-700 mb-1">
-                  Image
-                </label>
-                <input
-                  type="file"
-                  id="image"
-                  ref={fileInputRef}
-                  onChange={handleImageChange}
-                  accept="image/*"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                {imageFile && (
-                  <p className="mt-2 text-sm text-gray-600">
-                    Image sélectionnée: {imageFile.name}
+                <div className='flex justify-between items-center mt-1'>
+                  <p className='text-xs text-slate-500'>
+                    {form.text.length}/2000 caractères
                   </p>
-                )}
+                  {(form.text.length < 10 || form.text.length > 2000) && (
+                    <p className='text-xs text-red-600 flex items-center gap-1'>
+                      <svg
+                        className='w-3 h-3'
+                        fill='none'
+                        stroke='currentColor'
+                        viewBox='0 0 24 24'
+                      >
+                        <path
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                          strokeWidth='2'
+                          d='M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'
+                        />
+                      </svg>
+                      10-2000 caractères requis
+                    </p>
+                  )}
+                </div>
               </div>
 
-              <div className="flex space-x-4">
+              <div className='flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-200'>
                 <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  type='submit'
+                  disabled={loading || !isAdmin}
+                  className='flex-1 flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
                 >
-                  {loading ? 'En cours...' : (editingId ? 'Modifier' : 'Ajouter')}
+                  {loading ? (
+                    <>
+                      <svg
+                        className='animate-spin w-4 h-4'
+                        fill='none'
+                        stroke='currentColor'
+                        viewBox='0 0 24 24'
+                      >
+                        <path
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                          strokeWidth='2'
+                          d='M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'
+                        />
+                      </svg>
+                      {editingId ? 'Modification...' : 'Ajout...'}
+                    </>
+                  ) : editingId ? (
+                    <>
+                      <svg
+                        className='w-4 h-4'
+                        fill='none'
+                        stroke='currentColor'
+                        viewBox='0 0 24 24'
+                      >
+                        <path
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                          strokeWidth='2'
+                          d='M5 13l4 4L19 7'
+                        />
+                      </svg>
+                      Modifier
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className='w-4 h-4'
+                        fill='none'
+                        stroke='currentColor'
+                        viewBox='0 0 24 24'
+                      >
+                        <path
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                          strokeWidth='2'
+                          d='M12 4v16m8-8H4'
+                        />
+                      </svg>
+                      Ajouter
+                    </>
+                  )}
                 </button>
-                
+
                 {editingId && (
                   <button
-                    type="button"
-                    onClick={resetForm}
-                    className="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                    type='button'
+                    onClick={handleCancelEdit}
+                    disabled={!isAdmin}
+                    className='flex-1 flex items-center justify-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-2.5 px-4 rounded-lg transition-all duration-200 focus:outline-none focus:ring-none disabled:opacity-50 disabled:cursor-not-allowed'
                   >
+                    <svg
+                      className='w-4 h-4'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth='2'
+                        d='M6 18L18 6M6 6l12 12'
+                      />
+                    </svg>
                     Annuler
                   </button>
                 )}
@@ -299,86 +616,386 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
             </form>
           </div>
 
-          {/* Liste des destinations */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Destinations existantes</h2>
-            
-            {loading ? (
-              <div className="text-center py-8">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p className="mt-2 text-gray-600">Chargement...</p>
+          <div className='bg-white rounded-xl border border-slate-200/60 overflow-hidden shadow-sm mx-4'>
+            <div className='px-4 py-3 bg-linear-to-r from-blue-500 to-blue-600 text-white'>
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-2'>
+                  <svg
+                    className='w-4 h-4'
+                    fill='none'
+                    stroke='currentColor'
+                    viewBox='0 0 24 24'
+                  >
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth='2'
+                      d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
+                    />
+                  </svg>
+                  <h2 className='text-base font-semibold'>
+                    Liste des Destinations
+                  </h2>
+                  <span className='bg-blue-400 text-blue-100 px-2 py-0.5 rounded-full text-xs'>
+                    {destinations.length}
+                  </span>
+                </div>
               </div>
-            ) : destinations.length === 0 ? (
-              <p className="text-center py-8 text-gray-500">Aucune destination trouvée</p>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {destinations.map((destination) => (
-                  <div key={destination._id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <h3 className="font-semibold text-lg mb-2">{destination.country}</h3>
-                    <p className="text-gray-600 text-sm mb-4 line-clamp-3">{destination.text}</p>
-                    
-                    {destination.imagePath && (
-                      <div className="mb-4">
-                        <img
-                          src={`${import.meta.env.VITE_API_URL}/${destination.imagePath}`}
-                          alt={destination.country}
-                          className="w-full h-32 object-cover rounded"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/images/paname-consulting.png';
-                          }}
-                        />
+            </div>
+
+            <div className='lg:hidden'>
+              {loading ? (
+                <div className='p-4 text-center'>
+                  <div className='animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto'></div>
+                  <p className='text-slate-600 mt-2 text-sm'>
+                    Chargement...
+                  </p>
+                </div>
+              ) : destinations.length === 0 ? (
+                <div className='p-6 text-center text-slate-500'>
+                  <svg
+                    className='w-12 h-12 mx-auto mb-2 text-slate-400'
+                    fill='none'
+                    stroke='currentColor'
+                    viewBox='0 0 24 24'
+                  >
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth='2'
+                      d='M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+                    />
+                  </svg>
+                  <p className='text-slate-500'>
+                    Aucune destination à afficher
+                  </p>
+                  <p className='text-slate-400 text-sm mt-1'>
+                    Commencez par ajouter votre première destination
+                  </p>
+                </div>
+              ) : (
+                <div className='divide-y divide-slate-200'>
+                  {destinations.map(dest => (
+                    <div
+                      key={dest._id}
+                      className='p-4 hover:bg-slate-50 transition-colors'
+                    >
+                      <div className='flex gap-3'>
+                        <div className='shrink-0'>
+                          <img
+                            src={dest.imagePath}
+                            alt={dest.country}
+                            className='w-16 h-16 object-cover rounded-lg border border-slate-200 shadow-sm'
+                            onError={e => {
+                              (e.target as HTMLImageElement).src =
+                                '/paname-placeholder.png';
+                            }}
+                          />
+                        </div>
+
+                        <div className='flex-1 min-w-0'>
+                          <h3 className='font-semibold text-slate-800 truncate flex items-center gap-2'>
+                            {dest.country}
+                          </h3>
+
+                          <p className='text-slate-600 text-sm mt-1 line-clamp-2'>
+                            {dest.text}
+                          </p>
+
+                          <div className='flex gap-3 mt-3'>
+                            <button
+                              onClick={() => handleEdit(dest)}
+                              disabled={!isAdmin}
+                              className='text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed'
+                            >
+                              <svg
+                                className='w-4 h-4'
+                                fill='none'
+                                stroke='currentColor'
+                                viewBox='0 0 24 24'
+                              >
+                                <path
+                                  strokeLinecap='round'
+                                  strokeLinejoin='round'
+                                  strokeWidth='2'
+                                  d='M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'
+                                />
+                              </svg>
+                              Modifier
+                            </button>
+
+                            <button
+                              onClick={() => setShowDeleteConfirm(dest._id)}
+                              disabled={!isAdmin}
+                              className='text-red-600 hover:text-red-800 text-sm font-medium flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed'
+                            >
+                              <svg
+                                className='w-4 h-4'
+                                fill='none'
+                                stroke='currentColor'
+                                viewBox='0 0 24 24'
+                              >
+                                <path
+                                  strokeLinecap='round'
+                                  strokeLinejoin='round'
+                                  strokeWidth='2'
+                                  d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'
+                                />
+                              </svg>
+                              Supprimer
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEdit(destination)}
-                        className="flex-1 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                      >
-                        Modifier
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(destination._id)}
-                        className="flex-1 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
-                      >
-                        Supprimer
-                      </button>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className='hidden lg:block overflow-x-auto'>
+              <table className='w-full min-w-150'>
+                <thead className='bg-slate-50'>
+                  <tr>
+                    <th className='px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider'>
+                      <div className='flex items-center gap-2'>
+                        <svg
+                          className='w-4 h-4'
+                          fill='none'
+                          stroke='currentColor'
+                          viewBox='0 0 24 24'
+                        >
+                          <path
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth='2'
+                            d='M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+                          />
+                        </svg>
+                        Destination
+                      </div>
+                    </th>
+                    <th className='px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider'>
+                      Description
+                    </th>
+                    <th className='px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider'>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className='bg-white divide-y divide-slate-200'>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={3} className='px-4 py-8 text-center'>
+                        <div className='flex justify-center'>
+                          <div className='animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500'></div>
+                        </div>
+                        <p className='text-slate-600 mt-2 text-sm'>
+                          Chargement...
+                        </p>
+                      </td>
+                    </tr>
+                  ) : destinations.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className='px-4 py-8 text-center'>
+                        <svg
+                          className='w-16 h-16 mx-auto mb-4 text-slate-400'
+                          fill='none'
+                          stroke='currentColor'
+                          viewBox='0 0 24 24'
+                        >
+                          <path
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth='2'
+                            d='M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+                          />
+                        </svg>
+                        <p className='text-slate-500'>
+                          Aucune destination trouvée
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    destinations.map(dest => (
+                      <tr
+                        key={dest._id}
+                        className='hover:bg-slate-50 transition-colors'
+                      >
+                        <td className='px-4 py-4'>
+                          <div className='flex items-center'>
+                            <img
+                              src={dest.imagePath}
+                              alt={dest.country}
+                              className='w-12 h-12 object-cover rounded-lg border border-slate-200 shadow-sm'
+                              onError={e => {
+                                (e.target as HTMLImageElement).src =
+                                  '/paname-placeholder.png';
+                              }}
+                            />
+                            <div className='ml-3'>
+                              <p className='text-sm font-medium text-slate-800'>
+                                {dest.country}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className='px-4 py-4'>
+                          <p className='text-sm text-slate-600 line-clamp-2'>
+                            {dest.text}
+                          </p>
+                        </td>
+
+                        <td className='px-4 py-4'>
+                          <div className='flex items-center gap-2'>
+                            <button
+                              onClick={() => handleEdit(dest)}
+                              disabled={!isAdmin}
+                              className='p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                              title='Modifier la destination'
+                            >
+                              <svg
+                                className='w-4 h-4'
+                                fill='none'
+                                stroke='currentColor'
+                                viewBox='0 0 24 24'
+                              >
+                                <path
+                                  strokeLinecap='round'
+                                  strokeLinejoin='round'
+                                  strokeWidth='2'
+                                  d='M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'
+                                />
+                              </svg>
+                            </button>
+
+                            <button
+                              onClick={() => setShowDeleteConfirm(dest._id)}
+                              disabled={!isAdmin}
+                              className='p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                              title='Supprimer la destination'
+                            >
+                              <svg
+                                className='w-4 h-4'
+                                fill='none'
+                                stroke='currentColor'
+                                viewBox='0 0 24 24'
+                              >
+                                <path
+                                  strokeLinecap='round'
+                                  strokeLinejoin='round'
+                                  strokeWidth='2'
+                                  d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          {/* Modal de confirmation de suppression */}
           {showDeleteConfirm && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
-                <h3 className="text-lg font-semibold mb-4">Confirmer la suppression</h3>
-                <p className="text-gray-600 mb-6">
-                  Êtes-vous sûr de vouloir supprimer cette destination ? Cette action est irréversible.
-                </p>
-                <div className="flex space-x-4">
-                  <button
-                    onClick={() => handleDelete(showDeleteConfirm)}
-                    disabled={loading}
-                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
-                  >
-                    {loading ? 'Suppression...' : 'Supprimer'}
-                  </button>
+            <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
+              <div className='bg-white rounded-xl border border-slate-200/60 max-w-md w-full'>
+                <div className='flex items-center justify-between p-4 border-b border-slate-200'>
+                  <div className='flex items-center gap-2'>
+                    <svg
+                      className='w-5 h-5 text-red-500'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth='2'
+                        d='M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'
+                      />
+                    </svg>
+                    <h2 className='text-lg font-bold text-slate-800'>
+                      Confirmation
+                    </h2>
+                  </div>
                   <button
                     onClick={() => setShowDeleteConfirm(null)}
-                    className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                    className='p-1.5 hover:bg-slate-100 rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 transition-all duration-200'
+                  >
+                    <svg
+                      className='w-5 h-5 text-slate-500'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth='2'
+                        d='M6 18L18 6M6 6l12 12'
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className='p-4'>
+                  <p className='text-sm text-slate-600 text-center'>
+                    Supprimer la destination{' '}
+                    <span className='font-semibold text-slate-800'>
+                      {
+                        destinations.find(d => d._id === showDeleteConfirm)
+                          ?.country
+                      }
+                    </span>{' '}
+                    ?
+                  </p>
+                  <p className='text-xs text-slate-500 text-center mt-1'>
+                    Cette action est irréversible.
+                  </p>
+                </div>
+
+                <div className='flex gap-3 p-4 border-t border-slate-200'>
+                  <button
+                    onClick={() => setShowDeleteConfirm(null)}
+                    className='flex-1 px-4 py-2.5 text-sm border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-none focus:border-blue-500 hover:border-blue-400 transition-all duration-200'
                   >
                     Annuler
+                  </button>
+                  <button
+                    onClick={() => handleDelete(showDeleteConfirm)}
+                    disabled={!isAdmin}
+                    className={`flex-1 px-4 py-2.5 text-sm rounded-lg focus:outline-none focus:ring-none focus:border-blue-500 transition-all duration-200 flex items-center justify-center gap-2 ${
+                      !isAdmin
+                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                        : 'bg-red-500 text-white hover:bg-red-600'
+                    }`}
+                  >
+                    <svg
+                      className='w-4 h-4'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth='2'
+                        d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'
+                      />
+                    </svg>
+                    Supprimer
                   </button>
                 </div>
               </div>
             </div>
           )}
         </div>
-      </div>
-    </RequireAdmin>
+      </RequireAdmin>
+    </>
   );
 };
 

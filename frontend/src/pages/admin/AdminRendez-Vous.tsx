@@ -30,7 +30,6 @@ import {
   Shield,
   Check,
   X as XIcon,
-  CalendarPlus,
 } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import {
@@ -45,7 +44,16 @@ import {
   RENDEZVOUS_STATUS,
   ADMIN_OPINION as CENTRAL_ADMIN_OPINION
 } from '../../api/admin/AdminRendezVousService';
-import { type Destination, useDestinationService } from '../../api/admin/AdminDestionService';
+import { destinationService } from '../../api/admin/AdminDestionService';
+
+interface Destination {
+  _id: string;
+  country: string;
+  imagePath: string;
+  text: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 interface LocalRendezvous {
   id: string;
@@ -92,7 +100,6 @@ const ADMIN_AVIS = Object.values(CENTRAL_ADMIN_OPINION);
 
 const AdminRendezVous = (): React.JSX.Element => {
   const { access_token, user } = useAuth();
-  const destinationService = useDestinationService();
   const [service, setService] = useState<AdminRendezVousService | null>(null);
   const [rendezvous, setRendezvous] = useState<LocalRendezvous[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -167,10 +174,11 @@ const AdminRendezVous = (): React.JSX.Element => {
 
   useEffect(() => {
     if (access_token) {
-      const fetchWithAuth = async <T = any,>(endpoint: string, options?: RequestInit): Promise<T> => {
-        const baseUrl = import.meta.env.VITE_API_URL || '';
+      const fetchWithAuth = async <T = any>(endpoint: string, options?: RequestInit): Promise<T> => {
+        const baseUrl = import.meta.env.VITE_API_URL;
         const response = await fetch(`${baseUrl}${endpoint}`, {
           ...options,
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${access_token}`,
@@ -195,8 +203,9 @@ const AdminRendezVous = (): React.JSX.Element => {
   const fetchDestinations = async () => {
     setIsLoadingDestinations(true);
     try {
-      const response = await destinationService.getAllDestinations(1, 1000);
-      const compatibleDestinations: Destination[] = response.data?.map((dest: Destination) => ({
+      const dests =
+        await destinationService.getAllDestinationsWithoutPagination();
+      const compatibleDestinations: Destination[] = dests.map((dest) => ({
         _id: dest._id,
         country: dest.country,
         imagePath: dest.imagePath,
@@ -204,7 +213,7 @@ const AdminRendezVous = (): React.JSX.Element => {
         createdAt: dest.createdAt?.toString(),
         updatedAt: dest.updatedAt?.toString(),
       }));
-      setDestinations(compatibleDestinations || []);
+      setDestinations(compatibleDestinations);
     } catch (error) {
       const errorMessage =
         error instanceof Error
@@ -291,8 +300,6 @@ const AdminRendezVous = (): React.JSX.Element => {
   const loadRendezvous = async () => {
     if (!service) return;
 
-    console.log('[AdminRendez-Vous] loadRendezvous appelé:', { page, limit, selectedStatus, selectedDate, searchTerm });
-    
     setIsLoading(true);
     try {
       const result = await service.fetchAllRendezvous(page, limit, {
@@ -304,34 +311,11 @@ const AdminRendezVous = (): React.JSX.Element => {
         search: searchTerm.trim() || undefined,
       });
 
-      console.log('[AdminRendez-Vous] Résultat fetchAllRendezvous:', {
-        hasData: !!result?.data,
-        dataLength: result?.data?.length,
-        totalPages: result?.totalPages,
-        total: result?.total
-      });
-
-      const normalizedRendezvous = (result?.data || []).map(normalizeRendezvous);
-
-      console.log('[AdminRendez-Vous] Données normalisées:', {
-        count: normalizedRendezvous.length,
-        firstItem: normalizedRendezvous[0] ? {
-          id: normalizedRendezvous[0].id,
-          status: normalizedRendezvous[0].status,
-          firstName: normalizedRendezvous[0].firstName
-        } : null
-      });
+      const normalizedRendezvous = (result.data || []).map(normalizeRendezvous);
 
       setRendezvous(normalizedRendezvous);
-      setTotalPages(result?.totalPages || 1);
+      setTotalPages(result.totalPages || 1);
     } catch (error) {
-      console.error('[AdminRendez-Vous] Erreur loadRendezvous:', {
-        error: (error as any)?.message || error,
-        stack: (error as any)?.stack,
-        name: (error as any)?.name,
-        status: (error as any)?.status
-      });
-      
       const errorMessage =
         error instanceof Error
           ? error.message
@@ -706,8 +690,8 @@ const AdminRendezVous = (): React.JSX.Element => {
   };
 
   const destinationOptions = [
-    ...destinations?.map(dest => dest.country) || [],
-    ...CENTRAL_DESTINATIONS.filter(dest => !destinations?.map(d => d.country).includes(dest))
+    ...destinations.map(dest => dest.country),
+    ...CENTRAL_DESTINATIONS.filter(dest => !destinations.map(d => d.country).includes(dest))
   ];
 
   const startEditing = (rdv: LocalRendezvous) => {
@@ -745,8 +729,8 @@ const AdminRendezVous = (): React.JSX.Element => {
     const adminTransitions: Record<string, string[]> = {
       [RENDEZVOUS_STATUS.PENDING]: [RENDEZVOUS_STATUS.CONFIRMED, RENDEZVOUS_STATUS.CANCELLED, RENDEZVOUS_STATUS.COMPLETED],
       [RENDEZVOUS_STATUS.CONFIRMED]: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.COMPLETED, RENDEZVOUS_STATUS.CANCELLED],
-      [RENDEZVOUS_STATUS.COMPLETED]: [],      // Aucune transition autorisée depuis "Terminé"
-      [RENDEZVOUS_STATUS.CANCELLED]: [],      // Aucune transition autorisée depuis "Annulé"
+      [RENDEZVOUS_STATUS.COMPLETED]: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.CONFIRMED, RENDEZVOUS_STATUS.CANCELLED],
+      [RENDEZVOUS_STATUS.CANCELLED]: [RENDEZVOUS_STATUS.PENDING, RENDEZVOUS_STATUS.CONFIRMED, RENDEZVOUS_STATUS.COMPLETED],
     };
 
     const userTransitions: Record<string, string[]> = {
@@ -1944,444 +1928,470 @@ const AdminRendezVous = (): React.JSX.Element => {
       {/* Modal de création de rendez-vous */}
       {showCreateModal && (
         <div
-          className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto animate-in fade-in duration-200'
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowCreateModal(false);
-            }
-          }}
+          className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto'
+          onClick={e => e.stopPropagation()}
         >
           <div
-            className='bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-auto my-8 animate-in slide-in-from-bottom-4 zoom-in-95 duration-300 border border-slate-200/50'
+            className='bg-white rounded-2xl shadow-xl w-full max-w-md mx-auto my-8 animate-in fade-in zoom-in-95 duration-200'
             ref={modalRef}
           >
-            {/* Header du modal */}
-            <div className='relative bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-6 rounded-t-2xl border-b border-slate-200/50'>
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-3'>
-                  <div className='p-2 bg-white/20 rounded-lg backdrop-blur-sm'>
-                    <CalendarPlus className='w-6 h-6 text-white' />
-                  </div>
-                  <div>
-                    <h2 className='text-xl font-bold text-white'>
-                      Nouveau Rendez-vous
-                    </h2>
-                    <p className='text-sky-100 text-sm mt-0.5'>
-                      Créer un nouveau rendez-vous pour un candidat
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className='p-2 hover:bg-white/20 rounded-lg transition-colors duration-200 text-white/80 hover:text-white'
-                >
-                  <X className='w-5 h-5' />
-                </button>
-              </div>
-            </div>
-
-            {/* Body du modal */}
-            <form onSubmit={handleCreateRendezVous} className='p-6 space-y-6 max-h-[70vh] overflow-y-auto' id='create-rendezvous-form'>
-              {/* Progress indicator */}
-              <div className='flex items-center justify-center space-x-2 mb-6'>
-                <div className='h-2 w-8 bg-sky-500 rounded-full animate-pulse'></div>
-                <div className='h-2 w-8 bg-slate-200 rounded-full'></div>
-                <div className='h-2 w-8 bg-slate-200 rounded-full'></div>
-                <div className='h-2 w-8 bg-slate-200 rounded-full'></div>
-              </div>
-
-              {/* Section Informations Personnelles */}
-              <div className='group'>
-                <div className='flex items-center gap-3 mb-4'>
-                  <div className='p-3 bg-sky-50 rounded-xl group-hover:bg-sky-100 transition-colors duration-200'>
-                    <User className='w-5 h-5 text-sky-600' />
-                  </div>
-                  <div>
-                    <h3 className='text-lg font-semibold text-slate-900'>
-                      Informations Personnelles
+            <form onSubmit={handleCreateRendezVous} className='p-4 md:p-6'>
+              <div className='space-y-6 md:space-y-8 max-h-[65vh] md:max-h-[70vh] overflow-y-auto pr-1 md:pr-3 pb-4'>
+                {/* Informations personnelles */}
+                <div className='bg-white rounded-xl p-4 md:p-5 shadow-xs border border-slate-100'>
+                  <div className='flex items-center gap-2 mb-4 md:mb-5'>
+                    <div className='p-2 bg-sky-50 rounded-lg'>
+                      <User className='w-4 h-4 md:w-5 md:h-5 text-sky-600' />
+                    </div>
+                    <h3 className='text-sm md:text-base font-semibold text-slate-900'>
+                      Informations personnelles
                     </h3>
-                    <p className='text-slate-500 text-sm'>
-                      Coordonnées du candidat
-                    </p>
-                  </div>
-                </div>
-
-                <div className='bg-slate-50 rounded-xl p-5 space-y-4 border border-slate-200/50'>
-                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                    <div className='space-y-2'>
-                      <label className='text-sm font-medium text-slate-700 flex items-center gap-2'>
-                        <User className='w-4 h-4 text-slate-400' />
-                        Prénom <span className='text-rose-500'>*</span>
-                      </label>
-                      <input
-                        type='text'
-                        value={newRendezVous.firstName}
-                        onChange={(e) =>
-                          setNewRendezVous((prev) => ({
-                            ...prev,
-                            firstName: e.target.value,
-                          }))
-                        }
-                        className='w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm hover:shadow-md'
-                        placeholder='Jean'
-                        required
-                      />
-                    </div>
-
-                    <div className='space-y-2'>
-                      <label className='text-sm font-medium text-slate-700 flex items-center gap-2'>
-                        <User className='w-4 h-4 text-slate-400' />
-                        Nom <span className='text-rose-500'>*</span>
-                      </label>
-                      <input
-                        type='text'
-                        value={newRendezVous.lastName}
-                        onChange={(e) =>
-                          setNewRendezVous((prev) => ({
-                            ...prev,
-                            lastName: e.target.value,
-                          }))
-                        }
-                        className='w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm hover:shadow-md'
-                        placeholder='Dupont'
-                        required
-                      />
-                    </div>
                   </div>
 
-                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                    <div className='space-y-2'>
-                      <label className='text-sm font-medium text-slate-700 flex items-center gap-2'>
-                        <Mail className='w-4 h-4 text-slate-400' />
+                  <div className='space-y-4 md:space-y-5'>
+                    <div className='flex flex-col sm:flex-row gap-4 md:gap-5'>
+                      <div className='flex-1'>
+                        <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
+                          Prénom <span className='text-rose-500'>*</span>
+                        </label>
+                        <div className='relative group'>
+                          <div className='absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center'>
+                            <User className='w-4 h-4 text-slate-400 group-focus-within:text-sky-500 transition-colors' />
+                          </div>
+                          <input
+                            type='text'
+                            value={newRendezVous.firstName}
+                            onChange={e =>
+                              setNewRendezVous(prev => ({
+                                ...prev,
+                                firstName: e.target.value,
+                              }))
+                            }
+                            className='w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base placeholder:text-slate-400 bg-white transition-all duration-200'
+                            required
+                            placeholder='Jean'
+                          />
+                        </div>
+                      </div>
+
+                      <div className='flex-1'>
+                        <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
+                          Nom <span className='text-rose-500'>*</span>
+                        </label>
+                        <div className='relative group'>
+                          <div className='absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center'>
+                            <User className='w-4 h-4 text-slate-400 group-focus-within:text-sky-500 transition-colors' />
+                          </div>
+                          <input
+                            type='text'
+                            value={newRendezVous.lastName}
+                            onChange={e =>
+                              setNewRendezVous(prev => ({
+                                ...prev,
+                                lastName: e.target.value,
+                              }))
+                            }
+                            className='w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base placeholder:text-slate-400 bg-white transition-all duration-200'
+                            required
+                            placeholder='Dupont'
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
                         Email <span className='text-rose-500'>*</span>
                       </label>
-                      <input
-                        type='email'
-                        value={newRendezVous.email}
-                        onChange={(e) =>
-                          setNewRendezVous((prev) => ({
-                            ...prev,
-                            email: e.target.value,
-                          }))
-                        }
-                        className='w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm hover:shadow-md'
-                        placeholder='jean.dupont@email.com'
-                        required
-                      />
+                      <div className='relative group'>
+                        <div className='absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center'>
+                          <Mail className='w-4 h-4 text-slate-400 group-focus-within:text-sky-500 transition-colors' />
+                        </div>
+                        <input
+                          type='email'
+                          value={newRendezVous.email}
+                          onChange={e =>
+                            setNewRendezVous(prev => ({
+                              ...prev,
+                              email: e.target.value,
+                            }))
+                          }
+                          className='w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base placeholder:text-slate-400 bg-white transition-all duration-200'
+                          required
+                          placeholder='jean.dupont@email.com'
+                        />
+                      </div>
                     </div>
 
-                    <div className='space-y-2'>
-                      <label className='text-sm font-medium text-slate-700 flex items-center gap-2'>
-                        <Phone className='w-4 h-4 text-slate-400' />
+                    <div>
+                      <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
                         Téléphone <span className='text-rose-500'>*</span>
                       </label>
-                      <div className='relative'>
+                      <div className='relative group'>
+                        <div className='absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center'>
+                          <Phone className='w-4 h-4 text-slate-400 group-focus-within:text-sky-500 transition-colors' />
+                        </div>
                         <input
                           type='tel'
                           value={newRendezVous.telephone}
-                          onChange={(e) =>
-                            setNewRendezVous((prev) => ({
+                          onChange={e =>
+                            setNewRendezVous(prev => ({
                               ...prev,
                               telephone: e.target.value,
                             }))
                           }
-                          className='w-full px-4 py-3 pr-16 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm hover:shadow-md'
+                          className='w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base placeholder:text-slate-400 bg-white transition-all duration-200'
+                          required
                           placeholder='+228 XX XX XX XX'
+                        />
+                        <span className='absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-slate-400'>
+                          Togo
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Informations académiques */}
+                <div className='bg-white rounded-xl p-4 md:p-5 shadow-xs border border-slate-100'>
+                  <div className='flex items-center gap-2 mb-4 md:mb-5'>
+                    <div className='p-2 bg-sky-50 rounded-lg'>
+                      <GraduationCap className='w-4 h-4 md:w-5 md:h-5 text-sky-600' />
+                    </div>
+                    <h3 className='text-sm md:text-base font-semibold text-slate-900'>
+                      Informations académiques
+                    </h3>
+                  </div>
+
+                  <div className='space-y-4 md:space-y-5'>
+                    <div>
+                      <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
+                        Niveau d'étude <span className='text-rose-500'>*</span>
+                      </label>
+                      <div className='relative group'>
+                        <div className='absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center'>
+                          <BookOpen className='w-4 h-4 text-slate-400 group-focus-within:text-sky-500 transition-colors' />
+                        </div>
+                        <select
+                          value={newRendezVous.niveauEtude}
+                          onChange={e =>
+                            setNewRendezVous(prev => ({
+                              ...prev,
+                              niveauEtude: e.target.value,
+                            }))
+                          }
+                          className='w-full pl-10 pr-10 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base appearance-none bg-white cursor-pointer transition-all duration-200'
+                          required
+                        >
+                          <option value='' className='text-slate-400'>
+                            Sélectionner un niveau
+                          </option>
+                          {EDUCATION_LEVELS.map(niveau => (
+                            <option
+                              key={niveau}
+                              value={niveau}
+                              className='text-slate-700'
+                            >
+                              {niveau}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className='absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none' />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
+                        Filière <span className='text-rose-500'>*</span>
+                      </label>
+                      <div className='relative group'>
+                        <div className='absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center'>
+                          <Briefcase className='w-4 h-4 text-slate-400 group-focus-within:text-sky-500 transition-colors' />
+                        </div>
+                        <select
+                          value={newRendezVous.filiere}
+                          onChange={e =>
+                            setNewRendezVous(prev => ({
+                              ...prev,
+                              filiere: e.target.value,
+                              filiereAutre: '',
+                            }))
+                          }
+                          className='w-full pl-10 pr-10 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base appearance-none bg-white cursor-pointer transition-all duration-200'
+                          required
+                        >
+                          <option value='' className='text-slate-400'>
+                            Sélectionner une filière
+                          </option>
+                          {FILIERES.map(filiere => (
+                            <option
+                              key={filiere}
+                              value={filiere}
+                              className='text-slate-700'
+                            >
+                              {filiere}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className='absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none' />
+                      </div>
+
+                      {newRendezVous.filiere === 'Autre' && (
+                        <div className='mt-3 animate-fadeIn'>
+                          <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
+                            Précisez votre filière{' '}
+                            <span className='text-rose-500'>*</span>
+                          </label>
+                          <div className='relative group'>
+                            <div className='absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center'>
+                              <Briefcase className='w-4 h-4 text-slate-400 group-focus-within:text-sky-500 transition-colors' />
+                            </div>
+                            <input
+                              type='text'
+                              value={newRendezVous.filiereAutre}
+                              onChange={e =>
+                                setNewRendezVous(prev => ({
+                                  ...prev,
+                                  filiereAutre: e.target.value,
+                                }))
+                              }
+                              className='w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base placeholder:text-slate-400 bg-white transition-all duration-200'
+                              placeholder='Ex: Génie Civil, Design Graphique...'
+                              required
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Destination */}
+                <div className='bg-white rounded-xl p-4 md:p-5 shadow-xs border border-slate-100'>
+                  <div className='flex items-center gap-2 mb-4 md:mb-5'>
+                    <div className='p-2 bg-sky-50 rounded-lg'>
+                      <Globe className='w-4 h-4 md:w-5 md:h-5 text-sky-600' />
+                    </div>
+                    <h3 className='text-sm md:text-base font-semibold text-slate-900'>
+                      Destination
+                    </h3>
+                  </div>
+
+                  <div>
+                    <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
+                      Pays souhaité <span className='text-rose-500'>*</span>
+                    </label>
+                    <div className='relative group'>
+                      <div className='absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center'>
+                        <MapPin className='w-4 h-4 text-slate-400 group-focus-within:text-sky-500 transition-colors' />
+                      </div>
+                      <select
+                        value={newRendezVous.destination}
+                        onChange={e =>
+                          setNewRendezVous(prev => ({
+                            ...prev,
+                            destination: e.target.value,
+                            destinationAutre: '',
+                          }))
+                        }
+                        className='w-full pl-10 pr-10 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base appearance-none bg-white cursor-pointer transition-all duration-200'
+                        required
+                      >
+                        <option value='' className='text-slate-400'>
+                          Sélectionner une destination
+                        </option>
+                        {destinationOptions.map(dest => (
+                          <option
+                            key={dest}
+                            value={dest}
+                            className='text-slate-700'
+                          >
+                            {dest}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className='absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none' />
+                    </div>
+
+                    {newRendezVous.destination === 'Autre' && (
+                      <div className='mt-3 animate-fadeIn'>
+                        <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
+                          Précisez la destination{' '}
+                          <span className='text-rose-500'>*</span>
+                        </label>
+                        <div className='relative group'>
+                          <div className='absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center'>
+                            <MapPin className='w-4 h-4 text-slate-400 group-focus-within:text-sky-500 transition-colors' />
+                          </div>
+                          <input
+                            type='text'
+                            value={newRendezVous.destinationAutre}
+                            onChange={e =>
+                              setNewRendezVous(prev => ({
+                                ...prev,
+                                destinationAutre: e.target.value,
+                              }))
+                            }
+                            className='w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base placeholder:text-slate-400 bg-white transition-all duration-200'
+                            placeholder='Ex: Canada, Japon, Australie...'
+                            required
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Date et heure */}
+                <div className='bg-white rounded-xl p-4 md:p-5 shadow-xs border border-slate-100'>
+                  <div className='flex items-center gap-2 mb-4 md:mb-5'>
+                    <div className='p-2 bg-sky-50 rounded-lg'>
+                      <Calendar className='w-4 h-4 md:w-5 md:h-5 text-sky-600' />
+                    </div>
+                    <h3 className='text-sm md:text-base font-semibold text-slate-900'>
+                      Date et heure
+                    </h3>
+                  </div>
+
+                  <div className='space-y-4 md:space-y-5'>
+                    <div>
+                      <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
+                        Date <span className='text-rose-500'>*</span>
+                      </label>
+                      <div className='relative group'>
+                        <div className='absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center'>
+                          <Calendar className='w-4 h-4 text-slate-400 group-focus-within:text-sky-500 transition-colors' />
+                        </div>
+                        <input
+                          type='date'
+                          value={newRendezVous.date}
+                          onChange={e => handleDateChange(e.target.value)}
+                          min={new Date().toISOString().split('T')[0]}
+                          className='w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base bg-white cursor-pointer transition-all duration-200 scheme-light'
                           required
                         />
                       </div>
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section Informations Académiques */}
-              <div className='group'>
-                <div className='flex items-center gap-3 mb-4'>
-                  <div className='p-3 bg-blue-50 rounded-xl group-hover:bg-blue-100 transition-colors duration-200'>
-                    <GraduationCap className='w-5 h-5 text-blue-600' />
-                  </div>
-                  <div>
-                    <h3 className='text-lg font-semibold text-slate-900'>
-                      Parcours Académique
-                    </h3>
-                    <p className='text-slate-500 text-sm'>
-                      Niveau d'études et filière souhaitée
-                    </p>
-                  </div>
-                </div>
-
-                <div className='bg-blue-50 rounded-xl p-5 space-y-4 border border-blue-200/50'>
-                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                    <div className='space-y-2'>
-                      <label className='text-sm font-medium text-slate-700 flex items-center gap-2'>
-                        <BookOpen className='w-4 h-4 text-blue-500' />
-                        Niveau d'étude <span className='text-rose-500'>*</span>
-                      </label>
-                      <select
-                        value={newRendezVous.niveauEtude}
-                        onChange={(e) =>
-                          setNewRendezVous((prev) => ({
-                            ...prev,
-                            niveauEtude: e.target.value,
-                          }))
-                        }
-                        className='w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm hover:shadow-md appearance-none cursor-pointer'
-                        required
-                      >
-                        <option value='' className='text-slate-400'>
-                          Sélectionner un niveau
-                        </option>
-                        {EDUCATION_LEVELS.map((niveau) => (
-                          <option key={niveau} value={niveau} className='text-slate-700'>
-                            {niveau}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className='space-y-2'>
-                      <label className='text-sm font-medium text-slate-700 flex items-center gap-2'>
-                        <Briefcase className='w-4 h-4 text-blue-500' />
-                        Filière <span className='text-rose-500'>*</span>
-                      </label>
-                      <select
-                        value={newRendezVous.filiere}
-                        onChange={(e) =>
-                          setNewRendezVous((prev) => ({
-                            ...prev,
-                            filiere: e.target.value,
-                            filiereAutre: '',
-                          }))
-                        }
-                        className='w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm hover:shadow-md appearance-none cursor-pointer'
-                        required
-                      >
-                        <option value='' className='text-slate-400'>
-                          Sélectionner une filière
-                        </option>
-                        {FILIERES.map((filiere) => (
-                          <option key={filiere} value={filiere} className='text-slate-700'>
-                            {filiere}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {newRendezVous.filiere === 'Autre' && (
-                    <div className='animate-in fade-in slide-in-from-top-2 duration-200'>
-                      <label className='text-sm font-medium text-slate-700 flex items-center gap-2'>
-                        <Edit className='w-4 h-4 text-blue-500' />
-                        Précisez votre filière <span className='text-rose-500'>*</span>
-                      </label>
-                      <input
-                        type='text'
-                        value={newRendezVous.filiereAutre}
-                        onChange={(e) =>
-                          setNewRendezVous((prev) => ({
-                            ...prev,
-                            filiereAutre: e.target.value,
-                          }))
-                        }
-                        className='w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm hover:shadow-md'
-                        placeholder='Ex: Génie Civil, Design Graphique...'
-                        required
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Section Destination */}
-              <div className='group'>
-                <div className='flex items-center gap-3 mb-4'>
-                  <div className='p-3 bg-emerald-50 rounded-xl group-hover:bg-emerald-100 transition-colors duration-200'>
-                    <Globe className='w-5 h-5 text-emerald-600' />
-                  </div>
-                  <div>
-                    <h3 className='text-lg font-semibold text-slate-900'>
-                      Destination Souhaitée
-                    </h3>
-                    <p className='text-slate-500 text-sm'>
-                      Pays d'études envisagé
-                    </p>
-                  </div>
-                </div>
-
-                <div className='bg-emerald-50 rounded-xl p-5 space-y-4 border border-emerald-200/50'>
-                  <div className='space-y-2'>
-                    <label className='text-sm font-medium text-slate-700 flex items-center gap-2'>
-                      <MapPin className='w-4 h-4 text-emerald-500' />
-                      Pays souhaité <span className='text-rose-500'>*</span>
-                    </label>
-                    <select
-                      value={newRendezVous.destination}
-                      onChange={(e) =>
-                        setNewRendezVous((prev) => ({
-                          ...prev,
-                          destination: e.target.value,
-                          destinationAutre: '',
-                        }))
-                      }
-                      className='w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm hover:shadow-md appearance-none cursor-pointer'
-                      required
-                    >
-                      <option value='' className='text-slate-400'>
-                        Sélectionner une destination
-                      </option>
-                      {destinationOptions.map((dest) => (
-                        <option key={dest} value={dest} className='text-slate-700'>
-                          {dest}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {newRendezVous.destination === 'Autre' && (
-                    <div className='animate-in fade-in slide-in-from-top-2 duration-200'>
-                      <label className='text-sm font-medium text-slate-700 flex items-center gap-2'>
-                        <MapPin className='w-4 h-4 text-emerald-500' />
-                        Précisez la destination <span className='text-rose-500'>*</span>
-                      </label>
-                      <input
-                        type='text'
-                        value={newRendezVous.destinationAutre}
-                        onChange={(e) =>
-                          setNewRendezVous((prev) => ({
-                            ...prev,
-                            destinationAutre: e.target.value,
-                          }))
-                        }
-                        className='w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm hover:shadow-md'
-                        placeholder='Ex: Canada, Japon, Australie...'
-                        required
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Section Date et Heure */}
-              <div className='group'>
-                <div className='flex items-center gap-3 mb-4'>
-                  <div className='p-3 bg-purple-50 rounded-xl group-hover:bg-purple-100 transition-colors duration-200'>
-                    <Calendar className='w-5 h-5 text-purple-600' />
-                  </div>
-                  <div>
-                    <h3 className='text-lg font-semibold text-slate-900'>
-                      Date et Heure
-                    </h3>
-                    <p className='text-slate-500 text-sm'>
-                      Disponibilités du candidat
-                    </p>
-                  </div>
-                </div>
-
-                <div className='bg-purple-50 rounded-xl p-5 space-y-4 border border-purple-200/50'>
-                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                    <div className='space-y-2'>
-                      <label className='text-sm font-medium text-slate-700 flex items-center gap-2'>
-                        <Calendar className='w-4 h-4 text-purple-500' />
-                        Date <span className='text-rose-500'>*</span>
-                      </label>
-                      <input
-                        type='date'
-                        value={newRendezVous.date}
-                        onChange={(e) => handleDateChange(e.target.value)}
-                        min={new Date().toISOString().split('T')[0]}
-                        className='w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm hover:shadow-md cursor-pointer'
-                        required
-                      />
-                    </div>
 
                     {newRendezVous.date && (
-                      <div className='space-y-2 animate-in fade-in duration-200'>
-                        <label className='text-sm font-medium text-slate-700 flex items-center gap-2'>
-                          <Clock className='w-4 h-4 text-purple-500' />
+                      <div className='animate-fadeIn'>
+                        <label className='text-xs md:text-sm font-medium text-slate-700 mb-2 block'>
                           Heure <span className='text-rose-500'>*</span>
                         </label>
-                        <select
-                          value={newRendezVous.time}
-                          onChange={(e) =>
-                            setNewRendezVous((prev) => ({
-                              ...prev,
-                              time: e.target.value,
-                            }))
-                          }
-                          className='w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm hover:shadow-md appearance-none cursor-pointer'
-                          required
-                          disabled={availableSlots.length === 0}
-                        >
-                          <option value='' className='text-slate-400'>
-                            {availableSlots.length === 0
-                              ? 'Aucun créneau disponible'
-                              : 'Sélectionner un créneau'}
-                          </option>
-                          {availableSlots.map((slot) => (
-                            <option key={slot} value={slot} className='text-slate-700'>
-                              {slot.replace(':', 'h')}
+                        <div className='relative group'>
+                          <div className='absolute left-3 top-1/2 transform -translate-y-1/2 flex items-center justify-center'>
+                            <Clock className='w-4 h-4 text-slate-400 group-focus-within:text-sky-500 transition-colors' />
+                          </div>
+                          <select
+                            value={newRendezVous.time}
+                            onChange={e =>
+                              setNewRendezVous(prev => ({
+                                ...prev,
+                                time: e.target.value,
+                              }))
+                            }
+                            className='w-full pl-10 pr-10 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm md:text-base appearance-none bg-white cursor-pointer transition-all duration-200 disabled:bg-slate-50 disabled:cursor-not-allowed'
+                            required
+                            disabled={availableSlots.length === 0}
+                          >
+                            <option value='' className='text-slate-400'>
+                              {availableSlots.length === 0
+                                ? 'Aucun créneau disponible'
+                                : 'Sélectionner un créneau'}
                             </option>
-                          ))}
-                        </select>
+                            {availableSlots.map(slot => (
+                              <option
+                                key={slot}
+                                value={slot}
+                                className='text-slate-700'
+                              >
+                                {slot.replace(':', 'h')}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className='absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none' />
+                        </div>
+
+                        {availableSlots.length === 0 && (
+                          <div className='mt-3 p-3 bg-amber-50 border border-amber-100 rounded-lg'>
+                            <p className='text-xs text-amber-700 flex items-start gap-2'>
+                              <span className='text-amber-600 mt-0.5'>ℹ️</span>
+                              <span>
+                                Aucun créneau disponible pour cette date.
+                                Veuillez choisir une autre date.
+                              </span>
+                            </p>
+                          </div>
+                        )}
+
+                        {availableSlots.length > 0 && newRendezVous.time && (
+                          <div className='mt-3 p-3 bg-emerald-50 border border-emerald-100 rounded-lg'>
+                            <p className='text-xs text-emerald-700 flex items-center gap-2'>
+                              <span>✓</span>
+                              <span>
+                                Créneau sélectionné :{' '}
+                                <strong>
+                                  {newRendezVous.time.replace(':', 'h')}
+                                </strong>
+                              </span>
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
 
-                  {availableSlots.length === 0 && newRendezVous.date && (
-                    <div className='animate-in fade-in duration-200'>
-                      <div className='p-4 bg-amber-50 border border-amber-200 rounded-xl'>
-                        <div className='flex items-start gap-3'>
-                          <div className='p-1 bg-amber-100 rounded-lg'>
-                            <AlertCircle className='w-4 h-4 text-amber-600' />
-                          </div>
-                          <div>
-                            <p className='text-sm font-medium text-amber-800'>
-                              Aucun créneau disponible
-                            </p>
-                            <p className='text-xs text-amber-600 mt-1'>
-                              Veuillez choisir une autre date pour voir les disponibilités.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+              <div className='sticky bottom-0 left-0 right-0 bg-linear-to-t from-white via-white to-transparent pt-6 mt-2 pb-2 md:pb-0'>
+                <div className='flex flex-col sm:flex-row gap-3'>
+                  <button
+                    type='button'
+                    onClick={() => setShowCreateModal(false)}
+                    disabled={isSubmitting}
+                    className='order-2 sm:order-1 px-6 py-3.5 text-slate-600 bg-white rounded-xl border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100 transition-all duration-200 font-medium text-sm md:text-base flex items-center justify-center gap-2 flex-1 disabled:opacity-50 disabled:cursor-not-allowed'
+                  >
+                    <X className='w-4 h-4 md:w-5 md:h-5' />
+                    Annuler
+                  </button>
+                  <button
+                    type='submit'
+                    disabled={
+                      !newRendezVous.time ||
+                      availableSlots.length === 0 ||
+                      isSubmitting
+                    }
+                    className='order-1 sm:order-2 px-6 py-3.5 bg-linear-to-r from-sky-500 to-sky-600 text-white rounded-xl hover:from-sky-600 hover:to-sky-700 active:scale-[0.98] transition-all duration-200 font-medium text-sm md:text-base shadow-sm shadow-sky-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2 flex-1'
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className='w-4 h-4 md:w-5 md:h-5 animate-spin' />
+                        <span>Création en cours...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className='w-4 h-4 md:w-5 md:h-5' />
+                        <span>Créer</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className='mt-4 text-center'>
+                  <div className='flex justify-center items-center gap-2'>
+                    {[1, 2, 3, 4].map(step => (
+                      <div
+                        key={step}
+                        className={`w-1.5 h-1.5 rounded-full ${step <= 4 ? 'bg-sky-500' : 'bg-slate-200'}`}
+                      />
+                    ))}
+                  </div>
+                  <p className='text-xs text-slate-500 mt-2'>
+                    Remplissez tous les champs pour prendre rendez-vous
+                  </p>
                 </div>
               </div>
             </form>
-
-            {/* Footer du modal */}
-            <div className='bg-slate-50 px-6 py-4 rounded-b-2xl border-t border-slate-200/50'>
-              <div className='flex flex-col sm:flex-row gap-3 justify-end'>
-                <button
-                  type='button'
-                  onClick={() => setShowCreateModal(false)}
-                  disabled={isSubmitting}
-                  className='px-6 py-3 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed order-2 sm:order-1'
-                >
-                  Annuler
-                </button>
-                <button
-                  type='submit'
-                  form='create-rendezvous-form'
-                  disabled={isSubmitting}
-                  className='px-6 py-3 bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-lg hover:from-sky-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all duration-200 font-medium shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed order-1 sm:order-2 flex items-center justify-center gap-2'
-                >
-                  {isSubmitting ? (
-                    <>
-                      <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin'></div>
-                      Création en cours...
-                    </>
-                  ) : (
-                    <>
-                      <CalendarPlus className='w-4 h-4' />
-                      Créer le rendez-vous
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}
