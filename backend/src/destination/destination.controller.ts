@@ -122,7 +122,7 @@ export class DestinationController {
     
     const result = await this.destinationService.findAll(page, limit, search);
     
-    this.logger.log(`Récupération réussie: ${result.data.length} destinations sur ${result.total} total`);
+    this.logger.log(`Récupération réussie: ${result.destinations.length} destinations sur ${result.total} total`);
     
     return result;
   }
@@ -217,9 +217,9 @@ export class DestinationController {
   async remove(@Param("id") id: string) {
     this.logger.log(`Suppression de la destination ID: ${id}`);
     
-    const result = await this.destinationService.remove(id);
+    await this.destinationService.delete(id);
     
-    this.logger.log(`Destination supprimée avec succès: ${result.deletedDestination.country} (ID: ${id})`);
+    this.logger.log(`Destination supprimée avec succès (ID: ${id})`);
     
     return { message: "Destination supprimée avec succès" };
   }

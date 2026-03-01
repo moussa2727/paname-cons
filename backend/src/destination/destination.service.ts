@@ -65,14 +65,12 @@ export class DestinationService {
     try {
       const count = await this.destinationModel.countDocuments();
       if (count === 0) {
+        this.logger.log("Initialisation des destinations par défaut");
         await this.destinationModel.insertMany(defaultDestinations);
-        this.logger.log("Destinations par défaut insérées avec succès");
+        this.logger.log(`${defaultDestinations.length} destinations par défaut créées`);
       }
     } catch (error) {
-      this.logger.error(
-        "Erreur lors de l'initialisation des destinations:",
-        error.stack,
-      );
+      this.logger.error("Erreur lors de l'initialisation des destinations par défaut", error);
     }
   }
 
@@ -83,20 +81,22 @@ export class DestinationService {
     createDestinationDto: CreateDestinationDto,
     imageFile: Express.Multer.File,
   ): Promise<Destination> {
-    this.logger.log(`Tentative de création destination: ${createDestinationDto.country}`);
-
     try {
-      // Validation des données d'entrée
+      this.logger.log(`Création d'une nouvelle destination: ${createDestinationDto.country}`);
+
+      // Validation des données
       if (!createDestinationDto.country?.trim()) {
-        throw new BadRequestException("Le nom du pays est obligatoire");
+        throw new BadRequestException("Le pays est obligatoire");
       }
 
       if (!createDestinationDto.text?.trim()) {
         throw new BadRequestException("La description est obligatoire");
       }
 
-      if (!imageFile) {
-        throw new BadRequestException("L'image est obligatoire");
+      if (createDestinationDto.text.length < 10 || createDestinationDto.text.length > 2000) {
+        throw new BadRequestException(
+          "La description doit contenir entre 10 et 2000 caractères"
+        );
       }
 
       // Vérifier si la destination existe déjà
@@ -109,7 +109,7 @@ export class DestinationService {
         throw new ConflictException("Cette destination existe déjà");
       }
 
-      // Gestion de l'image (toujours utiliser le fichier uploadé)
+      // Gestion de l'image
       let imagePath: string;
       
       if (imageFile) {
@@ -153,165 +153,6 @@ export class DestinationService {
       throw new InternalServerErrorException(
         "Erreur lors de la création de la destination",
       );
-    }
-  }
-
-  /**
-   * Récupérer toutes les destinations avec pagination (Public)
-   */
-  async findAll(
-    page: number = 1,
-    limit: number = 10,
-    search?: string,
-  ): Promise<{
-    data: Destination[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  }> {
-    try {
-      this.logger.debug(`Récupération destinations - Page: ${page}, Limit: ${limit}, Search: ${search || 'aucun'}`);
-
-      const skip = (page - 1) * limit;
-
-      // Construction des filtres de recherche
-      const filters: any = {};
-      if (search && search.trim()) {
-        filters.country = {
-          $regex: search.trim(),
-          $options: "i",
-        };
-      }
-
-      // Exécution parallèle des requêtes
-      const [data, total] = await Promise.all([
-        this.destinationModel
-          .find(filters)
-          .select("country imagePath text createdAt updatedAt")
-          .skip(skip)
-          .limit(limit)
-          .sort({ country: 1 })
-          .exec(),
-        this.destinationModel.countDocuments(filters),
-      ]);
-
-      const totalPages = Math.ceil(total / limit);
-
-      this.logger.debug(`Récupération destinations réussie: ${data.length} sur ${total}`);
-
-      return {
-        data,
-        total,
-        page,
-        limit,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Erreur récupération destinations: ${error.message}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        "Erreur lors de la récupération des destinations",
-      );
-    }
-  }
-
-  /**
-   * Récupérer toutes les destinations sans pagination (Public)
-   */
-  async findAllWithoutPagination(): Promise<Destination[]> {
-    try {
-      this.logger.debug(`Récupération de toutes les destinations sans pagination`);
-      
-      const destinations = await this.destinationModel
-        .find()
-        .select("country imagePath text createdAt updatedAt")
-        .sort({ country: 1 })
-        .exec();
-
-      this.logger.debug(`Récupération réussie: ${destinations.length} destinations`);
-      
-      return destinations;
-    } catch (error) {
-      this.logger.error(
-        `Erreur récupération toutes destinations: ${error.message}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        "Erreur lors de la récupération des destinations",
-      );
-    }
-  }
-
-  /**
-   * Récupérer une destination par ID (Public)
-   */
-  async findOne(id: string): Promise<Destination> {
-    try {
-      this.logger.debug(`Recherche destination ID: ${id}`);
-
-      if (!id || id.length !== 24) {
-        throw new BadRequestException("ID de destination invalide");
-      }
-
-      const destination = await this.destinationModel
-        .findById(id)
-        .select("country imagePath text createdAt updatedAt")
-        .exec();
-
-      if (!destination) {
-        this.logger.warn(`Destination non trouvée: ${id}`);
-        throw new NotFoundException(`Destination avec ID ${id} non trouvée`);
-      }
-
-      this.logger.debug(`Destination trouvée: ${destination.country} (ID: ${id})`);
-      return destination;
-    } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException
-      ) {
-        throw error;
-      }
-
-      this.logger.error(
-        `Erreur récupération destination ${id}: ${error.message}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        "Erreur lors de la récupération de la destination",
-      );
-    }
-  }
-
-  /**
-   * Trouver une destination par nom de pays
-   */
-  async findByCountry(country: string): Promise<Destination | null> {
-    try {
-      this.logger.debug(`Recherche destination par pays: ${country}`);
-      
-      const destination = await this.destinationModel
-        .findOne({
-          country: { $regex: `^${country.trim()}$`, $options: "i" },
-        })
-        .exec();
-
-      this.logger.debug(`Recherche par pays ${country}: ${destination ? 'trouvée' : 'non trouvée'}`);
-      
-      return destination;
-    } catch (error) {
-      this.logger.error(
-        `Erreur recherche par pays ${country}: ${error.message}`,
-        error.stack,
-      );
-      throw error;
     }
   }
 
@@ -366,7 +207,7 @@ export class DestinationService {
       let imagePath = existingDestination.imagePath;
       let oldImagePath: string | null = null;
 
-      // Gestion de la nouvelle image (toujours utiliser le fichier uploadé)
+      // Gestion de la nouvelle image
       if (imageFile) {
         const fileName = await this.storageService.uploadFile(imageFile);
         imagePath = `uploads/${fileName}`;
@@ -391,31 +232,24 @@ export class DestinationService {
         updateData.imagePath = imagePath;
       }
 
-      // Mise à jour dans la base
-      const updatedDestination = await this.destinationModel
-        .findByIdAndUpdate(id, updateData, {
-          new: true,
-          runValidators: true,
-        })
-        .select("country imagePath text createdAt updatedAt")
-        .exec();
+      // Mise à jour de la destination
+      const updatedDestination = await this.destinationModel.findByIdAndUpdate(
+        id,
+        updateData,
+        { new: true, runValidators: true }
+      );
 
       if (!updatedDestination) {
-        this.logger.error(`Destination non trouvée après mise à jour: ${id}`);
-        throw new NotFoundException(
-          `Destination avec ID ${id} non trouvée après mise à jour`,
-        );
+        throw new NotFoundException(`Destination avec ID ${id} non trouvée`);
       }
 
-      // Nettoyage de l'ancienne image après mise à jour réussie
-      if (oldImagePath) {
+      // Supprimer l'ancienne image si une nouvelle a été uploadée
+      if (oldImagePath && oldImagePath.startsWith('uploads/')) {
         try {
           await this.storageService.deleteFile(oldImagePath);
           this.logger.log(`Ancienne image supprimée: ${oldImagePath}`);
         } catch (cleanupError) {
-          this.logger.warn(
-            `Impossible de supprimer l'ancienne image: ${cleanupError.message}`,
-          );
+          this.logger.error("Erreur suppression ancienne image:", cleanupError.stack);
         }
       }
 
@@ -455,9 +289,7 @@ export class DestinationService {
   /**
    * Supprimer une destination (Admin seulement)
    */
-  async remove(
-    id: string,
-  ): Promise<{ message: string; deletedDestination: Destination }> {
+  async delete(id: string): Promise<void> {
     this.logger.log(`Tentative suppression destination: ${id}`);
 
     try {
@@ -466,7 +298,6 @@ export class DestinationService {
         throw new BadRequestException("ID de destination invalide");
       }
 
-      // Récupérer la destination avec toutes les données
       const destination = await this.destinationModel.findById(id);
       if (!destination) {
         this.logger.warn(`Destination non trouvée pour suppression: ${id}`);
@@ -474,31 +305,19 @@ export class DestinationService {
       }
 
       // Supprimer l'image associée si elle existe
-      if (destination.imagePath) {
-        await this.storageService.deleteFile(destination.imagePath);
-        this.logger.log(`Image supprimée: ${destination.imagePath}`);
+      if (destination.imagePath && destination.imagePath.startsWith('uploads/')) {
+        try {
+          await this.storageService.deleteFile(destination.imagePath);
+          this.logger.log(`Image supprimée: ${destination.imagePath}`);
+        } catch (cleanupError) {
+          this.logger.error("Erreur suppression image:", cleanupError.stack);
+        }
       }
 
-      // Supprimer la destination de la base
-      const deletedDestination = await this.destinationModel
-        .findByIdAndDelete(id)
-        .exec();
+      // Supprimer la destination
+      await this.destinationModel.findByIdAndDelete(id);
 
-      if (!deletedDestination) {
-        this.logger.error(`Destination non trouvée lors de la suppression: ${id}`);
-        throw new NotFoundException(
-          `Destination avec ID ${id} non trouvée lors de la suppression`,
-        );
-      }
-
-      this.logger.log(
-        `Destination supprimée: ${destination.country} (ID: ${id})`,
-      );
-
-      return {
-        message: "Destination supprimée avec succès",
-        deletedDestination,
-      };
+      this.logger.log(`Destination supprimée: ${destination.country} (ID: ${id})`);
     } catch (error) {
       this.logger.error(`Erreur suppression destination ${id}: ${error.message}`, error.stack);
 
@@ -516,81 +335,111 @@ export class DestinationService {
   }
 
   /**
-   * Compter le nombre total de destinations
+   * Récupérer toutes les destinations avec pagination (Public)
    */
-  async count(filters: any = {}): Promise<number> {
-    try {
-      this.logger.debug(`Comptage des destinations avec filtres: ${JSON.stringify(filters)}`);
-      
-      const count = await this.destinationModel.countDocuments(filters).exec();
-      
-      this.logger.debug(`Comptage terminé: ${count} destinations`);
-      
-      return count;
-    } catch (error) {
-      this.logger.error(`Erreur comptage destinations: ${error.message}`, error.stack);
-      throw new InternalServerErrorException(
-        "Erreur lors du comptage des destinations",
-      );
-    }
-  }
-
-  /**
-   * Vérifier l'existence d'une destination
-   */
-  async exists(id: string): Promise<boolean> {
-    try {
-      if (!id || id.length !== 24) return false;
-      const count = await this.destinationModel.countDocuments({ _id: id });
-      return count > 0;
-    } catch (error) {
-      this.logger.error(`Erreur vérification existence ${id}: ${error.message}`, error.stack);
-      return false;
-    }
-  }
-
-  /**
-   * Récupérer les statistiques des destinations
-   */
-  async getStatistics(): Promise<{
+  async findAll(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+  ): Promise<{
+    destinations: Destination[];
     total: number;
-    countries: number;
-    lastUpdated: Date | null;
+    page: number;
+    limit: number;
+    totalPages: number;
   }> {
     try {
-      this.logger.debug(`Calcul des statistiques des destinations`);
-      
-      const [total, lastDestination, allDestinations] = await Promise.all([
-        this.count(),
+      const skip = (page - 1) * limit;
+
+      // Construire le filtre de recherche
+      let filter: any = {};
+      if (search) {
+        filter = {
+          $or: [
+            { country: { $regex: search, $options: 'i' } },
+            { text: { $regex: search, $options: 'i' } }
+          ]
+        };
+      }
+
+      const [destinations, total] = await Promise.all([
         this.destinationModel
-          .findOne()
-          .sort({ updatedAt: -1 })
-          .select("updatedAt")
-          .exec(),
-        this.destinationModel.find().select("country").exec(),
+          .find(filter)
+          .sort({ country: 1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        this.destinationModel.countDocuments(filter)
       ]);
 
-      const uniqueCountries = new Set(
-        allDestinations.map((dest) => dest.country.toLowerCase().trim()),
-      );
+      const totalPages = Math.ceil(total / limit);
 
-      const stats = {
+      this.logger.log(`Récupération de ${destinations.length} destinations (page ${page}/${totalPages})`);
+
+      return {
+        destinations,
         total,
-        countries: uniqueCountries.size,
-        lastUpdated: lastDestination?.updatedAt || null,
+        page,
+        limit,
+        totalPages
       };
-
-      this.logger.debug(`Statistiques calculées: ${JSON.stringify(stats)}`);
-      
-      return stats;
     } catch (error) {
-      this.logger.error(
-        `Erreur récupération statistiques: ${error.message}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        "Erreur lors de la récupération des statistiques",
-      );
+      this.logger.error(`Erreur récupération destinations: ${error.message}`, error.stack);
+      throw new InternalServerErrorException("Erreur lors de la récupération des destinations");
+    }
+  }
+
+  /**
+   * Récupérer toutes les destinations sans pagination (Public)
+   */
+  async findAllWithoutPagination(): Promise<Destination[]> {
+    try {
+      this.logger.log(`Récupération de toutes les destinations sans pagination`);
+      
+      const destinations = await this.destinationModel
+        .find()
+        .sort({ country: 1 })
+        .lean();
+      
+      this.logger.log(`Récupération réussie: ${destinations.length} destinations total`);
+      
+      return destinations;
+    } catch (error) {
+      this.logger.error(`Erreur récupération toutes destinations: ${error.message}`, error.stack);
+      throw new InternalServerErrorException("Erreur lors de la récupération des destinations");
+    }
+  }
+
+  /**
+   * Récupérer une destination par ID (Public)
+   */
+  async findOne(id: string): Promise<Destination> {
+    try {
+      // Validation de l'ID
+      if (!id || id.length !== 24) {
+        throw new BadRequestException("ID de destination invalide");
+      }
+
+      const destination = await this.destinationModel.findById(id).lean();
+      
+      if (!destination) {
+        this.logger.warn(`Destination non trouvée: ${id}`);
+        throw new NotFoundException(`Destination avec ID ${id} non trouvée`);
+      }
+
+      this.logger.log(`Destination trouvée: ${destination.country} (ID: ${id})`);
+      return destination;
+    } catch (error) {
+      this.logger.error(`Erreur recherche destination ${id}: ${error.message}`, error.stack);
+
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException("Erreur lors de la recherche de la destination");
     }
   }
 }
