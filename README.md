@@ -360,7 +360,7 @@ pnpm vercel       # Déploiement Vercel
 ## 📞 Support
 
 ### Contact Technique
-- **Email**: admin@panameconsulting.com
+- **Email**: moussa.sangare.ma@gmail.com
 - **Documentation**: `/api` (Swagger)
 - **Issues**: GitHub Issues
 
