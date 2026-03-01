@@ -109,37 +109,15 @@ export class DestinationService {
         throw new ConflictException("Cette destination existe déjà");
       }
 
-      // Gestion de l'image (compatible Vercel et local)
+      // Gestion de l'image (toujours utiliser le fichier uploadé)
       let imagePath: string;
       
       if (imageFile) {
         const fileName = await this.storageService.uploadFile(imageFile);
-        
-        // Vérifier si on est sur Vercel
-        const isVercel = process.env.VERCEL === '1';
-        
-        if (isVercel) {
-          // Sur Vercel, utiliser des images par défaut selon le pays
-          const defaultImages: Record<string, string> = {
-            'france': '/images/france.svg',
-            'algerie': '/images/algerie.png', 
-            'chine': '/images/chine.jpg',
-            'maroc': '/images/maroc.webp',
-            'russie': '/images/russie.png',
-            'turquie': '/images/turquie.webp'
-          };
-          
-          const countryKey = createDestinationDto.country.toLowerCase();
-          imagePath = defaultImages[countryKey] || '/images/paname-consulting.png';
-          
-          this.logger.log(`Image par défaut utilisée pour ${createDestinationDto.country}: ${imagePath}`);
-        } else {
-          // En local, utiliser le fichier uploadé
-          imagePath = `uploads/${fileName}`;
-          this.logger.log(`Image uploadée utilisée pour ${createDestinationDto.country}: ${imagePath}`);
-        }
+        imagePath = `uploads/${fileName}`;
+        this.logger.log(`Image uploadée utilisée pour ${createDestinationDto.country}: ${imagePath}`);
       } else {
-        imagePath = '/images/paname-consulting.png';
+        throw new BadRequestException("L'image est obligatoire pour créer une destination");
       }
 
       // Création de la destination
@@ -388,34 +366,11 @@ export class DestinationService {
       let imagePath = existingDestination.imagePath;
       let oldImagePath: string | null = null;
 
-      // Gestion de la nouvelle image
+      // Gestion de la nouvelle image (toujours utiliser le fichier uploadé)
       if (imageFile) {
         const fileName = await this.storageService.uploadFile(imageFile);
-        
-        // Vérifier si on est sur Vercel
-        const isVercel = process.env.VERCEL === '1';
-        
-        if (isVercel) {
-          // Sur Vercel, utiliser des images par défaut selon le pays
-          const defaultImages: Record<string, string> = {
-            'france': '/images/france.svg',
-            'algerie': '/images/algerie.png', 
-            'chine': '/images/chine.jpg',
-            'maroc': '/images/maroc.webp',
-            'russie': '/images/russie.png',
-            'turquie': '/images/turquie.webp'
-          };
-          
-          // Utiliser le pays existant ou le nouveau pays s'il est modifié
-          const countryKey = (updateDestinationDto.country || existingDestination.country).toLowerCase();
-          imagePath = defaultImages[countryKey] || '/images/paname-consulting.png';
-          
-          this.logger.log(`Image par défaut utilisée pour mise à jour: ${imagePath}`);
-        } else {
-          // En local, utiliser le fichier uploadé
-          imagePath = `uploads/${fileName}`;
-          this.logger.log(`Image uploadée utilisée pour mise à jour: ${imagePath}`);
-        }
+        imagePath = `uploads/${fileName}`;
+        this.logger.log(`Image uploadée utilisée pour mise à jour: ${imagePath}`);
 
         // Marquer l'ancienne image pour suppression
         oldImagePath = existingDestination.imagePath;

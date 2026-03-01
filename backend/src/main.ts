@@ -122,11 +122,9 @@ async function bootstrapServer() {
       expressApp.use(compression());
     }
 
-    // 5. Servir les fichiers uploadés statiquement (uniquement en local, pas sur Vercel)
-    if (!isVercel) {
-      const path = require('path');
-      expressApp.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
-    }
+    // 5. Servir les fichiers uploadés statiquement
+    const path = require('path');
+    expressApp.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 
     // 6. Rate limiting (configuration différente pour Vercel)
     const limiter = rateLimit({
