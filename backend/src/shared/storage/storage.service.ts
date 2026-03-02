@@ -9,7 +9,7 @@ export class StorageService {
 
   constructor() {
     this.isVercel = process.env.VERCEL === '1';
-    this.uploadDir = this.isVercel ? '/uploads' : join(process.cwd(), 'uploads');
+    this.uploadDir = this.isVercel ? '/var/task/backend/dist/uploads' : join(process.cwd(), 'uploads');
     this.ensureUploadDir();
   }
 
@@ -34,7 +34,7 @@ export class StorageService {
     try {
       if (this.isVercel) {
         // Sur Vercel, stocker dans /tmp/uploads ET dans dist/uploads
-        const tmpPath = join('/uploads', filename);
+        const tmpPath = join('/var/task/backend/dist/uploads', filename);
         const distPath = join(process.cwd(), 'dist', 'uploads', filename);
         
         // 1. Stocker dans /tmp (pour la durée de la fonction)
@@ -71,12 +71,12 @@ export class StorageService {
     // Essayer plusieurs emplacements sur Vercel
     if (this.isVercel) {
       // 1. Essayer /tmp/uploads (nouveau système)
-      const tmpPath = join('/uploads', filename);
-      console.log(`[StorageService] Essai /uploads: ${tmpPath}`);
+      const tmpPath = join('/var/task/backend/dist/uploads', filename);
+      console.log(`[StorageService] Essai /var/task/backend/dist/uploads: ${tmpPath}`);
       
       try {
         const buffer = await fs.readFile(tmpPath);
-        console.log(`[StorageService] Fichier trouvé dans /uploads: ${filename} (${buffer.length} bytes)`);
+        console.log(`[StorageService] Fichier trouvé dans /var/task/backend/dist/uploads: ${filename} (${buffer.length} bytes)`);
         return buffer;
       } catch (tmpError) {
         console.log(`[StorageService] Non trouvé dans /uploads: ${filename}`);
