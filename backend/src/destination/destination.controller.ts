@@ -15,6 +15,8 @@ import {
   FileTypeValidator,
   MaxFileSizeValidator,
   Logger,
+  NotFoundException,
+  Res,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
@@ -29,6 +31,7 @@ import { Roles } from "../shared/decorators/roles.decorator";
 import { JwtAuthGuard } from "../shared/guards/jwt-auth.guard";
 import { RolesGuard } from "../shared/guards/roles.guard";
 import { DestinationService } from "./destination.service";
+import { StorageService } from "../shared/storage/storage.service";
 import { CreateDestinationDto } from "./dto/create-destination.dto";
 import { UpdateDestinationDto } from "./dto/update-destination.dto";
 
@@ -63,7 +66,10 @@ class ImageFileTypeValidator extends FileValidator {
 export class DestinationController {
   private readonly logger = new Logger(DestinationController.name);
 
-  constructor(private readonly destinationService: DestinationService) {}
+  constructor(
+    private readonly destinationService: DestinationService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -188,6 +194,52 @@ export class DestinationController {
     
     this.logger.log(`Destination supprimée avec succès: ${result.deletedDestination.country} (ID: ${id})`);
     
-    return { message: "Destination supprimée avec succès" };
+    return result;
+  }
+
+  @Get("uploads/:filename")
+  @ApiOperation({ summary: "Servir les fichiers uploadés" })
+  @ApiResponse({ status: 200, description: "Fichier retourné" })
+  @ApiResponse({ status: 404, description: "Fichier non trouvé" })
+  async serveUpload(@Param("filename") filename: string, @Res({ passthrough: true }) res: any) {
+    try {
+      // Vérifier si on est sur Vercel
+      const isVercel = process.env.VERCEL === '1';
+      
+      if (isVercel) {
+        // Sur Vercel, servir depuis la mémoire
+        const buffer = this.storageService.getFileBuffer(filename);
+        if (!buffer) {
+          throw new NotFoundException('Fichier non trouvé');
+        }
+        
+        // Déterminer le type MIME
+        const ext = filename.split('.').pop()?.toLowerCase();
+        const mimeTypes: { [key: string]: string } = {
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'png': 'image/png',
+          'webp': 'image/webp',
+          'svg': 'image/svg+xml',
+          'gif': 'image/gif',
+          'avif': 'image/avif'
+        };
+        
+        const mimeType = mimeTypes[ext || ''] || 'application/octet-stream';
+        
+        return new Response(buffer as any, {
+          headers: {
+            'Content-Type': mimeType,
+            'Cache-Control': 'public, max-age=31536000'
+          }
+        });
+      } else {
+        // En local, laisser Express static gérer
+        throw new NotFoundException('Non disponible en local');
+      }
+    } catch (error) {
+      this.logger.error(`Erreur serving file ${filename}: ${error.message}`);
+      throw error;
+    }
   }
 }
