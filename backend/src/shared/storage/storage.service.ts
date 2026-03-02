@@ -9,7 +9,7 @@ export class StorageService {
 
   constructor() {
     this.isVercel = process.env.VERCEL === '1';
-    this.uploadDir = this.isVercel ? '/dist/uploads' : join(process.cwd(), 'uploads');
+    this.uploadDir = this.isVercel ? '/uploads' : join(process.cwd(), 'uploads');
     this.ensureUploadDir();
   }
 
@@ -34,21 +34,21 @@ export class StorageService {
     try {
       if (this.isVercel) {
         // Sur Vercel, stocker dans /tmp/uploads ET dans dist/uploads
-        const tmpPath = join('/dist/uploads', filename);
+        const tmpPath = join('/uploads', filename);
         const distPath = join(process.cwd(), 'dist', 'uploads', filename);
         
         // 1. Stocker dans /tmp (pour la durée de la fonction)
-        await fs.mkdir('/dist/uploads', { recursive: true });
+        await fs.mkdir('/uploads', { recursive: true });
         await fs.writeFile(tmpPath, file.buffer);
-        console.log(`[StorageService] Fichier écrit dans /dist/uploads: ${filename}`);
+        console.log(`[StorageService] Fichier écrit dans /uploads: ${filename}`);
         
         // 2. Essayer de stocker dans dist/uploads (pour les prochains déploiements)
         try {
           await fs.mkdir(join(process.cwd(), 'dist', 'uploads'), { recursive: true });
           await fs.writeFile(distPath, file.buffer);
-          console.log(`[StorageService] Fichier écrit dans dist/uploads: ${filename}`);
+          console.log(`[StorageService] Fichier écrit dans /uploads: ${filename}`);
         } catch (distError) {
-          console.log(`[StorageService] Impossible d'écrire dans dist/uploads: ${distError.message}`);
+          console.log(`[StorageService] Impossible d'écrire dans /uploads: ${distError.message}`);
         }
       } else {
         // En local, créer le dossier et stocker sur disque
@@ -71,27 +71,27 @@ export class StorageService {
     // Essayer plusieurs emplacements sur Vercel
     if (this.isVercel) {
       // 1. Essayer /tmp/uploads (nouveau système)
-      const tmpPath = join('/dist/uploads', filename);
-      console.log(`[StorageService] Essai /dist/uploads: ${tmpPath}`);
+      const tmpPath = join('/uploads', filename);
+      console.log(`[StorageService] Essai /uploads: ${tmpPath}`);
       
       try {
         const buffer = await fs.readFile(tmpPath);
-        console.log(`[StorageService] Fichier trouvé dans /dist/uploads: ${filename} (${buffer.length} bytes)`);
+        console.log(`[StorageService] Fichier trouvé dans /uploads: ${filename} (${buffer.length} bytes)`);
         return buffer;
       } catch (tmpError) {
-        console.log(`[StorageService] Non trouvé dans /dist/uploads: ${filename}`);
+        console.log(`[StorageService] Non trouvé dans /uploads: ${filename}`);
       }
       
       // 2. Essayer uploads dans dist (ancien système)
       const distPath = join(process.cwd(), 'dist', 'uploads', filename);
-      console.log(`[StorageService] Essai dist/uploads: ${distPath}`);
+      console.log(`[StorageService] Essai /uploads: ${distPath}`);
       
       try {
         const buffer = await fs.readFile(distPath);
-        console.log(`[StorageService] Fichier trouvé dans dist/uploads: ${filename} (${buffer.length} bytes)`);
+        console.log(`[StorageService] Fichier trouvé dans /uploads: ${filename} (${buffer.length} bytes)`);
         return buffer;
       } catch (distError) {
-        console.log(`[StorageService] Non trouvé dans dist/uploads: ${filename}`);
+        console.log(`[StorageService] Non trouvé dans /uploads: ${filename}`);
       }
       
       console.log(`[StorageService] Fichier NON trouvé dans tous les emplacements: ${filename}`);
@@ -114,7 +114,7 @@ export class StorageService {
     try {
       if (this.isVercel) {
         await fs.unlink(filePath);
-        console.log(`[StorageService] Fichier supprimé de /dist/uploads: ${filename}`);
+        console.log(`[StorageService] Fichier supprimé de /uploads: ${filename}`);
       } else {
         await fs.unlink(filePath);
         console.log(`[StorageService] Fichier supprimé du disque: ${filename}`);
