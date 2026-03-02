@@ -8,11 +8,11 @@ import { AppModule } from './app.module';
 import { ValidationPipe, BadRequestException, Logger } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ExpressAdapter } from '@nestjs/platform-express';
-import express from 'express';
-import cookieParser from 'cookie-parser';
+import * as express from 'express';
+import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
-import compression from 'compression';
+import * as compression from 'compression';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import * as path from 'path';
 
@@ -171,50 +171,91 @@ async function bootstrapServer() {
 
     // ========== CONFIGURATION NESTJS ==========
 
-    // CORS configuration (en complément du middleware)
+    // CSP directives pour Helmet
+    const cspDirectives = {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      scriptSrc: ["'self'"],
+      connectSrc: ["'self'", "https://paname-consulting.vercel.app", "https://panameconsulting.vercel.app"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      manifestSrc: ["'self'"],
+    };
+
     nestApp.enableCors({
-      origin: (origin: string | undefined, callback: (err: Error | null, origin?: boolean) => void) => {
-        // En développement local, permettre toutes les origines
-        if (!isProduction) {
+    origin: (origin, callback) => {
+      // Autoriser les requêtes sans origin (comme les applications mobiles, curl, postman)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      const allowedOrigins = [
+        "https://panameconsulting.com",
+        "https://www.panameconsulting.com",
+        "https://panameconsulting.vercel.app",
+        "https://panameconsulting.up.railway.app",
+        "https://vercel.live",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:10000",
+      ];
+      
+      // En développement, autoriser toutes les origines locales
+      if (process.env.NODE_ENV !== 'production') {
+        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
           return callback(null, true);
         }
-
-        if (!origin || allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          if (!isVercel) {
-            logger.warn(`CORS blocked for origin: ${origin}`);
-          }
-          callback(new Error('Not allowed by CORS'));
-        }
-      },
-      credentials: true,
-      exposedHeaders: ['Set-Cookie', 'Authorization', 'X-API-Version'],
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
-      allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'Cookie',
-        'Set-Cookie',
-        'X-Requested-With',
-        'Accept',
-        'Origin',
-        'X-API-Key',
-      ],
-      maxAge: 86400,
-    });
+      }
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        logger.warn(`CORS bloqué pour origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'Cookie', 
+      'Set-Cookie',
+      'X-Requested-With',
+      'Accept',
+      'Origin'
+    ],
+    exposedHeaders: ['Set-Cookie', 'Authorization'],
+    maxAge: 86400, // 24 heures en secondes
+  });
 
     // WebSocket adapter
     nestApp.useWebSocketAdapter(new IoAdapter(nestApp));
 
     // Sécurité Helmet
     nestApp.use(
-      helmet({
-        contentSecurityPolicy: isProduction ? undefined : false,
-        crossOriginEmbedderPolicy: false,
-        crossOriginResourcePolicy: { policy: 'cross-origin' },
-      })
-    );
+    helmet({
+      contentSecurityPolicy: {
+        directives: cspDirectives,
+      },
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+      crossOriginEmbedderPolicy: false,
+      crossOriginOpenerPolicy: { policy: "same-origin" },
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+      },
+      frameguard: { action: 'deny' },
+      hidePoweredBy: true,
+      noSniff: true,
+      xssFilter: true,
+    }),
+  );
 
     // Headers de sécurité supplémentaires
     nestApp.use(
