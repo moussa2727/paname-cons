@@ -4,11 +4,9 @@ import { Injectable } from '@nestjs/common';
 export class UrlService {
   private readonly baseUrl: string;
   private readonly isVercel: boolean;
-  private readonly isProduction: boolean;
 
   constructor() {
     this.isVercel = process.env.VERCEL === '1';
-    this.isProduction = process.env.NODE_ENV === 'production';
     
     // URL de base selon l'environnement
     if (this.isVercel) {
@@ -39,23 +37,6 @@ export class UrlService {
     // Images uploadées - utiliser l'endpoint API
     const cleanFilename = this.normalizeFilePath(filename);
     return `${this.baseUrl}/api/destinations/uploads/${cleanFilename}`;
-  }
-
-  /**
-   * Vérifier si une URL est une URL blob Vercel valide
-   */
-  isVercelBlobUrl(url: string): boolean {
-    return url.startsWith('https://blob.vercel-storage.com/') || 
-           url.startsWith('https://vercel.blob.com/');
-  }
-
-  /**
-   * Obtenir l'URL blob Vercel directe (si disponible)
-   */
-  async getVercelBlobUrl(filename: string): Promise<string | null> {
-    // Cette méthode pourrait être étendue pour interroger Vercel Blob directement
-    // Pour l'instant, retourne null pour forcer l'utilisation du système local
-    return null;
   }
 
   /**
