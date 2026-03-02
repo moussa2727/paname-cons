@@ -31,6 +31,7 @@ import { JwtAuthGuard } from "../shared/guards/jwt-auth.guard";
 import { RolesGuard } from "../shared/guards/roles.guard";
 import { DestinationService } from "./destination.service";
 import { StorageService } from "../shared/storage/storage.service";
+import { UrlService } from "../shared/utils/url.service";
 import { CreateDestinationDto } from "./dto/create-destination.dto";
 import { UpdateDestinationDto } from "./dto/update-destination.dto";
 
@@ -68,6 +69,7 @@ export class DestinationController {
   constructor(
     private readonly destinationService: DestinationService,
     private readonly storageService: StorageService,
+    private readonly urlService: UrlService,
   ) {}
 
   @Post()
@@ -203,7 +205,7 @@ export class DestinationController {
   async serveUpload(@Param("filename") filename: string, @Res({ passthrough: true }) res: any) {
     try {
       // Nettoyer le filename pour enlever uploads/ si présent
-      const cleanFilename = filename.replace(/^uploads\//, '');
+      const cleanFilename = this.urlService.normalizeFilePath(filename);
       this.logger.log(`[DestinationController] Demande du fichier: ${cleanFilename}`);
       
       // Vérifier si on est sur Vercel
@@ -212,7 +214,7 @@ export class DestinationController {
       if (isVercel) {
         // Sur Vercel, rediriger vers l'URL publique du blob
         const fileUrl = await this.storageService.getFileUrl(cleanFilename);
-        if (!fileUrl) {
+        if (!fileUrl || fileUrl.includes('/images/paname-consulting.jpg')) {
           throw new NotFoundException('Fichier non trouvé');
         }
         

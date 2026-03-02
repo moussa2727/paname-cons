@@ -69,3 +69,6 @@ pids
 .eslintcache
 .vercel
 .env*.local
+
+.vercel
+.env*.local

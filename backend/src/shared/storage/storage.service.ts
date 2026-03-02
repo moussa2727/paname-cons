@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { promisify } from "util";
 import { put, del, head } from '@vercel/blob';
+import { UrlService } from '../utils/url.service';
 
 const writeFile = promisify(fs.writeFile);
 const unlink = promisify(fs.unlink);
@@ -14,6 +15,8 @@ export class StorageService {
   private readonly uploadDir = path.join(process.cwd(), "uploads");
   private readonly isVercel = process.env.VERCEL === '1';
   private readonly blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+
+  constructor(private readonly urlService: UrlService) {}
 
   async uploadFile(
     file: Express.Multer.File,
@@ -101,21 +104,14 @@ export class StorageService {
   }
 
   async getFileUrl(filename: string): Promise<string> {
-    const cleanFilename = filename.replace(/^uploads\//, "");
+    // Utiliser le UrlService pour générer l'URL complète
+    return this.urlService.getImageUrl(filename);
+  }
 
-    if (this.isVercel && this.blobToken) {
-      // Retourner l'URL publique de Vercel Blob
-      try {
-        const blob = await head(cleanFilename, { token: this.blobToken });
-        return blob?.url || null;
-      } catch (error) {
-        this.logger.error(`Erreur récupération URL Vercel Blob: ${error.message}`);
-        return null;
-      }
-    } else {
-      // Retourner l'URL locale
-      const baseUrl = process.env.BASE_URL || 'http://localhost:10000';
-      return `${baseUrl}/uploads/${cleanFilename}`;
-    }
+  /**
+   * Obtenir l'URL complète pour une image (méthode utilitaire)
+   */
+  getFullImageUrl(filename: string): string {
+    return this.urlService.getImageUrl(filename);
   }
 }
