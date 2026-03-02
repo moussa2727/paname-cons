@@ -1,19 +1,19 @@
 /* eslint-disable no-undef */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
   destinationService,
   type Destination,
   type CreateDestinationData,
   type UpdateDestinationData,
+  type WebSocketEvent,
   getFullImageUrl,
 } from '../../api/admin/AdminDestinationService';
 import RequireAdmin from '../../context/RequireAdmin';
 import { Helmet } from 'react-helmet-async';
 
 interface DataSourceInfo {
-  
   count: number;
   lastUpdated: string | null;
 }
@@ -51,35 +51,51 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     popoverTimeout.current = window.setTimeout(() => setPopover(null), 3000);
   };
 
+  // Gestionnaire des événements WebSocket
+  const handleWebSocketEvent = useCallback((event: WebSocketEvent) => {
+    switch (event.event) {
+      case 'destination-created':
+        if (event.data) {
+          setDestinations(prev => {
+            if (prev.some(d => d._id === event.data._id)) return prev;
+            return [event.data, ...prev];
+          });
+          showPopover(`Nouvelle destination: ${event.data.country}`, 'success');
+        }
+        break;
+        
+      case 'destination-updated':
+        if (event.data) {
+          setDestinations(prev => 
+            prev.map(d => d._id === event.data._id ? event.data : d)
+          );
+          showPopover(`Destination mise à jour: ${event.data.country}`, 'success');
+        }
+        break;
+        
+      case 'destination-deleted':
+        if (event.data) {
+          const id = typeof event.data === 'string' ? event.data : event.data.id;
+          setDestinations(prev => prev.filter(d => d._id !== id));
+          showPopover('Destination supprimée', 'success');
+        }
+        break;
+        
+      case 'notification':
+        if (event.message) {
+          showPopover(event.message, event.type === 'error' ? 'error' : 'success');
+        }
+        break;
+    }
+  }, []);
+
   // Charger les destinations
   const fetchDestinations = async (): Promise<void> => {
     setLoading(true);
     try {
-      const data =
-        await destinationService.getAllDestinationsWithoutPagination();
+      const data = await destinationService.getAllDestinationsWithoutPagination();
       
-      // Transformer les données pour inclure les URLs complètes des images
-      const transformedData = data.map((dest: Destination) => ({
-        ...dest,
-        imagePath: getFullImageUrl(dest.imagePath),
-      }));
-      
-      setDestinations(transformedData);
-
-      // Pour déboguer - seulement en développement
-      // if (import.meta.env.DEV) {
-      //   console.log('Destinations loaded:', data);
-      //   console.log('Transformed destinations:', transformedData);
-      //   if (transformedData.length > 0) {
-      //     console.log('First destination image URL:', transformedData[0]?.imagePath);
-      //   }
-      // }
-
-      // Mettre à jour les informations de source de données
-
-      // if (import.meta.env.DEV) {
-      //   console.log('Stats:', stats);
-      // }
+      setDestinations(data);
 
       setDataSourceInfo({
         count: data.length,
@@ -102,31 +118,22 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     }
   };
 
-  // Vérifier les droits admin - CORRIGÉ
+  // S'abonner aux événements WebSocket
+  useEffect(() => {
+    const unsubscribe = destinationService.subscribe(handleWebSocketEvent);
+    
+    return () => {
+      unsubscribe();
+      destinationService.disconnectWebSocket();
+    };
+  }, [handleWebSocketEvent]);
+
+  // Vérifier les droits admin
   const hasAdminRights = (): boolean => {
     if (!isAuthenticated || !user || !access_token) {
-      // if (import.meta.env.DEV) {
-      //   console.log(
-      //     'hasAdminRights: false - not authenticated/no user/no token'
-      //   );
-      // }
       return false;
     }
-
-    // Vérifier le rôle admin
-    const isAdminUser = user.role === 'admin';
-
-    // if (import.meta.env.DEV) {
-    //   console.log('hasAdminRights check:', {
-    //     isAuthenticated,
-    //     user,
-    //     role: user?.role,
-    //     hasToken: !!access_token,
-    //     isAdminUser,
-    //   });
-    // }
-
-    return isAdminUser;
+    return user.role === 'admin';
   };
 
   // Soumission du formulaire
@@ -156,7 +163,6 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
       }
 
       if (editingId) {
-        // Mise à jour destination existante
         const updateData: UpdateDestinationData = {
           country: form.country.trim(),
           text: form.text.trim(),
@@ -167,9 +173,8 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           editingId,
           updateData
         );
-        showPopover('Destination modifiée avec succès', 'success');
+        // Pas de toast ici, géré par le WebSocket
       } else {
-        // Création nouvelle destination
         if (!imageFile) {
           showPopover('Veuillez sélectionner une image', 'error');
           return;
@@ -182,17 +187,14 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
         };
 
         await destinationService.createDestination(createData);
-        showPopover('Destination ajoutée avec succès', 'success');
+        // Pas de toast ici, géré par le WebSocket
       }
 
-      // Réinitialiser et rafraîchir
       handleCancelEdit();
-      fetchDestinations();
     } catch (error: any) {
       if (import.meta.env.DEV) {
         console.error('Erreur détaillée:', error);
       }
-      // Le message d'erreur est déjà géré par le service
     } finally {
       setLoading(false);
     }
@@ -209,14 +211,9 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     setLoading(true);
     try {
       await destinationService.deleteDestination(id);
-      showPopover('Destination supprimée avec succès', 'success');
       setShowDeleteConfirm(null);
-      fetchDestinations();
     } catch (error: any) {
-      // if (import.meta.env.DEV) {
-      //   console.error('Erreur détaillée:', error);
-      // }
-      // Le message d'erreur est déjà géré par le service
+      // Error handled by service
     } finally {
       setLoading(false);
     }
@@ -234,7 +231,6 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
 
-      // Validation via le service
       const validation = destinationService.validateImageFile(file);
       if (!validation.isValid) {
         showPopover(validation.error!, 'error');
@@ -268,24 +264,18 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
   };
 
   useEffect(() => {
-    // Log d'état d'authentification pour déboguer
-    // if (import.meta.env.DEV) {
-    //   console.log('AdminDestinations Auth State:', {
-    //     access_token,
-    //     user,
-    //     isAuthenticated,
-    //     isAdmin: user?.role === 'admin',
-    //     userObject: user,
-    //   });
-    // }
-
     fetchDestinations();
     return () => {
       if (popoverTimeout.current) clearTimeout(popoverTimeout.current);
     };
-  }, [access_token, user, isAuthenticated]);
+  }, []);
 
   const isAdmin = hasAdminRights();
+
+  // Fonction pour obtenir l'URL complète de l'image au moment de l'affichage
+  const getImageUrl = (imagePath: string): string => {
+    return getFullImageUrl(imagePath);
+  };
 
   return (
     <>
@@ -296,13 +286,6 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           content="Interface d'administration pour gérer les destinations de voyage sur Paname Consulting. Accès réservé aux administrateurs."
         />
         <meta name='robots' content='noindex, nofollow' />
-        <meta name='googlebot' content='noindex, nofollow' />
-        <meta name='bingbot' content='noindex, nofollow' />
-        <meta name='yandexbot' content='noindex, nofollow' />
-        <meta name='duckduckbot' content='noindex, nofollow' />
-        <meta name='baidu' content='noindex, nofollow' />
-        <meta name='naver' content='noindex, nofollow' />
-        <meta name='seznam' content='noindex, nofollow' />
       </Helmet>
 
       <RequireAdmin>
@@ -751,7 +734,6 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
 
           {/* Liste des destinations */}
           <div className='bg-white rounded-xl border border-slate-200/60 overflow-hidden shadow-sm mx-4'>
-            {/* En-tête */}
             <div className='px-4 py-3 bg-linear-to-r from-blue-500 to-blue-600 text-white'>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
@@ -778,7 +760,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
               </div>
             </div>
 
-            {/* Version tablette - Cartes améliorées */}
+            {/* Version tablette */}
             <div className='lg:hidden'>
               {loading ? (
                 <div className='p-4 text-center'>
@@ -819,7 +801,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                       <div className='flex gap-3'>
                         <div className='shrink-0'>
                           <img
-                            src={dest.imagePath}
+                            src={getImageUrl(dest.imagePath)}
                             alt={dest.country}
                             className='w-16 h-16 object-cover rounded-lg border border-slate-200 shadow-sm'
                             onError={e => {
@@ -962,7 +944,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                         <td className='px-4 py-4'>
                           <div className='flex items-center'>
                             <img
-                              src={dest.imagePath}
+                              src={getImageUrl(dest.imagePath)}
                               alt={dest.country}
                               className='w-12 h-12 object-cover rounded-lg border border-slate-200 shadow-sm'
                               onError={e => {

@@ -13,6 +13,8 @@ import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import * as compression from 'compression';
+import { IoAdapter } from '@nestjs/platform-socket.io';
+import * as path from 'path';
 
 // Configuration plus sécurisée pour Vercel
 const isVercel = process.env.VERCEL === '1';
@@ -34,12 +36,16 @@ const allowedOrigins = [
 let cachedApp: express.Application | null = null;
 let cachedNestApp: NestExpressApplication | null = null;
 let isInitializing = false;
+
+/**
+ * Fonction principale de bootstrap
+ */
 async function bootstrapServer() {
   try {
     // Créer l'application Express
     const expressApp = express();
 
-    expressApp.set('trust proxy', true);
+    expressApp.set('trust proxy', isProduction ? 1 : false);
 
     // ========== MIDDLEWARE GLOBAL ==========
 
@@ -124,9 +130,8 @@ async function bootstrapServer() {
     }
 
     // 5. Servir les fichiers uploadés statiquement
-    const path = require('path');
-    expressApp.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
-
+    expressApp.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+    expressApp.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
     // 6. Rate limiting avec configuration sécurisée
     const limiterOptions: any = {
       windowMs: 15 * 60 * 1000, // 15 minutes
@@ -137,18 +142,19 @@ async function bootstrapServer() {
       },
       standardHeaders: true,
       skipSuccessfulRequests: false,
+      trustProxy: false, // Désactiver trust proxy pour éviter la vulnérabilité
     };
 
     // Configuration spécifique pour Vercel
     if (isVercel) {
       // Skip rate limiting pour les requêtes internes Vercel
-      limiterOptions.skip = (req) => {
+      limiterOptions.skip = (req: express.Request) => {
         return req.headers['x-vercel-forwarded-for'] !== undefined;
       };
+      limiterOptions.trustProxy = 1; // Activer seulement sur Vercel
     }
 
     const limiter = rateLimit(limiterOptions);
-
     expressApp.use(limiter);
 
     // ========== CRÉATION NESTJS ==========
@@ -167,7 +173,7 @@ async function bootstrapServer() {
 
     // CORS configuration (en complément du middleware)
     nestApp.enableCors({
-      origin: (origin, callback) => {
+      origin: (origin: string | undefined, callback: (err: Error | null, origin?: boolean) => void) => {
         // En développement local, permettre toutes les origines
         if (!isProduction) {
           return callback(null, true);
@@ -198,10 +204,13 @@ async function bootstrapServer() {
       maxAge: 86400,
     });
 
+    // WebSocket adapter
+    nestApp.useWebSocketAdapter(new IoAdapter(nestApp));
+
     // Sécurité Helmet
     nestApp.use(
       helmet({
-        contentSecurityPolicy: isProduction,
+        contentSecurityPolicy: isProduction ? undefined : false,
         crossOriginEmbedderPolicy: false,
         crossOriginResourcePolicy: { policy: 'cross-origin' },
       })
@@ -259,7 +268,7 @@ async function bootstrapServer() {
 
     // Préfixe global de l'API
     nestApp.setGlobalPrefix('api', {
-      exclude: isVercel ? [] : ['/'], // Endpoint health en root sur Vercel
+      exclude: ['/', '/health', '/api'], 
     });
 
     // Initialisation
@@ -311,7 +320,7 @@ if (isVercel) {
           error: 'Internal Server Error',
           message: 'An unexpected error occurred',
           timestamp: new Date().toISOString(),
-          ...(isProduction ? {} : { detail: error.message }),
+          ...(isProduction ? {} : { detail: (error as Error).message }),
         });
       }
     }
@@ -324,24 +333,24 @@ if (isVercel) {
   // ========== DÉMARRAGE LOCAL ==========
   (async () => {
     try {
-      logger.log(' Starting local server...');
+      logger.log('Starting local server...');
 
       const { nestApp } = await bootstrapServer();
 
       const port = process.env.PORT || 10000;
-      const host = process.env.HOST || '0.0.0.0';
 
-      await nestApp.listen(port, host);
+      await nestApp.listen(port);
 
-      logger.log(` Server running on http://${host}:${port}`);
-      logger.log(` API available at http://${host}:${port}/api`);
-      logger.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.log(`Server running on http://localhost:${port}`);
+      logger.log(`API available at http://localhost:${port}/api`);
+      logger.log(`WebSocket available at ws://localhost:${port}/destinations`);
+      logger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 
       // Graceful shutdown
       const gracefulShutdown = async (signal: string) => {
         logger.log(` Received ${signal}, shutting down gracefully...`);
         await nestApp.close();
-        logger.log(' Server closed');
+        logger.log('Server closed');
         process.exit(0);
       };
 
@@ -354,7 +363,7 @@ if (isVercel) {
       });
 
       process.on('unhandledRejection', (reason, promise) => {
-        logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+        logger.error(' Unhandled Rejection at:', promise, 'reason:', reason);
       });
     } catch (error) {
       logger.error('Failed to start local server', error);

@@ -51,9 +51,6 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
       });
     }
 
-    // Alternative : considérer undefined comme actif
-    // const isActive = user.isActive !== undefined ? user.isActive : true;
-    // if (!isActive) { ... }
 
     if (user.tokenType && user.tokenType !== "access") {
       this.logger.warn(
@@ -90,7 +87,7 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
         const jwt = require('jsonwebtoken');
         try {
           const decoded = jwt.decode(token);
-          this.logger.debug(`Token décodé: ${JSON.stringify(decoded, null, 2)}`);
+          this.logger.debug(`Token décodé: ${JSON.stringify(decoded.iss, null, 2)}`);
         } catch (decodeErr) {
           this.logger.debug(`Impossible de décoder le token: ${decodeErr.message}`);
         }

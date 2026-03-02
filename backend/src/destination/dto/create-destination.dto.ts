@@ -1,3 +1,4 @@
+// create-destination.dto.ts
 import {
   IsString,
   IsNotEmpty,
@@ -37,9 +38,16 @@ export class CreateDestinationDto {
   text: string;
 
   @ApiPropertyOptional({
+    description: 'Image de la destination (JPEG, PNG, WEBP, AVIF, SVG) - Max 5MB',
+  })
+  @IsOptional()
+  @IsString()
+  imagePath?: string;
+
+  @ApiPropertyOptional({
     type: 'string',
     format: 'binary',
-    description: 'Image de la destination (JPEG, PNG, WEBP, AVIF, SVG) - Max 5MB',
+    description: 'Fichier image à uploader',
   })
   @IsOptional()
   image?: any;

@@ -1,20 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ToastContainer } from 'react-toastify';
-import { getFullImageUrl } from '../api/admin/AdminDestinationService';
-import 'react-toastify/dist/ReactToastify.css';
+import { destinationService, getFullImageUrl, type Destination } from '../api/admin/AdminDestinationService';
 
-const VITE_API_URL = (import.meta as any).env.VITE_API_URL;
 
-// Renommer l'interface pour éviter le conflit avec le composant
-interface DestinationType {
-  _id: string;
-  country: string;
-  imagePath: string;
-  text: string;
-}
-
-const defaultDestinations: DestinationType[] = [
+const defaultDestinations: Destination[] = [
   {
     _id: '1',
     country: 'Russie',
@@ -54,42 +43,26 @@ const defaultDestinations: DestinationType[] = [
 ];
 
 const Destination = () => {
-  const [destinations, setDestinations] =
-    useState<DestinationType[]>(defaultDestinations);
+  const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Chargement initial HTTP via le service existant
   const fetchDestinations = async () => {
     try {
       setLoading(true);
-      const response = await globalThis.fetch(
-        `${VITE_API_URL}/api/destinations`,
-        {
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-        }
-      );
-
-      if (!response.ok) {
-        // Si la réponse n'est pas OK, utiliser les données par défaut
-        setDestinations(defaultDestinations);
-        return;
-      }
-
-      const result = await response.json();
-
-      // Utiliser les données du serveur si disponibles
-      if (result?.data && result.data.length > 0) {
-        setDestinations(result.data);
+      
+      // Utiliser le service existant
+      const data = await destinationService.getAllDestinationsWithoutPagination();
+      
+      if (data && data.length > 0) {
+        setDestinations(data);
       } else {
-        // Si aucune donnée, utiliser les valeurs par défaut
         setDestinations(defaultDestinations);
       }
     } catch (err: any) {
-      // Ajouter le type 'any' pour utiliser la variable err
       if (import.meta.env.DEV) {
-        globalThis.console.warn('Erreur de chargement des destinations:', err);
+        console.warn('Erreur de chargement des destinations:', err);
       }
-      // En cas d'erreur, utiliser les données par défaut
       setDestinations(defaultDestinations);
     } finally {
       setLoading(false);
@@ -98,7 +71,70 @@ const Destination = () => {
 
   useEffect(() => {
     fetchDestinations();
+
+    // S'abonner aux événements WebSocket via le service existant
+    const unsubscribe = destinationService.subscribe((event) => {
+      switch (event.event) {
+        case 'destination-created':
+          if (event.data) {
+            setDestinations(prev => {
+              // Éviter les doublons
+              if (prev.some(d => d._id === event.data._id)) return prev;
+              
+              const newDestination = {
+                ...event.data,
+                imagePath: event.data.imagePath?.split('/').pop() || event.data.imagePath
+              };
+              return [newDestination, ...prev];
+            });
+          }
+          break;
+
+        case 'destination-updated':
+          if (event.data) {
+            setDestinations(prev => 
+              prev.map(dest => {
+                if (dest._id === event.data._id) {
+                  return {
+                    ...event.data,
+                    imagePath: event.data.imagePath?.split('/').pop() || event.data.imagePath
+                  };
+                }
+                return dest;
+              })
+            );
+          }
+          break;
+
+        case 'destination-deleted':
+          if (event.data) {
+            const deletedId = typeof event.data === 'string' ? event.data : event.data.id;
+            setDestinations(prev => prev.filter(dest => dest._id !== deletedId));
+          }
+          break;
+
+        case 'notification':
+          // Ignorer les notifications toast comme demandé
+          break;
+      }
+    });
+
+    // Récupérer le nombre de clients connectés (si disponible via une méthode du service)
+    // Note: Le service n'expose pas directement connectedClients, donc cette partie est optionnelle
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
+
+  // Fonctions pour les rooms
+  const handleMouseEnter = (destinationId: string) => {
+    destinationService.joinDestinationRoom(destinationId);
+  };
+
+  const handleMouseLeave = (destinationId: string) => {
+    destinationService.leaveDestinationRoom(destinationId);
+  };
 
   if (loading) {
     return (
@@ -110,10 +146,16 @@ const Destination = () => {
 
   return (
     <section className='px-5 py-20 bg-white lg:py-20'>
-      <ToastContainer position='bottom-right' />
       <div className='max-w-7xl mx-auto'>
+        {/* Indicateur de connexion WebSocket minimal (optionnel) */}
+        {import.meta.env.DEV && (
+          <div className='text-right text-xs text-gray-400 mb-2'>
+            {/* Note: connectedClients nécessiterait d'exposer cette info depuis le service */}
+          </div>
+        )}
+
         <div className='text-center mb-16'>
-           <span className='inline-block bg-sky-100 text-sky-600 px-4 py-1.5 rounded-full text-sm font-medium mb-3'>
+          <span className='inline-block bg-sky-100 text-sky-600 px-4 py-1.5 rounded-full text-sm font-medium mb-3'>
             Nos Destinations Phares
           </span>
           <p className='text-lg text-gray-600 max-w-3xl mx-auto lg:text-xl'>
@@ -127,6 +169,8 @@ const Destination = () => {
             <div
               key={dest._id}
               className='group bg-white rounded shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-2'
+              onMouseEnter={() => handleMouseEnter(dest._id)}
+              onMouseLeave={() => handleMouseLeave(dest._id)}
             >
               <div className='relative h-52 overflow-hidden rounded'>
                 <img
@@ -134,15 +178,14 @@ const Destination = () => {
                   alt={`${dest.country} flag`}
                   className='w-full h-full object-cover transition-transform duration-500 group-hover:scale-105'
                   onError={e => {
-                    (e.target as HTMLImageElement).src =
-                      '/images/paname-consulting.jpg';
+                    (e.target as HTMLImageElement).src = '/images/paname-consulting.jpg';
                   }}
                   loading='lazy'
                 />
               </div>
 
               <div className='p-6 text-center space-y-4 lg:p-8'>
-                <h3 className='text-2xl font-bold text-sky-500 '>
+                <h3 className='text-2xl font-bold text-sky-500'>
                   {dest.country}
                 </h3>
                 <p className='text-gray-600 leading-relaxed text-start'>

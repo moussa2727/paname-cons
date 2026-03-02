@@ -1,36 +1,53 @@
-import { diskStorage } from "multer";
-import * as fs from "fs";
-import * as path from "path";
+// multer.config.ts
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { BadRequestException } from '@nestjs/common';
+import * as fs from 'fs';
 
-// Vérifier et créer le dossier uploads
-const uploadDir = path.join(process.cwd(), "uploads");
+// Create uploads directory if it doesn't exist
+const uploadDir = process.env.UPLOAD_DIR || './uploads';
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+// Allowed file types
+const allowedMimeTypes = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/avif',
+  'image/svg+xml',
+];
+
+// File size limit (5MB)
+const maxFileSize = 5 * 1024 * 1024; // 5MB
+
 export const multerConfig = {
   storage: diskStorage({
-    destination: (_req, _file, cb) => {
-      cb(null, uploadDir);
-    },
-    filename: (_req, file, cb) => {
-      const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`;
-      cb(null, uniqueName);
+    destination: uploadDir,
+    filename: (req, file, callback) => {
+      // Generate unique filename
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const ext = extname(file.originalname);
+      const filename = `${uniqueSuffix}${ext}`;
+      callback(null, filename);
     },
   }),
-  fileFilter: (
-    _req: any,
-    file: { originalname: string },
-    cb: (arg0: Error | null, arg1: boolean) => void,
-  ) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const allowed = [".webp", ".png", ".jpg", ".jpeg", ".avif"];
-
-    if (allowed.includes(ext)) {
-      cb(null, true);
+  fileFilter: (req, file, callback) => {
+    // Check file type
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      callback(null, true);
     } else {
-      cb(new Error(`Type de fichier non supporté: ${ext}`), false);
+      callback(
+        new BadRequestException(
+          `Invalid file type. Allowed types: ${allowedMimeTypes.join(', ')}`
+        ),
+        false,
+      );
     }
   },
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: {
+    fileSize: maxFileSize,
+  },
 };
