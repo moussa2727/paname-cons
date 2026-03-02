@@ -1,11 +1,11 @@
 /*
  * Paname Consulting API - Main Entry Point
- * Version optimisée pour Vercel Serverless et développement local
+ * Version corrigée pour Vercel Serverless et développement local
  */
 
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe, BadRequestException, Logger } from '@nestjs/common';
+import { ValidationPipe, BadRequestException, Logger, VersioningType } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import * as express from 'express';
@@ -15,9 +15,9 @@ import { rateLimit } from 'express-rate-limit';
 import * as compression from 'compression';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import * as path from 'path';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-
-// Configuration plus sécurisée pour Vercel
+// ========== CONFIGURATION ==========
 const isVercel = process.env.VERCEL === '1';
 const isProduction = process.env.NODE_ENV === 'production';
 const logger = new Logger('Bootstrap');
@@ -33,295 +33,345 @@ const allowedOrigins = [
   'http://127.0.0.1:10000',
 ];
 
-// Variables pour le cache (uniquement pour Vercel)
+// Cache pour Vercel
 let cachedApp: express.Application | null = null;
 let cachedNestApp: NestExpressApplication | null = null;
 let isInitializing = false;
 
-/**
- * Fonction principale de bootstrap
- */
-async function bootstrapServer() {
-  try {
-    // Créer l'application Express
-    const expressApp = express();
+// ========== MIDDLEWARES ==========
 
-    expressApp.set('trust proxy', isProduction ? 1 : false);
+// Middleware de logging pour déboguer
+const loggingMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  logger.log(`${req.method} ${req.url} - ${new Date().toISOString()}`);
+  next();
+};
 
-    // ========== MIDDLEWARE GLOBAL ==========
+// Middleware CORS
+const corsMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const origin = req.headers.origin;
 
-    // 1. CORS MIDDLEWARE - DOIT ÊTRE EN PREMIER
-    expressApp.use(
-      (
-        req: express.Request,
-        res: express.Response,
-        next: express.NextFunction
-      ) => {
-        const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (!origin && !isProduction) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
 
-        if (origin && allowedOrigins.includes(origin)) {
-          res.setHeader('Access-Control-Allow-Origin', origin);
-        } else if (!origin && !isProduction) {
-          // Permettre les requêtes sans origin en dev
-          res.setHeader('Access-Control-Allow-Origin', '*');
-        }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin, X-API-Key'
+  );
+  res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization, X-API-Version');
+  res.setHeader('Access-Control-Max-Age', '86400');
 
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader(
-          'Access-Control-Allow-Methods',
-          'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD'
-        );
-        res.setHeader(
-          'Access-Control-Allow-Headers',
-          'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin, X-API-Key'
-        );
-        res.setHeader(
-          'Access-Control-Expose-Headers',
-          'Set-Cookie, Authorization, X-API-Version'
-        );
-        res.setHeader('Access-Control-Max-Age', '86400');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
 
-        if (req.method === 'OPTIONS') {
-          return res.status(204).end();
-        }
+  next();
+};
 
+// Middleware pour gérer les routes racine
+const rootRouteMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Log explicite pour voir toutes les requêtes
+  logger.log(`🎯 Route appelée: ${req.method} ${req.url}`);
+  
+  if (req.url === '/') {
+    logger.log('📍 Route racine appelée');
+    return res.json({
+      message: 'Paname Consulting API is running',
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      endpoints: {
+        api: '/api',
+        docs: '/api/docs',
+        destinations: '/api/destinations',
+        auth: '/api/auth',
+        users: '/api/users',
+        contact: '/api/contact',
+        procedures: '/api/procedures',
+        rendezvous: '/api/rendezvous',
+        uploads: '/api/uploads',
+      },
+    });
+  }
+  
+  if (req.url === '/api') {
+    logger.log('📍 Route /api appelée');
+    return res.json({
+      name: 'Paname Consulting API',
+      version: '1.0.0',
+      status: 'OK',
+      endpoints: {
+        destinations: '/api/destinations',
+        auth: '/api/auth',
+        users: '/api/users',
+        contact: '/api/contact',
+        procedures: '/api/procedures',
+        rendezvous: '/api/rendezvous',
+        documentation: '/api/docs',
+        uploads: '/api/uploads',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
+  // Ne pas bloquer les autres routes, les laisser passer à NestJS
+  next();
+};
+
+// Middleware pour servir les fichiers statiques avant NestJS
+const staticFilesMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (req.url.startsWith('/api/uploads/')) {
+    const filename = req.url.replace('/api/uploads/', '');
+    const filePath = path.join(process.cwd(), 'uploads', filename);
+    logger.log(`📁 Service fichier statique: ${filename}`);
+    res.sendFile(filePath, (err) => {
+      if (err) {
+        logger.error(`❌ Erreur envoi fichier: ${filename}`, err);
         next();
       }
-    );
+    });
+  } else {
+    next();
+  }
+};
 
-    // 2. Body parsers avec validation JSON
-    expressApp.use(
-      express.json({
-        limit: '10mb',
-        verify: (
-          req: any,
-          res: express.Response,
-          buf: Buffer,
-          encoding: BufferEncoding
-        ) => {
-          if (buf && buf.length) {
-            try {
-              JSON.parse(buf.toString(encoding || 'utf8'));
-            } catch {
-              if (!isVercel) {
-                logger.warn('Invalid JSON payload received');
-              }
-              // Marquer la requête comme ayant un JSON invalide
-              req.invalidJson = true;
-            }
-          }
-        },
-      })
-    );
+// Middleware headers sécurité
+const securityHeadersMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  res.removeHeader('X-Powered-By');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
+  if (isVercel) {
+    res.setHeader('Vercel-CDN-Cache-Control', 'public, max-age=0, must-revalidate');
+  }
+
+  next();
+};
+
+// ========== CONFIGURATIONS ==========
+
+// Configuration Rate Limit
+const getRateLimitConfig = () => {
+  if (!isProduction) {
+    return null;
+  }
+  
+  return rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 100,
+    message: {
+      message: 'Trop de requêtes. Veuillez réessayer plus tard.',
+      statusCode: 429,
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: isVercel ? (req: express.Request) => req.headers['x-vercel-forwarded-for'] !== undefined : undefined,
+  });
+};
+
+// Configuration Helmet
+const getHelmetConfig = () => ({
+  contentSecurityPolicy: isProduction ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  } : false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" as const },
+});
+
+// Validation Pipe personnalisé
+const createValidationPipe = () => new ValidationPipe({
+  transform: true,
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  transformOptions: {
+    enableImplicitConversion: true,
+  },
+  exceptionFactory: errors => {
+    const messages = errors.map(error => {
+      const constraints = error.constraints
+        ? Object.values(error.constraints)
+        : ['Validation failed'];
+      return `${error.property}: ${constraints.join(', ')}`;
+    });
+    return new BadRequestException({
+      statusCode: 400,
+      message: 'Validation échouée',
+      errors: messages,
+      timestamp: new Date().toISOString(),
+    });
+  },
+});
+
+// Configuration Swagger
+const setupSwagger = (app: NestExpressApplication) => {
+  const config = new DocumentBuilder()
+    .setTitle('Paname Consulting API')
+    .setDescription('API de gestion des destinations')
+    .setVersion('1.0')
+    .addTag('destinations')
+    .addTag('upload')
+    .addBearerAuth()
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
+  
+  logger.log('📚 Swagger documentation: /api/docs');
+};
+
+// ========== FONCTION PRINCIPALE ==========
+async function bootstrapServer() {
+  try {
+    // Création de l'application Express
+    const expressApp = express();
+    
+    // Configuration trust proxy
+    expressApp.set('trust proxy', isProduction ? 1 : false);
+
+    // ========== MIDDLEWARES GLOBAUX ==========
+    
+    // 0. Logging - en premier pour voir toutes les requêtes
+    expressApp.use(loggingMiddleware);
+
+    // 1. Routes racine - avant tout autre middleware
+    expressApp.use(rootRouteMiddleware);
+
+    // 2. Fichiers statiques - avant CORS et body parsers
+    expressApp.use(staticFilesMiddleware);
+
+    // 3. CORS
+    expressApp.use(corsMiddleware);
+
+    // 4. Body parsers
+    expressApp.use(express.json({ limit: '10mb' }));
     expressApp.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-    // 3. Cookie parser (vérifier que COOKIE_SECRET existe en prod)
+    // 5. Cookie parser
     if (!process.env.COOKIE_SECRET && isProduction) {
-      logger.error(
-        'COOKIE_SECRET environment variable is required in production'
-      );
-      if (!isVercel) process.exit(1);
+      logger.error('❌ COOKIE_SECRET manquant en production');
     }
     expressApp.use(cookieParser(process.env.COOKIE_SECRET));
 
-    // 4. Compression (éviter la double compression sur Vercel)
+    // 6. Compression (pas sur Vercel)
     if (!isVercel) {
       expressApp.use(compression());
     }
 
-    // 5. Servir les fichiers uploadés statiquement
-    expressApp.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-    expressApp.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
-    // 6. Rate limiting avec configuration sécurisée
-    const limiterOptions: any = {
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 100, // Limite par IP
-      message: {
-        message: 'Trop de requêtes. Veuillez réessayer plus tard.',
-        statusCode: 429,
-      },
-      standardHeaders: true,
-      skipSuccessfulRequests: false,
-      trustProxy: false, // Désactiver trust proxy pour éviter la vulnérabilité
-    };
-
-    // Configuration spécifique pour Vercel
-    if (isVercel) {
-      // Skip rate limiting pour les requêtes internes Vercel
-      limiterOptions.skip = (req: express.Request) => {
-        return req.headers['x-vercel-forwarded-for'] !== undefined;
-      };
-      limiterOptions.trustProxy = 1; // Activer seulement sur Vercel
+    // 7. Rate limiting
+    const rateLimitMiddleware = getRateLimitConfig();
+    if (rateLimitMiddleware) {
+      expressApp.use(rateLimitMiddleware);
     }
-
-    const limiter = rateLimit(limiterOptions);
-    expressApp.use(limiter);
 
     // ========== CRÉATION NESTJS ==========
     const nestApp = await NestFactory.create<NestExpressApplication>(
       AppModule,
       new ExpressAdapter(expressApp),
       {
-        logger: isVercel
-          ? ['error', 'warn'] // Sur Vercel, seulement erreurs et warnings
-          : ['log', 'error', 'warn', 'debug', 'verbose'], // Complet en local
+        logger: isVercel ? ['error', 'warn', 'log'] : ['log', 'error', 'warn', 'debug', 'verbose'],
         abortOnError: false,
+        cors: false,
+        bodyParser: false, // Désactivé car géré par express
       }
     );
 
     // ========== CONFIGURATION NESTJS ==========
 
-    // CORS configuration (en complément du middleware)
-    nestApp.enableCors({
-      origin: (origin: string | undefined, callback: (err: Error | null, origin?: boolean) => void) => {
-        // En développement local, permettre toutes les origines
-        if (!isProduction) {
-          return callback(null, true);
-        }
+    // 1. Validation globale
+    nestApp.useGlobalPipes(createValidationPipe());
 
-        if (!origin || allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          if (!isVercel) {
-            logger.warn(`CORS blocked for origin: ${origin}`);
-          }
-          callback(new Error('Not allowed by CORS'));
-        }
-      },
-      credentials: true,
-      exposedHeaders: ['Set-Cookie', 'Authorization', 'X-API-Version'],
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
-      allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'Cookie',
-        'Set-Cookie',
-        'X-Requested-With',
-        'Accept',
-        'Origin',
-        'X-API-Key',
-      ],
-      maxAge: 86400,
+    // 2. Préfixe global API
+    nestApp.setGlobalPrefix('api', {
+      exclude: ['/', '/health', '/api'], // Routes exclues du préfixe
     });
 
-    // WebSocket adapter
+    // 3. Versioning API
+    nestApp.enableVersioning({
+      type: VersioningType.URI,
+      defaultVersion: '1',
+    });
+
+    // 4. WebSocket adapter
     nestApp.useWebSocketAdapter(new IoAdapter(nestApp));
 
-    // Sécurité Helmet
-    nestApp.use(
-      helmet({
-        contentSecurityPolicy: isProduction ? undefined : false,
-        crossOriginEmbedderPolicy: false,
-        crossOriginResourcePolicy: { policy: 'cross-origin' },
-      })
-    );
+    // 5. Sécurité Helmet
+    nestApp.use(helmet(getHelmetConfig()));
 
-    // Headers de sécurité supplémentaires
-    nestApp.use(
-      (
-        req: express.Request,
-        res: express.Response,
-        next: express.NextFunction
-      ) => {
-        res.removeHeader('X-Powered-By');
-        res.setHeader('X-Content-Type-Options', 'nosniff');
-        res.setHeader('X-Frame-Options', 'DENY');
-        res.setHeader('X-XSS-Protection', '1; mode=block');
-        res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    // 6. Headers de sécurité supplémentaires
+    nestApp.use(securityHeadersMiddleware);
 
-        if (isVercel) {
-          res.setHeader(
-            'Vercel-CDN-Cache-Control',
-            'public, max-age=0, must-revalidate'
-          );
-        }
+    // 7. Swagger documentation
+    if (!isProduction || !isVercel) {
+      setupSwagger(nestApp);
+    }
 
-        next();
-      }
-    );
-
-    // Validation globale
-    nestApp.useGlobalPipes(
-      new ValidationPipe({
-        transform: true,
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transformOptions: {
-          enableImplicitConversion: true,
-        },
-        exceptionFactory: errors => {
-          const messages = errors.map(error => {
-            const constraints = error.constraints
-              ? Object.values(error.constraints)
-              : ['Validation failed'];
-            return `${error.property}: ${constraints.join(', ')}`;
-          });
-          return new BadRequestException({
-            statusCode: 400,
-            message: 'Validation failed',
-            errors: messages,
-            timestamp: new Date().toISOString(),
-          });
-        },
-      })
-    );
-
-    // Préfixe global de l'API
-    nestApp.setGlobalPrefix('api', {
-      exclude: ['/', '/health', '/api'], 
-    });
-
-    // Initialisation
     await nestApp.init();
-
+    
+    logger.log('✅ Serveur initialisé avec succès');
+    
     return { expressApp, nestApp };
+
   } catch (error) {
-    logger.error('Failed to bootstrap server', error);
+    logger.error('❌ Échec du bootstrap:', error);
     throw error;
   }
 }
 
-// ========== POINT D'ENTRÉE VERCEL ==========
+// ========== GESTIONNAIRE VERCEL ==========
 if (isVercel) {
   const handler = async (req: express.Request, res: express.Response) => {
     try {
-      // Utiliser l'app en cache ou en créer une nouvelle
+      // Log explicite pour Vercel
+      logger.log(`🌐 Vercel: ${req.method} ${req.url}`);
+      
       if (!cachedApp || !cachedNestApp) {
         if (isInitializing) {
-          // Attendre si une initialisation est en cours
+          logger.log('⏳ Initialisation en cours, attente...');
           await new Promise(resolve => setTimeout(resolve, 100));
           return handler(req, res);
         }
 
         isInitializing = true;
+        logger.log('🔄 Initialisation du cache Vercel...');
+        
         try {
           const { expressApp, nestApp } = await bootstrapServer();
           cachedApp = expressApp;
           cachedNestApp = nestApp;
-          logger.log('Server initialized for Vercel');
+          
+          logger.log('✅ Cache Vercel initialisé');
         } catch (error) {
-          logger.error('Initialization failed', error);
+          logger.error('❌ Échec initialisation Vercel:', error);
           return res.status(500).json({
             error: 'Initialization failed',
-            message: 'Server is temporarily unavailable',
+            message: 'Serveur temporairement indisponible',
           });
         } finally {
           isInitializing = false;
         }
       }
 
-      // Exécuter la requête
+      // Traiter la requête
       return cachedApp!(req, res);
     } catch (error) {
-      logger.error('Request handling failed', error);
-
+      logger.error('❌ Erreur traitement requête:', error);
+      
       if (!res.headersSent) {
         return res.status(500).json({
           error: 'Internal Server Error',
-          message: 'An unexpected error occurred',
+          message: 'Erreur inattendue',
           timestamp: new Date().toISOString(),
-          ...(isProduction ? {} : { detail: (error as Error).message }),
         });
       }
     }
@@ -330,11 +380,12 @@ if (isVercel) {
   // Exporter le handler pour Vercel
   module.exports = handler;
   module.exports.default = handler;
+  
 } else {
   // ========== DÉMARRAGE LOCAL ==========
   (async () => {
     try {
-      logger.log('Starting local server...');
+      logger.log('🚀 Démarrage serveur local...');
 
       const { nestApp } = await bootstrapServer();
 
@@ -342,32 +393,36 @@ if (isVercel) {
 
       await nestApp.listen(port);
 
-      logger.log(`Server running on http://localhost:${port}`);
-      logger.log(`API available at http://localhost:${port}/api`);
-      logger.log(`WebSocket available at ws://localhost:${port}/destinations`);
-      logger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.log(`✅ Serveur démarré sur http://localhost:${port}`);
+      logger.log(`📍 Route racine: http://localhost:${port}/`);
+      logger.log(`📍 Route API: http://localhost:${port}/api`);
+      logger.log(`📍 Destinations: http://localhost:${port}/api/destinations`);
+      logger.log(`📁 Uploads: http://localhost:${port}/api/uploads`);
+      logger.log(`📚 Docs: http://localhost:${port}/api/docs`);
+      logger.log(`🌍 WebSocket: ws://localhost:${port}/api/destinations`);
+      logger.log(`🔧 Environnement: ${process.env.NODE_ENV || 'development'}`);
 
-      // Graceful shutdown
+      // Gestion arrêt gracieux
       const gracefulShutdown = async (signal: string) => {
-        logger.log(` Received ${signal}, shutting down gracefully...`);
+        logger.log(`📴 Signal ${signal} reçu, arrêt gracieux...`);
         await nestApp.close();
-        logger.log('Server closed');
+        logger.log('👋 Serveur arrêté');
         process.exit(0);
       };
 
       process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
       process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-      // Error handlers
       process.on('uncaughtException', error => {
-        logger.error('Uncaught Exception:', error);
+        logger.error('💥 Exception non catchée:', error);
       });
 
       process.on('unhandledRejection', (reason, promise) => {
-        logger.error(' Unhandled Rejection at:', promise, 'reason:', reason);
+        logger.error('💥 Rejet non géré:', reason);
       });
+
     } catch (error) {
-      logger.error('Failed to start local server', error);
+      logger.error('❌ Échec démarrage serveur local:', error);
       process.exit(1);
     }
   })();
