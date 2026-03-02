@@ -9,7 +9,7 @@ export class StorageService {
 
   constructor() {
     this.isVercel = process.env.VERCEL === '1';
-    this.uploadDir = this.isVercel ? '/tmp/uploads' : join(process.cwd(), 'uploads');
+    this.uploadDir = this.isVercel ? '/dist/uploads' : join(process.cwd(), 'uploads');
     this.ensureUploadDir();
   }
 
@@ -34,13 +34,13 @@ export class StorageService {
     try {
       if (this.isVercel) {
         // Sur Vercel, stocker dans /tmp/uploads ET dans dist/uploads
-        const tmpPath = join('/tmp/uploads', filename);
+        const tmpPath = join('/dist/uploads', filename);
         const distPath = join(process.cwd(), 'dist', 'uploads', filename);
         
         // 1. Stocker dans /tmp (pour la durée de la fonction)
-        await fs.mkdir('/tmp/uploads', { recursive: true });
+        await fs.mkdir('/dist/uploads', { recursive: true });
         await fs.writeFile(tmpPath, file.buffer);
-        console.log(`[StorageService] Fichier écrit dans /tmp/uploads: ${filename}`);
+        console.log(`[StorageService] Fichier écrit dans /dist/uploads: ${filename}`);
         
         // 2. Essayer de stocker dans dist/uploads (pour les prochains déploiements)
         try {
@@ -71,15 +71,15 @@ export class StorageService {
     // Essayer plusieurs emplacements sur Vercel
     if (this.isVercel) {
       // 1. Essayer /tmp/uploads (nouveau système)
-      const tmpPath = join('/tmp/uploads', filename);
-      console.log(`[StorageService] Essai /tmp/uploads: ${tmpPath}`);
+      const tmpPath = join('/dist/uploads', filename);
+      console.log(`[StorageService] Essai /dist/uploads: ${tmpPath}`);
       
       try {
         const buffer = await fs.readFile(tmpPath);
-        console.log(`[StorageService] Fichier trouvé dans /tmp/uploads: ${filename} (${buffer.length} bytes)`);
+        console.log(`[StorageService] Fichier trouvé dans /dist/uploads: ${filename} (${buffer.length} bytes)`);
         return buffer;
       } catch (tmpError) {
-        console.log(`[StorageService] Non trouvé dans /tmp/uploads: ${filename}`);
+        console.log(`[StorageService] Non trouvé dans /dist/uploads: ${filename}`);
       }
       
       // 2. Essayer uploads dans dist (ancien système)
@@ -114,7 +114,7 @@ export class StorageService {
     try {
       if (this.isVercel) {
         await fs.unlink(filePath);
-        console.log(`[StorageService] Fichier supprimé de /tmp: ${filename}`);
+        console.log(`[StorageService] Fichier supprimé de /dist/uploads: ${filename}`);
       } else {
         await fs.unlink(filePath);
         console.log(`[StorageService] Fichier supprimé du disque: ${filename}`);
