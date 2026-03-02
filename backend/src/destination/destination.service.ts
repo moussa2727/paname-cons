@@ -387,7 +387,7 @@ export class DestinationService {
       // Mise à jour dans la base
       const updatedDestination = await this.destinationModel
         .findByIdAndUpdate(id, updateData, {
-          new: true,
+          returnDocument: 'after',
           runValidators: true,
         })
         .select("country imagePath text createdAt updatedAt")
@@ -402,13 +402,18 @@ export class DestinationService {
 
       // Nettoyage de l'ancienne image après mise à jour réussie
       if (oldImagePath) {
-        try {
-          await this.storageService.deleteFile(oldImagePath);
-          this.logger.log(`Ancienne image supprimée: ${oldImagePath}`);
-        } catch (cleanupError) {
-          this.logger.warn(
-            `Impossible de supprimer l'ancienne image: ${cleanupError.message}`,
-          );
+        // Ne pas supprimer les images par défaut (commençant par /images/)
+        if (!oldImagePath.startsWith('/images/')) {
+          try {
+            await this.storageService.deleteFile(oldImagePath);
+            this.logger.log(`Ancienne image supprimée: ${oldImagePath}`);
+          } catch (cleanupError) {
+            this.logger.warn(
+              `Impossible de supprimer l'ancienne image: ${cleanupError.message}`,
+            );
+          }
+        } else {
+          this.logger.log(`Image par défaut non supprimée: ${oldImagePath}`);
         }
       }
 

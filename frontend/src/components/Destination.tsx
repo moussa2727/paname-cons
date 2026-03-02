@@ -66,21 +66,21 @@ const Destination = () => {
       return imagePath;
     }
 
-    // Images dans public (par défaut)
-    if (imagePath.startsWith('/')) {
+    // Images par défaut dans /images/ (servies par le frontend)
+    if (imagePath.startsWith('/images/')) {
       return imagePath;
     }
 
+    // Images uploadées (servies par l'API backend)
     const baseUrl = VITE_API_URL;
-
-    // Images uploadées
+    
     let cleanPath = imagePath;
     if (!cleanPath.startsWith('uploads/')) {
       cleanPath = `uploads/${cleanPath}`;
     }
     cleanPath = cleanPath.replace(/\/\//g, '/');
 
-    return `${baseUrl}/${cleanPath}`;
+    return `${baseUrl}/api/destinations/${cleanPath}`;
   };
 
   const fetchDestinations = async () => {
