@@ -29,11 +29,12 @@ export class StorageService {
     customName?: string,
   ): Promise<string> {
     const filename = customName || `${Date.now()}-${file.originalname}`;
+    console.log(`[StorageService] Upload du fichier: ${filename}`);
 
     if (this.isVercel) {
       // Sur Vercel, stocker en mémoire
       this.memoryStorage.set(filename, file.buffer);
-      console.log(`Fichier ${filename} stocké en mémoire (Vercel)`);
+      console.log(`[StorageService] Fichier ${filename} stocké en mémoire (Vercel)`);
       return filename;
     } else {
       // En local, créer le dossier et stocker sur disque
@@ -43,6 +44,7 @@ export class StorageService {
 
       const filePath = path.join(this.uploadDir, filename);
       await writeFile(filePath, file.buffer);
+      console.log(`[StorageService] Fichier ${filename} stocké sur disque: ${filePath}`);
       return filename;
     }
   }
@@ -66,8 +68,17 @@ export class StorageService {
 
   // Méthode pour servir les fichiers depuis Vercel
   getFileBuffer(filename: string): Buffer | null {
+    console.log(`[StorageService] Demande du fichier: ${filename}`);
+    console.log(`[StorageService] Fichiers en mémoire: ${Array.from(this.memoryStorage.keys()).join(', ')}`);
+    
     if (this.isVercel) {
-      return this.memoryStorage.get(filename) || null;
+      const buffer = this.memoryStorage.get(filename) || null;
+      if (buffer) {
+        console.log(`[StorageService] Fichier ${filename} trouvé en mémoire (${buffer.length} bytes)`);
+      } else {
+        console.log(`[StorageService] Fichier ${filename} NON trouvé en mémoire`);
+      }
+      return buffer;
     }
     return null; // En local, les fichiers sont servis par Express static
   }

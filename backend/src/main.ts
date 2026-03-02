@@ -30,16 +30,6 @@ const allowedOrigins = [
   'http://127.0.0.1:10000',
 ];
 
-// Configuration du trust proxy selon l'environnement
-const getTrustProxyConfig = () => {
-  if (isVercel) {
-    // Sur Vercel, on fait confiance aux proxies Vercel uniquement
-    return ['loopback', 'linklocal', 'uniquelocal'];
-  }
-  // En développement local, configuration plus stricte
-  return false;
-};
-
 // Variables pour le cache (uniquement pour Vercel)
 let cachedApp: express.Application | null = null;
 let cachedNestApp: NestExpressApplication | null = null;
@@ -149,10 +139,9 @@ async function bootstrapServer() {
       skipSuccessfulRequests: false,
     };
 
-    // Ajouter trust proxy uniquement si nécessaire
-    const trustProxyConfig = getTrustProxyConfig();
-    if (trustProxyConfig !== false) {
-      limiterOptions.trustProxy = trustProxyConfig;
+    // Ajouter trust proxy uniquement pour Vercel avec configuration spécifique
+    if (isVercel) {
+      limiterOptions.trustProxy = 1; // Vercel nécessite trust proxy = 1
     }
 
     const limiter = rateLimit(limiterOptions);
