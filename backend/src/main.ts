@@ -320,7 +320,10 @@ async function bootstrapServer() {
     
     logger.log('✅ Serveur initialisé avec succès');
     
+    logger.log('📋 Routes principales:');
+    
     return { expressApp, nestApp };
+
 
   } catch (error) {
     logger.error('❌ Échec du bootstrap:', error);
@@ -343,6 +346,8 @@ if (isVercel) {
         }
 
         isInitializing = true;
+        logger.log('🔄 Initialisation du cache Vercel...');
+        
         logger.log('🔄 Initialisation du cache Vercel...');
         
         try {
@@ -380,6 +385,7 @@ if (isVercel) {
   // Exporter le handler pour Vercel
   module.exports = handler;
   module.exports.default = handler;
+  
   
 } else {
   // ========== DÉMARRAGE LOCAL ==========
@@ -420,6 +426,7 @@ if (isVercel) {
       process.on('unhandledRejection', (reason, promise) => {
         logger.error('💥 Rejet non géré:', reason);
       });
+
 
     } catch (error) {
       logger.error('❌ Échec démarrage serveur local:', error);
