@@ -16,6 +16,7 @@ import * as compression from 'compression';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import * as path from 'path';
 
+
 // Configuration plus sécurisée pour Vercel
 const isVercel = process.env.VERCEL === '1';
 const isProduction = process.env.NODE_ENV === 'production';
