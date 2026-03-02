@@ -204,12 +204,23 @@ export class DestinationController {
     try {
       // Nettoyer le filename pour enlever uploads/ si présent
       const cleanFilename = filename.replace(/^uploads\//, '');
-      console.log(`[DestinationController] Demande du fichier: ${cleanFilename}`);
+      this.logger.log(`[DestinationController] Demande du fichier: ${cleanFilename}`);
       
       // Vérifier si on est sur Vercel
       const isVercel = process.env.VERCEL === '1';
       
       if (isVercel) {
+        // Sur Vercel, rediriger vers l'URL publique du blob
+        const fileUrl = await this.storageService.getFileUrl(cleanFilename);
+        if (!fileUrl) {
+          throw new NotFoundException('Fichier non trouvé');
+        }
+        
+        // Retourner une redirection vers l'URL publique
+        res.redirect(302, fileUrl);
+        return;
+      } else {
+        // En local, utiliser le buffer du fichier
         const buffer = await this.storageService.getFileBuffer(cleanFilename);
         if (!buffer) {
           throw new NotFoundException('Fichier non trouvé');
@@ -229,15 +240,12 @@ export class DestinationController {
         
         const mimeType = mimeTypes[ext || ''] || 'application/octet-stream';
         
-        return new Response(buffer as any, {
-          headers: {
-            'Content-Type': mimeType,
-            'Cache-Control': 'public, max-age=31536000'
-          }
+        res.set({
+          'Content-Type': mimeType,
+          'Cache-Control': 'public, max-age=31536000'
         });
-      } else {
-        // En local, laisser Express static gérer
-        throw new NotFoundException('Non disponible en local');
+        
+        return buffer;
       }
     } catch (error) {
       this.logger.error(`Erreur serving file ${filename}: ${error.message}`);
