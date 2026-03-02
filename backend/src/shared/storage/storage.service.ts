@@ -57,7 +57,8 @@ export class StorageService {
   }
 
   async deleteFile(filename: string): Promise<void> {
-    const cleanFilename = filename.replace(/^uploads\//, "");
+    // Utiliser UrlService pour normaliser le chemin (gère uploads/ et uploads\)
+    const cleanFilename = this.urlService.normalizeFilePath(filename);
 
     if (this.isVercel && this.blobToken) {
       // Supprimer de Vercel Blob Storage
@@ -66,19 +67,21 @@ export class StorageService {
         this.logger.log(`Fichier supprimé de Vercel Blob: ${cleanFilename}`);
       } catch (error) {
         this.logger.error(`Erreur suppression Vercel Blob: ${error.message}`);
+        // Continuer avec la suppression locale même si Vercel Blob échoue
       }
-    } else {
-      // Supprimer du système de fichiers local
-      const filePath = path.join(this.uploadDir, cleanFilename);
-      if (fs.existsSync(filePath)) {
-        await unlink(filePath);
-        this.logger.log(`Fichier supprimé localement: ${cleanFilename}`);
-      }
+    }
+
+    // Supprimer du système de fichiers local
+    const filePath = path.join(this.uploadDir, cleanFilename);
+    if (fs.existsSync(filePath)) {
+      await unlink(filePath);
+      this.logger.log(`Fichier supprimé localement: ${cleanFilename}`);
     }
   }
 
   async getFileBuffer(filename: string): Promise<Buffer | null> {
-    const cleanFilename = filename.replace(/^uploads\//, "");
+    // Utiliser UrlService pour normaliser le chemin (gère uploads/ et uploads\)
+    const cleanFilename = this.urlService.normalizeFilePath(filename);
 
     if (this.isVercel && this.blobToken) {
       // Sur Vercel avec token valide, essayer Vercel Blob

@@ -118,11 +118,11 @@ export class UrlService {
   normalizeFilePath(path: string): string {
     if (!path) return '';
     
-    // Supprimer les préfixes uploads/ s'ils existent
-    let cleanPath = path.replace(/^uploads\//, '');
+    // Supprimer les préfixes uploads/ s'ils existent (avec slash ou backslash)
+    let cleanPath = path.replace(/^uploads[\/\\]/, '');
     
-    // Supprimer les doubles slashes
-    cleanPath = cleanPath.replace(/\/\//g, '/');
+    // Supprimer les doubles slashes et backslashes
+    cleanPath = cleanPath.replace(/[\/\\]{2,}/g, '/');
     
     // Supprimer le slash initial
     if (cleanPath.startsWith('/')) {
