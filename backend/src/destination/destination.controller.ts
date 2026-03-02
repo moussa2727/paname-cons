@@ -32,6 +32,32 @@ import { DestinationService } from "./destination.service";
 import { CreateDestinationDto } from "./dto/create-destination.dto";
 import { UpdateDestinationDto } from "./dto/update-destination.dto";
 
+import { FileValidator } from '@nestjs/common';
+
+// Validation personnalisée pour les types d'images
+class ImageFileTypeValidator extends FileValidator {
+  constructor() {
+    super({});
+  }
+
+  isValid(file: Express.Multer.File): boolean {
+    const allowedTypes = [
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'image/webp',
+      'image/svg+xml',
+      'image/gif',
+      'image/avif'
+    ];
+    return allowedTypes.includes(file.mimetype);
+  }
+  
+  buildErrorMessage(): string {
+    return 'Le fichier doit être une image valide (JPEG, PNG, JPG, SVG, WEBP, GIF, AVIF)';
+  }
+}
+
 @ApiTags("Destinations")
 @Controller("destinations")
 export class DestinationController {
@@ -53,7 +79,7 @@ export class DestinationController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          new FileTypeValidator({ fileType: "image/*" }),
+          new ImageFileTypeValidator(),
         ],
       }),
     )
@@ -127,7 +153,7 @@ export class DestinationController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: "image/*" }),
+          new ImageFileTypeValidator(),
         ],
         fileIsRequired: false,
       }),

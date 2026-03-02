@@ -15,37 +15,37 @@ const defaultDestinations: DestinationType[] = [
   {
     _id: '1',
     country: 'Russie',
-    imagePath: '/iamges/russie.png',
+    imagePath: '/images/russie.png',
     text: "La Russie propose un enseignement supérieur d'excellence avec des universités historiques comme MGU. Système éducatif combinant tradition et recherche de pointe dans un environnement multiculturel. Coûts de scolarité très compétitifs et bourses disponibles pour étudiants internationaux. Logements universitaires abordables et infrastructures modernes.",
   },
   {
     _id: '2',
     country: 'Chine',
-    imagePath: '/iamges/chine.jpg',
+    imagePath: '/images/chine.jpg',
     text: 'La Chine développe des pôles universitaires high-tech avec des programmes innovants en IA et commerce international. Universités comme Tsinghua rivalisent avec les meilleures mondiales. Environnement dynamique combinant technologie et culture millénaire. Cours en anglais disponibles avec des partenariats industriels solides pour des stages en entreprise.',
   },
   {
     _id: '3',
     country: 'Maroc',
-    imagePath: '/iamges/maroc.webp',
+    imagePath: '/images/maroc.webp',
     text: "Le Maroc offre un enseignement de qualité en français/arabe avec des frais accessibles. Universités reconnues en Afrique et programmes d'échange avec l'Europe. Environnement sécurisé et cadre de vie agréable. Spécialisations en ingénierie, médecine et commerce avec des liens forts vers le marché africain des parcours axés sur le professionnelisme.",
   },
   {
     _id: '4',
     country: 'Algérie',
-    imagePath: '/iamges/algerie.png',
+    imagePath: '/images/algerie.png',
     text: "L'Algérie dispose d'universités performantes en sciences et médecine avec des coûts très abordables. Système éducatif francophone et infrastructures récentes. Opportunités de recherche dans les énergies renouvelables et la pharmacologie. Vie étudiante riche et logements universitaires subventionnés / abordables.",
   },
   {
     _id: '5',
     country: 'Turquie',
-    imagePath: '/iamges/turquie.webp',
+    imagePath: '/images/turquie.webp',
     text: 'La Turquie combine éducation de qualité et frais modestes avec des universités accréditées internationalement. Position géographique unique entre Europe et Asie. Programmes en anglais disponibles avec spécialisation en ingénierie et relations internationales. Cadre de vie moderne préservant un riche héritage culturel.',
   },
   {
     _id: '6',
     country: 'France',
-    imagePath: '/iamges/france.svg',
+    imagePath: '/images/france.svg',
     text: "La France maintient sa tradition d'excellence académique avec des universités historiques et grandes écoles renommées. Système éducatif diversifié offrant des formations pointues dans tous les domaines. Réseau d'anciens élèves influents et forte employabilité internationale. Vie culturelle riche et nombreuses bourses disponibles.",
   },
 ];
