@@ -49,7 +49,7 @@ class DestinationService {
   /**
    * Headers communs pour les requêtes authentifiées
    */
-  private getAuthHeaders(token: string) {
+  private getAuthHeaders() {
     return {
       // Utiliser les cookies pour l'authentification (pas de header Authorization)
       'Content-Type': 'application/json',
@@ -340,7 +340,7 @@ class DestinationService {
       const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
         method: 'DELETE',
         headers: {
-          ...this.getAuthHeaders(''),
+          ...this.getAuthHeaders(),
           'Content-Type': 'application/json',
         },
         credentials: 'include', // Important pour inclure les cookies
