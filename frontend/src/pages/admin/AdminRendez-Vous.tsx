@@ -44,7 +44,7 @@ import {
   RENDEZVOUS_STATUS,
   ADMIN_OPINION as CENTRAL_ADMIN_OPINION
 } from '../../api/admin/AdminRendezVousService';
-import { destinationService } from '../../api/admin/AdminDestionService';
+import { destinationService } from '../../api/admin/AdminDestinationService';
 
 interface Destination {
   _id: string;
@@ -205,7 +205,7 @@ const AdminRendezVous = (): React.JSX.Element => {
     try {
       const dests =
         await destinationService.getAllDestinationsWithoutPagination();
-      const compatibleDestinations: Destination[] = dests.map((dest) => ({
+      const compatibleDestinations: Destination[] = dests.map((dest: any) => ({
         _id: dest._id,
         country: dest.country,
         imagePath: dest.imagePath,
