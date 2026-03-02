@@ -130,7 +130,7 @@ export class DestinationService {
       // Nettoyage en cas d'erreur
       if (imageFile) {
         try {
-          await this.storageService.deleteFile(`uploads/${imageFile.filename}`);
+          await this.storageService.deleteFile(imageFile.filename);
         } catch (cleanupError) {
           this.logger.error("Erreur nettoyage fichier:", cleanupError.stack);
         }
@@ -425,7 +425,7 @@ export class DestinationService {
       // Nettoyage en cas d'erreur
       if (imageFile) {
         try {
-          await this.storageService.deleteFile(`uploads/${imageFile.filename}`);
+          await this.storageService.deleteFile(imageFile.filename);
         } catch (cleanupError) {
           this.logger.error("Erreur nettoyage fichier:", cleanupError.stack);
         }

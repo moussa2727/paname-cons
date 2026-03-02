@@ -14,7 +14,7 @@ import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import * as compression from 'compression';
 
-// Configuration pour détecter Vercel (méthode recommandée)
+// Configuration plus sécurisée pour Vercel
 const isVercel = process.env.VERCEL === '1';
 const isProduction = process.env.NODE_ENV === 'production';
 const logger = new Logger('Bootstrap');
@@ -30,11 +30,20 @@ const allowedOrigins = [
   'http://127.0.0.1:10000',
 ];
 
+// Configuration du trust proxy selon l'environnement
+const getTrustProxyConfig = () => {
+  if (isVercel) {
+    // Sur Vercel, on fait confiance aux proxies Vercel uniquement
+    return ['loopback', 'linklocal', 'uniquelocal'];
+  }
+  // En développement local, configuration plus stricte
+  return false;
+};
+
 // Variables pour le cache (uniquement pour Vercel)
 let cachedApp: express.Application | null = null;
 let cachedNestApp: NestExpressApplication | null = null;
 let isInitializing = false;
-
 async function bootstrapServer() {
   try {
     // Créer l'application Express
@@ -128,19 +137,25 @@ async function bootstrapServer() {
     const path = require('path');
     expressApp.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 
-    // 6. Rate limiting (configuration différente pour Vercel)
-    const limiter = rateLimit({
-      windowMs: isVercel ? 60 * 1000 : 15 * 60 * 1000, // 1 min sur Vercel, 15 min en local
-      max: isVercel ? 100 : 1000, // Limite plus basse sur Vercel
-      standardHeaders: true,
-      legacyHeaders: false,
-      skipSuccessfulRequests: false,
+    // 6. Rate limiting avec configuration sécurisée
+    const limiterOptions: any = {
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 100, // Limite par IP
       message: {
-        status: 429,
-        message: 'Too many requests, please try again later.',
-        timestamp: new Date().toISOString(),
+        message: 'Trop de requêtes. Veuillez réessayer plus tard.',
+        statusCode: 429,
       },
-    });
+      standardHeaders: true,
+      skipSuccessfulRequests: false,
+    };
+
+    // Ajouter trust proxy uniquement si nécessaire
+    const trustProxyConfig = getTrustProxyConfig();
+    if (trustProxyConfig !== false) {
+      limiterOptions.trustProxy = trustProxyConfig;
+    }
+
+    const limiter = rateLimit(limiterOptions);
 
     expressApp.use(limiter);
 
