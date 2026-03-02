@@ -112,12 +112,13 @@ export class DestinationService {
       // Upload de l'image
       const fileName = await this.storageService.uploadFile(imageFile);
       const imagePath = `uploads/${fileName}`;
+      console.log(`[DestinationService] Image stockée avec le chemin: ${imagePath}`);
 
       // Création de la destination
       const createdDestination = new this.destinationModel({
         country: createDestinationDto.country.trim(),
         text: createDestinationDto.text.trim(),
-        imagePath,
+        imagePath: imagePath,
       });
 
       const savedDestination = await createdDestination.save();

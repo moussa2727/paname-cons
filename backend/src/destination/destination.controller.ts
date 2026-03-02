@@ -203,18 +203,22 @@ export class DestinationController {
   @ApiResponse({ status: 404, description: "Fichier non trouvé" })
   async serveUpload(@Param("filename") filename: string, @Res({ passthrough: true }) res: any) {
     try {
+      // Nettoyer le filename pour enlever uploads/ si présent
+      const cleanFilename = filename.replace(/^uploads\//, '');
+      console.log(`[DestinationController] Demande du fichier: ${cleanFilename}`);
+      
       // Vérifier si on est sur Vercel
       const isVercel = process.env.VERCEL === '1';
       
       if (isVercel) {
         // Sur Vercel, servir depuis la mémoire
-        const buffer = this.storageService.getFileBuffer(filename);
+        const buffer = this.storageService.getFileBuffer(cleanFilename);
         if (!buffer) {
           throw new NotFoundException('Fichier non trouvé');
         }
         
         // Déterminer le type MIME
-        const ext = filename.split('.').pop()?.toLowerCase();
+        const ext = cleanFilename.split('.').pop()?.toLowerCase();
         const mimeTypes: { [key: string]: string } = {
           'jpg': 'image/jpeg',
           'jpeg': 'image/jpeg',

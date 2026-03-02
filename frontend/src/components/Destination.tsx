@@ -74,6 +74,8 @@ const Destination = () => {
     // Images uploadées (servies par l'API backend)
     const baseUrl = VITE_API_URL;
     
+    // Si le chemin commence déjà par uploads/, l'utiliser directement
+    // Sinon, ajouter uploads/ devant
     let cleanPath = imagePath;
     if (!cleanPath.startsWith('uploads/')) {
       cleanPath = `uploads/${cleanPath}`;
