@@ -3,6 +3,7 @@
  * Version corrigée pour Vercel Serverless et développement local
  */
 
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, BadRequestException, Logger, VersioningType } from '@nestjs/common';
@@ -81,7 +82,7 @@ const rootRouteMiddleware = (req: express.Request, res: express.Response, next: 
     logger.log('📍 Route racine appelée');
     return res.json({
       message: 'Paname Consulting API is running',
-      status: 'OK',
+      status: 'OK', 
       timestamp: new Date().toISOString(),
       version: '1.0.0',
       endpoints: {
@@ -93,7 +94,7 @@ const rootRouteMiddleware = (req: express.Request, res: express.Response, next: 
         contact: '/api/contact',
         procedures: '/api/procedures',
         rendezvous: '/api/rendezvous',
-        uploads: '/api/uploads',
+        uploads: '/uploads',
       },
     });
   }
@@ -112,7 +113,7 @@ const rootRouteMiddleware = (req: express.Request, res: express.Response, next: 
         procedures: '/api/procedures',
         rendezvous: '/api/rendezvous',
         documentation: '/api/docs',
-        uploads: '/api/uploads',
+        uploads: '/uploads',
       },
       timestamp: new Date().toISOString(),
     });
@@ -122,22 +123,6 @@ const rootRouteMiddleware = (req: express.Request, res: express.Response, next: 
   next();
 };
 
-// Middleware pour servir les fichiers statiques avant NestJS
-const staticFilesMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (req.url.startsWith('/api/uploads/')) {
-    const filename = req.url.replace('/api/uploads/', '');
-    const filePath = path.join(process.cwd(), 'uploads', filename);
-    logger.log(`📁 Service fichier statique: ${filename}`);
-    res.sendFile(filePath, (err) => {
-      if (err) {
-        logger.error(`❌ Erreur envoi fichier: ${filename}`, err);
-        next();
-      }
-    });
-  } else {
-    next();
-  }
-};
 
 // Middleware headers sécurité
 const securityHeadersMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -248,7 +233,7 @@ async function bootstrapServer() {
     expressApp.use(rootRouteMiddleware);
 
     // 2. Fichiers statiques - avant CORS et body parsers
-    expressApp.use(staticFilesMiddleware);
+    expressApp.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
     // 3. CORS
     expressApp.use(corsMiddleware);
@@ -403,9 +388,8 @@ if (isVercel) {
       logger.log(`📍 Route racine: http://localhost:${port}/`);
       logger.log(`📍 Route API: http://localhost:${port}/api`);
       logger.log(`📍 Destinations: http://localhost:${port}/api/destinations`);
-      logger.log(`📁 Uploads: http://localhost:${port}/api/uploads`);
+      logger.log(`📁 Uploads: http://localhost:${port}uploads`);
       logger.log(`📚 Docs: http://localhost:${port}/api/docs`);
-      logger.log(`🌍 WebSocket: ws://localhost:${port}/api/destinations`);
       logger.log(`🔧 Environnement: ${process.env.NODE_ENV || 'development'}`);
 
       // Gestion arrêt gracieux
