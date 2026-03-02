@@ -208,76 +208,32 @@ export class DestinationController {
       const cleanFilename = this.urlService.normalizeFilePath(filename);
       this.logger.log(`[DestinationController] Demande du fichier: ${cleanFilename}`);
       
-      // Vérifier si on est sur Vercel
-      const isVercel = process.env.VERCEL === '1';
-      
-      if (isVercel) {
-        // Sur Vercel, essayer d'abord le buffer local (fallback depuis le build)
-        const buffer = await this.storageService.getFileBuffer(cleanFilename);
-        if (buffer) {
-          // Si le fichier existe localement, le servir directement
-          const ext = cleanFilename.split('.').pop()?.toLowerCase();
-          const mimeTypes: { [key: string]: string } = {
-            'jpg': 'image/jpeg',
-            'jpeg': 'image/jpeg',
-            'png': 'image/png',
-            'webp': 'image/webp',
-            'svg': 'image/svg+xml',
-            'gif': 'image/gif',
-            'avif': 'image/avif'
-          };
-          
-          const mimeType = mimeTypes[ext || ''] || 'application/octet-stream';
-          
-          res.set({
-            'Content-Type': mimeType,
-            'Cache-Control': 'public, max-age=31536000'
-          });
-          
-          return buffer;
-        }
-        
-        // Si le fichier n'existe pas localement, essayer Vercel Blob
-        const fileUrl = await this.storageService.getFileUrl(cleanFilename);
-        if (fileUrl && !fileUrl.includes('/images/paname-consulting.jpg')) {
-          // Rediriger uniquement si c'est une URL blob valide et différente
-          if (fileUrl.startsWith('https://blob.vercel-storage.com/') || 
-              fileUrl.startsWith('https://vercel.blob.com/')) {
-            this.logger.log(`Redirection vers Vercel Blob: ${fileUrl}`);
-            res.redirect(302, fileUrl);
-            return;
-          }
-        }
-        
+      // Toujours essayer le buffer local (que ce soit en local ou sur Vercel)
+      const buffer = await this.storageService.getFileBuffer(cleanFilename);
+      if (!buffer) {
         throw new NotFoundException('Fichier non trouvé');
-      } else {
-        // En local, utiliser le buffer du fichier
-        const buffer = await this.storageService.getFileBuffer(cleanFilename);
-        if (!buffer) {
-          throw new NotFoundException('Fichier non trouvé');
-        }
-        
-        // Déterminer le type MIME
-        const ext = cleanFilename.split('.').pop()?.toLowerCase();
-        const mimeTypes: { [key: string]: string } = {
-          'jpg': 'image/jpeg',
-          'jpeg': 'image/jpeg',
-          'png': 'image/png',
-          'webp': 'image/webp',
-          'svg': 'image/svg+xml',
-          'gif': 'image/gif',
-          'avif': 'image/avif'
-        };
-        
-        const mimeType = mimeTypes[ext || ''] || 'application/octet-stream';
-        
-        res.set({
-          'Content-Type': mimeType,
-          'Cache-Control': 'public, max-age=31536000'
-        });
-        
-        return buffer;
       }
+      
+      // Déterminer le type MIME
+      const ext = cleanFilename.split('.').pop()?.toLowerCase();
+      const mimeTypes: { [key: string]: string } = {
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'webp': 'image/webp',
+        'svg': 'image/svg+xml',
+        'gif': 'image/gif',
+        'avif': 'image/avif'
+      };
+      
+      const mimeType = mimeTypes[ext || ''] || 'application/octet-stream';
+      
+      res.set({
+        'Content-Type': mimeType,
+        'Cache-Control': 'public, max-age=31536000'
+      });
+      
+      return buffer;
     } catch (error) {
       this.logger.error(`Erreur serving file ${filename}: ${error.message}`);
       throw error;

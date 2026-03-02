@@ -81,36 +81,48 @@ export class StorageService {
     const cleanFilename = filename.replace(/^uploads\//, "");
 
     if (this.isVercel && this.blobToken) {
-      // Récupérer depuis Vercel Blob Storage
+      // Sur Vercel avec token valide, essayer Vercel Blob
       try {
         const blob = await head(cleanFilename, { token: this.blobToken });
         if (!blob) {
-          return null;
+          // Fallback vers fichiers locaux
+          return this.getFileBufferLocal(cleanFilename);
         }
 
         const response = await fetch(blob.url);
         if (!response.ok) {
-          return null;
+          // Fallback vers fichiers locaux
+          return this.getFileBufferLocal(cleanFilename);
         }
 
         const arrayBuffer = await response.arrayBuffer();
         return Buffer.from(arrayBuffer);
       } catch (error) {
         this.logger.error(`Erreur récupération Vercel Blob: ${error.message}`);
-        return null;
+        // Fallback vers fichiers locaux
+        return this.getFileBufferLocal(cleanFilename);
       }
     } else {
-      // Récupérer du système de fichiers local
-      const filePath = path.join(this.uploadDir, cleanFilename);
-      if (fs.existsSync(filePath)) {
-        return await readFile(filePath);
-      }
-      return null;
+      // Toujours utiliser les fichiers locaux (que ce soit en local ou sur Vercel sans token)
+      return this.getFileBufferLocal(cleanFilename);
     }
   }
 
+  private async getFileBufferLocal(cleanFilename: string): Promise<Buffer | null> {
+    // Chemin différent selon l'environnement
+    const filePath = this.isVercel 
+      ? path.join(process.cwd(), 'dist', 'uploads', cleanFilename)  // Sur Vercel, fichiers dans dist/
+      : path.join(this.uploadDir, cleanFilename);                 // En local, fichiers dans uploads/
+    
+    if (fs.existsSync(filePath)) {
+      return await readFile(filePath);
+    }
+    return null;
+  }
+
   async getFileUrl(filename: string): Promise<string> {
-    // Utiliser le UrlService pour générer l'URL complète
+    // Utiliser le UrlService pour générer l'URL complète de l'API
+    // Ne pas essayer de récupérer l'URL blob directement
     return this.urlService.getImageUrl(filename);
   }
 
