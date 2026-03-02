@@ -12,7 +12,6 @@ import {
   UseGuards,
   UseInterceptors,
   BadRequestException,
-  FileTypeValidator,
   MaxFileSizeValidator,
   Logger,
   NotFoundException,
@@ -211,7 +210,6 @@ export class DestinationController {
       const isVercel = process.env.VERCEL === '1';
       
       if (isVercel) {
-        // Sur Vercel, servir depuis /tmp
         const buffer = await this.storageService.getFileBuffer(cleanFilename);
         if (!buffer) {
           throw new NotFoundException('Fichier non trouvé');
