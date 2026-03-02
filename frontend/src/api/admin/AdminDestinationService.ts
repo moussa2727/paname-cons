@@ -4,8 +4,7 @@ const API_URL = (import.meta as any).env.VITE_API_URL;
 
 /**
  * Génère l'URL complète pour une image
- * - Images par défaut (/images/*) : servies par le frontend
- * - Images uploadées (uploads/*) : servies par l'API backend
+ * Utilise des URLs standardisées et cohérentes
  */
 export const getFullImageUrl = (imagePath: string): string => {
   if (!imagePath) return '/images/paname-consulting.jpg';
@@ -20,18 +19,11 @@ export const getFullImageUrl = (imagePath: string): string => {
     return imagePath;
   }
 
-  // Images uploadées (servies par l'API backend)
+  // Images uploadées - utiliser l'URL standardisée
   const baseUrl = API_URL;
+  const cleanPath = imagePath.replace(/^uploads\//, '');
   
-  // Si le chemin commence déjà par uploads/, l'utiliser directement
-  // Sinon, ajouter uploads/ devant
-  let cleanPath = imagePath;
-  if (!cleanPath.startsWith('uploads/')) {
-    cleanPath = `uploads/${cleanPath}`;
-  }
-  cleanPath = cleanPath.replace(/\/\//g, '/');
-
-  return `${baseUrl}/api/destinations/${cleanPath}`;
+  return `${baseUrl}/api/destinations/uploads/${cleanPath}`;
 };
 
 export interface Destination {
