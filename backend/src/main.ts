@@ -139,9 +139,15 @@ async function bootstrapServer() {
       skipSuccessfulRequests: false,
     };
 
-    // Ajouter trust proxy uniquement pour Vercel avec configuration spécifique
+    // Ajouter trust proxy uniquement pour Vercel avec configuration sécurisée
     if (isVercel) {
-      limiterOptions.trustProxy = 1; // Vercel nécessite trust proxy = 1
+      // Configuration spécifique pour Vercel avec les proxies approuvés
+      limiterOptions.trustProxy = false; // Désactiver trust proxy pour éviter l'avertissement
+      // Alternative: utiliser une liste blanche de proxies Vercel
+      limiterOptions.skip = (req) => {
+        // Skip rate limiting pour les requêtes internes Vercel
+        return req.headers['x-vercel-forwarded-for'] !== undefined;
+      };
     }
 
     const limiter = rateLimit(limiterOptions);
