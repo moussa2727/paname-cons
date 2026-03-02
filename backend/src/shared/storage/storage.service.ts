@@ -1,26 +1,24 @@
-import { Injectable } from "@nestjs/common";
-import * as fs from "fs";
-import * as path from "path";
-import { promisify } from "util";
-
-const writeFile = promisify(fs.writeFile);
-const unlink = promisify(fs.unlink);
+import { Injectable } from '@nestjs/common';
+import { promises as fs } from 'fs';
+import { join } from 'path';
 
 @Injectable()
 export class StorageService {
-  private readonly uploadDir: string;
   private readonly isVercel: boolean;
-  private readonly memoryStorage: Map<string, Buffer> = new Map();
+  private readonly uploadDir: string;
 
   constructor() {
     this.isVercel = process.env.VERCEL === '1';
-    
-    if (this.isVercel) {
-      // Sur Vercel, utiliser /tmp/uploads
-      this.uploadDir = '/tmp/uploads';
-    } else {
-      // En local, utiliser uploads à la racine
-      this.uploadDir = path.join(process.cwd(), "uploads");
+    this.uploadDir = this.isVercel ? '/tmp/uploads' : join(process.cwd(), 'uploads');
+    this.ensureUploadDir();
+  }
+
+  private async ensureUploadDir() {
+    try {
+      await fs.mkdir(this.uploadDir, { recursive: true });
+      console.log(`[StorageService] Répertoire ${this.uploadDir} prêt`);
+    } catch (error) {
+      console.error(`[StorageService] Erreur création répertoire:`, error);
     }
   }
 
@@ -29,23 +27,51 @@ export class StorageService {
     customName?: string,
   ): Promise<string> {
     const filename = customName || `${Date.now()}-${file.originalname}`;
+    const filePath = join(this.uploadDir, filename);
+    
     console.log(`[StorageService] Upload du fichier: ${filename}`);
-
-    if (this.isVercel) {
-      // Sur Vercel, stocker en mémoire
-      this.memoryStorage.set(filename, file.buffer);
-      console.log(`[StorageService] Fichier ${filename} stocké en mémoire (Vercel)`);
-      return filename;
-    } else {
-      // En local, créer le dossier et stocker sur disque
-      if (!fs.existsSync(this.uploadDir)) {
-        fs.mkdirSync(this.uploadDir, { recursive: true });
+    console.log(`[StorageService] Chemin: ${filePath}`);
+    console.log(`[StorageService] Taille: ${file.size} bytes`);
+    
+    try {
+      if (this.isVercel) {
+        // Sur Vercel, écrire dans /tmp
+        await fs.writeFile(filePath, file.buffer);
+        console.log(`[StorageService] Fichier écrit dans /tmp: ${filename}`);
+      } else {
+        // En local, créer le dossier et stocker sur disque
+        await fs.writeFile(filePath, file.buffer);
+        console.log(`[StorageService] Fichier stocké sur disque: ${filePath}`);
       }
-
-      const filePath = path.join(this.uploadDir, filename);
-      await writeFile(filePath, file.buffer);
-      console.log(`[StorageService] Fichier ${filename} stocké sur disque: ${filePath}`);
+      
       return filename;
+    } catch (error) {
+      console.error(`[StorageService] Erreur upload:`, error);
+      throw new Error(`Erreur lors de l'upload: ${error.message}`);
+    }
+  }
+
+  async getFileBuffer(filename: string): Promise<Buffer | null> {
+    const filePath = join(this.uploadDir, filename);
+    
+    console.log(`[StorageService] Demande du fichier: ${filename}`);
+    console.log(`[StorageService] Chemin complet: ${filePath}`);
+    
+    try {
+      if (this.isVercel) {
+        // Sur Vercel, lire depuis /tmp
+        const buffer = await fs.readFile(filePath);
+        console.log(`[StorageService] Fichier trouvé dans /tmp: ${filename} (${buffer.length} bytes)`);
+        return buffer;
+      } else {
+        // En local, les fichiers sont servis par Express static
+        console.log(`[StorageService] Fichier local (servi par Express): ${filename}`);
+        return null;
+      }
+    } catch (error) {
+      console.log(`[StorageService] Fichier NON trouvé: ${filename}`);
+      console.log(`[StorageService] Erreur:`, error.message);
+      return null;
     }
   }
 
@@ -53,33 +79,20 @@ export class StorageService {
     // Supprime le préfixe 'uploads/' s'il existe
     const cleanFilename = filename.replace(/^uploads\//, "");
 
-    if (this.isVercel) {
-      // Sur Vercel, supprimer de la mémoire
-      this.memoryStorage.delete(cleanFilename);
-      console.log(`Fichier ${cleanFilename} supprimé de la mémoire (Vercel)`);
-    } else {
-      // En local, supprimer du disque
-      const filePath = path.join(this.uploadDir, cleanFilename);
-      if (fs.existsSync(filePath)) {
-        await unlink(filePath);
-      }
-    }
-  }
-
-  // Méthode pour servir les fichiers depuis Vercel
-  getFileBuffer(filename: string): Buffer | null {
-    console.log(`[StorageService] Demande du fichier: ${filename}`);
-    console.log(`[StorageService] Fichiers en mémoire: ${Array.from(this.memoryStorage.keys()).join(', ')}`);
+    const filePath = join(this.uploadDir, cleanFilename);
     
-    if (this.isVercel) {
-      const buffer = this.memoryStorage.get(filename) || null;
-      if (buffer) {
-        console.log(`[StorageService] Fichier ${filename} trouvé en mémoire (${buffer.length} bytes)`);
+    console.log(`[StorageService] Suppression du fichier: ${filename}`);
+    
+    try {
+      if (this.isVercel) {
+        await fs.unlink(filePath);
+        console.log(`[StorageService] Fichier supprimé de /tmp: ${filename}`);
       } else {
-        console.log(`[StorageService] Fichier ${filename} NON trouvé en mémoire`);
+        await fs.unlink(filePath);
+        console.log(`[StorageService] Fichier supprimé du disque: ${filename}`);
       }
-      return buffer;
+    } catch (error) {
+      console.log(`[StorageService] Erreur suppression (fichier peut ne pas exister):`, error.message);
     }
-    return null; // En local, les fichiers sont servis par Express static
   }
 }

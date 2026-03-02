@@ -211,8 +211,8 @@ export class DestinationController {
       const isVercel = process.env.VERCEL === '1';
       
       if (isVercel) {
-        // Sur Vercel, servir depuis la mémoire
-        const buffer = this.storageService.getFileBuffer(cleanFilename);
+        // Sur Vercel, servir depuis /tmp
+        const buffer = await this.storageService.getFileBuffer(cleanFilename);
         if (!buffer) {
           throw new NotFoundException('Fichier non trouvé');
         }
