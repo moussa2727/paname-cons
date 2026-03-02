@@ -15,8 +15,21 @@ export class StorageService {
   private readonly uploadDir = path.join(process.cwd(), "uploads");
   private readonly isVercel = process.env.VERCEL === '1';
   private readonly blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+  private readonly hasValidBlobToken: boolean;
 
-  constructor(private readonly urlService: UrlService) {}
+  constructor(private readonly urlService: UrlService) {
+    // Vérifier si le token est valide au démarrage
+    this.hasValidBlobToken = this.isVercel && 
+      this.blobToken && 
+      this.blobToken.length > 50 && // Token Vercel Blob est très long
+      !this.blobToken.includes('votre_blob_token'); // Éviter les tokens de démo
+    
+    if (this.isVercel) {
+      this.logger.log(`Vercel détecté: ${this.isVercel}`);
+      this.logger.log(`Token Blob présent: ${!!this.blobToken}`);
+      this.logger.log(`Token Blob valide: ${this.hasValidBlobToken}`);
+    }
+  }
 
   async uploadFile(
     file: Express.Multer.File,
@@ -24,7 +37,7 @@ export class StorageService {
   ): Promise<string> {
     const filename = customName || `${Date.now()}-${file.originalname}`;
 
-    if (this.isVercel && this.blobToken) {
+    if (this.isVercel && this.hasValidBlobToken) {
       // Utiliser Vercel Blob Storage en production
       try {
         const blob = await put(filename, file.buffer, {
@@ -60,7 +73,7 @@ export class StorageService {
     // Utiliser UrlService pour normaliser le chemin (gère uploads/ et uploads\)
     const cleanFilename = this.urlService.normalizeFilePath(filename);
 
-    if (this.isVercel && this.blobToken) {
+    if (this.isVercel && this.hasValidBlobToken) {
       // Supprimer de Vercel Blob Storage
       try {
         await del(cleanFilename, { token: this.blobToken });
@@ -83,7 +96,7 @@ export class StorageService {
     // Utiliser UrlService pour normaliser le chemin (gère uploads/ et uploads\)
     const cleanFilename = this.urlService.normalizeFilePath(filename);
 
-    if (this.isVercel && this.blobToken) {
+    if (this.isVercel && this.hasValidBlobToken) {
       // Sur Vercel avec token valide, essayer Vercel Blob
       try {
         const blob = await head(cleanFilename, { token: this.blobToken });
