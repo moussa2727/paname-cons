@@ -195,8 +195,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
 
         await destinationService.updateDestination(
           editingId,
-          updateData,
-          access_token!
+          updateData
         );
         showPopover('Destination modifiée avec succès', 'success');
       } else {
@@ -212,7 +211,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           imageFile,
         };
 
-        await destinationService.createDestination(createData, access_token!);
+        await destinationService.createDestination(createData);
         showPopover('Destination ajoutée avec succès', 'success');
       }
 
@@ -239,7 +238,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
 
     setLoading(true);
     try {
-      await destinationService.deleteDestination(id, access_token!);
+      await destinationService.deleteDestination(id);
       showPopover('Destination supprimée avec succès', 'success');
       setShowDeleteConfirm(null);
       fetchDestinations();

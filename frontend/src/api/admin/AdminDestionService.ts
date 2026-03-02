@@ -51,8 +51,16 @@ class DestinationService {
    */
   private getAuthHeaders(token: string) {
     return {
-      Authorization: `Bearer ${token}`,
+      // Utiliser les cookies pour l'authentification (pas de header Authorization)
+      'Content-Type': 'application/json',
     };
+  }
+
+  /**
+   * Headers pour les requêtes avec FormData (pas de Content-Type)
+   */
+  private getFormDataHeaders() {
+    return {}; // FormData gère automatiquement le Content-Type
   }
 
   /**
@@ -96,18 +104,16 @@ class DestinationService {
     search?: string
   ): Promise<PaginatedResponse> {
     try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-        ...(search && { search }),
-      });
-
-      const response = await globalThis.fetch(`${this.baseUrl}?${params}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await globalThis.fetch(
+        `${this.baseUrl}?page=${page}&limit=${limit}${search ? `&search=${encodeURIComponent(search)}` : ''}`,
+        {
+          method: 'GET',
+          credentials: 'include', // Important pour inclure les cookies
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -127,6 +133,7 @@ class DestinationService {
     try {
       const response = await globalThis.fetch(`${this.baseUrl}/all`, {
         method: 'GET',
+        credentials: 'include', // Important pour inclure les cookies
         headers: {
           'Content-Type': 'application/json',
         },
@@ -180,8 +187,7 @@ class DestinationService {
    * Créer une nouvelle destination (Admin seulement)
    */
   async createDestination(
-    data: CreateDestinationData,
-    token: string
+    data: CreateDestinationData
   ): Promise<Destination> {
     try {
       // Validation des données
@@ -211,7 +217,8 @@ class DestinationService {
 
       const response = await globalThis.fetch(this.baseUrl, {
         method: 'POST',
-        headers: this.getAuthHeaders(token),
+        headers: this.getFormDataHeaders(),
+        credentials: 'include', // Important pour inclure les cookies
         body: formData,
       });
 
@@ -247,8 +254,7 @@ class DestinationService {
    */
   async updateDestination(
     id: string,
-    data: UpdateDestinationData,
-    token: string
+    data: UpdateDestinationData
   ): Promise<Destination> {
     try {
       if (!id) {
@@ -283,7 +289,8 @@ class DestinationService {
 
       const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
         method: 'PUT',
-        headers: this.getAuthHeaders(token),
+        headers: this.getFormDataHeaders(),
+        credentials: 'include', // Important pour inclure les cookies
         body: formData,
       });
 
@@ -324,7 +331,7 @@ class DestinationService {
   /**
    * Supprimer une destination (Admin seulement)
    */
-  async deleteDestination(id: string, token: string): Promise<void> {
+  async deleteDestination(id: string): Promise<void> {
     try {
       if (!id) {
         throw new Error('ID de destination requis');
@@ -333,9 +340,10 @@ class DestinationService {
       const response = await globalThis.fetch(`${this.baseUrl}/${id}`, {
         method: 'DELETE',
         headers: {
-          ...this.getAuthHeaders(token),
+          ...this.getAuthHeaders(''),
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Important pour inclure les cookies
       });
 
       if (!response.ok) {
