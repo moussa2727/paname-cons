@@ -212,15 +212,44 @@ export class DestinationController {
       const isVercel = process.env.VERCEL === '1';
       
       if (isVercel) {
-        // Sur Vercel, rediriger vers l'URL publique du blob
-        const fileUrl = await this.storageService.getFileUrl(cleanFilename);
-        if (!fileUrl || fileUrl.includes('/images/paname-consulting.jpg')) {
-          throw new NotFoundException('Fichier non trouvé');
+        // Sur Vercel, essayer d'abord le buffer local (fallback depuis le build)
+        const buffer = await this.storageService.getFileBuffer(cleanFilename);
+        if (buffer) {
+          // Si le fichier existe localement, le servir directement
+          const ext = cleanFilename.split('.').pop()?.toLowerCase();
+          const mimeTypes: { [key: string]: string } = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'webp': 'image/webp',
+            'svg': 'image/svg+xml',
+            'gif': 'image/gif',
+            'avif': 'image/avif'
+          };
+          
+          const mimeType = mimeTypes[ext || ''] || 'application/octet-stream';
+          
+          res.set({
+            'Content-Type': mimeType,
+            'Cache-Control': 'public, max-age=31536000'
+          });
+          
+          return buffer;
         }
         
-        // Retourner une redirection vers l'URL publique
-        res.redirect(302, fileUrl);
-        return;
+        // Si le fichier n'existe pas localement, essayer Vercel Blob
+        const fileUrl = await this.storageService.getFileUrl(cleanFilename);
+        if (fileUrl && !fileUrl.includes('/images/paname-consulting.jpg')) {
+          // Rediriger uniquement si c'est une URL blob valide et différente
+          if (fileUrl.startsWith('https://blob.vercel-storage.com/') || 
+              fileUrl.startsWith('https://vercel.blob.com/')) {
+            this.logger.log(`Redirection vers Vercel Blob: ${fileUrl}`);
+            res.redirect(302, fileUrl);
+            return;
+          }
+        }
+        
+        throw new NotFoundException('Fichier non trouvé');
       } else {
         // En local, utiliser le buffer du fichier
         const buffer = await this.storageService.getFileBuffer(cleanFilename);

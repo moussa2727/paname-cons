@@ -37,8 +37,25 @@ export class UrlService {
     }
 
     // Images uploadées - utiliser l'endpoint API
-    const cleanFilename = filename.replace(/^uploads\//, '');
+    const cleanFilename = this.normalizeFilePath(filename);
     return `${this.baseUrl}/api/destinations/uploads/${cleanFilename}`;
+  }
+
+  /**
+   * Vérifier si une URL est une URL blob Vercel valide
+   */
+  isVercelBlobUrl(url: string): boolean {
+    return url.startsWith('https://blob.vercel-storage.com/') || 
+           url.startsWith('https://vercel.blob.com/');
+  }
+
+  /**
+   * Obtenir l'URL blob Vercel directe (si disponible)
+   */
+  async getVercelBlobUrl(filename: string): Promise<string | null> {
+    // Cette méthode pourrait être étendue pour interroger Vercel Blob directement
+    // Pour l'instant, retourne null pour forcer l'utilisation du système local
+    return null;
   }
 
   /**

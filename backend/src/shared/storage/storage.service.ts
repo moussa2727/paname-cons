@@ -35,19 +35,25 @@ export class StorageService {
         return filename;
       } catch (error) {
         this.logger.error(`Erreur upload Vercel Blob: ${error.message}`);
-        throw error;
+        // Fallback: utiliser le système de fichiers local même sur Vercel
+        this.logger.warn(`Fallback vers système de fichiers local pour: ${filename}`);
+        return this.uploadFileLocal(file, filename);
       }
     } else {
-      // Utiliser le système de fichiers local en développement
-      if (!fs.existsSync(this.uploadDir)) {
-        fs.mkdirSync(this.uploadDir, { recursive: true });
-      }
-
-      const filePath = path.join(this.uploadDir, filename);
-      await writeFile(filePath, file.buffer);
-      this.logger.log(`Fichier uploadé localement: ${filename}`);
-      return filename;
+      // Utiliser le système de fichiers local
+      return this.uploadFileLocal(file, filename);
     }
+  }
+
+  private async uploadFileLocal(file: Express.Multer.File, filename: string): Promise<string> {
+    if (!fs.existsSync(this.uploadDir)) {
+      fs.mkdirSync(this.uploadDir, { recursive: true });
+    }
+
+    const filePath = path.join(this.uploadDir, filename);
+    await writeFile(filePath, file.buffer);
+    this.logger.log(`Fichier uploadé localement: ${filename}`);
+    return filename;
   }
 
   async deleteFile(filename: string): Promise<void> {
