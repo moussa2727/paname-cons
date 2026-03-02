@@ -7,38 +7,13 @@ import {
   type Destination,
   type CreateDestinationData,
   type UpdateDestinationData,
-} from '../../api/admin/AdminDestionService';
-import { Helmet } from 'react-helmet-async';
+  getFullImageUrl,
+} from '../../api/admin/AdminDestinationService';
 import RequireAdmin from '../../context/RequireAdmin';
-
-const VITE_API_URL = (import.meta as any).env.VITE_API_URL;
-
-const getFullImageUrl = (imagePath: string) => {
-  if (!imagePath) return '/paname-consulting.jpg';
-
-  // URLs déjà complètes
-  if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
-    return imagePath;
-  }
-
-  // Images dans public (par défaut)
-  if (imagePath.startsWith('/')) {
-    return imagePath;
-  }
-
-  const baseUrl = VITE_API_URL;
-
-  // Images uploadées
-  let cleanPath = imagePath;
-  if (!cleanPath.startsWith('uploads/')) {
-    cleanPath = `uploads/${cleanPath}`;
-  }
-  cleanPath = cleanPath.replace(/\/\//g, '/');
-
-  return `${baseUrl}/${cleanPath}`;
-};
+import { Helmet } from 'react-helmet-async';
 
 interface DataSourceInfo {
+  
   count: number;
   lastUpdated: string | null;
 }
@@ -101,7 +76,6 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
       // }
 
       // Mettre à jour les informations de source de données
-      const stats = await destinationService.getStatistics();
 
       // if (import.meta.env.DEV) {
       //   console.log('Stats:', stats);
@@ -109,15 +83,11 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
 
       setDataSourceInfo({
         count: data.length,
-        lastUpdated:
-          stats.lastUpdated ||
-          new Date().toLocaleDateString('fr-FR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
+        lastUpdated: new Date().toLocaleDateString('fr-FR', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        }),
       });
     } catch (error: any) {
       if (import.meta.env.DEV) {
@@ -854,7 +824,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                             className='w-16 h-16 object-cover rounded-lg border border-slate-200 shadow-sm'
                             onError={e => {
                               (e.target as HTMLImageElement).src =
-                                '/paname-placeholder.png';
+                                '/images/paname-consulting.jpg';
                             }}
                           />
                         </div>
@@ -997,7 +967,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
                               className='w-12 h-12 object-cover rounded-lg border border-slate-200 shadow-sm'
                               onError={e => {
                                 (e.target as HTMLImageElement).src =
-                                  '/paname-placeholder.png';
+                                  '/images/paname-consulting.jpg';
                               }}
                             />
                             <div className='ml-3'>

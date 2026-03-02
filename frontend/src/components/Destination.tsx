@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
+import { getFullImageUrl } from '../api/admin/AdminDestinationService';
 import 'react-toastify/dist/ReactToastify.css';
+
+const VITE_API_URL = (import.meta as any).env.VITE_API_URL;
 
 // Renommer l'interface pour éviter le conflit avec le composant
 interface DestinationType {
@@ -50,40 +53,10 @@ const defaultDestinations: DestinationType[] = [
   },
 ];
 
-const VITE_API_URL =
-  (import.meta as any).env.VITE_API_URL;
-
 const Destination = () => {
   const [destinations, setDestinations] =
     useState<DestinationType[]>(defaultDestinations);
   const [loading, setLoading] = useState(true);
-
-  const getFullImageUrl = (imagePath: string) => {
-    if (!imagePath) return '/images/paname-consulting.jpg';
-
-    // URLs déjà complètes
-    if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
-      return imagePath;
-    }
-
-    // Images par défaut dans /images/ (servies par le frontend)
-    if (imagePath.startsWith('/images/')) {
-      return imagePath;
-    }
-
-    // Images uploadées (servies par l'API backend)
-    const baseUrl = VITE_API_URL;
-    
-    // Si le chemin commence déjà par uploads/, l'utiliser directement
-    // Sinon, ajouter uploads/ devant
-    let cleanPath = imagePath;
-    if (!cleanPath.startsWith('uploads/')) {
-      cleanPath = `uploads/${cleanPath}`;
-    }
-    cleanPath = cleanPath.replace(/\/\//g, '/');
-
-    return `${baseUrl}/api/destinations/${cleanPath}`;
-  };
 
   const fetchDestinations = async () => {
     try {
@@ -106,12 +79,7 @@ const Destination = () => {
 
       // Utiliser les données du serveur si disponibles
       if (result?.data && result.data.length > 0) {
-        setDestinations(
-          result.data.map((dest: any) => ({
-            ...dest,
-            imagePath: getFullImageUrl(dest.imagePath),
-          }))
-        );
+        setDestinations(result.data);
       } else {
         // Si aucune donnée, utiliser les valeurs par défaut
         setDestinations(defaultDestinations);
