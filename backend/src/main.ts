@@ -2,11 +2,11 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, BadRequestException, Logger, VersioningType } from '@nestjs/common';
 import { ExpressAdapter } from '@nestjs/platform-express';
-const express = require('express');
-const helmet = require('helmet');
-const compression = require('compression');
-const cookieParser = require('cookie-parser');
-const path = require('path');
+import express from 'express';
+import helmet from 'helmet';
+import compression from 'compression';
+import cookieParser from 'cookie-parser';
+import path from 'path';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 
 const logger = new Logger('Bootstrap');
@@ -35,8 +35,8 @@ async function bootstrap() {
     crossOriginResourcePolicy: { policy: "cross-origin" },
   }));
   
-  // Middleware CORS pour toutes les requêtes - CORRIGÉ
-  server.use((req: { headers: { origin: any; }; method: string; }, res: { setHeader: (arg0: string, arg1: string) => void; status: (arg0: number) => { (): any; new(): any; end: { (): void; new(): any; }; }; }, next: () => void) => {
+  // Middleware CORS pour toutes les requêtes
+  server.use((req, res, next) => {
     const origin = req.headers.origin;
     
     // Définir l'origin dynamiquement - UNE SEULE VALEUR
@@ -57,8 +57,8 @@ async function bootstrap() {
     
     // Support pour les cookies SameSite=None sur HTTPS
     if (isProduction) {
-      // Ne pas définir Set-Cookie ici car cela interfère avec les cookies existants
-      // Cette ligne est problématique car elle définit un cookie pour toutes les réponses
+      // Configuration pour les cookies en production
+      res.setHeader('Set-Cookie', 'SameSite=None; Secure; HttpOnly; Path=/');
     }
     
     if (req.method === 'OPTIONS') {
@@ -77,7 +77,7 @@ async function bootstrap() {
   // Servir les fichiers statiques - Important pour les uploads
   const uploadsPath = path.join(__dirname, '../uploads');
   server.use('/uploads', express.static(uploadsPath, {
-    setHeaders: (res: { req: { headers: { origin: any; }; }; set: (arg0: string, arg1: string) => void; }, filePath: string) => {
+    setHeaders: (res, filePath) => {
       const origin = res.req?.headers?.origin;
       
       // CORS dynamique pour les uploads - UNE SEULE VALEUR
@@ -119,7 +119,7 @@ async function bootstrap() {
       transform: true,
       exceptionFactory: (errors) => {
         const messages = errors.map(
-          (error) => `${error.property} - ${Object.values(error.constraints).join(', ')}`
+          (error) => `${error.property} - ${Object.values(error.constraints || {}).join(', ')}`
         );
         return new BadRequestException(messages);
       },
