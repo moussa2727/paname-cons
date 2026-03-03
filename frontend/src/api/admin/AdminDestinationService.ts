@@ -2,7 +2,7 @@ import { toast } from 'react-toastify';
 import { io, Socket } from 'socket.io-client';
 
 const API_URL = (import.meta as any).env.VITE_API_URL;
-const WS_URL = API_URL?.replace('http', 'ws')?.replace('https://paname-consulting.vercel.app', 'https://panameconsulting.vercel.app') || 'ws://localhost:10000';
+const WS_URL = API_URL?.replace('http://', 'http://')?.replace('https://', 'https://')?.replace('paname-consulting.vercel.app', 'panameconsulting.vercel.app') + '/destinations' || 'http://localhost:10000/destinations';
 
 /**
  * Génère l'URL complète pour une image
