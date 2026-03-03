@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # Backend NestJS
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: paname-backend
+    restart: unless-stopped
+    ports:
+      - "10000:10000"
+    environment:
+      - NODE_ENV=production
+      - PORT=10000
+      - COOKIE_SECRET=${COOKIE_SECRET}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - MONGODB_URI=${MONGODB_URI}
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      - mongodb
+    networks:
+      - paname-network
+  
+
+  # Base de données MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: paname-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - paname-network
+  
+
+# Volumes persistants
+volumes:
+  uploads_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/uploads
+  mongodb_data:
+    driver: local
+
+# Réseau Docker
+networks:
+  paname-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
