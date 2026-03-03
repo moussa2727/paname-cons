@@ -23,7 +23,11 @@
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
-          "value": "https://panameconsulting.vercel.app, https://paname-consulting.vercel.app"
+          "value": "https://panameconsulting.vercel.app"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://paname-consulting.vercel.app"
         },
         {
           "key": "Access-Control-Allow-Methods",

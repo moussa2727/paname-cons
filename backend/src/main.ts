@@ -195,7 +195,7 @@ export default async function handler(req: any, res: any) {
 if (process.env.NODE_ENV !== 'production') {
   async function bootstrap() {
     const server = await createApp();
-    const port = parseInt(process.env.PORT || '3000', 10);
+    const port = parseInt(process.env.PORT || '10000', 10);
     const host = process.env.HOST || "0.0.0.0";
 
     server.listen(port, host, () => {
