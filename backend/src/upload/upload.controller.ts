@@ -16,7 +16,6 @@ import { ApiConsumes, ApiBody, ApiTags } from '@nestjs/swagger';
 @Controller('uploads')
 export class UploadController {
   constructor(
-    private configService: ConfigService,
     private uploadService: UploadService,
   ) {}
 

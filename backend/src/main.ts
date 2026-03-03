@@ -9,8 +9,12 @@ const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 
+
+let cachedNestApp: NestExpressApplication | null = null;
+let isInitializing = false;
 const logger = new Logger('Bootstrap');
 const isProduction = process.env.NODE_ENV === 'production';
+const isVercel = process.env.VERCEL === '1';
 
 // Configuration CORS et CSP
 const productionOrigins = [
@@ -70,12 +74,8 @@ async function createApp() {
   });
 
   // service des fichiers statiques depuis le dossier uploads dans mon backend
-  const uploadsPath = path.join(process.env.UPLOAD_DIR || '/uploads', 'uploads');
-  server.use('/uploads', express.static(uploadsPath, {
-    setHeaders: (res: any) => {
-      res.setHeader('Cache-Control', 'public, max-age=31536000');
-    },
-  }));
+ const uploadsPath = path.join(process.cwd(), 'uploads');
+    app.use('/uploads', express.static(uploadsPath));
 
   // Préfixe global
   app.setGlobalPrefix('api', {
@@ -142,9 +142,6 @@ async function createApp() {
     }),
   );
 
-  // ✅ MIDDLEWARE: Headers de sécurité additionnels - SUPPRIMÉ pour éviter les conflits CORS
-  // Le middleware suivant a été supprimé car il cause des conflits avec CORS
-  // Helmet et enableCors gèrent déjà tous ces headers
 
   // ✅ VALIDATION GLOBALE
   app.useGlobalPipes(
@@ -184,12 +181,49 @@ async function createApp() {
 }
 
 // Handler pour Vercel
-export default async function handler(req: any, res: any) {
-  if (!cachedApp) {
-    cachedApp = await createApp();
-  }
-  return cachedApp(req, res);
-}
+if (isVercel) {
+  const handler = async (req: any, res: any) => {
+    try {
+      if (!cachedApp || !cachedNestApp) {
+        if (isInitializing) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          return handler(req, res);
+        }
+
+        isInitializing = true;
+        try {
+          const { expressApp } = await createApp();
+          cachedApp = expressApp;
+          // cachedNestApp = nestApp;
+        } catch (error) {
+          logger.error('Échec initialisation Vercel:', error);
+          return res.status(500).json({
+            error: 'Initialization failed',
+            message: 'Serveur temporairement indisponible',
+          });
+        } finally {
+          isInitializing = false;
+        }
+      }
+
+      return cachedApp!(req, res);
+    } catch (error) {
+      logger.error('Erreur traitement requête:', error);
+      
+      if (!res.headersSent) {
+        return res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'Erreur inattendue',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+  };
+
+  module.exports = handler;
+  module.exports.default = handler;
+  
+} 
 
 // Pour le développement local
 if (process.env.NODE_ENV !== 'production') {
