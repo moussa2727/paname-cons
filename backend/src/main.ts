@@ -1,13 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, BadRequestException, Logger, VersioningType } from '@nestjs/common';
-import { NestExpressApplication } from '@nestjs/platform-express';
 import { ExpressAdapter } from '@nestjs/platform-express';
-import * as express from 'express';
-import helmet from 'helmet';
-import * as compression from 'compression';
-import * as cookieParser from 'cookie-parser';
-import * as path from 'path';
+const express = require('express');
+const helmet = require('helmet');
+const compression = require('compression');
+const cookieParser = require('cookie-parser');
+const path = require('path');
 import { IoAdapter } from '@nestjs/platform-socket.io';
 
 const logger = new Logger('Bootstrap');
