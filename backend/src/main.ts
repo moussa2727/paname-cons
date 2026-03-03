@@ -24,15 +24,6 @@ const allowedOrigins = [
   'http://127.0.0.1:10000',
 ];
 
-// Headers CORS depuis vercel.json
-const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://panameconsulting.vercel.app, https://paname-consulting.vercel.app',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin',
-  'Access-Control-Allow-Credentials': 'true',
-  'Access-Control-Expose-Headers': 'Set-Cookie, Authorization'
-};
-
 async function bootstrap() {
   const server = express();
   
@@ -41,19 +32,22 @@ async function bootstrap() {
   
   // Middlewares de base
   server.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" }, // Permet les requêtes cross-origin pour les uploads
+    crossOriginResourcePolicy: { policy: "cross-origin" },
   }));
   
-  // Middleware CORS pour toutes les requêtes
+  // Middleware CORS pour toutes les requêtes - CORRIGÉ
   server.use((req: { headers: { origin: any; }; method: string; }, res: { setHeader: (arg0: string, arg1: string) => void; status: (arg0: number) => { (): any; new(): any; end: { (): void; new(): any; }; }; }, next: () => void) => {
     const origin = req.headers.origin;
-    const allowedOrigins = ['https://panameconsulting.vercel.app', 'https://paname-consulting.vercel.app'];
     
-    // Définir l'origin dynamiquement
-    if (allowedOrigins.includes(origin)) {
+    // Définir l'origin dynamiquement - UNE SEULE VALEUR
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else if (origin && origin.includes('vercel.app')) {
+      // Fallback pour les sous-domaines Vercel
       res.setHeader('Access-Control-Allow-Origin', origin);
     } else {
-      res.setHeader('Access-Control-Allow-Origin', allowedOrigins.join(', '));
+      // Pour les requêtes sans origine ou non autorisée, utiliser la première origine par défaut
+      res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app');
     }
     
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -63,7 +57,8 @@ async function bootstrap() {
     
     // Support pour les cookies SameSite=None sur HTTPS
     if (isProduction) {
-      res.setHeader('Set-Cookie', 'SameSite=None; Secure; HttpOnly; Path=/');
+      // Ne pas définir Set-Cookie ici car cela interfère avec les cookies existants
+      // Cette ligne est problématique car elle définit un cookie pour toutes les réponses
     }
     
     if (req.method === 'OPTIONS') {
@@ -73,7 +68,6 @@ async function bootstrap() {
     
     next();
   });
-  
   
   server.use(compression());
   server.use(cookieParser(process.env.COOKIE_SECRET));
@@ -85,13 +79,12 @@ async function bootstrap() {
   server.use('/uploads', express.static(uploadsPath, {
     setHeaders: (res: { req: { headers: { origin: any; }; }; set: (arg0: string, arg1: string) => void; }, filePath: string) => {
       const origin = res.req?.headers?.origin;
-      const allowedOrigins = ['https://panameconsulting.vercel.app'];
       
-      // CORS dynamique pour les uploads
+      // CORS dynamique pour les uploads - UNE SEULE VALEUR
       if (origin && allowedOrigins.includes(origin)) {
         res.set('Access-Control-Allow-Origin', origin);
       } else {
-        res.set('Access-Control-Allow-Origin', allowedOrigins.join(', '));
+        res.set('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app');
       }
       
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');
@@ -114,7 +107,7 @@ async function bootstrap() {
     new ExpressAdapter(server),
     {
       logger: ['error', 'warn', 'log', 'debug', 'verbose'],
-      cors: false, // Désactivé car géré par vercel.json et notre configuration
+      cors: false,
     }
   );
 
@@ -133,7 +126,7 @@ async function bootstrap() {
     })
   );
 
-  // Préfixe global - Correspond à votre vercel.json
+  // Préfixe global
   app.setGlobalPrefix('api', {
     exclude: ['/', '/api', '/uploads'],
   });
@@ -157,9 +150,17 @@ let isAppInitialized = false;
 
 export default async function handler(req: any, res: any) {
   try {
-    // Gestion des requêtes OPTIONS (preflight)
+    // Gestion des requêtes OPTIONS (preflight) - CORRIGÉ
     if (req.method === 'OPTIONS') {
-      res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app, https://paname-consulting.vercel.app');
+      const origin = req.headers.origin;
+      
+      // Définir UNE SEULE valeur pour Access-Control-Allow-Origin
+      if (origin && allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app');
+      }
+      
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
       res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -176,14 +177,12 @@ export default async function handler(req: any, res: any) {
       logger.log('NestJS application initialized successfully');
     }
 
-    // Logging des requêtes (optionnel)
     logger.debug(`${req.method} ${req.url}`);
 
     return cachedApp(req, res);
   } catch (error) {
     logger.error('Error in serverless handler:', error);
     
-    // Gestion d'erreur améliorée
     const statusCode = error.status || 500;
     const errorMessage = isProduction 
       ? 'Internal Server Error' 
