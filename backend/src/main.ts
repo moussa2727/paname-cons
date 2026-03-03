@@ -85,7 +85,7 @@ async function bootstrap() {
   server.use('/uploads', express.static(uploadsPath, {
     setHeaders: (res: { req: { headers: { origin: any; }; }; set: (arg0: string, arg1: string) => void; }, filePath: string) => {
       const origin = res.req?.headers?.origin;
-      const allowedOrigins = ['https://panameconsulting.vercel.app', 'https://paname-consulting.vercel.app', 'https://vercel.live'];
+      const allowedOrigins = ['https://panameconsulting.vercel.app'];
       
       // CORS dynamique pour les uploads
       if (origin && allowedOrigins.includes(origin)) {
