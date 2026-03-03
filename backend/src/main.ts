@@ -98,6 +98,7 @@ async function createApp() {
 
   // ✅ MIDDLEWARE: Cookie Parser
   server.use(cookieParser(process.env.COOKIE_SECRET));
+  server.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
   // ✅ MIDDLEWARE: Configuration des cookies de session (30 minutes)
   server.use((req: any, res: any, next: any) => {
