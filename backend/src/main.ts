@@ -25,11 +25,13 @@ const productionOrigins = [
 
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? productionOrigins 
-  : [...productionOrigins, "http://localhost:10000", "http://localhost:5173"];
+  : [...productionOrigins];
 
 const cspDirectives = {
   defaultSrc: ["'self'"],
-  scriptSrc: ["'self'", "'unsafe-inline'"],
+  scriptSrc: process.env.NODE_ENV === 'production' 
+    ? ["'self'"] 
+    : ["'self'", "'unsafe-inline'"],
   styleSrc: ["'self'", "'unsafe-inline'"],
   imgSrc: ["'self'", "data:", "https:"],
   connectSrc: ["'self'", ...allowedOrigins],
@@ -83,7 +85,7 @@ async function createApp() {
   });
 
   // service des fichiers statiques depuis le dossier uploads dans mon backend
- const uploadsPath = path.join(__dirname, '../uploads');
+ const uploadsPath = path.join(process.cwd(), 'uploads');
   server.use('/uploads', express.static(uploadsPath, {
     setHeaders: (res) => {
       res.setHeader('Cache-Control', 'public, max-age=31536000');
@@ -101,6 +103,10 @@ async function createApp() {
     limit: '10mb',
     extended: true,
     parameterLimit: 1000
+  }));
+  
+  server.use(express.json({
+    limit: '10mb'
   }));
 
  
