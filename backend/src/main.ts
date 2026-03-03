@@ -9,14 +9,16 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 
-let cachedApp: any;
-let cachedNestApp: NestExpressApplication | null = null; // Maintenant typé correctement
-let isInitializing = false;
+// ✅ Types explicites pour éviter les erreurs de runtime
+let cachedServer: express.Express | null = null;
+let cachedNestApp: NestExpressApplication | null = null;
+let initPromise: Promise<{ server: express.Express; app: NestExpressApplication }> | null = null;
+
 const logger = new Logger('Bootstrap');
 const isProduction = process.env.NODE_ENV === 'production';
 const isVercel = process.env.VERCEL === '1';
 
-// Configuration CORS et CSP
+// Configuration CORS
 const productionOrigins = [
   "https://panameconsulting.com",
   "https://www.panameconsulting.com",
@@ -27,15 +29,11 @@ const productionOrigins = [
   "http://localhost:10000",
 ];
 
-const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? productionOrigins 
-  : [...productionOrigins];
+const allowedOrigins = [...productionOrigins];
 
 const cspDirectives = {
   defaultSrc: ["'self'"],
-  scriptSrc: process.env.NODE_ENV === 'production' 
-    ? ["'self'"] 
-    : ["'self'", "'unsafe-inline'"],
+  scriptSrc: isProduction ? ["'self'"] : ["'self'", "'unsafe-inline'"],
   styleSrc: ["'self'", "'unsafe-inline'"],
   imgSrc: ["'self'", "data:", "https:"],
   connectSrc: ["'self'", ...allowedOrigins],
@@ -47,83 +45,76 @@ const cspDirectives = {
   formAction: ["'self'"],
 };
 
-async function createApp() {
+async function createApp(): Promise<{ server: express.Express; app: NestExpressApplication }> {
   const server = express();
+
   const app = await NestFactory.create<NestExpressApplication>(
     AppModule,
     new ExpressAdapter(server),
     {
-      logger: process.env.NODE_ENV === 'production' 
-        ? ['error', 'warn'] 
+      logger: isProduction
+        ? ['error', 'warn']
         : ['log', 'error', 'warn', 'debug', 'verbose'],
     }
   );
 
   server.set('trust proxy', isProduction ? 1 : false);
 
-  // ✅ CORS avec credentials
+  // ✅ CORS avec validation dynamique
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: Origin ${origin} non autorisée`));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
     exposedHeaders: ['Set-Cookie'],
   });
 
-  // ✅ MIDDLEWARE: Body parsers
-  server.use(express.urlencoded({
-    limit: '10mb',
-    extended: true,
-    parameterLimit: 1000
-  }));
-  
-  server.use(express.json({
-    limit: '10mb'
-  }));
+  // ✅ Body parsers
+  server.use(express.urlencoded({ limit: '10mb', extended: true, parameterLimit: 1000 }));
+  server.use(express.json({ limit: '10mb' }));
 
-  // ✅ MIDDLEWARE: Compression
+  // ✅ Compression
   server.use(compression());
 
-  // ✅ MIDDLEWARE: Cookie Parser
-  server.use(cookieParser(process.env.COOKIE_SECRET));
+  // ✅ Cookie Parser avec fallback pour éviter un crash si COOKIE_SECRET absent
+  server.use(cookieParser(process.env.COOKIE_SECRET || 'default-secret-change-me'));
 
-  // ✅ Service des fichiers statiques - UNE SEULE FOIS
-  const uploadsPath = path.join(process.cwd(), 'uploads');
-  app.use('/uploads', express.static(uploadsPath)); // Utiliser app, pas server
-
-  // ✅ MIDDLEWARE: Configuration des cookies
-  server.use((req: any, res: any, next: any) => {
+  // ✅ Middleware cookies sécurisés
+  server.use((_req: any, res: any, next: any) => {
     const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? ('strict' as const) : ('lax' as const),
       maxAge: 30 * 60 * 1000,
       path: '/',
     };
 
-    const originalCookie = res.cookie;
-    res.cookie = function(name: string, value: string, options: any = {}) {
-      return originalCookie.call(this, name, value, { ...cookieOptions, ...options });
+    const originalCookie = res.cookie.bind(res);
+    res.cookie = (name: string, value: string, options: any = {}) => {
+      return originalCookie(name, value, { ...cookieOptions, ...options });
     };
 
     next();
   });
 
-  // ✅ MIDDLEWARE: Security headers avec Helmet
-  app.use(
+  const uploadsPath = path.join(process.cwd(), 'uploads');
+  server.use('/uploads', express.static(uploadsPath));
+
+  // ✅ Security headers
+  server.use(
     helmet({
-      contentSecurityPolicy: {
-        directives: cspDirectives,
-      },
-      crossOriginResourcePolicy: { policy: "cross-origin" },
+      contentSecurityPolicy: { directives: cspDirectives },
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
       crossOriginEmbedderPolicy: false,
-      crossOriginOpenerPolicy: { policy: "same-origin" },
-      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-      hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true
-      },
+      crossOriginOpenerPolicy: { policy: 'same-origin' },
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
       frameguard: { action: 'deny' },
       hidePoweredBy: true,
       noSniff: true,
@@ -131,24 +122,19 @@ async function createApp() {
     }),
   );
 
-  // Préfixe global
+  // ✅ Préfixe global (uploads retiré car désactivé sur Vercel)
   app.setGlobalPrefix('api', {
     exclude: ['/', '/api', '/uploads'],
   });
 
-  // ✅ VALIDATION GLOBALE
+  // ✅ Validation globale
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
       whitelist: true,
       forbidNonWhitelisted: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-      validationError: {
-        target: false,
-        value: false,
-      },
+      transformOptions: { enableImplicitConversion: true },
+      validationError: { target: false, value: false },
       exceptionFactory: (errors) => {
         const messages = errors.map((error: any) => {
           const constraints = error.constraints ? Object.values(error.constraints) : [];
@@ -157,89 +143,87 @@ async function createApp() {
         return new BadRequestException({
           message: 'Validation failed',
           errors: messages,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
-      }
+      },
     }),
   );
 
-  // Versionnement
+  // ✅ Versionnement
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
   });
 
   await app.init();
-  
-  // ✅ Retourner les deux instances
+
   return { server, app };
 }
 
-// Handler pour Vercel
+// ✅ Handler Vercel — Promise unique, pas de récursion infinie
 if (isVercel) {
+  const getApp = (): Promise<{ server: express.Express; app: NestExpressApplication }> => {
+    if (cachedServer && cachedNestApp) {
+      return Promise.resolve({ server: cachedServer, app: cachedNestApp });
+    }
+
+    // Réutiliser la même promesse si init déjà en cours
+    if (!initPromise) {
+      initPromise = createApp()
+        .then(({ server, app }) => {
+          cachedServer = server;
+          cachedNestApp = app;
+          logger.log('✅ Application initialisée pour Vercel');
+          return { server, app };
+        })
+        .catch((error) => {
+          // Permettre une nouvelle tentative au prochain appel
+          initPromise = null;
+          logger.error('❌ Échec initialisation:', error);
+          throw error;
+        });
+    }
+
+    return initPromise;
+  };
+
   const handler = async (req: any, res: any) => {
     try {
-      if (!cachedApp || !cachedNestApp) {
-        if (isInitializing) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          return handler(req, res);
-        }
-
-        isInitializing = true;
-        try {
-          const { server, app } = await createApp(); // ✅ Récupérer les deux
-          cachedApp = server;
-          cachedNestApp = app; // ✅ Maintenant assigné !
-          
-          logger.log('✅ Application initialisée avec succès pour Vercel');
-        } catch (error) {
-          logger.error('❌ Échec initialisation Vercel:', error);
-          return res.status(500).json({
-            error: 'Initialization failed',
-            message: 'Serveur temporairement indisponible',
-          });
-        } finally {
-          isInitializing = false;
-        }
-      }
-
-      return cachedApp!(req, res);
+      const { server } = await getApp();
+      return server(req, res);
     } catch (error) {
-      logger.error('❌ Erreur traitement requête:', error);
-      
+      logger.error('❌ Erreur handler Vercel:', error);
       if (!res.headersSent) {
         return res.status(500).json({
           error: 'Internal Server Error',
-          message: 'Erreur inattendue',
+          message: 'Service temporairement indisponible',
           timestamp: new Date().toISOString(),
         });
       }
     }
   };
 
+  // ✅ Export simple — double export évité pour compatibilité ESM/CJS
   module.exports = handler;
-  module.exports.default = handler;
-} 
+}
 
-// Pour le développement local
+// ✅ Développement local uniquement
 if (!isVercel) {
   async function bootstrap() {
     const { server } = await createApp();
     const port = parseInt(process.env.PORT || '10000', 10);
-    const host = process.env.HOST || "0.0.0.0";
 
-    server.listen(port, host, () => {
-      const logger = new Logger('Bootstrap');
-      logger.log(`✅ Server started successfully on PORT=${port}`); 
-      logger.log(`🚀 Application is running on: ${host}:${port}`);
+    server.listen(port, () => {
+      logger.log(`✅ Serveur démarré sur PORT=${port}`);
+      logger.log(`🚀 Application: localhost:${port}`);
       logger.log(`📁 Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.log(`🍪 Session timeout: 30 minutes`);
-      logger.log(`🔐 CORS with credentials enabled`);
+      logger.log(`🔐 CORS avec credentials activé`);
     });
   }
 
   bootstrap().catch((error) => {
-    console.error('❌ Failed to bootstrap application:', error);
+    console.error('❌ Bootstrap failed:', error);
     process.exit(1);
   });
 }
