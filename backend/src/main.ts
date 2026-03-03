@@ -14,13 +14,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // Configuration CORS et CSP
 const productionOrigins = [
-  "https://panameconsulting.com",
-  "https://www.panameconsulting.com",
   "https://panameconsulting.vercel.app",
-  "https://paname-consulting.vercel.app",
-  "https://vercel.live",
-  "http://localhost:5173",
-  "http://localhost:10000",
 ];
 
 const allowedOrigins = process.env.NODE_ENV === 'production' 
@@ -62,7 +56,19 @@ async function createApp() {
 
   // ✅ CORS avec credentials
   app.enableCors({
-    origin: true,
+    origin: (origin, callback) => {
+      // En production, vérifier les origines
+      if (process.env.NODE_ENV === 'production') {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'), false);
+        }
+      } else {
+        // En développement, tout accepter
+        callback(null, true);
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie'],
