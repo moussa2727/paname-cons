@@ -1,128 +1,199 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, BadRequestException, Logger, VersioningType } from '@nestjs/common';
-import { ExpressAdapter } from '@nestjs/platform-express';
-const express = require('express');
+import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
+import * as express from 'express';
+import { Request, Response, NextFunction } from 'express';
 const helmet = require('helmet');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 import { IoAdapter } from '@nestjs/platform-socket.io';
 
-const logger = new Logger('Bootstrap');
-const isVercel = process.env.VERCEL === '1';
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Configuration CORS
-const allowedOrigins = [
-  'https://panameconsulting.vercel.app',
-  'https://paname-consulting.vercel.app',
-  'https://vercel.live',
-  'http://localhost:5173',
-  'http://localhost:10000',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:10000',
+
+// Configuration CORS et CSP
+const productionOrigins = [
+  "https://panameconsulting.com",
+  "https://www.panameconsulting.com",
+  "https://panameconsulting.vercel.app",
+  "https://vercel.live",
+  "http://localhost:5173",
+  "http://localhost:10000",
 ];
 
-async function bootstrap() {
-  const server = express();
-  
-  // Configuration de base
-  server.set('trust proxy', isProduction ? 1 : false);
-  
-  // Middlewares de base
-  server.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-  }));
-  
-  // Middleware CORS pour toutes les requêtes
-  server.use((req, res, next) => {
-    const origin = req.headers.origin;
-    
-    // Définir UNE SEULE valeur pour Access-Control-Allow-Origin
-    if (origin && allowedOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-      // Par défaut, utiliser la première origine
-      res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app');
-    }
-    
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization, Content-Type');
-    
-    // Gérer les requêtes OPTIONS (preflight)
-    if (req.method === 'OPTIONS') {
-      res.status(200).end();
-      return;
-    }
-    
-    next();
-  });
-  
-  server.use(compression());
-  server.use(cookieParser(process.env.COOKIE_SECRET));
-  server.use(express.json({ limit: '10mb' }));
-  server.use(express.urlencoded({ extended: true, limit: '10mb' }));
-  
-  // Servir les fichiers statiques
-  const uploadsPath = path.join(__dirname, '../uploads');
-  server.use('/uploads', express.static(uploadsPath, {
-    setHeaders: (res, filePath) => {
-      const origin = res.req?.headers?.origin;
-      
-      if (origin && allowedOrigins.includes(origin)) {
-        res.set('Access-Control-Allow-Origin', origin);
-      } else {
-        res.set('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app');
-      }
-      
-      res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-      res.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-      res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
-      res.set('Access-Control-Allow-Credentials', 'true');
-      res.set('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Set-Cookie, Authorization');
-      
-      if (filePath.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
-        res.set('Cache-Control', 'public, max-age=31536000, immutable');
-      }
-    }
-  }));
-  
-  logger.log(`Serving uploads from: ${uploadsPath}`);
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? productionOrigins 
+  : [...productionOrigins, "http://localhost:10000", "http://localhost:5173"];
 
-  const app = await NestFactory.create(
+const cspDirectives = {
+  defaultSrc: ["'self'"],
+  scriptSrc: ["'self'", "'unsafe-inline'"],
+  styleSrc: ["'self'", "'unsafe-inline'"],
+  imgSrc: ["'self'", "data:", "https:"],
+  connectSrc: ["'self'", ...allowedOrigins],
+  fontSrc: ["'self'", "https:"],
+  frameSrc: ["'self'", "https://vercel.live"],
+  objectSrc: ["'none'"],
+  mediaSrc: ["'self'"],
+  baseUri: ["'self'"],
+  formAction: ["'self'"],
+};
+
+// Création de l'application Express pour Vercel
+let cachedApp: express.Application;
+
+async function createApp() {
+  const server = express();
+  const app = await NestFactory.create<NestExpressApplication>(
     AppModule,
     new ExpressAdapter(server),
     {
-      logger: ['error', 'warn', 'log', 'debug', 'verbose'],
-      cors: false,
+      logger: process.env.NODE_ENV === 'production' 
+        ? ['error', 'warn'] 
+        : ['log', 'error', 'warn', 'debug', 'verbose'],
     }
   );
 
-  // Validation globale
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      exceptionFactory: (errors) => {
-        const messages = errors.map(
-          (error) => `${error.property} - ${Object.values(error.constraints).join(', ')}`
-        );
-        return new BadRequestException(messages);
-      },
-    })
-  );
+
+  
+  
+  server.set('trust proxy', isProduction ? 1 : false);
+
+  // ✅ CORS avec credentials
+  app.enableCors({
+    origin: (origin, callback) => {
+      // En production, vérifier les origines
+      if (process.env.NODE_ENV === 'production') {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'), false);
+        }
+      } else {
+        // En développement, tout accepter
+        callback(null, true);
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie'],
+    exposedHeaders: ['Set-Cookie'],
+  });
+
+  // service des fichiers statiques depuis le dossier uploads dans mon backend
+ const uploadsPath = path.join(__dirname, '../uploads');
+  server.use('/uploads', express.static(uploadsPath, {
+    setHeaders: (res) => {
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+    },
+  }));
+
 
   // Préfixe global
   app.setGlobalPrefix('api', {
     exclude: ['/', '/api', '/uploads'],
   });
+ 
+  // ✅ MIDDLEWARE: Body parsers
+  server.use(express.urlencoded({
+    limit: '10mb',
+    extended: true,
+    parameterLimit: 1000
+  }));
 
-  // Versionnement
-  app.enableVersioning({
+ 
+
+  // ✅ MIDDLEWARE: Compression
+  server.use(compression());
+
+  // ✅ MIDDLEWARE: Cookie Parser
+  server.use(cookieParser(process.env.COOKIE_SECRET));
+
+  // ✅ MIDDLEWARE: Configuration des cookies de session (30 minutes)
+  server.use((_req: Request, res: Response, next: NextFunction) => {
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax' as const,
+      maxAge: 30 * 60 * 1000, // 30 minutes
+      path: '/',
+    };
+
+    const originalCookie = res.cookie;
+    res.cookie = function(name: string, value: string, options: any = {}) {
+      return originalCookie.call(this, name, value, { ...cookieOptions, ...options });
+    };
+
+    next();
+  });
+
+  // ✅ MIDDLEWARE: Security headers avec Helmet
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: cspDirectives,
+      },
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+      crossOriginEmbedderPolicy: false,
+      crossOriginOpenerPolicy: { policy: "same-origin" },
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+      },
+      frameguard: { action: 'deny' },
+      hidePoweredBy: true,
+      noSniff: true,
+      xssFilter: true,
+    }),
+  );
+
+  // ✅ MIDDLEWARE: Headers de sécurité additionnels
+  app.use((_req: Request, res: Response, next) => {
+    res.removeHeader("X-Powered-By");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-XSS-Protection", "1; mode=block");
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
+    res.setHeader("X-Session-Timeout", "1800");
+    
+    next();
+  });
+
+  // ✅ VALIDATION GLOBALE
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+      validationError: {
+        target: false,
+        value: false,
+      },
+      exceptionFactory: (errors) => {
+        const messages = errors.map(error => {
+          const constraints = error.constraints ? Object.values(error.constraints) : [];
+          return `${error.property}: ${constraints.join(', ')}`;
+        });
+        return new BadRequestException({
+          message: 'Validation failed',
+          errors: messages,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }),
+  );
+
+   // Versionnement
+   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
   });
@@ -131,88 +202,36 @@ async function bootstrap() {
   app.useWebSocketAdapter(new IoAdapter(app));
 
   await app.init();
-  return app;
+  return server;
 }
 
-// Pour Vercel serverless
-let cachedApp: any;
-let isAppInitialized = false;
-
-export default async function handler(req: any, res: any) {
-  try {
-    const origin = req.headers.origin;
-    
-    // Gestion des requêtes OPTIONS (preflight) - CORRIGÉ
-    if (req.method === 'OPTIONS') {
-      // Définir UNE SEULE valeur pour Access-Control-Allow-Origin
-      if (origin && allowedOrigins.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-      } else {
-        res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app');
-      }
-      
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization');
-      res.status(200).end();
-      return;
-    }
-
-    if (!isAppInitialized || !cachedApp) {
-      logger.log('Initializing NestJS application...');
-      const app = await bootstrap();
-      cachedApp = app.getHttpServer();
-      isAppInitialized = true;
-      logger.log('NestJS application initialized successfully');
-    }
-
-    // Définir les en-têtes CORS pour la réponse
-    if (origin && allowedOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app');
-    }
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization, Content-Type');
-
-    logger.debug(`${req.method} ${req.url}`);
-
-    return cachedApp(req, res);
-  } catch (error) {
-    logger.error('Error in serverless handler:', error);
-    
-    const statusCode = error.status || 500;
-    const errorMessage = isProduction 
-      ? 'Internal Server Error' 
-      : error.message;
-
-    res.status(statusCode).json({ 
-      error: errorMessage,
-      statusCode,
-      timestamp: new Date().toISOString(),
-      path: req.url
-    });
+// Handler pour Vercel
+export default async function handler(req: Request, res: Response) {
+  if (!cachedApp) {
+    cachedApp = await createApp();
   }
+  return cachedApp(req, res);
 }
 
 // Pour le développement local
-if (!isVercel) {
-  async function startLocalServer() {
-    try {
-      const app = await bootstrap();
-      const port = process.env.PORT || 3000;
-      
-      await app.listen(port);
-      logger.log(`Application is running on: http://localhost:${port}`);
-      logger.log(`Environment: ${process.env.NODE_ENV}`);
-      logger.log(`Vercel: ${isVercel ? 'yes' : 'no'}`);
-      logger.log(`📁 Uploads path: ${path.join(__dirname, '../uploads')}`);
-    } catch (error) {
-      logger.error('Failed to start server:', error);
-      process.exit(1);
-    }
+if (process.env.NODE_ENV !== 'production') {
+  async function bootstrap() {
+    const server = await createApp();
+    const port = parseInt(process.env.PORT || '3000', 10);
+    const host = process.env.HOST || "0.0.0.0";
+
+    server.listen(port, host, () => {
+      const logger = new Logger('Bootstrap');
+      logger.log(`Server started successfully on PORT=${port}`); 
+      logger.log(`🚀 Application is running on: ${host}:${port}`);
+      logger.log(`📁 Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.log(`🍪 Session timeout: 30 minutes`);
+      logger.log(`🔐 CORS with credentials enabled`);
+    });
   }
-  
-  startLocalServer();
+
+  bootstrap().catch((error) => {
+    console.error('Failed to bootstrap application:', error);
+    process.exit(1);
+  });
 }
