@@ -1,60 +1,44 @@
-version: '3.8'
-
 services:
-  # Backend NestJS
-  backend:
+  ts-app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: paname-backend
+    image: backend:latest
+    container_name: backend
     restart: unless-stopped
+    init: true
     ports:
-      - "10000:10000"
-    environment:
-      - NODE_ENV=production
-      - PORT=10000
-      - COOKIE_SECRET=${COOKIE_SECRET}
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
-      - MONGODB_URI=${MONGODB_URI}
-    volumes:
-      - uploads_data:/app/uploads
-    depends_on:
-      - mongodb
-    networks:
-      - paname-network
-  
+      - "10000:10000" # Expose NestJS default port
+    env_file: ./.env  # Uncomment if .env file exists
 
-  # Base de données MongoDB
-  mongodb:
-    image: mongo:7.0
-    container_name: paname-mongodb
+    environment:
+    - MONGODB_URI=mongodb+srv://moussasangare:Casablanca%402025@cluster0.e3dmmxq.mongodb.net/panameconsultingDb
+    - EMAIL_USER=${EMAIL_USER}
+    - EMAIL_PASS=${EMAIL_PASS}
+    - JWT_SECRET=${JWT_SECRET}
+    - PORT=10000
+
+    networks:
+      - appnet
+    # Add depends_on here if you add external services below
+
+# If you discover external dependencies (e.g. MongoDB, Redis), add them below:
+  mongo:
+    image: mongo:latest
+    container_name: mongo
     restart: unless-stopped
     ports:
       - "27017:27017"
-    environment:
-      - MONGODB_URI=${MONGODB_URI}
     volumes:
-      - mongodb_data:/data/db
+      - mongo-data:/data/db
     networks:
-      - paname-network
-  
+      - appnet
 
-# Volumes persistants
-volumes:
-  uploads_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/uploads
-  mongodb_data:
-    driver: local
-
-# Réseau Docker
 networks:
-  paname-network:
+  appnet:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
+
+# Uncomment and use if you add persistent services above
+volumes:
+ mongo-data:
+   driver: local

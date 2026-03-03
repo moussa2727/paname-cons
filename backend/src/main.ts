@@ -26,7 +26,7 @@ const allowedOrigins = [...productionOrigins];
 
 const cspDirectives = {
   defaultSrc: ["'self'"],
-  scriptSrc: isProduction ? ["'self'"] : ["'self'", "'unsafe-inline'"],
+  scriptSrc: ["'self'", "'unsafe-inline'"],
   styleSrc: ["'self'", "'unsafe-inline'"],
   imgSrc: ["'self'", "data:", "https:"],
   connectSrc: ["'self'", ...allowedOrigins],
@@ -103,12 +103,18 @@ async function bootstrap() {
   // Security headers
   server.use(
     helmet({
-      contentSecurityPolicy: { directives: cspDirectives },
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: {
+        directives: cspDirectives,
+      },
+      crossOriginResourcePolicy: { policy: "cross-origin" },
       crossOriginEmbedderPolicy: false,
-      crossOriginOpenerPolicy: { policy: 'same-origin' },
-      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-      hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+      crossOriginOpenerPolicy: { policy: "same-origin" },
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+      },
       frameguard: { action: 'deny' },
       hidePoweredBy: true,
       noSniff: true,

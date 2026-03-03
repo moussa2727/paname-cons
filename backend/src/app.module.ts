@@ -59,9 +59,15 @@ import { SmtpService } from './config/smtp.service';
     }),
 
     // 3. Serveur de fichiers statiques
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'uploads'),
-      serveRoot: '/uploads'
+     ServeStaticModule.forRoot({
+      rootPath: join(__dirname, "..", "uploads"),
+      serveRoot: "/uploads",
+      serveStaticOptions: {
+        index: false,
+        dotfiles: 'deny',
+        cacheControl: true,
+        maxAge: 2592000000,
+      },
     }),
 
     // 4. Modules fonctionnels
