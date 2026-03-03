@@ -2,13 +2,12 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, BadRequestException, Logger, VersioningType } from '@nestjs/common';
 import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
-const express = require('express');
+import * as express from 'express';  // Changé de require à import
 
-const helmet = require('helmet');
-const compression = require('compression');
-const cookieParser = require('cookie-parser');
-const path = require('path');
-
+import  helmet from 'helmet';  // Changé de require à import
+import * as compression from 'compression';  // Changé de require à import
+import * as cookieParser from 'cookie-parser';  // Changé de require à import
+import * as path from 'path';  // Changé de require à import
 let cachedApp: any;
 let cachedNestApp: NestExpressApplication | null = null; // Maintenant typé correctement
 let isInitializing = false;
