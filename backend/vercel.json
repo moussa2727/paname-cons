@@ -1,7 +1,7 @@
 {
   "version": 2,
   "name": "paname-consulting-backend",
-  "buildCommand": "pnpm install && pnpm run build",
+  "buildCommand": "pnpm run build",
   "outputDirectory": "dist",
   "rewrites": [
     {
