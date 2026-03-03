@@ -2,18 +2,24 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, BadRequestException, Logger, VersioningType } from '@nestjs/common';
 import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
-import express, { Request, Response, NextFunction } from 'express';
-import helmet from 'helmet';
-import compression from 'compression';
-import cookieParser from 'cookie-parser';
-import path from 'path';
+import * as express from 'express';
+
+const helmet = require('helmet');
+const compression = require('compression');
+const cookieParser = require('cookie-parser');
+const path = require('path');
 
 const logger = new Logger('Bootstrap');
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Configuration CORS et CSP
 const productionOrigins = [
+  "https://panameconsulting.com",
+  "https://www.panameconsulting.com",
   "https://panameconsulting.vercel.app",
+  "https://vercel.live",
+  "http://localhost:5173",
+  "http://localhost:10000",
 ];
 
 const allowedOrigins = process.env.NODE_ENV === 'production' 
@@ -37,7 +43,7 @@ const cspDirectives = {
 };
 
 // Création de l'application Express pour Vercel
-let cachedApp: express.Application;
+let cachedApp: any;
 
 async function createApp() {
   const server = express();
@@ -55,8 +61,7 @@ async function createApp() {
 
   // ✅ CORS avec credentials
   app.enableCors({
-    origin: (origin, callback) => {
-      // En production, vérifier les origines
+    origin: (origin: any, callback: any) => {
       if (process.env.NODE_ENV === 'production') {
         if (!origin || allowedOrigins.includes(origin)) {
           callback(null, true);
@@ -64,7 +69,6 @@ async function createApp() {
           callback(new Error('Not allowed by CORS'), false);
         }
       } else {
-        // En développement, tout accepter
         callback(null, true);
       }
     },
@@ -77,7 +81,7 @@ async function createApp() {
   // service des fichiers statiques depuis le dossier uploads dans mon backend
   const uploadsPath = path.join(process.cwd(), 'uploads');
   server.use('/uploads', express.static(uploadsPath, {
-    setHeaders: (res) => {
+    setHeaders: (res: any) => {
       res.setHeader('Cache-Control', 'public, max-age=31536000');
     },
   }));
@@ -105,16 +109,19 @@ async function createApp() {
   server.use(cookieParser(process.env.COOKIE_SECRET));
 
   // ✅ MIDDLEWARE: Configuration des cookies de session (30 minutes)
-  server.use((_req: Request, res: Response, next: NextFunction) => {
+  server.use((req: any, res: any, next: any) => {
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax' as const,
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
       maxAge: 30 * 60 * 1000, // 30 minutes
       path: '/',
     };
 
+    // Sauvegarder la méthode cookie originale
     const originalCookie = res.cookie;
+    
+    // Remplacer la méthode cookie
     res.cookie = function(name: string, value: string, options: any = {}) {
       return originalCookie.call(this, name, value, { ...cookieOptions, ...options });
     };
@@ -145,7 +152,7 @@ async function createApp() {
   );
 
   // ✅ MIDDLEWARE: Headers de sécurité additionnels
-  app.use((_req: Request, res: Response, next: NextFunction) => {
+  server.use((req: any, res: any, next: any) => {
     res.removeHeader("X-Powered-By");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
@@ -172,7 +179,7 @@ async function createApp() {
         value: false,
       },
       exceptionFactory: (errors) => {
-        const messages = errors.map(error => {
+        const messages = errors.map((error: any) => {
           const constraints = error.constraints ? Object.values(error.constraints) : [];
           return `${error.property}: ${constraints.join(', ')}`;
         });
@@ -191,13 +198,12 @@ async function createApp() {
     defaultVersion: '1',
   });
 
-
   await app.init();
   return server;
 }
 
 // Handler pour Vercel
-export default async function handler(req: Request, res: Response) {
+export default async function handler(req: any, res: any) {
   if (!cachedApp) {
     cachedApp = await createApp();
   }
