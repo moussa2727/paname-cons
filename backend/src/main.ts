@@ -25,13 +25,13 @@ const allowedOrigins = [
 ];
 
 async function bootstrap() {
-  const server = express();
+  const appExpress = express();
   
   // Trust proxy
-  server.set('trust proxy', isProduction ? 1 : false);
+  appExpress.set('trust proxy', isProduction ? 1 : false);
   
   // Middleware CORS manuel (sans helmet)
-  server.use((req, res, next) => {
+  appExpress.use((req, res, next) => {
     const origin = req.headers.origin;
     
     // Définir l'origine dynamiquement
@@ -63,7 +63,7 @@ async function bootstrap() {
   });
   
   // Compression manuelle
-  server.use((req, res, next) => {
+  appExpress.use((req, res, next) => {
     const acceptEncoding = req.headers['accept-encoding'];
     if (acceptEncoding && acceptEncoding.includes('gzip')) {
       const originalWrite = res.write;
@@ -95,7 +95,7 @@ async function bootstrap() {
   });
   
   // Cookie parser manuel
-  server.use((req: any, res, next) => {
+  appExpress.use((req: any, res, next) => {
     const cookies: Record<string, string> = {};
     const cookieHeader = req.headers.cookie;
     
@@ -115,7 +115,7 @@ async function bootstrap() {
   });
   
   // JSON parser manuel
-  server.use((req, res, next) => {
+  appExpress.use((req, res, next) => {
     if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
       if (req.headers['content-type'] === 'application/json') {
         let body = '';
@@ -145,7 +145,7 @@ async function bootstrap() {
   });
   
   // URL encoded parser manuel
-  server.use((req, res, next) => {
+  appExpress.use((req, res, next) => {
     if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
       if (req.headers['content-type'] === 'application/x-www-form-urlencoded') {
         let body = '';
@@ -175,7 +175,7 @@ async function bootstrap() {
   
   // Servir les fichiers statiques manuellement
   const uploadsPath = path.join(__dirname, '../uploads');
-  server.use('/uploads', (req, res, next) => {
+  appExpress.use('/uploads', (req, res, next) => {
     const filePath = path.join(uploadsPath, req.url);
     
     // Vérifier que le chemin est dans le répertoire uploads (sécurité)
@@ -226,7 +226,7 @@ async function bootstrap() {
 
   const app = await NestFactory.create(
     AppModule,
-    new ExpressAdapter(server),
+    new ExpressAdapter(appExpress),
     {
       logger: ['error', 'warn', 'log', 'debug', 'verbose'],
       cors: false,
