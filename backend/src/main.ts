@@ -13,7 +13,7 @@ const logger = new Logger('Bootstrap');
 const isVercel = process.env.VERCEL === '1';
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Configuration CORS - Correspond à votre vercel.json
+// Configuration CORS
 const allowedOrigins = [
   'https://panameconsulting.vercel.app',
   'https://paname-consulting.vercel.app',
@@ -39,14 +39,11 @@ async function bootstrap() {
   server.use((req, res, next) => {
     const origin = req.headers.origin;
     
-    // Définir l'origin dynamiquement - UNE SEULE VALEUR
+    // Définir UNE SEULE valeur pour Access-Control-Allow-Origin
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
-    } else if (origin && origin.includes('vercel.app')) {
-      // Fallback pour les sous-domaines Vercel
-      res.setHeader('Access-Control-Allow-Origin', origin);
     } else {
-      // Pour les requêtes sans origine ou non autorisée, utiliser la première origine par défaut
+      // Par défaut, utiliser la première origine
       res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app');
     }
     
@@ -55,12 +52,7 @@ async function bootstrap() {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization, Content-Type');
     
-    // Support pour les cookies SameSite=None sur HTTPS
-    if (isProduction) {
-      // Configuration pour les cookies en production
-      res.setHeader('Set-Cookie', 'SameSite=None; Secure; HttpOnly; Path=/');
-    }
-    
+    // Gérer les requêtes OPTIONS (preflight)
     if (req.method === 'OPTIONS') {
       res.status(200).end();
       return;
@@ -74,13 +66,12 @@ async function bootstrap() {
   server.use(express.json({ limit: '10mb' }));
   server.use(express.urlencoded({ extended: true, limit: '10mb' }));
   
-  // Servir les fichiers statiques - Important pour les uploads
+  // Servir les fichiers statiques
   const uploadsPath = path.join(__dirname, '../uploads');
   server.use('/uploads', express.static(uploadsPath, {
     setHeaders: (res, filePath) => {
       const origin = res.req?.headers?.origin;
       
-      // CORS dynamique pour les uploads - UNE SEULE VALEUR
       if (origin && allowedOrigins.includes(origin)) {
         res.set('Access-Control-Allow-Origin', origin);
       } else {
@@ -93,7 +84,6 @@ async function bootstrap() {
       res.set('Access-Control-Allow-Credentials', 'true');
       res.set('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Set-Cookie, Authorization');
       
-      // Cache pour les images
       if (filePath.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
         res.set('Cache-Control', 'public, max-age=31536000, immutable');
       }
@@ -119,7 +109,7 @@ async function bootstrap() {
       transform: true,
       exceptionFactory: (errors) => {
         const messages = errors.map(
-          (error) => `${error.property} - ${Object.values(error.constraints || {}).join(', ')}`
+          (error) => `${error.property} - ${Object.values(error.constraints).join(', ')}`
         );
         return new BadRequestException(messages);
       },
@@ -150,10 +140,10 @@ let isAppInitialized = false;
 
 export default async function handler(req: any, res: any) {
   try {
+    const origin = req.headers.origin;
+    
     // Gestion des requêtes OPTIONS (preflight) - CORRIGÉ
     if (req.method === 'OPTIONS') {
-      const origin = req.headers.origin;
-      
       // Définir UNE SEULE valeur pour Access-Control-Allow-Origin
       if (origin && allowedOrigins.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
@@ -176,6 +166,15 @@ export default async function handler(req: any, res: any) {
       isAppInitialized = true;
       logger.log('NestJS application initialized successfully');
     }
+
+    // Définir les en-têtes CORS pour la réponse
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app');
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization, Content-Type');
 
     logger.debug(`${req.method} ${req.url}`);
 
@@ -204,15 +203,6 @@ if (!isVercel) {
       const app = await bootstrap();
       const port = process.env.PORT || 3000;
       
-      // Configuration CORS locale
-      app.enableCors({
-        origin: allowedOrigins,
-        credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Accept'],
-        exposedHeaders: ['Set-Cookie', 'Authorization'],
-      });
-
       await app.listen(port);
       logger.log(`Application is running on: http://localhost:${port}`);
       logger.log(`Environment: ${process.env.NODE_ENV}`);
