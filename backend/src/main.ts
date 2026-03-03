@@ -5,7 +5,7 @@ import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express
 import express from 'express';
 
 import helmet from 'helmet';
-import * as compression from 'compression';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 
