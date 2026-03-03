@@ -12,9 +12,15 @@ const path = require('path');
 const logger = new Logger('Bootstrap');
 const isProduction = process.env.NODE_ENV === 'production';
 
+
 // Configuration CORS et CSP
 const productionOrigins = [
+  "https://panameconsulting.com",
+  "https://www.panameconsulting.com",
   "https://panameconsulting.vercel.app",
+  "https://vercel.live",
+  "http://localhost:5173",
+  "http://localhost:10000",
 ];
 
 const allowedOrigins = process.env.NODE_ENV === 'production' 
@@ -52,6 +58,9 @@ async function createApp() {
     }
   );
 
+
+  
+  
   server.set('trust proxy', isProduction ? 1 : false);
 
   // ✅ CORS avec credentials
@@ -76,12 +85,13 @@ async function createApp() {
   });
 
   // service des fichiers statiques depuis le dossier uploads dans mon backend
-  const uploadsPath = path.join(process.cwd(), 'uploads');
+ const uploadsPath = path.join(process.cwd(), 'uploads');
   server.use('/uploads', express.static(uploadsPath, {
     setHeaders: (res) => {
       res.setHeader('Cache-Control', 'public, max-age=31536000');
     },
   }));
+
 
   // Préfixe global
   app.setGlobalPrefix('api', {
@@ -98,6 +108,8 @@ async function createApp() {
   server.use(express.json({
     limit: '10mb'
   }));
+
+ 
 
   // ✅ MIDDLEWARE: Compression
   server.use(compression());
@@ -146,7 +158,7 @@ async function createApp() {
   );
 
   // ✅ MIDDLEWARE: Headers de sécurité additionnels
-  app.use((_req: Request, res: Response, next: NextFunction) => {
+  app.use((_req: Request, res: Response, next) => {
     res.removeHeader("X-Powered-By");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
@@ -186,12 +198,11 @@ async function createApp() {
     }),
   );
 
-  // Versionnement
-  app.enableVersioning({
+   // Versionnement
+   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
   });
-
 
   await app.init();
   return server;
