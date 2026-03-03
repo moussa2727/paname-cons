@@ -13,7 +13,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiConsumes, ApiBody, ApiQuery, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { DestinationService } from './destination.service';
 import { StorageService } from '../shared/storage/storage.service';
 import { CreateDestinationDto } from './dto/create-destination.dto';

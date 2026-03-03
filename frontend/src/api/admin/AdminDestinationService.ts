@@ -1,8 +1,6 @@
 import { toast } from 'react-toastify';
-import { io, Socket } from 'socket.io-client';
 
 const API_URL = (import.meta as any).env.VITE_API_URL;
-const WS_URL = API_URL?.replace('http://', 'http://')?.replace('https://', 'https://')?.replace('paname-consulting.vercel.app', 'panameconsulting.vercel.app') + '/destinations' || 'http://localhost:10000/destinations';
 
 /**
  * Génère l'URL complète pour une image
@@ -60,187 +58,12 @@ export interface UpdateDestinationData {
   imageFile?: File;
 }
 
-export interface WebSocketEvent {
-  event: 'destination-created' | 'destination-updated' | 'destination-deleted' | 'notification';
-  data?: any;
-  message?: string;
-  type?: 'success' | 'error' | 'info';
-}
-
-type WebSocketCallback = (event: WebSocketEvent) => void;
-
 class DestinationService {
   private baseUrl: string;
-  private socket: Socket | null = null;
-  private wsCallbacks: Set<WebSocketCallback> = new Set();
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectTimeout: number | null = null;
 
   constructor() {
     this.baseUrl = `${API_URL}/api/destinations`;
-    this.initWebSocket();
   }
-
-  /**
-   * Initialise la connexion WebSocket
-   */
-  private initWebSocket(): void {
-    if (this.socket?.connected) return;
-
-    try {
-      this.socket = io(`${WS_URL}/destinations`, {
-        withCredentials: true,
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionAttempts: this.maxReconnectAttempts,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-      });
-
-      this.socket.on('connect', () => {
-        console.log(' WebSocket connecté pour les destinations');
-        this.reconnectAttempts = 0;
-        
-        // Notifier tous les callbacks de la connexion
-        this.notifyCallbacks({ 
-          event: 'notification', 
-          message: 'Connecté en temps réel', 
-          type: 'success' 
-        });
-      });
-
-      this.socket.on('destination-created', (destination: Destination) => {
-        console.log('Destination créée via WebSocket:', destination.country);
-        this.notifyCallbacks({ event: 'destination-created', data: destination });
-        
-        // Pas de toast ici, géré par le composant
-      });
-
-      this.socket.on('destination-updated', (destination: Destination) => {
-        console.log('Destination mise à jour via WebSocket:', destination.country);
-        this.notifyCallbacks({ event: 'destination-updated', data: destination });
-        
-        // Pas de toast ici, géré par le composant
-      });
-
-      this.socket.on('destination-deleted', (data: { id: string, country?: string }) => {
-        const destinationId = typeof data === 'string' ? data : data.id;
-        
-        console.log('Destination supprimée via WebSocket:', destinationId);
-        this.notifyCallbacks({ event: 'destination-deleted', data: destinationId });
-        
-        // Pas de toast ici, géré par le composant
-      });
-
-      this.socket.on('notification', (data: { message: string; type: string }) => {
-        this.notifyCallbacks({ 
-          event: 'notification', 
-          message: data.message, 
-          type: data.type as any 
-        });
-
-        // Afficher la notification appropriée
-        switch (data.type) {
-          case 'success':
-            toast.success(data.message, { toastId: `ws-notif-${Date.now()}` });
-            break;
-          case 'error':
-            toast.error(data.message, { toastId: `ws-notif-${Date.now()}` });
-            break;
-          default:
-            toast.info(data.message, { toastId: `ws-notif-${Date.now()}` });
-        }
-      });
-
-      this.socket.on('clients-count', (count: number) => {
-        console.log(`👥 ${count} client(s) connecté(s) aux destinations`);
-      });
-
-      this.socket.on('disconnect', (reason: string) => {
-        console.log(' WebSocket déconnecté:', reason);
-        
-        if (reason === 'io server disconnect') {
-          // Réconnexion manuelle si déconnecté par le serveur
-          setTimeout(() => this.initWebSocket(), 1000);
-        }
-      });
-
-      this.socket.on('connect_error', (error: { message: any; }) => {
-        console.error(' Erreur de connexion WebSocket:', error.message);
-        this.reconnectAttempts++;
-        
-        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-          console.log(' Arrêt des tentatives de reconnexion WebSocket');
-          this.socket?.disconnect();
-        }
-      });
-
-    } catch (error) {
-      console.error(' Erreur lors de l\'initialisation WebSocket:', error);
-    }
-  }
-
-  /**
-   * S'abonner aux événements WebSocket
-   */
-  public subscribe(callback: WebSocketCallback): () => void {
-    this.wsCallbacks.add(callback);
-    
-    // Si le socket n'est pas connecté, essayer de se reconnecter
-    if (!this.socket?.connected) {
-      this.initWebSocket();
-    }
-    
-    // Retourner une fonction de désabonnement
-    return () => {
-      this.wsCallbacks.delete(callback);
-    };
-  }
-
-  /**
-   * Notifier tous les callbacks d'un événement
-   */
-  private notifyCallbacks(event: WebSocketEvent): void {
-    this.wsCallbacks.forEach(callback => {
-      try {
-        callback(event);
-      } catch (error) {
-        console.error(' Erreur dans le callback WebSocket:', error);
-      }
-    });
-  }
-
-  /**
-   * Rejoindre une room spécifique pour une destination
-   */
-  public joinDestinationRoom(destinationId: string): void {
-    if (this.socket?.connected) {
-      this.socket.emit('join-destination-room', destinationId);
-    }
-  }
-
-  /**
-   * Quitter une room spécifique
-   */
-  public leaveDestinationRoom(destinationId: string): void {
-    if (this.socket?.connected) {
-      this.socket.emit('leave-destination-room', destinationId);
-    }
-  }
-
-  /**
-   * Déconnecter le WebSocket
-   */
-  public disconnectWebSocket(): void {
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
-    }
-    this.socket?.disconnect();
-    this.socket = null;
-  }
-
 
   /**
    * Gestion centralisée des erreurs
@@ -596,7 +419,7 @@ class DestinationService {
         throw new Error(errorData.message || `Erreur ${response.status}`);
       }
 
-      // Pas de toast ici, la notification est gérée par le WebSocket
+      toast.success('Destination supprimée avec succès');
       return;
     } catch (error: any) {
       toast.error(error.message);

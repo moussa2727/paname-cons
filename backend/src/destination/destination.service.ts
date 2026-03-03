@@ -6,7 +6,6 @@ import { Destination } from '../schemas/destination.schema';
 import { CreateDestinationDto } from './dto/create-destination.dto';
 import { UpdateDestinationDto } from './dto/update-destination.dto';
 import { StorageService } from '../shared/storage/storage.service';
-import { DestinationGateway } from './destination.gateway';
 
 const defaultDestinations = [
   {
@@ -49,7 +48,6 @@ export class DestinationService {
     @InjectModel(Destination.name)
     private readonly destinationModel: Model<Destination>,
     private readonly storageService: StorageService,
-    private readonly destinationGateway: DestinationGateway,
   ) {
     this.initializeDefaultDestinations();
   }
@@ -72,11 +70,6 @@ export class DestinationService {
         await this.destinationModel.insertMany(defaultDestinations);
         this.logger.log('Destinations par défaut insérées avec succès');
         
-        // Notifier via WebSocket
-        this.destinationGateway.emitNotification(
-          'Destinations par défaut initialisées',
-          'success',
-        );
       }
     } catch (error) {
       this.logger.error(
@@ -112,7 +105,6 @@ export class DestinationService {
     });
 
     const saved = await created.save();
-    this.destinationGateway.emitDestinationCreated(saved);
     
     return saved;
   }
@@ -165,12 +157,6 @@ export class DestinationService {
       throw new NotFoundException(`Destination #${id} non trouvée`);
     }
 
-    // Émettre l'événement WebSocket
-    this.destinationGateway.emitDestinationUpdated(updated);
-    this.destinationGateway.emitNotification(
-      `Destination ${updated.country} mise à jour avec succès`,
-      'success',
-    );
 
     return updated;
   }
@@ -192,12 +178,6 @@ export class DestinationService {
       throw new NotFoundException(`Destination #${id} non trouvée`);
     }
 
-    // Émettre l'événement WebSocket
-    this.destinationGateway.emitDestinationDeleted(id);
-    this.destinationGateway.emitNotification(
-      `Destination ${deleted.country} supprimée avec succès`,
-      'info',
-    );
 
     return deleted;
   }

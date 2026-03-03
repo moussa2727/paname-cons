@@ -1,13 +1,12 @@
 /* eslint-disable no-undef */
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
   destinationService,
   type Destination,
   type CreateDestinationData,
   type UpdateDestinationData,
-  type WebSocketEvent,
   getFullImageUrl,
 } from '../../api/admin/AdminDestinationService';
 import RequireAdmin from '../../context/RequireAdmin';
@@ -51,43 +50,6 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     popoverTimeout.current = window.setTimeout(() => setPopover(null), 3000);
   };
 
-  // Gestionnaire des événements WebSocket
-  const handleWebSocketEvent = useCallback((event: WebSocketEvent) => {
-    switch (event.event) {
-      case 'destination-created':
-        if (event.data) {
-          setDestinations(prev => {
-            if (prev.some(d => d._id === event.data._id)) return prev;
-            return [event.data, ...prev];
-          });
-          showPopover(`Nouvelle destination: ${event.data.country}`, 'success');
-        }
-        break;
-        
-      case 'destination-updated':
-        if (event.data) {
-          setDestinations(prev => 
-            prev.map(d => d._id === event.data._id ? event.data : d)
-          );
-          showPopover(`Destination mise à jour: ${event.data.country}`, 'success');
-        }
-        break;
-        
-      case 'destination-deleted':
-        if (event.data) {
-          const id = typeof event.data === 'string' ? event.data : event.data.id;
-          setDestinations(prev => prev.filter(d => d._id !== id));
-          showPopover('Destination supprimée', 'success');
-        }
-        break;
-        
-      case 'notification':
-        if (event.message) {
-          showPopover(event.message, event.type === 'error' ? 'error' : 'success');
-        }
-        break;
-    }
-  }, []);
 
   // Charger les destinations
   const fetchDestinations = async (): Promise<void> => {
@@ -118,15 +80,10 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
     }
   };
 
-  // S'abonner aux événements WebSocket
+  // Charger les destinations et rafraîchir
   useEffect(() => {
-    const unsubscribe = destinationService.subscribe(handleWebSocketEvent);
-    
-    return () => {
-      unsubscribe();
-      destinationService.disconnectWebSocket();
-    };
-  }, [handleWebSocketEvent]);
+    fetchDestinations();
+  }, []);
 
   // Vérifier les droits admin
   const hasAdminRights = (): boolean => {
@@ -173,7 +130,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
           editingId,
           updateData
         );
-        // Pas de toast ici, géré par le WebSocket
+        showPopover('Destination mise à jour avec succès', 'success');
       } else {
         if (!imageFile) {
           showPopover('Veuillez sélectionner une image', 'error');
@@ -187,7 +144,7 @@ const AdminDestinations: React.FC = (): React.JSX.Element => {
         };
 
         await destinationService.createDestination(createData);
-        // Pas de toast ici, géré par le WebSocket
+        showPopover('Destination créée avec succès', 'success');
       }
 
       handleCancelEdit();

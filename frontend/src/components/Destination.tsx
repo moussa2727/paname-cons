@@ -71,70 +71,8 @@ const Destination = () => {
 
   useEffect(() => {
     fetchDestinations();
-
-    // S'abonner aux événements WebSocket via le service existant
-    const unsubscribe = destinationService.subscribe((event) => {
-      switch (event.event) {
-        case 'destination-created':
-          if (event.data) {
-            setDestinations(prev => {
-              // Éviter les doublons
-              if (prev.some(d => d._id === event.data._id)) return prev;
-              
-              const newDestination = {
-                ...event.data,
-                imagePath: event.data.imagePath?.split('/').pop() || event.data.imagePath
-              };
-              return [newDestination, ...prev];
-            });
-          }
-          break;
-
-        case 'destination-updated':
-          if (event.data) {
-            setDestinations(prev => 
-              prev.map(dest => {
-                if (dest._id === event.data._id) {
-                  return {
-                    ...event.data,
-                    imagePath: event.data.imagePath?.split('/').pop() || event.data.imagePath
-                  };
-                }
-                return dest;
-              })
-            );
-          }
-          break;
-
-        case 'destination-deleted':
-          if (event.data) {
-            const deletedId = typeof event.data === 'string' ? event.data : event.data.id;
-            setDestinations(prev => prev.filter(dest => dest._id !== deletedId));
-          }
-          break;
-
-        case 'notification':
-          // Ignorer les notifications toast comme demandé
-          break;
-      }
-    });
-
-    // Récupérer le nombre de clients connectés (si disponible via une méthode du service)
-    // Note: Le service n'expose pas directement connectedClients, donc cette partie est optionnelle
-
-    return () => {
-      unsubscribe();
-    };
   }, []);
 
-  // Fonctions pour les rooms
-  const handleMouseEnter = (destinationId: string) => {
-    destinationService.joinDestinationRoom(destinationId);
-  };
-
-  const handleMouseLeave = (destinationId: string) => {
-    destinationService.leaveDestinationRoom(destinationId);
-  };
 
   if (loading) {
     return (
@@ -147,12 +85,6 @@ const Destination = () => {
   return (
     <section className='px-5 py-20 bg-white lg:py-20'>
       <div className='max-w-7xl mx-auto'>
-        {/* Indicateur de connexion WebSocket minimal (optionnel) */}
-        {import.meta.env.DEV && (
-          <div className='text-right text-xs text-gray-400 mb-2'>
-            {/* Note: connectedClients nécessiterait d'exposer cette info depuis le service */}
-          </div>
-        )}
 
         <div className='text-center mb-16'>
           <span className='inline-block bg-sky-100 text-sky-600 px-4 py-1.5 rounded-full text-sm font-medium mb-3'>
@@ -169,8 +101,6 @@ const Destination = () => {
             <div
               key={dest._id}
               className='group bg-white rounded shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-2'
-              onMouseEnter={() => handleMouseEnter(dest._id)}
-              onMouseLeave={() => handleMouseLeave(dest._id)}
             >
               <div className='relative h-52 overflow-hidden rounded'>
                 <img
