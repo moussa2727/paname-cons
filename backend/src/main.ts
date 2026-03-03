@@ -128,8 +128,6 @@ async function createApp() {
       },
       crossOriginResourcePolicy: { policy: "cross-origin" },
       crossOriginEmbedderPolicy: false,
-      crossOriginOpenerPolicy: { policy: "same-origin" },
-      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
       hsts: {
         maxAge: 31536000,
         includeSubDomains: true,
