@@ -120,7 +120,7 @@ async function createApp() {
     next();
   });
 
-  // ✅ MIDDLEWARE: Security headers avec Helmet
+  // ✅ MIDDLEWARE: Security headers avec Helmet (désactiver certaines parties qui interfèrent avec CORS)
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -128,6 +128,8 @@ async function createApp() {
       },
       crossOriginResourcePolicy: { policy: "cross-origin" },
       crossOriginEmbedderPolicy: false,
+      crossOriginOpenerPolicy: { policy: "same-origin" },
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
       hsts: {
         maxAge: 31536000,
         includeSubDomains: true,
@@ -137,17 +139,39 @@ async function createApp() {
       hidePoweredBy: true,
       noSniff: true,
       xssFilter: true,
+      // Désactiver les parties qui définissent des headers CORS
+      originAgentCluster: false,
+      dnsPrefetchControl: false,
+      ieNoOpen: false,
+      permittedCrossDomainPolicies: false,
     }),
   );
 
-  // ✅ MIDDLEWARE: Headers de sécurité additionnels
+  // ✅ MIDDLEWARE: Headers de sécurité additionnels (ne pas écraser les headers CORS)
   server.use((req: any, res: any, next: any) => {
     res.removeHeader("X-Powered-By");
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("X-Frame-Options", "DENY");
-    res.setHeader("X-XSS-Protection", "1; mode=block");
-    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
-    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    
+    // Ne définir ces headers que s'ils ne sont pas déjà présents
+    if (!res.getHeader("X-Content-Type-Options")) {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+    }
+    
+    if (!res.getHeader("X-Frame-Options")) {
+      res.setHeader("X-Frame-Options", "DENY");
+    }
+    
+    if (!res.getHeader("X-XSS-Protection")) {
+      res.setHeader("X-XSS-Protection", "1; mode=block");
+    }
+    
+    if (!res.getHeader("Strict-Transport-Security")) {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+    }
+    
+    if (!res.getHeader("Referrer-Policy")) {
+      res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    }
+    
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
     res.setHeader("X-Session-Timeout", "1800");
     
