@@ -70,7 +70,7 @@ async function createApp() {
   });
 
   // service des fichiers statiques depuis le dossier uploads dans mon backend
-  const uploadsPath = path.join(process.env.TMPDIR || '/tmp', 'uploads');
+  const uploadsPath = path.join(process.env.UPLOAD_DIR || '/uploads', 'uploads');
   server.use('/uploads', express.static(uploadsPath, {
     setHeaders: (res: any) => {
       res.setHeader('Cache-Control', 'public, max-age=31536000');
