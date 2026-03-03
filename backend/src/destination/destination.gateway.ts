@@ -15,7 +15,14 @@ import { Destination } from '../schemas/destination.schema';
 @WebSocketGateway({
   namespace: 'destinations',
   cors: {
-    origin: ['https://panameconsulting.vercel.app', 'https://paname-consulting.vercel.app'],
+    origin: (origin, callback) => {
+      const allowedOrigins = ['https://panameconsulting.vercel.app', 'https://paname-consulting.vercel.app'];
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie', 'X-Requested-With', 'Accept', 'Origin'],

@@ -46,11 +46,25 @@ async function bootstrap() {
   
   // Middleware CORS pour toutes les requêtes
   server.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app, https://paname-consulting.vercel.app');
+    const origin = req.headers.origin;
+    const allowedOrigins = ['https://panameconsulting.vercel.app', 'https://paname-consulting.vercel.app'];
+    
+    // Définir l'origin dynamiquement
+    if (allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', allowedOrigins.join(', '));
+    }
+    
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization');
+    res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization, Content-Type');
+    
+    // Support pour les cookies SameSite=None sur HTTPS
+    if (isProduction) {
+      res.setHeader('Set-Cookie', 'SameSite=None; Secure; HttpOnly; Path=/');
+    }
     
     if (req.method === 'OPTIONS') {
       res.status(200).end();
@@ -68,10 +82,27 @@ async function bootstrap() {
   // Servir les fichiers statiques - Important pour les uploads
   const uploadsPath = path.join(__dirname, '../uploads');
   server.use('/uploads', express.static(uploadsPath, {
-    setHeaders: (res) => {
+    setHeaders: (res, filePath) => {
+      const origin = res.req?.headers?.origin;
+      const allowedOrigins = ['https://panameconsulting.vercel.app', 'https://paname-consulting.vercel.app', 'https://vercel.live'];
+      
+      // CORS dynamique pour les uploads
+      if (origin && allowedOrigins.includes(origin)) {
+        res.set('Access-Control-Allow-Origin', origin);
+      } else {
+        res.set('Access-Control-Allow-Origin', allowedOrigins.join(', '));
+      }
+      
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-      res.set('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app, https://paname-consulting.vercel.app, https://vercel.live');
+      res.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
       res.set('Access-Control-Allow-Credentials', 'true');
+      res.set('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Set-Cookie, Authorization');
+      
+      // Cache pour les images
+      if (filePath.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
+        res.set('Cache-Control', 'public, max-age=31536000, immutable');
+      }
     }
   }));
   
