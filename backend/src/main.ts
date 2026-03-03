@@ -12,7 +12,7 @@ const logger = new Logger('Bootstrap');
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Configuration CORS
-const productionOrigins = [
+const allowedOrigins = [
   "https://panameconsulting.com",
   "https://www.panameconsulting.com",
   "https://panameconsulting.vercel.app",
@@ -21,8 +21,6 @@ const productionOrigins = [
   "http://localhost:5173",
   "http://localhost:10000",
 ];
-
-const allowedOrigins = [...productionOrigins];
 
 const cspDirectives = {
   defaultSrc: ["'self'"],
@@ -38,140 +36,137 @@ const cspDirectives = {
   formAction: ["'self'"],
 };
 
+// Variable globale pour conserver l'instance entre les appels serverless
+let app: any;
+
 async function bootstrap() {
-  const server = express();
+  if (!app) {
+    const server = express();
 
-  const app = await NestFactory.create<NestExpressApplication>(
-    AppModule,
-    new ExpressAdapter(server),
-    {
-      logger: isProduction
-        ? ['error', 'warn']
-        : ['log', 'error', 'warn', 'debug', 'verbose'],
-    }
-  );
-
-  server.set('trust proxy', isProduction ? 1 : false);
-
-  // CORS avec validation dynamique
-  app.enableCors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS: Origin ${origin} non autorisee`));
+    app = await NestFactory.create(
+      AppModule,
+      new ExpressAdapter(server),
+      {
+        logger: isProduction ? ['error', 'warn'] : ['log', 'error', 'warn', 'debug', 'verbose'],
       }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-    exposedHeaders: ['Set-Cookie'],
-  });
+    );
 
-  // Body parsers
-  server.use(express.urlencoded({ limit: '10mb', extended: true, parameterLimit: 1000 }));
-  server.use(express.json({ limit: '10mb' }));
+    server.set('trust proxy', isProduction ? 1 : false);
 
-  // Compression
-  server.use(compression());
-
-  // Cookie Parser avec fallback
-  server.use(cookieParser(process.env.COOKIE_SECRET || 'default-secret-change-me'));
-
-  // Middleware cookies sécurisés
-  server.use((_req: any, res: any, next: any) => {
-    const cookieOptions = {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? ('strict' as const) : ('lax' as const),
-      maxAge: 30 * 60 * 1000,
-      path: '/',
-    };
-
-    const originalCookie = res.cookie.bind(res);
-    res.cookie = (name: string, value: string, options: any = {}) => {
-      return originalCookie(name, value, { ...cookieOptions, ...options });
-    };
-
-    next();
-  });
-
-  // Serveur de fichiers statiques pour les uploads
-  const uploadsPath = path.join(process.cwd(), 'uploads');
-  server.use('/uploads', express.static(uploadsPath));
-
-  // Security headers
-  server.use(
-    helmet({
-      contentSecurityPolicy: {
-        directives: cspDirectives,
+    // CORS
+    app.enableCors({
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error(`CORS: Origin ${origin} non autorisee`));
+        }
       },
-      crossOriginResourcePolicy: { policy: "cross-origin" },
-      crossOriginEmbedderPolicy: false,
-      crossOriginOpenerPolicy: { policy: "same-origin" },
-      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-      hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true
-      },
-      frameguard: { action: 'deny' },
-      hidePoweredBy: true,
-      noSniff: true,
-      xssFilter: true,
-    }),
-  );
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+      exposedHeaders: ['Set-Cookie'],
+    });
 
-  // Préfixe global
-  app.setGlobalPrefix('api', {
-    exclude: ['/', '/api', '/uploads'],
-  });
+    // Middlewares
+    server.use(express.urlencoded({ limit: '10mb', extended: true, parameterLimit: 1000 }));
+    server.use(express.json({ limit: '10mb' }));
+    server.use(compression());
+    server.use(cookieParser(process.env.COOKIE_SECRET || 'default-secret-change-me'));
 
-  // Validation globale
-  app.useGlobalPipes(
-    new ValidationPipe({
-      transform: true,
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transformOptions: { enableImplicitConversion: true },
-      validationError: { target: false, value: false },
-      exceptionFactory: (errors) => {
-        const messages = errors.map((error: any) => {
-          const constraints = error.constraints ? Object.values(error.constraints) : [];
-          return `${error.property}: ${constraints.join(', ')}`;
-        });
-        return new BadRequestException({
-          message: 'Validation failed',
-          errors: messages,
-          timestamp: new Date().toISOString(),
-        });
-      },
-    }),
-  );
+    // Cookies sécurisés
+    server.use((_req: any, res: any, next: any) => {
+      const cookieOptions = {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' as const : 'lax' as const,
+        maxAge: 30 * 60 * 1000,
+        path: '/',
+      };
 
-  // Versionnement
-  app.enableVersioning({
-    type: VersioningType.URI,
-    defaultVersion: '1',
-  });
+      const originalCookie = res.cookie.bind(res);
+      res.cookie = (name: string, value: string, options: any = {}) => {
+        return originalCookie(name, value, { ...cookieOptions, ...options });
+      };
 
-  await app.init();
+      next();
+    });
 
-  const port = parseInt(process.env.PORT || '10000', 10);
+    // Fichiers statiques (attention: Vercel a des limitations)
+    const uploadsPath = path.join('/tmp', 'uploads'); // /tmp est writable sur Vercel
+    server.use('/uploads', express.static(uploadsPath));
 
-  server.listen(port, () => {
-    logger.log(`Serveur demarre sur PORT=${port}`);
-    logger.log(`Application: localhost:${port}`);
-    logger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    logger.log(`Session timeout: 30 minutes`);
-    logger.log(`CORS avec credentials active`);
-  });
+    // Security headers
+    server.use(
+      helmet({
+        contentSecurityPolicy: {
+          directives: cspDirectives,
+        },
+        crossOriginResourcePolicy: { policy: "cross-origin" },
+        crossOriginEmbedderPolicy: false,
+        crossOriginOpenerPolicy: { policy: "same-origin" },
+        referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+        hsts: {
+          maxAge: 31536000,
+          includeSubDomains: true,
+          preload: true
+        },
+        frameguard: { action: 'deny' },
+        hidePoweredBy: true,
+        noSniff: true,
+        xssFilter: true,
+      }),
+    );
 
-  return { server, app };
+    // Configuration globale
+    app.setGlobalPrefix('api', {
+      exclude: ['/', '/api', '/uploads'],
+    });
+
+    app.useGlobalPipes(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transformOptions: { enableImplicitConversion: true },
+        validationError: { target: false, value: false },
+        exceptionFactory: (errors) => {
+          const messages = errors.map((error: any) => {
+            const constraints = error.constraints ? Object.values(error.constraints) : [];
+            return `${error.property}: ${constraints.join(', ')}`;
+          });
+          return new BadRequestException({
+            message: 'Validation failed',
+            errors: messages,
+            timestamp: new Date().toISOString(),
+          });
+        },
+      }),
+    );
+
+    app.enableVersioning({
+      type: VersioningType.URI,
+      defaultVersion: '1',
+    });
+
+    await app.init();
+    logger.log('Application initialisée avec succès');
+  }
+
+  return app;
 }
 
-// Démarrage du serveur persistant
-bootstrap().catch((error) => {
-  console.error('Bootstrap failed:', error);
-  process.exit(1);
-});
+// Handler serverless pour Vercel
+export default async function handler(req: any, res: any) {
+  try {
+    const appInstance = await bootstrap();
+    const server = appInstance.getHttpServer();
+    server.emit('request', req, res);
+  } catch (error) {
+    logger.error('Serverless handler failed:', error);
+    res.status(500).json({ 
+      message: 'Internal Server Error',
+      timestamp: new Date().toISOString()
+    });
+  }
+}
