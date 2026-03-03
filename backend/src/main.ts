@@ -101,6 +101,10 @@ export default async function handler(req: any, res: any) {
   try {
     // Gestion des requêtes OPTIONS (preflight)
     if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app, https://paname-consulting.vercel.app');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
       res.status(200).end();
       return;
     }
@@ -108,7 +112,7 @@ export default async function handler(req: any, res: any) {
     if (!isAppInitialized || !cachedApp) {
       logger.log('Initializing NestJS application...');
       const app = await bootstrap();
-      cachedApp = app.getHttpAdapter().getInstance();
+      cachedApp = app.getHttpServer();
       isAppInitialized = true;
       logger.log('NestJS application initialized successfully');
     }
