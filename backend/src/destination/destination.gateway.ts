@@ -14,6 +14,13 @@ import { Destination } from '../schemas/destination.schema';
 
 @WebSocketGateway({
   namespace: 'destinations',
+  cors: {
+    origin: ['https://panameconsulting.vercel.app', 'https://paname-consulting.vercel.app'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie', 'X-Requested-With', 'Accept', 'Origin'],
+    exposedHeaders: ['Set-Cookie', 'Authorization'],
+  },
 })
 export class DestinationGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()

@@ -24,6 +24,15 @@ const allowedOrigins = [
   'http://127.0.0.1:10000',
 ];
 
+// Headers CORS depuis vercel.json
+const corsHeaders = {
+  'Access-Control-Allow-Origin': 'https://panameconsulting.vercel.app, https://paname-consulting.vercel.app',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin',
+  'Access-Control-Allow-Credentials': 'true',
+  'Access-Control-Expose-Headers': 'Set-Cookie, Authorization'
+};
+
 async function bootstrap() {
   const server = express();
   
@@ -34,6 +43,23 @@ async function bootstrap() {
   server.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }, // Permet les requêtes cross-origin pour les uploads
   }));
+  
+  // Middleware CORS pour toutes les requêtes
+  server.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app, https://paname-consulting.vercel.app');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization');
+    
+    if (req.method === 'OPTIONS') {
+      res.status(200).end();
+      return;
+    }
+    
+    next();
+  });
+  
   server.use(compression());
   server.use(cookieParser(process.env.COOKIE_SECRET));
   server.use(express.json({ limit: '10mb' }));
@@ -105,6 +131,7 @@ export default async function handler(req: any, res: any) {
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
       res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization');
       res.status(200).end();
       return;
     }
