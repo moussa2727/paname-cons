@@ -2,16 +2,15 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, BadRequestException, Logger, VersioningType } from '@nestjs/common';
 import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
-import * as express from 'express';
-import { Request, Response, NextFunction } from 'express';
-const helmet = require('helmet');
-const compression = require('compression');
-const cookieParser = require('cookie-parser');
-const path = require('path');
+import express, { Request, Response, NextFunction } from 'express';
+import helmet from 'helmet';
+import compression from 'compression';
+import cookieParser from 'cookie-parser';
+import path from 'path';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 
+const logger = new Logger('Bootstrap');
 const isProduction = process.env.NODE_ENV === 'production';
-
 
 // Configuration CORS et CSP
 const productionOrigins = [
@@ -58,9 +57,6 @@ async function createApp() {
     }
   );
 
-
-  
-  
   server.set('trust proxy', isProduction ? 1 : false);
 
   // ✅ CORS avec credentials
@@ -85,13 +81,12 @@ async function createApp() {
   });
 
   // service des fichiers statiques depuis le dossier uploads dans mon backend
- const uploadsPath = path.join(process.cwd(), 'uploads');
+  const uploadsPath = path.join(process.cwd(), 'uploads');
   server.use('/uploads', express.static(uploadsPath, {
     setHeaders: (res) => {
       res.setHeader('Cache-Control', 'public, max-age=31536000');
     },
   }));
-
 
   // Préfixe global
   app.setGlobalPrefix('api', {
@@ -108,8 +103,6 @@ async function createApp() {
   server.use(express.json({
     limit: '10mb'
   }));
-
- 
 
   // ✅ MIDDLEWARE: Compression
   server.use(compression());
@@ -158,7 +151,7 @@ async function createApp() {
   );
 
   // ✅ MIDDLEWARE: Headers de sécurité additionnels
-  app.use((_req: Request, res: Response, next) => {
+  app.use((_req: Request, res: Response, next: NextFunction) => {
     res.removeHeader("X-Powered-By");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
@@ -198,8 +191,8 @@ async function createApp() {
     }),
   );
 
-   // Versionnement
-   app.enableVersioning({
+  // Versionnement
+  app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
   });
