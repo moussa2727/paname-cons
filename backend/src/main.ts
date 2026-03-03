@@ -9,14 +9,8 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 
-// ✅ Types explicites pour éviter les erreurs de runtime
-let cachedServer: express.Express | null = null;
-let cachedNestApp: NestExpressApplication | null = null;
-let initPromise: Promise<{ server: express.Express; app: NestExpressApplication }> | null = null;
-
 const logger = new Logger('Bootstrap');
 const isProduction = process.env.NODE_ENV === 'production';
-const isVercel = process.env.VERCEL === '1';
 
 // Configuration CORS
 const productionOrigins = [
@@ -45,7 +39,7 @@ const cspDirectives = {
   formAction: ["'self'"],
 };
 
-async function createApp(): Promise<{ server: express.Express; app: NestExpressApplication }> {
+async function bootstrap() {
   const server = express();
 
   const app = await NestFactory.create<NestExpressApplication>(
@@ -60,13 +54,13 @@ async function createApp(): Promise<{ server: express.Express; app: NestExpressA
 
   server.set('trust proxy', isProduction ? 1 : false);
 
-  // ✅ CORS avec validation dynamique
+  // CORS avec validation dynamique
   app.enableCors({
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error(`CORS: Origin ${origin} non autorisée`));
+        callback(new Error(`CORS: Origin ${origin} non autorisee`));
       }
     },
     credentials: true,
@@ -75,17 +69,17 @@ async function createApp(): Promise<{ server: express.Express; app: NestExpressA
     exposedHeaders: ['Set-Cookie'],
   });
 
-  // ✅ Body parsers
+  // Body parsers
   server.use(express.urlencoded({ limit: '10mb', extended: true, parameterLimit: 1000 }));
   server.use(express.json({ limit: '10mb' }));
 
-  // ✅ Compression
+  // Compression
   server.use(compression());
 
-  // ✅ Cookie Parser avec fallback pour éviter un crash si COOKIE_SECRET absent
+  // Cookie Parser avec fallback
   server.use(cookieParser(process.env.COOKIE_SECRET || 'default-secret-change-me'));
 
-  // ✅ Middleware cookies sécurisés
+  // Middleware cookies sécurisés
   server.use((_req: any, res: any, next: any) => {
     const cookieOptions = {
       httpOnly: true,
@@ -103,10 +97,11 @@ async function createApp(): Promise<{ server: express.Express; app: NestExpressA
     next();
   });
 
+  // Serveur de fichiers statiques pour les uploads
   const uploadsPath = path.join(process.cwd(), 'uploads');
   server.use('/uploads', express.static(uploadsPath));
 
-  // ✅ Security headers
+  // Security headers
   server.use(
     helmet({
       contentSecurityPolicy: { directives: cspDirectives },
@@ -122,12 +117,12 @@ async function createApp(): Promise<{ server: express.Express; app: NestExpressA
     }),
   );
 
-  // ✅ Préfixe global (uploads retiré car désactivé sur Vercel)
+  // Préfixe global
   app.setGlobalPrefix('api', {
     exclude: ['/', '/api', '/uploads'],
   });
 
-  // ✅ Validation globale
+  // Validation globale
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
@@ -149,7 +144,7 @@ async function createApp(): Promise<{ server: express.Express; app: NestExpressA
     }),
   );
 
-  // ✅ Versionnement
+  // Versionnement
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
@@ -157,73 +152,21 @@ async function createApp(): Promise<{ server: express.Express; app: NestExpressA
 
   await app.init();
 
+  const port = parseInt(process.env.PORT || '10000', 10);
+
+  server.listen(port, () => {
+    logger.log(`Serveur demarre sur PORT=${port}`);
+    logger.log(`Application: localhost:${port}`);
+    logger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    logger.log(`Session timeout: 30 minutes`);
+    logger.log(`CORS avec credentials active`);
+  });
+
   return { server, app };
 }
 
-// ✅ Handler Vercel — Promise unique, pas de récursion infinie
-if (isVercel) {
-  const getApp = (): Promise<{ server: express.Express; app: NestExpressApplication }> => {
-    if (cachedServer && cachedNestApp) {
-      return Promise.resolve({ server: cachedServer, app: cachedNestApp });
-    }
-
-    // Réutiliser la même promesse si init déjà en cours
-    if (!initPromise) {
-      initPromise = createApp()
-        .then(({ server, app }) => {
-          cachedServer = server;
-          cachedNestApp = app;
-          logger.log('✅ Application initialisée pour Vercel');
-          return { server, app };
-        })
-        .catch((error) => {
-          // Permettre une nouvelle tentative au prochain appel
-          initPromise = null;
-          logger.error('❌ Échec initialisation:', error);
-          throw error;
-        });
-    }
-
-    return initPromise;
-  };
-
-  const handler = async (req: any, res: any) => {
-    try {
-      const { server } = await getApp();
-      return server(req, res);
-    } catch (error) {
-      logger.error('❌ Erreur handler Vercel:', error);
-      if (!res.headersSent) {
-        return res.status(500).json({
-          error: 'Internal Server Error',
-          message: 'Service temporairement indisponible',
-          timestamp: new Date().toISOString(),
-        });
-      }
-    }
-  };
-
-  // ✅ Export simple — double export évité pour compatibilité ESM/CJS
-  module.exports = handler;
-}
-
-// ✅ Développement local uniquement
-if (!isVercel) {
-  async function bootstrap() {
-    const { server } = await createApp();
-    const port = parseInt(process.env.PORT || '10000', 10);
-
-    server.listen(port, () => {
-      logger.log(`✅ Serveur démarré sur PORT=${port}`);
-      logger.log(`🚀 Application: localhost:${port}`);
-      logger.log(`📁 Environment: ${process.env.NODE_ENV || 'development'}`);
-      logger.log(`🍪 Session timeout: 30 minutes`);
-      logger.log(`🔐 CORS avec credentials activé`);
-    });
-  }
-
-  bootstrap().catch((error) => {
-    console.error('❌ Bootstrap failed:', error);
-    process.exit(1);
-  });
-}
+// Démarrage du serveur persistant
+bootstrap().catch((error) => {
+  console.error('Bootstrap failed:', error);
+  process.exit(1);
+});

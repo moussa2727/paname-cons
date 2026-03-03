@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: paname-backend
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: node dist/main
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: COOKIE_SECRET
+        sync: false
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false
+    disk:
+      name: uploads
+      mountPath: /app/uploads
+      sizeGB: 1

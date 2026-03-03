@@ -16,7 +16,7 @@ export class StorageService {
   private readonly baseUrl: string;
 
   constructor(private configService: ConfigService) {
-    this.uploadDir = this.configService.get('UPLOAD_DIR', './uploads');
+    this.uploadDir = this.configService.get('UPLOAD_DIR');
     this.baseUrl = this.configService.get('BASE_URL', 'http://localhost:10000');
     // Créer le dossier de manière synchrone pour éviter les problèmes d'initialisation
     this.ensureUploadDirectorySync();
