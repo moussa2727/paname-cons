@@ -7,7 +7,6 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ConfigService } from '@nestjs/config';
 import { UploadService } from './upload.service';
 import { multerConfig } from './multer.config';
 import { ApiConsumes, ApiBody, ApiTags } from '@nestjs/swagger';

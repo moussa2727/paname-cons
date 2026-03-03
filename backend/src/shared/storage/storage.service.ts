@@ -17,7 +17,7 @@ export class StorageService {
 
   constructor(private configService: ConfigService) {
     this.uploadDir = this.configService.get('UPLOAD_DIR', './uploads');
-    this.baseUrl = this.configService.get('BASE_URL', 'http://localhost:3000');
+    this.baseUrl = this.configService.get('BASE_URL', 'http://localhost:10000');
     // Créer le dossier de manière synchrone pour éviter les problèmes d'initialisation
     this.ensureUploadDirectorySync();
   }
@@ -25,11 +25,12 @@ export class StorageService {
   /**
    * Garantit que le dossier d'upload existe (synchrone)
    */
-  private ensureUploadDirectorySync(): void {
+  private async ensureUploadDirectorySync(): Promise<void> {
     try {
-      fs.accessSync(this.uploadDir);
+      await accessAsync(this.uploadDir);
     } catch {
-      fs.mkdirSync(this.uploadDir, { recursive: true });
+      await mkdirAsync(this.uploadDir, { recursive: true });
+      this.logger.log(`Dossier d'upload créé: ${this.uploadDir}`);
     }
   }
 

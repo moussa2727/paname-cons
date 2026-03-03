@@ -9,8 +9,8 @@ const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 
-
-let cachedNestApp: NestExpressApplication | null = null;
+let cachedApp: any;
+let cachedNestApp: NestExpressApplication | null = null; // Maintenant typé correctement
 let isInitializing = false;
 const logger = new Logger('Bootstrap');
 const isProduction = process.env.NODE_ENV === 'production';
@@ -47,9 +47,6 @@ const cspDirectives = {
   formAction: ["'self'"],
 };
 
-// Création de l'application Express pour Vercel
-let cachedApp: any;
-
 async function createApp() {
   const server = express();
   const app = await NestFactory.create<NestExpressApplication>(
@@ -64,7 +61,7 @@ async function createApp() {
 
   server.set('trust proxy', isProduction ? 1 : false);
 
-  // ✅ CORS avec credentials - CECI DÉFINIT DÉJÀ Access-Control-Allow-Origin
+  // ✅ CORS avec credentials
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,
@@ -73,15 +70,6 @@ async function createApp() {
     exposedHeaders: ['Set-Cookie'],
   });
 
-  // service des fichiers statiques depuis le dossier uploads dans mon backend
- const uploadsPath = path.join(process.cwd(), 'uploads');
-    app.use('/uploads', express.static(uploadsPath));
-
-  // Préfixe global
-  app.setGlobalPrefix('api', {
-    exclude: ['/', '/api', '/uploads'],
-  });
- 
   // ✅ MIDDLEWARE: Body parsers
   server.use(express.urlencoded({
     limit: '10mb',
@@ -98,22 +86,22 @@ async function createApp() {
 
   // ✅ MIDDLEWARE: Cookie Parser
   server.use(cookieParser(process.env.COOKIE_SECRET));
-  server.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
-  // ✅ MIDDLEWARE: Configuration des cookies de session (30 minutes)
+  // ✅ Service des fichiers statiques - UNE SEULE FOIS
+  const uploadsPath = path.join(process.cwd(), 'uploads');
+  app.use('/uploads', express.static(uploadsPath)); // Utiliser app, pas server
+
+  // ✅ MIDDLEWARE: Configuration des cookies
   server.use((req: any, res: any, next: any) => {
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      maxAge: 30 * 60 * 1000, // 30 minutes
+      maxAge: 30 * 60 * 1000,
       path: '/',
     };
 
-    // Sauvegarder la méthode cookie originale
     const originalCookie = res.cookie;
-    
-    // Remplacer la méthode cookie
     res.cookie = function(name: string, value: string, options: any = {}) {
       return originalCookie.call(this, name, value, { ...cookieOptions, ...options });
     };
@@ -143,6 +131,10 @@ async function createApp() {
     }),
   );
 
+  // Préfixe global
+  app.setGlobalPrefix('api', {
+    exclude: ['/', '/api', '/uploads'],
+  });
 
   // ✅ VALIDATION GLOBALE
   app.useGlobalPipes(
@@ -178,7 +170,9 @@ async function createApp() {
   });
 
   await app.init();
-  return server;
+  
+  // ✅ Retourner les deux instances
+  return { server, app };
 }
 
 // Handler pour Vercel
@@ -193,11 +187,13 @@ if (isVercel) {
 
         isInitializing = true;
         try {
-          const { expressApp } = await createApp();
-          cachedApp = expressApp;
-          // cachedNestApp = nestApp;
+          const { server, app } = await createApp(); // ✅ Récupérer les deux
+          cachedApp = server;
+          cachedNestApp = app; // ✅ Maintenant assigné !
+          
+          logger.log('✅ Application initialisée avec succès pour Vercel');
         } catch (error) {
-          logger.error('Échec initialisation Vercel:', error);
+          logger.error('❌ Échec initialisation Vercel:', error);
           return res.status(500).json({
             error: 'Initialization failed',
             message: 'Serveur temporairement indisponible',
@@ -209,7 +205,7 @@ if (isVercel) {
 
       return cachedApp!(req, res);
     } catch (error) {
-      logger.error('Erreur traitement requête:', error);
+      logger.error('❌ Erreur traitement requête:', error);
       
       if (!res.headersSent) {
         return res.status(500).json({
@@ -223,19 +219,18 @@ if (isVercel) {
 
   module.exports = handler;
   module.exports.default = handler;
-  
 } 
 
 // Pour le développement local
-if (process.env.NODE_ENV !== 'production') {
+if (!isVercel) {
   async function bootstrap() {
-    const server = await createApp();
+    const { server } = await createApp();
     const port = parseInt(process.env.PORT || '10000', 10);
     const host = process.env.HOST || "0.0.0.0";
 
     server.listen(port, host, () => {
       const logger = new Logger('Bootstrap');
-      logger.log(`Server started successfully on PORT=${port}`); 
+      logger.log(`✅ Server started successfully on PORT=${port}`); 
       logger.log(`🚀 Application is running on: ${host}:${port}`);
       logger.log(`📁 Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.log(`🍪 Session timeout: 30 minutes`);
@@ -244,7 +239,7 @@ if (process.env.NODE_ENV !== 'production') {
   }
 
   bootstrap().catch((error) => {
-    console.error('Failed to bootstrap application:', error);
+    console.error('❌ Failed to bootstrap application:', error);
     process.exit(1);
   });
 }
