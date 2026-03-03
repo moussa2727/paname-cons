@@ -1,19 +1,19 @@
-// Dans votre fichier principal (main.ts)
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, BadRequestException, Logger, VersioningType } from '@nestjs/common';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import * as express from 'express';
 import * as path from 'path';
-import * as fs from 'fs';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import * as http from 'http';
+import * as fs from 'fs';
+
 
 const logger = new Logger('Bootstrap');
 const isVercel = process.env.VERCEL === '1';
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Configuration CORS
+// Configuration CORS - Domaines autorisés
 const allowedOrigins = [
   'https://panameconsulting.vercel.app',
   'https://paname-consulting.vercel.app',
@@ -25,77 +25,54 @@ const allowedOrigins = [
 ];
 
 async function bootstrap() {
-  const appExpress = express();
+  const server = express();
   
-  // Trust proxy
-  appExpress.set('trust proxy', isProduction ? 1 : false);
+  // Trust proxy pour les déploiements derrière un proxy (Vercel)
+  server.set('trust proxy', isProduction ? 1 : false);
   
-  // Middleware CORS manuel (sans helmet)
-  appExpress.use((req, res, next) => {
+  // Middleware CORS principal - DOIT être le premier middleware
+  server.use((req, res, next) => {
     const origin = req.headers.origin;
     
-    // Définir l'origine dynamiquement
+    // 🔑 CRITIQUE: Avec credentials: 'include', on doit renvoyer l'origine EXACTE
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app, https://paname-consulting.vercel.app');
+      res.setHeader('Vary', 'Origin'); // Important pour les CDN/proxies
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    } else if (origin) {
+      // Logger les origines non autorisées pour déboguer
+      logger.warn(`Origine non autorisée tentant d'accéder à l'API: ${origin}`);
+      // Ne pas définir Access-Control-Allow-Origin => le navigateur bloquera
     }
     
+    // Headers CORS toujours nécessaires
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization, Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 
+      'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin'
+    );
+    res.setHeader('Access-Control-Expose-Headers', 
+      'Set-Cookie, Authorization, Content-Type, Content-Length'
+    );
     
-    // Cross-Origin-Resource-Policy
+    // Politique de ressource cross-origin pour les uploads
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     
-    // Headers de sécurité de base (remplacement de helmet)
+    // Headers de sécurité de base
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('X-XSS-Protection', '1; mode=block');
     
+    // Gestion des requêtes OPTIONS (preflight)
     if (req.method === 'OPTIONS') {
-      res.status(200).end();
+      res.status(204).end(); // 204 No Content est standard pour OPTIONS
       return;
     }
     
     next();
   });
   
-  // Compression manuelle
-  appExpress.use((req, res, next) => {
-    const acceptEncoding = req.headers['accept-encoding'];
-    if (acceptEncoding && acceptEncoding.includes('gzip')) {
-      const originalWrite = res.write;
-      const originalEnd = res.end;
-      const chunks: Buffer[] = [];
-      
-      (res.write as any) = function(chunk: any, encoding?: any, callback?: any) {
-        chunks.push(Buffer.from(chunk));
-        return true;
-      };
-      
-      (res.end as any) = function(chunk?: any, encoding?: any, callback?: any) {
-        if (chunk) {
-          chunks.push(Buffer.from(chunk));
-        }
-        
-        const zlib = require('zlib');
-        zlib.gzip(Buffer.concat(chunks), (err: Error | null, compressed: Buffer) => {
-          if (err) {
-            originalEnd.call(res, chunk, encoding, callback);
-            return;
-          }
-          res.setHeader('Content-Encoding', 'gzip');
-          originalEnd.call(res, compressed, encoding, callback);
-        });
-      };
-    }
-    next();
-  });
-  
-  // Cookie parser manuel
-  appExpress.use((req: any, res, next) => {
+  // Middleware pour parser les cookies manuellement
+  server.use((req: any, res, next) => {
     const cookies: Record<string, string> = {};
     const cookieHeader = req.headers.cookie;
     
@@ -109,78 +86,134 @@ async function bootstrap() {
     }
     
     req.cookies = cookies;
-    req.signedCookies = cookies; // Simplifié, sans signature
+    req.signedCookies = { ...cookies }; // Copie simple sans signature
     
     next();
   });
   
-  // JSON parser manuel
-  appExpress.use((req, res, next) => {
-    if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
-      if (req.headers['content-type'] === 'application/json') {
-        let body = '';
-        req.on('data', (chunk) => {
-          body += chunk.toString();
-          // Protection contre les trop gros payloads (10mb)
-          if (body.length > 10 * 1024 * 1024) {
-            res.status(413).json({ error: 'Payload too large' });
-            req.destroy();
-          }
-        });
-        
-        req.on('end', () => {
-          try {
-            req.body = body ? JSON.parse(body) : {};
-            next();
-          } catch (err) {
-            res.status(400).json({ error: 'Invalid JSON' });
-          }
-        });
-      } else {
-        next();
-      }
-    } else {
-      next();
-    }
-  });
-  
-  // URL encoded parser manuel
-  appExpress.use((req, res, next) => {
-    if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
-      if (req.headers['content-type'] === 'application/x-www-form-urlencoded') {
-        let body = '';
-        req.on('data', (chunk) => {
-          body += chunk.toString();
-          if (body.length > 10 * 1024 * 1024) {
-            res.status(413).json({ error: 'Payload too large' });
-            req.destroy();
-          }
-        });
-        
-        req.on('end', () => {
-          const params = new URLSearchParams(body);
-          req.body = {};
-          params.forEach((value, key) => {
-            req.body[key] = value;
+  // Middleware pour parser le JSON manuellement
+  server.use((req, res, next) => {
+    if (['POST', 'PUT', 'PATCH'].includes(req.method) && 
+        req.headers['content-type']?.includes('application/json')) {
+      
+      let body = '';
+      req.on('data', (chunk) => {
+        body += chunk.toString();
+        // Protection contre les trop gros payloads (10mb)
+        if (body.length > 10 * 1024 * 1024) {
+          res.status(413).json({ 
+            error: 'Payload too large',
+            message: 'Request entity too large'
           });
+          req.destroy();
+        }
+      });
+      
+      req.on('end', () => {
+        try {
+          req.body = body ? JSON.parse(body) : {};
           next();
-        });
-      } else {
-        next();
-      }
+        } catch (err) {
+          res.status(400).json({ 
+            error: 'Invalid JSON',
+            message: 'The request body contains invalid JSON'
+          });
+        }
+      });
     } else {
       next();
     }
   });
   
-  // Servir les fichiers statiques manuellement
+  // Middleware pour parser les formulaires URL encoded manuellement
+  server.use((req, res, next) => {
+    if (['POST', 'PUT', 'PATCH'].includes(req.method) && 
+        req.headers['content-type'] === 'application/x-www-form-urlencoded') {
+      
+      let body = '';
+      req.on('data', (chunk) => {
+        body += chunk.toString();
+        if (body.length > 10 * 1024 * 1024) {
+          res.status(413).json({ error: 'Payload too large' });
+          req.destroy();
+        }
+      });
+      
+      req.on('end', () => {
+        const params = new URLSearchParams(body);
+        req.body = {};
+        params.forEach((value, key) => {
+          req.body[key] = value;
+        });
+        next();
+      });
+    } else {
+      next();
+    }
+  });
+  
+  // Middleware de compression simple (gzip)
+  server.use((req, res, next) => {
+    const acceptEncoding = req.headers['accept-encoding'];
+    if (acceptEncoding && acceptEncoding.includes('gzip')) {
+      const originalWrite = res.write;
+      const originalEnd = res.end;
+      const chunks: Buffer[] = [];
+      
+      res.write = function(chunk: any, encoding?: any, callback?: any) {
+        if (chunk) {
+          chunks.push(Buffer.from(chunk));
+        }
+        return true;
+      };
+      
+      (res.end as any) = function(chunk?: any, encoding?: any, callback?: any) {
+        if (chunk) {
+          chunks.push(Buffer.from(chunk));
+        }
+        
+        if (chunks.length === 0) {
+          originalEnd.call(res, chunk, encoding, callback);
+          return;
+        }
+        
+        const zlib = require('zlib');
+        zlib.gzip(Buffer.concat(chunks), (err: Error | null, compressed: Buffer) => {
+          if (err) {
+            originalEnd.call(res, chunk, encoding, callback);
+            return;
+          }
+          res.setHeader('Content-Encoding', 'gzip');
+          res.setHeader('Content-Length', compressed.length);
+          originalEnd.call(res, compressed, encoding, callback);
+        });
+      };
+    }
+    next();
+  });
+  
+  // Servir les fichiers statiques (uploads) manuellement
   const uploadsPath = path.join(__dirname, '../uploads');
-  appExpress.use('/uploads', (req, res, next) => {
-    const filePath = path.join(uploadsPath, req.url);
+  
+  // Créer le répertoire uploads s'il n'existe pas (pour le développement local)
+  if (!isVercel) {
+    const fs = require('fs');
+    if (!fs.existsSync(uploadsPath)) {
+      fs.mkdirSync(uploadsPath, { recursive: true });
+      logger.log(`📁 Répertoire uploads créé: ${uploadsPath}`);
+    }
+  }
+  
+  server.use('/uploads', (req, res, next) => {
+    // Sécurité: éviter les path traversals
+    const requestedPath = req.url.split('?')[0]; // Enlever les query params
+    const safePath = path.normalize(requestedPath).replace(/^(\.\.[\/\\])+/, '');
+    const filePath = path.join(uploadsPath, safePath);
     
-    // Vérifier que le chemin est dans le répertoire uploads (sécurité)
+    // Vérifier que le chemin est dans le répertoire uploads
     if (!filePath.startsWith(uploadsPath)) {
-      res.status(403).send('Forbidden');
+      logger.warn(`Tentative d'accès en dehors du répertoire uploads: ${requestedPath}`);
+      res.status(403).json({ error: 'Forbidden' });
       return;
     }
     
@@ -188,16 +221,16 @@ async function bootstrap() {
     const origin = req.headers.origin;
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
     } else {
-      res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app, https://paname-consulting.vercel.app');
+      res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app');
     }
     
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
     
     if (req.method === 'OPTIONS') {
-      res.status(200).end();
+      res.status(204).end();
       return;
     }
     
@@ -205,31 +238,65 @@ async function bootstrap() {
     const fs = require('fs');
     fs.stat(filePath, (err: NodeJS.ErrnoException | null, stats: fs.Stats) => {
       if (err || !stats.isFile()) {
-        res.status(404).send('File not found');
+        logger.debug(`Fichier non trouvé: ${filePath}`);
+        res.status(404).json({ error: 'File not found' });
         return;
       }
       
       // Cache pour les images
-      if (filePath.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
+      if (filePath.match(/\.(jpg|jpeg|png|gif|webp|svg|ico)$/i)) {
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=86400'); // 24h
       }
       
-      res.setHeader('Content-Length', stats.size);
-      res.setHeader('Content-Type', getContentType(filePath));
+      // Déterminer le Content-Type
+      const ext = path.extname(filePath).toLowerCase();
+      const contentTypes: Record<string, string> = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.svg': 'image/svg+xml',
+        '.ico': 'image/x-icon',
+        '.pdf': 'application/pdf',
+        '.txt': 'text/plain',
+        '.html': 'text/html',
+        '.css': 'text/css',
+        '.js': 'application/javascript',
+        '.json': 'application/json',
+        '.mp4': 'video/mp4',
+        '.mp3': 'audio/mpeg',
+        '.zip': 'application/zip',
+      };
       
+      res.setHeader('Content-Type', contentTypes[ext] || 'application/octet-stream');
+      res.setHeader('Content-Length', stats.size);
+      
+      // Stream le fichier
       const stream = fs.createReadStream(filePath);
       stream.pipe(res);
+      
+      stream.on('error', (streamErr: Error) => {
+        logger.error(`Erreur lors du streaming du fichier: ${streamErr.message}`);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Error streaming file' });
+        }
+      });
     });
   });
   
-  logger.log(`Serving uploads from: ${uploadsPath}`);
+  logger.log(`📁 Dossier uploads servi depuis: ${uploadsPath}`);
 
+  // Créer l'application NestJS
   const app = await NestFactory.create(
     AppModule,
-    new ExpressAdapter(appExpress),
+    new ExpressAdapter(server),
     {
       logger: ['error', 'warn', 'log', 'debug', 'verbose'],
-      cors: false,
+      cors: false, // Désactivé car géré manuellement
+      bodyParser: false, // Désactivé car géré manuellement
     }
   );
 
@@ -248,101 +315,104 @@ async function bootstrap() {
     })
   );
 
-  // Préfixe global
+  // Préfixe global - Correspond à votre vercel.json
   app.setGlobalPrefix('api', {
-    exclude: ['/', '/api', '/uploads'],
+    exclude: ['/', '/api', '/uploads', '/health'],
   });
 
-  // Versionnement
+  // Versionnement de l'API
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
   });
 
-  // WebSocket
+  // WebSocket adapter
   app.useWebSocketAdapter(new IoAdapter(app));
 
   await app.init();
   return app;
 }
 
-// Fonction utilitaire pour déterminer le Content-Type
-function getContentType(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase();
-  const types: Record<string, string> = {
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
-    '.svg': 'image/svg+xml',
-    '.pdf': 'application/pdf',
-    '.txt': 'text/plain',
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'application/javascript',
-    '.json': 'application/json',
-  };
-  return types[ext] || 'application/octet-stream';
-}
-
-// Cache pour l'application
+// Cache pour l'application serverless
 let cachedApp: any;
 let isAppInitialized = false;
 
-// Handler serverless
+// Handler principal pour Vercel serverless
 export default async function handler(req: any, res: any) {
+  const startTime = Date.now();
+  const requestId = Math.random().toString(36).substring(7);
+  
   try {
-    // Gestion des requêtes OPTIONS (preflight)
+    // Logger la requête entrante
+    logger.debug(`[${requestId}] ${req.method} ${req.url} - Origin: ${req.headers.origin || 'none'}`);
+    
+    // Gestion des requêtes OPTIONS (preflight) - CRITIQUE pour CORS
     if (req.method === 'OPTIONS') {
       const origin = req.headers.origin;
-      const allowedOrigins = ['https://panameconsulting.vercel.app', 'https://paname-consulting.vercel.app'];
       
+      // 🔑 Règle d'or: avec credentials, renvoyer l'origine EXACTE
       if (origin && allowedOrigins.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
       } else {
-        res.setHeader('Access-Control-Allow-Origin', allowedOrigins.join(', '));
+        // Fallback pour les requêtes sans origine ou non autorisée
+        res.setHeader('Access-Control-Allow-Origin', 'https://panameconsulting.vercel.app');
       }
       
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin');
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Authorization');
-      res.status(200).end();
+      res.setHeader('Access-Control-Allow-Headers', 
+        'Content-Type, Authorization, Cookie, Set-Cookie, X-Requested-With, Accept, Origin'
+      );
+      res.setHeader('Access-Control-Expose-Headers', 
+        'Set-Cookie, Authorization, Content-Type, Content-Length'
+      );
+      res.setHeader('Access-Control-Max-Age', '86400'); // 24h cache pour preflight
+      
+      res.status(204).end();
       return;
     }
 
+    // Initialiser l'application NestJS si nécessaire (lazy loading)
     if (!isAppInitialized || !cachedApp) {
-      logger.log('Initializing NestJS application...');
+      logger.log(`[${requestId}] Initialisation de l'application NestJS...`);
       const app = await bootstrap();
       cachedApp = app.getHttpServer();
       isAppInitialized = true;
-      logger.log('NestJS application initialized successfully');
+      logger.log(`[${requestId}] Application NestJS initialisée avec succès`);
     }
 
-    // Logging des requêtes (optionnel)
-    logger.debug(`${req.method} ${req.url}`);
+    // Ajouter les headers CORS pour les requêtes normales
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Vary', 'Origin');
+    }
 
+    // Exécuter la requête
     return cachedApp(req, res);
+    
   } catch (error) {
-    logger.error('Error in serverless handler:', error);
+    const duration = Date.now() - startTime;
+    logger.error(`[${requestId}] Erreur dans le handler serverless (${duration}ms):`, error);
     
     // Gestion d'erreur améliorée
     const statusCode = error.status || 500;
-    const errorMessage = isProduction 
-      ? 'Internal Server Error' 
-      : error.message;
-
-    res.status(statusCode).json({ 
-      error: errorMessage,
+    const errorResponse = {
+      error: isProduction ? 'Internal Server Error' : error.message,
       statusCode,
       timestamp: new Date().toISOString(),
-      path: req.url
-    });
+      path: req.url,
+      requestId,
+      ...(isProduction ? {} : { stack: error.stack }),
+    };
+
+    res.status(statusCode).json(errorResponse);
   }
 }
 
-// Pour le développement local
+// Pour le développement local (non-Vercel)
 if (!isVercel) {
   async function startLocalServer() {
     try {
@@ -352,14 +422,36 @@ if (!isVercel) {
       // Créer le serveur HTTP
       const httpServer = http.createServer(app.getHttpAdapter().getInstance());
       
-      httpServer.listen(port, () => {
-        logger.log(`Application is running on: http://localhost:${port}`);
-        logger.log(`Environment: ${process.env.NODE_ENV}`);
-        logger.log(`Vercel: ${isVercel ? 'yes' : 'no'}`);
-        logger.log(`📁 Uploads path: ${path.join(__dirname, '../uploads')}`);
+      // Gérer les erreurs du serveur
+      httpServer.on('error', (error: any) => {
+        if (error.code === 'EADDRINUSE') {
+          logger.error(`Le port ${port} est déjà utilisé`);
+          process.exit(1);
+        } else {
+          logger.error('Erreur serveur:', error);
+        }
       });
+      
+      httpServer.listen(port, () => {
+        logger.log(`🚀 Application démarrée sur: http://localhost:${port}`);
+        logger.log(`📦 Environnement: ${process.env.NODE_ENV || 'development'}`);
+        logger.log(`🌐 Mode Vercel: ${isVercel ? 'oui' : 'non'}`);
+        logger.log(`📁 Dossier uploads: ${path.join(__dirname, '../uploads')}`);
+        logger.log(`🔑 Domaines CORS autorisés:`);
+        allowedOrigins.forEach(origin => logger.log(`   - ${origin}`));
+      });
+      
+      // Gestion propre de l'arrêt
+      process.on('SIGTERM', () => {
+        logger.log('SIGTERM reçu, arrêt gracieux...');
+        httpServer.close(() => {
+          logger.log('Serveur arrêté');
+          process.exit(0);
+        });
+      });
+      
     } catch (error) {
-      logger.error('Failed to start server:', error);
+      logger.error('Échec du démarrage du serveur:', error);
       process.exit(1);
     }
   }
