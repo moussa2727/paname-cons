@@ -5,7 +5,7 @@ import { BadRequestException } from '@nestjs/common';
 import * as fs from 'fs';
 
 // Create uploads directory if it doesn't exist
-const uploadDir = process.env.UPLOAD_DIR || './uploads';
+const uploadDir = process.env.UPLOAD_DIR || '/tmp/uploads';
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
