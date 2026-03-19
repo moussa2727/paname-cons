@@ -91,9 +91,13 @@ export class PrismaService
         throw new Error('DATABASE_URL environment variable is not set');
       }
 
+      this.logger.log(`🔍 DATABASE_URL: ${databaseUrl}`);
+
       // Parse DATABASE_URL to extract connection info
       const url = new URL(databaseUrl);
       const dbName = url.pathname.slice(1); // Remove leading slash
+
+      this.logger.log(`🔍 Extracted database name: ${dbName}`);
 
       if (!dbName) {
         this.logger.warn('No database name found in DATABASE_URL');
@@ -102,6 +106,8 @@ export class PrismaService
 
       // Create a connection URL to postgres database (default database)
       const postgresUrl = databaseUrl.replace(`/${dbName}`, '/postgres');
+
+      this.logger.log(`🔍 PostgreSQL URL for admin connection: ${postgresUrl}`);
 
       // Temporarily override DATABASE_URL for postgres connection
       const originalUrl = process.env.DATABASE_URL;
@@ -115,11 +121,19 @@ export class PrismaService
       });
 
       try {
+        this.logger.log(
+          '🔍 Connecting to postgres database for admin operations...',
+        );
+        await postgresClient.$connect();
+        this.logger.log('✅ Connected to postgres database');
+
         // Check if database exists
         const result = await postgresClient.$queryRaw`
           SELECT 1 FROM pg_database WHERE datname = ${dbName}
           LIMIT 1
         `;
+
+        this.logger.log(`🔍 Database check result: ${JSON.stringify(result)}`);
 
         if (Array.isArray(result) && result.length === 0) {
           this.logger.log(`🗄️ Creating database: ${dbName}`);
@@ -134,7 +148,7 @@ export class PrismaService
         process.env.DATABASE_URL = originalUrl;
       }
     } catch (error) {
-      this.logger.warn('Could not create database automatically:', error);
+      this.logger.error('❌ Could not create database automatically:', error);
       // Don't throw here, let the main connection attempt handle the error
     }
   }
