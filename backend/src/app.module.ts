@@ -70,9 +70,11 @@ import { APP_GUARD, APP_PIPE, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
       useFactory: (config: ConfigService) => {
         const redisConfig = config.get<RedisConfig>('redis');
         if (!redisConfig.enabled) {
-          throw new Error(
-            'Redis est désactivé. Impossible de configurer BullMQ.',
-          );
+          // Return minimal config when Redis is disabled
+          return {
+            redis: undefined,
+            disableProcessManagement: true,
+          };
         }
         return {
           redis: redisConfig.url,

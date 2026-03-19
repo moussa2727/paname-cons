@@ -1,64 +1,42 @@
-# ==================== DOCKERFILE PRODUCTION - BACKEND NESTJS ====================
-FROM node:20-alpine AS builder
+# Railway Build Configuration for NestJS Backend
+# This file tells Railway how to build and deploy your NestJS application
 
+# Use Node.js 20 (matching your Dockerfile)
+FROM node:20-alpine
+
+# Set working directory
 WORKDIR /app
 
-# Installation de pnpm
+# Install pnpm globally
 RUN npm install -g pnpm
 
-# Copie des fichiers de dépendances (sans préfixe backend car on est dans le contexte backend)
+# Copy package files
 COPY package.json pnpm-lock.yaml ./
-COPY prisma ./prisma/
 
-# Installation des dépendances
+# Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copie du code source
+# Copy source code
 COPY . .
 
-# Génération du client Prisma et build
+# Copy Prisma schema
+COPY prisma ./prisma/
+
+# Generate Prisma client
 RUN pnpm prisma generate
+
+# Build the application
 RUN pnpm run build
 
-# Nettoyage pour la production
+# Install production dependencies only
 RUN pnpm install --prod --frozen-lockfile && pnpm store prune
 
-# ==================== STAGE 2 : PRODUCTION ====================
-FROM node:20-alpine AS production
+# Expose port
+EXPOSE 10000
 
-# Configuration de sécurité
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nestjs
-
-# Installation des dépendances système
-RUN apk add --no-cache dumb-init curl && rm -rf /var/cache/apk/*
-
-WORKDIR /app
-
-# Installation de pnpm
-RUN npm install -g pnpm
-
-# Copie des fichiers depuis le builder
-COPY --from=builder --chown=nestjs:nodejs /app/package.json ./
-COPY --from=builder --chown=nestjs:nodejs /app/pnpm-lock.yaml ./
-COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
-
-# Création des répertoires nécessaires
-RUN mkdir -p ./uploads ./logs ./backup && \
-    chown -R nestjs:nodejs ./uploads ./logs ./backup
-
-# Changement d'utilisateur
-USER nestjs
-
-# Variables d'environnement
+# Set environment variables
 ENV NODE_ENV=production
 ENV PORT=10000
 
-# Exposition du port
-EXPOSE 10000
-
-# Démarrage
-ENTRYPOINT ["dumb-init", "--"]
+# Start the application
 CMD ["node", "dist/src/main.js"]
