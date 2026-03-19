@@ -5,8 +5,6 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaClient, ProcedureStatus, StepName } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class PrismaService
@@ -15,28 +13,19 @@ export class PrismaService
 {
   private readonly logger = new Logger(PrismaService.name);
 
-  constructor(configService: ConfigService) {
-    const databaseUrl =
-      configService.get<string>('DATABASE_URL') || process.env.DATABASE_URL;
-
-    if (!databaseUrl) {
-      throw new Error('DATABASE_URL is not defined in environment variables');
-    }
-
+  constructor() {
     super({
-      adapter: new PrismaPg({
-        connectionString: databaseUrl,
-      }),
-      log:
-        process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+      log: ['info', 'warn', 'error'],
     });
-
-    this.logger.log(`Initializing database connection...`);
   }
 
   async onModuleInit() {
     try {
       this.logger.log('Connecting to database...');
+
+      // First, try to create the database if it doesn't exist
+      await this.createDatabaseIfNotExists();
+
       await this.$connect();
       this.logger.log('Database connected successfully');
 
@@ -81,6 +70,57 @@ export class PrismaService
       }
 
       throw error;
+    }
+  }
+
+  private async createDatabaseIfNotExists(): Promise<void> {
+    try {
+      const databaseUrl = process.env.DATABASE_URL;
+      if (!databaseUrl) {
+        throw new Error('DATABASE_URL environment variable is not set');
+      }
+
+      // Parse DATABASE_URL to extract connection info
+      const url = new URL(databaseUrl);
+      const dbName = url.pathname.slice(1); // Remove leading slash
+
+      if (!dbName) {
+        this.logger.warn('No database name found in DATABASE_URL');
+        return;
+      }
+
+      // Create a connection URL to postgres database (default database)
+      const postgresUrl = `${url.protocol}//${url.username}${url.password ? ':' + url.password : ''}@${url.host}/postgres`;
+
+      // Temporarily set environment variable for postgres connection
+      const originalDbUrl = process.env.DATABASE_URL;
+      process.env.DATABASE_URL = postgresUrl;
+
+      // Connect to postgres database to create our target database
+      const postgresClient = new PrismaClient();
+
+      try {
+        // Check if database exists
+        const result = await postgresClient.$queryRaw`
+          SELECT 1 FROM pg_database WHERE datname = ${dbName}
+          LIMIT 1
+        `;
+
+        if (Array.isArray(result) && result.length === 0) {
+          this.logger.log(`🗄️ Creating database: ${dbName}`);
+          await postgresClient.$queryRaw`CREATE DATABASE ${dbName}`;
+          this.logger.log(`✅ Database ${dbName} created successfully`);
+        } else {
+          this.logger.log(`📋 Database ${dbName} already exists`);
+        }
+      } finally {
+        await postgresClient.$disconnect();
+        // Restore original DATABASE_URL
+        process.env.DATABASE_URL = originalDbUrl;
+      }
+    } catch (error) {
+      this.logger.warn('Could not create database automatically:', error);
+      // Don't throw here, let the main connection attempt handle the error
     }
   }
 
