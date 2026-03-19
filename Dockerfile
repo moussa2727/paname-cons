@@ -6,7 +6,7 @@ WORKDIR /app
 COPY backend/package.json backend/pnpm-lock.yaml ./backend/
 
 # Installer npm puis installer les dépendances
-RUN cd backend && npm install --frozen-lockfile
+RUN cd backend && npm install --legacy-peer-deps --frozen-lockfile
 
 # Copier le reste du code
 COPY backend/ ./backend/
