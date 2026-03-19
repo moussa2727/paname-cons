@@ -4,7 +4,8 @@ import {
   OnModuleDestroy,
   Logger,
 } from '@nestjs/common';
-import { PrismaClient, ProcedureStatus, StepName } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 @Injectable()
 export class PrismaService
@@ -14,7 +15,17 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
 
   constructor() {
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) {
+      throw new Error('DATABASE_URL environment variable is not set');
+    }
+
+    const adapter = new PrismaPg({
+      connectionString: databaseUrl,
+    });
+
     super({
+      adapter,
       log: ['info', 'warn', 'error'],
     });
   }
@@ -90,14 +101,18 @@ export class PrismaService
       }
 
       // Create a connection URL to postgres database (default database)
-      const postgresUrl = `${url.protocol}//${url.username}${url.password ? ':' + url.password : ''}@${url.host}/postgres`;
+      const postgresUrl = databaseUrl.replace(`/${dbName}`, '/postgres');
 
-      // Temporarily set environment variable for postgres connection
-      const originalDbUrl = process.env.DATABASE_URL;
+      // Temporarily override DATABASE_URL for postgres connection
+      const originalUrl = process.env.DATABASE_URL;
       process.env.DATABASE_URL = postgresUrl;
 
       // Connect to postgres database to create our target database
-      const postgresClient = new PrismaClient();
+      const postgresClient = new PrismaClient({
+        adapter: new PrismaPg({
+          connectionString: postgresUrl,
+        }),
+      });
 
       try {
         // Check if database exists
@@ -116,7 +131,7 @@ export class PrismaService
       } finally {
         await postgresClient.$disconnect();
         // Restore original DATABASE_URL
-        process.env.DATABASE_URL = originalDbUrl;
+        process.env.DATABASE_URL = originalUrl;
       }
     } catch (error) {
       this.logger.warn('Could not create database automatically:', error);
