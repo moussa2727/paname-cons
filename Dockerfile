@@ -1,32 +1,32 @@
 FROM node:18-alpine
 
+# Set the base working directory
 WORKDIR /app
 
-RUN cd backend
-
+# 1. Enable Corepack for pnpm immediately
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copier les fichiers de dépendances
+# 2. Copy dependency files first (better for caching)
+# We use the relative path because WORKDIR /app is already set
 COPY backend/package.json backend/pnpm-lock.yaml ./backend/
 
-# Installer npm puis installer les dépendances
-RUN cd backend && pnpm install --frozen-lockfile
+# 3. Change WORKDIR to the backend folder for subsequent commands
+WORKDIR /app/backend
 
-# Copier le reste du code
-COPY backend/ ./backend/
+# 4. Install dependencies
+RUN pnpm install --frozen-lockfile
 
-# Générer le client Prisma
-RUN cd backend && pnpm prisma generate
+# 5. Copy the rest of the backend source code
+COPY backend/ .
 
-# Exécuter les migrations (en production, utilisez plutôt Railway console)
-RUN cd backend && pnpm prisma migrate deploy || true
+# 6. Generate Prisma client & Build
+RUN pnpm prisma generate
+RUN pnpm build
 
-# Builder l'application
-RUN cd backend && pnpm build
-
-# creation des différents dossier necessaire au bon fonctionnement du système /uploads , /backup , /logs dans le backend 
-RUN mkdir -p /app/backend/uploads /app/backend/backup /app/backend/logs
+# 7. Create necessary directories
+RUN mkdir -p uploads backup logs
 
 EXPOSE 10000
 
-CMD ["node", "backend/dist/src/main.js"]
+# 8. Start the app (adjust path if build output moved)
+CMD ["node", "dist/src/main.js"]
