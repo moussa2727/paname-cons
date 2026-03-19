@@ -5,8 +5,8 @@ FROM node:20-alpine AS builder
 RUN npm install -g pnpm
 
 # Copie des fichiers de dépendances
-COPY package.json pnpm-lock.yaml ./
-COPY prisma ./prisma/
+COPY backend/package.json backend/pnpm-lock.yaml ./
+COPY backend/prisma ./prisma/
 
 # Installation des dépendances
 RUN pnpm install --frozen-lockfile
@@ -37,11 +37,11 @@ WORKDIR /app
 RUN npm install -g pnpm
 
 # Copie des fichiers depuis le builder
-COPY --from=builder --chown=nestjs:nodejs /app/package.json ./
-COPY --from=builder --chown=nestjs:nodejs /app/pnpm-lock.yaml ./
-COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nestjs:nodejs /app/backend/package.json ./
+COPY --from=builder --chown=nestjs:nodejs /app/backend/pnpm-lock.yaml ./
+COPY --from=builder --chown=nestjs:nodejs /app/backend/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/backend/dist ./dist
+COPY --from=builder --chown=nestjs:nodejs /app/backend/prisma ./prisma
 
 # Création des répertoires nécessaires
 RUN mkdir -p ./uploads ./logs ./backup && \
