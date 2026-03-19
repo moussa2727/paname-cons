@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import { PrismaClient, ProcedureStatus, StepName } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { ConfigService } from '@nestjs/config';
@@ -8,25 +13,50 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  private readonly logger = new Logger(PrismaService.name);
+
   constructor(configService: ConfigService) {
+    const databaseUrl =
+      configService.get<string>('DATABASE_URL') || process.env.DATABASE_URL;
+
+    if (!databaseUrl) {
+      throw new Error('DATABASE_URL is not defined in environment variables');
+    }
+
     super({
       adapter: new PrismaPg({
-        connectionString:
-          configService.get<string>('DATABASE_URL') || process.env.DATABASE_URL,
+        connectionString: databaseUrl,
       }),
       log:
-        process.env.NODE_ENV === 'development'
-          ? ['warn', 'error'] // Moins de logs en développement
-          : ['error'],
+        process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
     });
+
+    this.logger.log(`Initializing database connection...`);
   }
 
   async onModuleInit() {
-    await this.$connect();
+    try {
+      this.logger.log('Connecting to database...');
+      await this.$connect();
+      this.logger.log('Database connected successfully');
+
+      // Test connection with a simple query
+      await this.$queryRaw`SELECT 1`;
+      this.logger.log('Database connection test passed');
+    } catch (error) {
+      this.logger.error('Failed to connect to database:', error);
+      throw error;
+    }
   }
 
   async onModuleDestroy() {
-    await this.$disconnect();
+    try {
+      this.logger.log('Disconnecting from database...');
+      await this.$disconnect();
+      this.logger.log('Database disconnected successfully');
+    } catch (error) {
+      this.logger.error('Error disconnecting from database:', error);
+    }
   }
 
   // Middleware pour la gestion des dates

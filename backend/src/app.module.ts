@@ -23,6 +23,9 @@ import { HolidaysModule } from './holidays/holidays.module';
 import { QueueModule } from './queue/queue.module';
 import { SessionModule } from './common/middlewares/session.module';
 
+// Controllers
+import { AppController } from './app.controller';
+
 // Common
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -112,7 +115,7 @@ import { APP_GUARD, APP_PIPE, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
     UploadModule,
   ],
 
-  controllers: [],
+  controllers: [AppController],
 
   providers: [
     // ==================== GUARDS GLOBAUX (ordre important) ====================

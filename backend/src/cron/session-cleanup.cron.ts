@@ -15,6 +15,9 @@ export class SessionCleanupCron {
     this.logger.log('Nettoyage des sessions expirées');
 
     try {
+      // Vérifier la connexion à la base de données
+      await this.prisma.$queryRaw`SELECT 1`;
+
       // Nettoyer les refresh tokens expirés
       const expiredTokens = await this.prisma.refreshToken.updateMany({
         where: {

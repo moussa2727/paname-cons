@@ -172,10 +172,13 @@ async function bootstrap() {
   prismaService.enableShutdownHooks();
 
   // ==================== DÉMARRAGE ====================
+  const host = configService.get<string>('HOST', '0.0.0.0');
   const port = configService.get<number>('PORT', 10000);
-  await app.listen(port, '0.0.0.0');
+  await app.listen(port, host);
 
-  logger.log(`🚀 Serveur démarré sur : http://localhost:${port}`);
+  const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+  const domain = process.env.DOMAIN || host;
+  logger.log(`🚀 Serveur démarré sur : ${protocol}://${domain}:${port}`);
   logger.log(`Environnement : ${process.env.NODE_ENV ?? 'development'}`);
 }
 

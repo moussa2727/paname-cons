@@ -24,6 +24,8 @@ export class RendezvousCleanupCron {
     this.logger.log('Vérification des rendez-vous en attente');
 
     try {
+      // Vérifier la connexion à la base de données
+      await this.prisma.$queryRaw`SELECT 1`;
       // Date limite : il y a 5 heures
       const cutoffTime = new Date(Date.now() - 5 * 60 * 60 * 1000);
 
