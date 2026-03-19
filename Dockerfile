@@ -11,11 +11,11 @@ COPY backend/package.json backend/pnpm-lock.yaml ./backend/
 # Installer les dépendances
 RUN cd backend && pnpm install --frozen-lockfile
 
-# Générer le client Prisma
-RUN cd backend && pnpm prisma generate
-
 # Copier le reste du code
 COPY backend/ ./backend/
+
+# Générer le client Prisma (après avoir copié tout le code)
+RUN cd backend && pnpm prisma generate
 
 # Exécuter les migrations (en production, utilisez plutôt Railway console)
 RUN cd backend && pnpm prisma migrate deploy || true
