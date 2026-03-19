@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:16-alpine
 
 WORKDIR /app
 
@@ -14,19 +14,18 @@ RUN cd backend && pnpm install --frozen-lockfile
 # Copier le reste du code
 COPY backend/ ./backend/
 
-# Sauter la génération Prisma ici - sera fait au démarrage
-# RUN cd backend && pnpm prisma generate
-
-# Exécuter les migrations (en production, utilisez plutôt Railway console)
-RUN cd backend && pnpm prisma migrate deploy || true
+# Générer le client Prisma avant le build
+RUN cd backend && pnpm prisma generate
 
 # Builder l'application
 RUN cd backend && pnpm build
+
+# Exécuter les migrations (en production, utilisez plutôt Railway console)
+RUN cd backend && pnpm prisma migrate deploy || true
 
 # creation des différents dossier necessaire au bon fonctionnement du système /uploads , /backup , /logs dans le backend 
 RUN mkdir -p /app/backend/uploads /app/backend/backup /app/backend/logs
 
 EXPOSE 10000
 
-# Générer Prisma et démarrer l'application
-CMD ["sh", "-c", "cd backend && pnpm prisma generate && node dist/src/main.js"]
+CMD ["node", "backend/dist/src/main.js"]
