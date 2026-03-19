@@ -1,0 +1,10 @@
+{
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "cd backend && npm install pnpm && pnpm install"
+  },
+  "deploy": {
+    "startCommand": "cd backend && pnpm build ; pnpm start",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
