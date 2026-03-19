@@ -1,12 +1,10 @@
 # ==================== DOCKERFILE PRODUCTION - BACKEND NESTJS ====================
 FROM node:20-alpine AS builder
 
-WORKDIR /app
-
 # Installation de pnpm
 RUN npm install -g pnpm
 
-# Copie des fichiers de dépendances (sans préfixe backend car on est dans le contexte backend)
+# Copie des fichiers de dépendances
 COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma/
 
