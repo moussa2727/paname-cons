@@ -6,15 +6,15 @@ WORKDIR /app
 # Installation de pnpm
 RUN npm install -g pnpm
 
-# Copie des fichiers de dépendances
-COPY package.json pnpm-lock.yaml ./
-COPY prisma ./prisma/
+# Copie des fichiers de dépendances du backend
+COPY backend/package.json backend/pnpm-lock.yaml ./
+COPY backend/prisma ./prisma/
 
 # Installation des dépendances
 RUN pnpm install --frozen-lockfile
 
-# Copie du code source
-COPY . .
+# Copie du code source du backend
+COPY backend/ .
 
 # Génération du client Prisma et build
 RUN pnpm prisma generate
@@ -45,7 +45,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 
-# Création des répertoires nécessaires dans le backend
+# Création des répertoires nécessaires
 RUN mkdir -p ./uploads ./logs ./backup && \
     chown -R nestjs:nodejs ./uploads ./logs ./backup
 
