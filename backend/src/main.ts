@@ -34,7 +34,7 @@ async function bootstrap() {
   app.useLogger(logger);
 
   // ==================== SÉCURITÉ ====================
-  app.getHttpAdapter().getInstance().set('trust proxy', 2); // 2 niveaux de proxy
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.use(
     helmet.default({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
