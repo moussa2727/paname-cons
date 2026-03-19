@@ -16,7 +16,10 @@ import { LoggingMiddleware } from './common/middlewares/logging.middleware';
 
 const corsOrigins =
   process.env.NODE_ENV === 'production'
-    ? ['https://panameconsulting.vercel.app', 'https://www.panameconsulting.com']
+    ? [
+        'https://panameconsulting.vercel.app',
+        'https://www.panameconsulting.com',
+      ]
     : ['http://localhost:5173', 'http://localhost:10000'];
 
 async function bootstrap() {

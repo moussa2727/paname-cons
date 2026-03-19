@@ -41,6 +41,8 @@ RUN addgroup --system --gid 1001 nodejs && \
 RUN apk add --no-cache \
     dumb-init \
     curl \
+    postgresql-client \
+    cronie \
     && rm -rf /var/cache/apk/*
 
 # Configuration de base
@@ -59,8 +61,11 @@ COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 
 # Création des répertoires nécessaires avec permissions
-RUN mkdir -p /app/uploads /app/logs && \
-    chown -R nestjs:nodejs /app/uploads /app/logs
+RUN mkdir -p /app/uploads /app/logs /app/backups && \
+    chown -R nestjs:nodejs /app/uploads /app/logs /app/backups
+
+# Rendre le script de backup exécutable
+RUN chmod +x /app/scripts/backup.sh
 
 # Changement d'utilisateur pour la sécurité
 USER nestjs
@@ -72,6 +77,6 @@ ENV PORT=10000
 # Exposition du port
 EXPOSE 10000
 
-# Démarrage de l'application avec dumb-init pour la gestion des signaux
+# Démarrage de l'application avec dumb-init et le script de démarrage
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/src/main.js"]
+CMD ["/app/scripts/start.sh"]
