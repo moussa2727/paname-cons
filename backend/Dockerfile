@@ -45,9 +45,9 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 
-# Création des répertoires nécessaires
-RUN mkdir -p /app/uploads /app/logs /app/backend/backups && \
-    chown -R nestjs:nodejs /app/uploads /app/logs /app/backend/backups
+# Création des répertoires nécessaires dans le backend
+RUN mkdir -p ./uploads ./logs ./backup && \
+    chown -R nestjs:nodejs ./uploads ./logs ./backup
 
 # Changement d'utilisateur
 USER nestjs
