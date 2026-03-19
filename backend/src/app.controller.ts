@@ -1,10 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Public } from './common/decorators/public.decorator';
 
 @Controller()
 export class AppController {
   constructor(private configService: ConfigService) {}
 
+  @Public()
   @Get()
   getRoot() {
     return {
@@ -15,6 +17,7 @@ export class AppController {
     };
   }
 
+  @Public()
   @Get('api')
   getApiInfo() {
     return {
@@ -35,6 +38,7 @@ export class AppController {
     };
   }
 
+  @Public()
   @Get('health')
   getHealth() {
     return {

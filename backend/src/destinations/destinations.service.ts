@@ -69,8 +69,11 @@ export class DestinationService {
         }
         this.logger.log('Images orphelins supprimés');
       }
-    } catch {
-      this.logger.error("Erreur lors de l'initialisation des destinations");
+    } catch (error) {
+      this.logger.error(
+        "Erreur lors de l'initialisation des destinations",
+        error,
+      );
     }
   }
 
