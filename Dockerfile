@@ -32,4 +32,4 @@ RUN mkdir -p /app/backend/uploads /app/backend/backup /app/backend/logs
 EXPOSE 10000
 
 # Initialize database and start application
-CMD ["sh", "-c", "./backend/scripts/init-database.sh && node backend/dist/src/main.js"]
+CMD ["/bin/sh", "-c", "cd /app && ./backend/scripts/init-database.sh && node backend/dist/src/main.js"]
