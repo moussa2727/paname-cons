@@ -7,9 +7,9 @@ Disallow: /gestionnaire/
 Disallow: /gestionnaire/*
 
 # Pages utilisateur protégées - interdites
-Disallow: /mon-profil
-Disallow: /mes-rendez-vous
-Disallow: /ma-procedure
+Disallow: /user/mon-profil
+Disallow: /user/mes-rendezvous
+Disallow: /user/mes-procedure
 
 # Pages auth - interdites
 Disallow: /connexion
@@ -20,8 +20,12 @@ Disallow: /reset-password
 # Fichiers système et documents
 Disallow: /*.json$
 Disallow: /documents/
+Disallow: /info/*
+Disallow: /info/
+Disallow: /info
+
 Crawl-delay: 1
 
 # Sitemaps
 Sitemap: https://panameconsulting.com/sitemap.xml
-Sitemap: https://panameconsulting.vercel.app/sitemap.xml
+Sitemap: https://panameconsulting.com/sitemap.xml

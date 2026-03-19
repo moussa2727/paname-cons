@@ -1,495 +1,209 @@
 import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useState,
-  ReactNode,
-} from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import AOS from 'aos';
-import 'aos/dist/aos.css';
-import { Helmet } from 'react-helmet-async';
-import ErrorBoundary from './components/ErrorBoundary';
-import { useAuth } from './context/AuthContext';
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Outlet,
+} from "react-router-dom";
+import { lazy } from "react";
+import ErrorBoundary from "./components/shared/ui/ErrorBoundary";
 
-// Components communs
-import Header from './components/Header';
-import Footer from './components/Footer';
-import Loader from './components/Loader';
+// Layouts
+import RootLayout from "./components/shared/Layouts/RootLayout";
+import UserLayout from "./components/shared/Layouts/UserLayout";
+import GestionnaireLayout from "./components/shared/Layouts/GestionnaireLayout";
+import AuthLayout from "./components/shared/Layouts/AuthLayout";
+import { Toaster } from "react-hot-toast";
+import ScrollToTop from "./components/shared/ui/ScrollToTop";
 
 // Pages publiques
-import Accueil from './pages/Accueil';
-import Contact from './pages/Contact';
-import Propos from './pages/Propos';
-import Services from './pages/Services';
-import NotFound from './pages/Notfound';
-import RendezVous from './pages/user/rendezvous/RendezVous';
-import PDFViewer from './pages/PDFViewer';
+const Home = lazy(() => import("./pages/(main)/Home"));
+const Services = lazy(() => import("./pages/(main)/Services"));
+const Contact = lazy(() => import("./pages/(main)/Contact"));
+const About = lazy(() => import("./pages/(main)/About"));
+const PDFViewer = lazy(() => import("./pages/(main)/PDFViewer"));
 
-// Pages de connexion, inscription, mot de passe oublié
-import Connexion from './pages/user/auth/Connexion';
-import Inscription from './pages/user/auth/Inscription';
-import MotdePasseoublie from './pages/user/auth/MotdePasseoublie';
+// Pages auth
+const Login = lazy(() => import("./pages/auth/Login"));
+const Register = lazy(() => import("./pages/auth/Register"));
+const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/auth/ResetPassword"));
 
-// Pages admin (lazy loaded)
-const UsersManagement = lazy(() => import('./pages/admin/UsersManagement'));
-const AdminLayout = lazy(() => import('./AdminLayout'));
-const AdminMessages = lazy(() => import('./pages/admin/AdminMessages'));
-const AdminProfile = lazy(() => import('./pages/admin/AdminProfile'));
-const AdminProcedure = lazy(() => import('./pages/admin/AdminProcedure'));
-const AdminDestinations = lazy(() => import('./pages/admin/AdminDestinations'));
-const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
-const AdminRendezVous = lazy(() => import('./pages/admin/AdminRendez-Vous'));
+// Pages user
+const Profile = lazy(() => import("./pages/user/profile/MonProfile"));
+const Maprocedure = lazy(() => import("./pages/user/procedures/Maprocedure"));
+const MesRendezVous = lazy(
+  () => import("./pages/user/rendezvous/MesRendezVous"),
+);
+const UserRendezVous = lazy(() => import("./pages/user/rendezvous/RendezVous"));
 
-// Restrictions admin
-import RequireAdmin from './context/RequireAdmin';
+// Pages gestionnaire
+const Statistiques = lazy(
+  () => import("./pages/gestionnaire/statistiques/Statistiques"),
+);
+const Utilisateurs = lazy(
+  () => import("./pages/gestionnaire/utilisateurs/Utilisateurs"),
+);
+const Destinations = lazy(
+  () => import("./pages/gestionnaire/destinations/Destinations"),
+);
+const AdminRendezvous = lazy(
+  () => import("./pages/gestionnaire/rendezvous/Rendezvous"),
+);
+const Messages = lazy(() => import("./pages/gestionnaire/messages/Messages"));
+const Profil = lazy(() => import("./pages/gestionnaire/profil/Profil"));
+const Procedures = lazy(
+  () => import("./pages/gestionnaire/procedures/Procedures"),
+);
+const ProcedureDetail = lazy(
+  () => import("./pages/gestionnaire/procedures/[id]"),
+);
 
-import MesRendezVous from './pages/user/rendezvous/MesRendezVous';
-import UserProfile from './pages/user/UserProfile';
-import UserProcedure from './pages/user/UserProcedure';
-import ResetPassword from './components/auth/ResetPassword';
+// NotFound
+const NotFound = lazy(() => import("./pages/NotFound"));
 
-// Layout pour les pages publiques
-const PublicLayout = ({ children }: { children: ReactNode }) => {
-  return (
-    <div className='flex flex-col min-h-screen w-full overflow-x-hidden touch-pan-y'>
-      <Header />
-      <main className='flex-1 mt-20'>{children}</main>
-      <Footer />
-    </div>
-  );
-};
-
-// Layout minimal sans Header ni Footer
-const MinimalLayout = ({ children }: { children: ReactNode }) => {
-  return (
-    <div className='flex flex-col min-h-screen w-full overflow-x-hidden touch-pan-y'>
-      <main className='flex-1'>{children}</main>
-    </div>
-  );
-};
-
-// Layout pour la page d'accueil avec loader intégré
-const AccueilLayout = ({ children }: { children: ReactNode }) => {
-  const location = useLocation();
-  const [showLoader, setShowLoader] = useState(true);
-
-  useEffect(() => {
-    // Timer pour montrer le loader sur la page d'accueil seulement
-    const timer = setTimeout(() => {
-      setShowLoader(false);
-    }, 2000); // Durée du loader sur la page d'accueil
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Si ce n'est pas la page d'accueil, ne pas montrer le loader
-  if (location.pathname !== '/') {
-    return (
-      <div className='flex flex-col min-h-screen w-full overflow-x-hidden touch-pan-y'>
-        <Header />
-        <main className='flex-1 mt-20'>{children}</main>
-        <Footer />
-      </div>
-    );
-  }
-
-  return (
-    <div className='flex flex-col min-h-screen w-full overflow-x-hidden touch-pan-y'>
-      <Header />
-      <main className='flex-1 mt-20'>
-        {/* Loader uniquement sur la page d'accueil */}
-        {showLoader ? (
-          <div className='fixed inset-0 flex items-center justify-center bg-white z-50'>
-            <Loader />
-          </div>
-        ) : null}
-        {/* Contenu avec transition */}
-        <div
-          className={
-            showLoader
-              ? 'opacity-0'
-              : 'opacity-100 transition-opacity duration-500'
-          }
-        >
-          {children}
-        </div>
-      </main>
-      <Footer />
-    </div>
-  );
-};
-
+// ─── App : fournit le Router et le Toaster ──────────────────────────────────
 function App() {
-  const location = useLocation();
-  const [navigationKey, setNavigationKey] = useState(0);
-  const { isLoading, isAuthenticated, user, isMaintenanceMode } = useAuth();
-  const [isAOSInitialized, setIsAOSInitialized] = useState(false);
-
-  const safeScrollToTop = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    if (typeof globalThis.window === 'undefined') return;
-
-    try {
-      globalThis.window.scrollTo({
-        top: 0,
-        behavior: behavior,
-      });
-    } catch {
-      globalThis.window.scrollTo(0, 0);
-    }
-  }, []);
-
-  useEffect(() => {
-    safeScrollToTop();
-
-    const handlePopState = () => {
-      safeScrollToTop('auto');
-      setNavigationKey(prev => prev + 1);
-    };
-
-    globalThis.window.addEventListener('popstate', handlePopState);
-    return () => {
-      globalThis.window.removeEventListener('popstate', handlePopState);
-    };
-  }, [location.pathname, safeScrollToTop]);
-
-  useEffect(() => {
-    if (typeof globalThis.window === 'undefined' || isAOSInitialized) return;
-
-    AOS.init({
-      duration: 600,
-      once: true,
-      easing: 'ease-out-cubic',
-      offset: 50,
-    });
-
-    setIsAOSInitialized(true);
-  }, [isAOSInitialized]);
-
-  // Loader global pendant le chargement de l'authentification
-  if (isLoading) {
-    return <Loader />;
-  }
-
-  // Vérification pour le mode maintenance
-  const isAdmin = user?.isAdmin === true || user?.role === 'admin';
-
   return (
-    <ErrorBoundary>
-      <Helmet>
-        <title>
-          Paname Consulting - Études à l'Étranger, Voyages d'Affaires & demandes
-          de Visas
-        </title>
-        <meta
-          name='description'
-          content="Paname Consulting : expert en accompagnement étudiant à l'étranger, organisation de voyages d'affaires et demandes de visa. Conseil personnalisé pour votre réussite internationale."
-        />
-        <meta http-equiv='X-UA-Compatible' content='IE=edge' />
-        <meta
-          name='viewport'
-          content='width=device-width, initial-scale=1, maximum-scale=5'
-        />
-        <link rel='icon' href='/images/paname-consulting.ico' sizes='any' />
-        <link rel='icon' href='/images/paname-consulting.svg' type='image/svg+xml' />
-        <link rel='apple-touch-icon' href='/images/paname-consulting.png' />
-        <link rel='manifest' href='/manifest.json' />
-        <meta property='og:url' content='https://panameconsulting.vercel.app' />
-      </Helmet>
+    <>
+      <Router>
+        <ScrollToTop />
+        <ErrorBoundary>
+          <Routes>
+            {/* Routes publiques */}
+            <Route path="/" element={<RootLayout />}>
+              <Route index element={<Home />} />
+              <Route path="services" element={<Services />} />
+              <Route path="contact" element={<Contact />} />
+              <Route path="a-propos" element={<About />} />
+            </Route>
 
-      <div key={navigationKey}>
-        <Routes>
-          {/* Page d'accueil avec loader */}
-          <Route
-            path='/'
-            element={
-              <AccueilLayout>
-                <Accueil />
-              </AccueilLayout>
-            }
-          />
-
-          {/* Autres pages publiques sans loader */}
-          <Route
-            path='/services'
-            element={
-              <PublicLayout>
-                <Services />
-              </PublicLayout>
-            }
-          />
-
-          <Route
-            path='/contact'
-            element={
-              <PublicLayout>
-                <Contact />
-              </PublicLayout>
-            }
-          />
-
-          <Route
-            path='/a-propos'
-            element={
-              <PublicLayout>
-                <Propos />
-              </PublicLayout>
-            }
-          />
-
-          <Route
-            path='/info/:documentName'
-            element={
-              <MinimalLayout>
-                <PDFViewer />
-              </MinimalLayout>
-            }
-          />
-
-          {/* <Route
-            path='/politique-de-confidentialite'
-            element={
-              <MinimalLayout>
-                <PolitiqueConfidentialite />
-              </MinimalLayout>
-            }
-          />
-
-          <Route
-            path='/conditions-generales'
-            element={
-              <MinimalLayout>
-                <ConditionsGenerales />
-              </MinimalLayout>
-            }
-          />
-
-          <Route
-            path='/mentions-legales'
-            element={
-              <MinimalLayout>
-                <MentionsLegales />
-              </MinimalLayout>
-            }
-          /> */}
-
-          {/* Routes authentifiées (utilisateurs) */}
-          <Route
-            path='/rendez-vous'
-            element={
-              isAuthenticated ? (
-                <MinimalLayout>
-                  <RendezVous />
-                </MinimalLayout>
-              ) : (
-                <Navigate
-                  to='/connexion'
-                  replace
-                  state={{ from: location.pathname }}
-                />
-              )
-            }
-          />
-
-          <Route
-            path='/mes-rendez-vous'
-            element={
-              isAuthenticated ? (
-                <MinimalLayout>
-                  <MesRendezVous />
-                </MinimalLayout>
-              ) : (
-                <Navigate
-                  to='/connexion'
-                  replace
-                  state={{ from: location.pathname }}
-                />
-              )
-            }
-          />
-
-          <Route
-            path='/mon-profil'
-            element={
-              isAuthenticated ? (
-                <MinimalLayout>
-                  <UserProfile />
-                </MinimalLayout>
-              ) : (
-                <Navigate
-                  to='/connexion'
-                  replace
-                  state={{ from: location.pathname }}
-                />
-              )
-            }
-          />
-
-          <Route
-            path='/ma-procedure'
-            element={
-              isAuthenticated ? (
-                <MinimalLayout>
-                  <UserProcedure />
-                </MinimalLayout>
-              ) : (
-                <Navigate
-                  to='/connexion'
-                  replace
-                  state={{ from: location.pathname }}
-                />
-              )
-            }
-          />
-
-          {/* Routes d'authentification */}
-          <Route
-            path='/reset-password'
-            element={
-              <MinimalLayout>
-                <ResetPassword />
-              </MinimalLayout>
-            }
-          />
-
-          <Route
-            path='/connexion'
-            element={
-              isAuthenticated ? (
-                <Navigate
-                  to={isAdmin ? '/gestionnaire/statistiques' : '/'}
-                  replace
-                />
-              ) : (
-                <MinimalLayout>
-                  <Connexion />
-                </MinimalLayout>
-              )
-            }
-          />
-
-          <Route
-            path='/inscription'
-            element={
-              isAuthenticated ? (
-                <Navigate
-                  to={isAdmin ? '/gestionnaire/statistiques' : '/'}
-                  replace
-                />
-              ) : (
-                <MinimalLayout>
-                  <Inscription />
-                </MinimalLayout>
-              )
-            }
-          />
-
-          <Route
-            path='/mot-de-passe-oublie'
-            element={
-              isAuthenticated ? (
-                <Navigate
-                  to={isAdmin ? '/gestionnaire/statistiques' : '/'}
-                  replace
-                />
-              ) : (
-                <MinimalLayout>
-                  <MotdePasseoublie />
-                </MinimalLayout>
-              )
-            }
-          />
-
-          {/* Routes admin - TOUTES LES ROUTES EXPLICITES */}
-          <Route path='/gestionnaire' element={<NotFound />} />
-
-          {/* Routes admin avec vérification maintenance */}
-          {[
-            '/gestionnaire/statistiques',
-            '/gestionnaire/utilisateurs',
-            '/gestionnaire/messages',
-            '/gestionnaire/procedures',
-            '/gestionnaire/profil',
-            '/gestionnaire/destinations',
-            '/gestionnaire/rendez-vous',
-          ].map(path => (
+            {/* Auth */}
             <Route
-              key={path}
-              path={path}
+              path="/connexion"
               element={
-                // Vérification maintenance avant tout
-                isMaintenanceMode && !isAdmin ? (
-                  <Navigate
-                    to='/'
-                    replace
-                    state={{
-                      message:
-                        'Mode maintenance activé. Accès réservé aux administrateurs.',
-                      from: location.pathname,
-                    }}
-                  />
-                ) : (
-                  // Protection admin standard
-                  <RequireAdmin>
-                    <Suspense fallback={<Loader />}>
-                      <AdminLayout>
-                        {path === '/gestionnaire/statistiques' && (
-                          <AdminDashboard />
-                        )}
-                        {path === '/gestionnaire/utilisateurs' && (
-                          <UsersManagement />
-                        )}
-                        {path === '/gestionnaire/messages' && <AdminMessages />}
-                        {path === '/gestionnaire/procedures' && (
-                          <AdminProcedure />
-                        )}
-                        {path === '/gestionnaire/profil' && <AdminProfile />}
-                        {path === '/gestionnaire/destinations' && (
-                          <AdminDestinations />
-                        )}
-                        {path === '/gestionnaire/rendez-vous' && (
-                          <AdminRendezVous />
-                        )}
-                      </AdminLayout>
-                    </Suspense>
-                  </RequireAdmin>
-                )
+                <AuthLayout>
+                  <Login />
+                </AuthLayout>
               }
             />
-          ))}
+            <Route
+              path="/inscription"
+              element={
+                <AuthLayout>
+                  <Register />
+                </AuthLayout>
+              }
+            />
+            <Route
+              path="/mot-de-passe-oublie"
+              element={
+                <AuthLayout>
+                  <ForgotPassword />
+                </AuthLayout>
+              }
+            />
+            <Route
+              path="/reinitialiser-mot-de-passe"
+              element={
+                <AuthLayout>
+                  <ResetPassword />
+                </AuthLayout>
+              }
+            />
 
-          {/* Routes admin avec chemin dynamique */}
-          <Route
-            path='/gestionnaire/*'
-            element={
-              isMaintenanceMode && !isAdmin ? (
-                <Navigate
-                  to='/'
-                  replace
-                  state={{
-                    message:
-                      'Mode maintenance activé. Accès réservé aux administrateurs.',
-                    from: location.pathname,
-                  }}
-                />
-              ) : (
-                <RequireAdmin>
-                  <Suspense fallback={<Loader />}>
-                    <AdminLayout>
-                      <NotFound />
-                    </AdminLayout>
-                  </Suspense>
-                </RequireAdmin>
-              )
-            }
-          />
+            {/* PDF */}
+            <Route
+              path="/info/:documentName"
+              element={
+                <ErrorBoundary>
+                  <PDFViewer />
+                </ErrorBoundary>
+              }
+            />
 
-          {/* Route 404 pour toutes les autres routes */}
-          <Route path='*' element={<NotFound />} />
-        </Routes>
-      </div>
-    </ErrorBoundary>
+            {/* Rendez-vous public */}
+            <Route path="/rendez-vous" element={<UserRendezVous />} />
+
+            {/* User */}
+            <Route
+              path="/user"
+              element={
+                <UserLayout>
+                  <Outlet />
+                </UserLayout>
+              }
+            >
+              <Route path="mon-profil" element={<Profile />} />
+              <Route path="mes-procedures" element={<Maprocedure />} />
+              <Route path="mes-rendezvous" element={<MesRendezVous />} />
+            </Route>
+
+            {/* Gestionnaire */}
+            <Route path="/gestionnaire" element={<GestionnaireLayout />}>
+              <Route path="statistiques" element={<Statistiques />} />
+              <Route path="utilisateurs" element={<Utilisateurs />} />
+              <Route path="destinations" element={<Destinations />} />
+              <Route path="rendezvous" element={<AdminRendezvous />} />
+              <Route path="procedures" element={<Procedures />} />
+              <Route path="procedures/:id" element={<ProcedureDetail />} />
+              <Route path="messages" element={<Messages />} />
+              <Route path="profil" element={<Profil />} />
+            </Route>
+
+            {/* 404 */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </ErrorBoundary>
+      </Router>
+
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          // Style par défaut
+          style: {
+            background: "#363636",
+            color: "#fff",
+          },
+          // Style pour les succès (VERT)
+          success: {
+            duration: 3000,
+            style: {
+              background: "#10b981", // Vert
+              color: "#fff",
+            },
+            iconTheme: {
+              primary: "#fff", // Icône blanche
+              secondary: "#10b981", // Fond vert
+            },
+          },
+          // Style pour les erreurs (ROUGE)
+          error: {
+            duration: 4000,
+            style: {
+              background: "#ef4444", // Rouge
+              color: "#fff",
+            },
+            iconTheme: {
+              primary: "#fff", // Icône blanche
+              secondary: "#ef4444", // Fond rouge
+            },
+          },
+          // Style personnalisé pour les warnings (ORANGE)
+          custom: {
+            duration: 3500,
+            style: {
+              background: "#f97316", // Orange
+              color: "#fff",
+            },
+            iconTheme: {
+              primary: "#fff", // Icône blanche
+              secondary: "#f97316", // Fond orange
+            },
+          },
+        }}
+      />
+    </>
   );
 }
 

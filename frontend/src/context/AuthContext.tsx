@@ -1,737 +1,834 @@
-import {
+/* ============================================================
+ * AuthContext.tsx
+ * ------------------------------------------------------------
+ * Séparation STRICTE :
+ *   - BackendDTO_*   → forme exacte renvoyée par le backend
+ *   - App*           → état exploité côté frontend
+ *
+ * Cookies httpOnly (access_token, refresh_token) : gérés par
+ * le navigateur via credentials: "include" — jamais lisibles
+ * en JS/TS car httpOnly. On ne tente JAMAIS de les lire via
+ * document.cookie.
+ *
+ * Cookie frontend : remember_me uniquement (non-httpOnly),
+ * géré via document.cookie (API JS native, pas de lib tierce).
+ * C'est le SEUL signal lisible en JS/TS indiquant qu'une
+ * session a déjà été ouverte sur ce navigateur.
+ *
+ * checkAuth utilise remember_me comme garde préalable :
+ *   • remember_me présent  → session potentielle → requête réseau
+ *   • remember_me absent   → jamais connecté sur ce navigateur
+ *                            → setUser(null) immédiat, zéro requête
+ *
+ * Durées alignées sur auth.constants.ts (backend) :
+ *   • access_token          : 15 min  (ACCESS_TOKEN_EXPIRATION_MS)
+ *   • refresh_token normal  :  7 jours (REFRESH_TOKEN_EXPIRATION_MS)
+ *   • refresh_token remember: 14 jours (REMEMBER_ME_EXPIRATION_MS)
+ *   • session max absolue   : 30 jours (SESSION_MAX_DURATION_MS)
+ *     → géré exclusivement côté backend (rotateToken +
+ *       cleanupInactiveSessions), transparent pour le frontend
+ *
+ * remember_me expire :
+ *   • naturellement (max-age 7 ou 14 jours)
+ *   • quand checkAuth/refreshToken confirme que la session est
+ *     définitivement morte côté backend (refresh échoué)
+ * Il NE doit PAS être supprimé au logout : l'utilisateur peut
+ * vouloir se reconnecter et le cookie httpOnly refresh_token
+ * n'est pas encore forcément expiré.
+ *
+ * refreshTokenRef : stocke le refresh_token reçu dans le body
+ * du login / refresh pour le passer dans le body du
+ * /auth/refresh en fallback si le cookie httpOnly est bloqué
+ * (dev HTTP / Safari ITP).
+ *
+ * apiFetch : singleton de retry 401 → refresh → replay.
+ * Le refresh est TOUJOURS tenté sur un 401 — on ne conditionne
+ * jamais sur la lisibilité d'un cookie httpOnly.
+ *
+ * Réponse de /auth/refresh (backend) :
+ *   { message: string, data: { refresh_token: string } }
+ * Le nouveau refresh_token est extrait via body.data.refresh_token
+ * pour mettre à jour le fallback mémoire (_refreshTokenValue).
+ * ============================================================ */
+
+import React, {
   createContext,
-  useContext,
   useState,
   useEffect,
-  ReactNode,
-  useRef,
   useCallback,
-} from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
+  useRef,
+} from "react";
+import { toast } from "react-hot-toast";
+import type {
+  AppUser,
+  AuthContextType,
+  BackendDTO_ApiResponse,
+  BackendDTO_LoginData,
+  BackendDTO_RegisterData,
+  BackendDTO_ProfileData,
+  BackendDTO_LogoutAllData,
+  BackendDTO_ForgotPasswordData,
+  BackendDTO_ResetPasswordData,
+  BackendDTO_ChangePasswordData,
+} from "../types/auth.types";
 
-// ==================== INTERFACES ====================
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: UserRole;
-  isActive: boolean;
-  telephone: string;
-  isAdmin?: boolean;
+const API_URL = import.meta.env.VITE_API_URL as string;
+
+export { API_URL };
+
+// ─────────────────────────────────────────────────────────────
+// § 1 — Durées alignées sur auth.constants.ts (backend)
+//        Utilisées uniquement pour le cookie remember_me
+//        (non-httpOnly, seul cookie gérable côté JS/TS).
+//
+//  access_token et refresh_token sont httpOnly → leur durée
+//  est gérée exclusivement par le backend via res.cookie().
+//  On ne pose NI n'expire ces cookies côté frontend.
+// ─────────────────────────────────────────────────────────────
+
+const REMEMBER_ME_MAX_AGE_S = 14 * 24 * 60 * 60; // 14 jours
+const SESSION_NORMAL_MAX_AGE_S = 7 * 24 * 60 * 60; //  7 jours
+const ACCESS_TOKEN_EXPIRES_IN_S = 15 * 60; // 15 min (= expires_in backend)
+
+// ─────────────────────────────────────────────────────────────
+// § 2 — COOKIE remember_me  (non-httpOnly — seul cookie lisible
+//        en JS/TS)
+//
+//  IMPORTANT : access_token et refresh_token sont httpOnly →
+//  JAMAIS présents dans document.cookie côté JS/TS.
+//  Ne jamais écrire de condition basée sur leur présence.
+// ─────────────────────────────────────────────────────────────
+
+function getRememberMeCookie(): boolean {
+  // On vérifie uniquement la PRÉSENCE du cookie, pas sa valeur.
+  // Sa présence signifie qu'une session a déjà été ouverte sur
+  // ce navigateur. Il expire naturellement (7 ou 14 jours selon
+  // que remember_me a été coché ou non au login).
+  return document.cookie
+    .split("; ")
+    .some((row) => row.startsWith("remember_me="));
 }
 
-enum UserRole {
-  ADMIN = 'admin',
-  USER = 'user',
+function setRememberMeCookie(value: boolean, maxAgeSeconds: number): void {
+  // sameSite=None + Secure pour correspondre aux cookies httpOnly du backend
+  document.cookie =
+    `${encodeURIComponent("remember_me")}=${encodeURIComponent(String(value))}` +
+    `; path=/` +
+    `; max-age=${maxAgeSeconds}` +
+    `; SameSite=None` +
+    `; Secure`;
 }
 
-interface RegisterFormData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  telephone: string;
-  password: string;
+function deleteRememberMeCookie(): void {
+  document.cookie =
+    `${encodeURIComponent("remember_me")}=` + `; path=/` + `; max-age=0`;
 }
 
-interface LoginResponse {
-  access_token: string;
-  refresh_token?: string;
-  user: User;
-  message?: string;
-}
+// ─────────────────────────────────────────────────────────────
+// § 3 — MAPPERS  DTO → AppUser
+// ─────────────────────────────────────────────────────────────
 
-
-interface RefreshResponse {
-  access_token: string;
-  refresh_token?: string;
-  message: string;
-  expiresIn: number;
-  sessionExpired?: boolean;
-}
-
-interface LogoutAllResponse {
-  message: string;
-  success: boolean;
-  stats?: {
-    usersLoggedOut: number;
-    adminPreserved: boolean;
-    adminEmail: string;
-    duration: string;
-    timestamp: string;
-    userEmails: string[];
+function mapLoginUserToAppUser(dto: BackendDTO_LoginData["user"]): AppUser {
+  return {
+    id: dto.id,
+    email: dto.email,
+    firstName: dto.firstName,
+    lastName: dto.lastName,
+    fullName: dto.fullName,
+    telephone: dto.telephone,
+    role: dto.role,
+    isActive: dto.isActive,
+    canLogin: dto.canLogin,
+    isTemporarilyLoggedOut: dto.isTemporarilyLoggedOut,
+    logoutUntil: dto.logoutUntil,
+    lastLogout: null, // non fourni par /auth/login
+    lastLogin: dto.lastLogin,
+    loginCount: dto.loginCount,
+    logoutCount: 0, // non fourni par /auth/login
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
   };
 }
 
-
-interface MaintenanceStatus {
-  isActive: boolean;
-  enabledAt: string | null;
-  message: string;
+function mapProfileToAppUser(dto: BackendDTO_ProfileData): AppUser {
+  return {
+    id: dto.id,
+    email: dto.email,
+    firstName: dto.firstName,
+    lastName: dto.lastName,
+    fullName: dto.fullName,
+    telephone: dto.telephone,
+    role: dto.role,
+    isActive: dto.isActive,
+    canLogin: dto.canLogin,
+    isTemporarilyLoggedOut: dto.isTemporarilyLoggedOut,
+    logoutUntil: dto.logoutUntil,
+    lastLogout: dto.lastLogout,
+    lastLogin: dto.lastLogin,
+    loginCount: dto.loginCount,
+    logoutCount: dto.logoutCount,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
+  };
 }
 
-interface AuthContextType {
-  user: User | null;
-  access_token: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  logoutAll: () => Promise<LogoutAllResponse>;
-  register: (data: RegisterFormData) => Promise<void>;
-  forgotPassword: (email: string) => Promise<void>;
-  refreshToken: () => Promise<boolean>;
-  resetPassword: (token: string, newPassword: string) => Promise<void>;
-  updateProfile: () => Promise<void>;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
-  fetchWithAuth: <T = any>(endpoint: string, options?: RequestInit) => Promise<T>;
-  maintenanceStatus: MaintenanceStatus | null;
-  isMaintenanceMode: boolean;
-  checkMaintenanceStatus: () => Promise<void>;
-  toggleMaintenanceMode: (enabled: boolean) => Promise<boolean>;
-  clearAuthToasts: () => void;
+// ─────────────────────────────────────────────────────────────
+// § 4 — apiFetch : requête HTTP + retry automatique sur 401
+//
+//  Stratégie :
+//    1. Exécute la requête avec credentials: "include"
+//       (les cookies httpOnly partent automatiquement).
+//    2. Si la réponse n'est pas 401 → retourne directement.
+//    3. Sur 401 → tente POST /auth/refresh :
+//         - le cookie httpOnly refresh_token est envoyé auto
+//           par le navigateur (credentials: "include")
+//         - _refreshTokenValue est passé dans le body en
+//           fallback (Safari ITP, dev HTTP sans cookie)
+//    4. Si le refresh réussit → rejoue la requête originale.
+//    5. Si le refresh échoue  → propage le 401 original.
+//
+//  Réponse /auth/refresh : { message, data: { refresh_token } }
+//  On extrait body.data.refresh_token pour le fallback mémoire.
+//
+//  On ne conditionne JAMAIS le retry sur la présence d'un
+//  cookie httpOnly (illisible en JS/TS).
+// ─────────────────────────────────────────────────────────────
+
+let _isRefreshing = false;
+let _refreshQueue: Array<(success: boolean) => void> = [];
+
+// Valeur du refresh_token reçu dans le body (fallback cookie httpOnly bloqué)
+let _refreshTokenValue: string | null = null;
+
+export function _setRefreshTokenValue(token: string | null): void {
+  _refreshTokenValue = token;
 }
 
-// ==================== CONTEXT ====================
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+function enqueueRefreshCallback(cb: (success: boolean) => void): void {
+  _refreshQueue.push(cb);
+}
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const navigate = useNavigate();
+function flushRefreshQueue(success: boolean): void {
+  _refreshQueue.forEach((cb) => cb(success));
+  _refreshQueue = [];
+}
 
-  // ==================== ÉTATS ====================
-  const [user, setUser] = useState<User | null>(null);
-  const [access_token, setAccessToken] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [maintenanceStatus, setMaintenanceStatus] = useState<MaintenanceStatus | null>(null);
-
-  // Refs pour éviter les boucles
-  const refreshTimeoutRef = useRef<number | null>(null);
-  const isRefreshingRef = useRef(false);
-  const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
-  const authCheckDoneRef = useRef(false);
-  const refreshAttemptsRef = useRef(0);
-  const accessTokenRef = useRef<string | null>(null);
-
-  // ==================== CONSTANTS ====================
-  const AUTH_CONSTANTS = {
-    ACCESS_TOKEN_EXPIRATION_MS: 15 * 60 * 1000,
-    REFRESH_TOKEN_EXPIRATION_MS: 30 * 60 * 1000,
-    PREVENTIVE_REFRESH_MS: 5 * 60 * 1000,
-    MAX_REFRESH_ATTEMPTS: 3,
-    REFRESH_COOLDOWN_MS: 5000,
-
-    ERROR_CODES: {
-      PASSWORD_RESET_REQUIRED: 'PASSWORD RESET REQUIRED',
-      INVALID_CREDENTIALS: 'INVALID CREDENTIALS',
-      COMPTE_DESACTIVE: 'COMPTE DESACTIVE',
-      COMPTE_TEMPORAIREMENT_DECONNECTE: 'COMPTE TEMPORAIREMENT DECONNECTE',
-      MAINTENANCE_MODE: 'MAINTENANCE MODE',
-      SESSION_EXPIRED: 'SESSION EXPIREE',
-      INVALID_TOKEN_TYPE: 'INVALID_TOKEN_TYPE',
-    } as const,
-  } as const;
-
-  const API_CONFIG = {
-    BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:10000',
-    ENDPOINTS: {
-      LOGIN: '/api/auth/login',
-      REGISTER: '/api/auth/register',
-      REFRESH: '/api/auth/refresh',
-      LOGOUT: '/api/auth/logout',
-      LOGOUT_ALL: '/api/auth/logout-all',
-      ME: '/api/auth/me',
-      FORGOT_PASSWORD: '/api/auth/forgot-password',
-      RESET_PASSWORD: '/api/auth/reset-password',
-      MAINTENANCE_STATUS: '/api/users/maintenance-status',
-      MAINTENANCE_MODE: '/api/users/maintenance-mode',
+export async function apiFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const options: RequestInit = {
+    ...init,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
     },
-  } as const;
+  };
 
-  const REDIRECT_PATHS = {
-    LOGIN: '/connexion',
-    DASHBOARD: '/tableau-de-bord',
-    ADMIN_DASHBOARD: '/admin/tableau-de-bord',
-  } as const;
+  const response = await fetch(input, options);
 
-  const TOAST_MESSAGES = {
-    LOGIN_SUCCESS: 'Connexion réussie !',
-    LOGOUT_SUCCESS: 'Déconnexion réussie',
-    REGISTER_SUCCESS: 'Inscription réussie !',
-    PASSWORD_RESET_SENT: 'Email de réinitialisation envoyé',
-    PASSWORD_RESET_SUCCESS: 'Mot de passe réinitialisé avec succès',
-    SESSION_EXPIRED: 'Votre session a expiré, veuillez vous reconnecter',
-    ACCOUNT_DISABLED: 'Compte désactivé. Contactez l\'administrateur.',
-    ADMIN_DISCONNECT: 'Déconnexion administrative',
-    MAINTENANCE_MODE: 'Système en maintenance',
-    VALIDATION_ERROR: 'Veuillez vérifier les informations saisies.',
-  } as const;
+  // Pas un 401 → retour direct, rien à faire
+  if (response.status !== 401) return response;
 
-  // Système de toasts uniques
-  const toastRegistry = useRef<Set<string>>(new Set());
-  const TOAST_IDS = {
-    LOGIN_SUCCESS: 'auth-login-success',
-    LOGOUT_SUCCESS: 'auth-logout-success', 
-    REGISTER_SUCCESS: 'auth-register-success',
-    PASSWORD_RESET_SENT: 'auth-password-reset-sent',
-    PASSWORD_RESET_SUCCESS: 'auth-password-reset-success',
-    SESSION_EXPIRED: 'auth-session-expired',
-    ACCOUNT_DISABLED: 'auth-account-disabled',
-    ADMIN_DISCONNECT: 'auth-admin-disconnect',
-    MAINTENANCE_MODE: 'auth-maintenance-mode',
-    VALIDATION_ERROR: 'auth-validation-error',
-  } as const;
+  // ── 401 reçu ─────────────────────────────────────────────
+  // On tente TOUJOURS le refresh : le cookie httpOnly
+  // refresh_token sera envoyé automatiquement par le navigateur
+  // via credentials: "include". On ne teste pas sa présence
+  // (httpOnly = illisible en JS/TS).
+  // _refreshTokenValue est un fallback pour les cas où le cookie
+  // est bloqué (Safari ITP, HTTP en dev).
 
-  // Fonction pour afficher un toast unique
-  const showUniqueToast = useCallback((
-    type: 'success' | 'error' | 'warning' | 'info',
-    message: string,
-    toastId: string,
-    options?: any
-  ) => {
-    if (toastRegistry.current.has(toastId)) return;
-    
-    toast[type](message, {
-      toastId,
-      ...options,
-      onClose: () => {
-        toastRegistry.current.delete(toastId);
-        options?.onClose?.();
-      }
-    });
-    
-    toastRegistry.current.add(toastId);
-  }, []);
-
-  const clearAuthToasts = useCallback(() => {
-    toastRegistry.current.clear();
-  }, []);
-
-  // ==================== FONCTIONS UTILITAIRES ====================
-  const handleAuthError = useCallback(
-    (error: unknown, context: string): void => {
-      // Log minimal sans détails
-      console.error(`[AuthContext] Erreur ${context}`);
-
-      if (error instanceof Error) {
-        const errorMessage = error.message;
-
-        if (errorMessage === AUTH_CONSTANTS.ERROR_CODES.PASSWORD_RESET_REQUIRED) {
-          setError('Vous devez réinitialiser votre mot de passe');
-          navigate('/mot-de-passe-oublie', { replace: true });
-          return;
-        }
-
-        if (errorMessage === AUTH_CONSTANTS.ERROR_CODES.COMPTE_DESACTIVE) {
-          setError('Votre compte a été désactivé');
-          showUniqueToast('error', TOAST_MESSAGES.ACCOUNT_DISABLED, TOAST_IDS.ACCOUNT_DISABLED);
-          navigate(REDIRECT_PATHS.LOGIN, { replace: true });
-          return;
-        }
-
-        if (errorMessage.includes(AUTH_CONSTANTS.ERROR_CODES.COMPTE_TEMPORAIREMENT_DECONNECTE)) {
-          setError('Compte temporairement déconnecté');
-          showUniqueToast('warning', TOAST_MESSAGES.ADMIN_DISCONNECT, TOAST_IDS.ADMIN_DISCONNECT);
-          navigate(REDIRECT_PATHS.LOGIN, { replace: true });
-          return;
-        }
-
-        if (errorMessage === AUTH_CONSTANTS.ERROR_CODES.MAINTENANCE_MODE) {
-          setError('Mode maintenance activé');
-          showUniqueToast('warning', TOAST_MESSAGES.MAINTENANCE_MODE, TOAST_IDS.MAINTENANCE_MODE);
-          return;
-        }
-
-        if (errorMessage === AUTH_CONSTANTS.ERROR_CODES.SESSION_EXPIRED) {
-          cleanupAuthData();
-          if (!window.location.pathname.includes(REDIRECT_PATHS.LOGIN)) {
-            showUniqueToast('info', TOAST_MESSAGES.SESSION_EXPIRED, TOAST_IDS.SESSION_EXPIRED);
-            navigate(REDIRECT_PATHS.LOGIN, { replace: true });
-          }
-          return;
-        }
-      }
-
-      setError('Une erreur est survenue');
-    },
-    [navigate]
-  );
-
-  const cleanupAuthData = useCallback((): void => {
-    console.log('[AuthContext] Nettoyage session');
-    
-    setAccessToken(null);
-    setUser(null);
-    setError(null);
-    setMaintenanceStatus(null);
-    accessTokenRef.current = null;
-    
-    document.cookie.split(";").forEach(function(c) {
-      document.cookie = c.replace(/^ +/, "")
-        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-    });
-  }, []);
-
-  // ==================== REFRESH TOKEN ====================
-  const refreshToken = useCallback(async (): Promise<boolean> => {
-    if (isRefreshingRef.current) {
-      if (refreshPromiseRef.current) return refreshPromiseRef.current;
-      return new Promise((resolve) => {
-        const checkInterval = setInterval(() => {
-          if (!isRefreshingRef.current) {
-            clearInterval(checkInterval);
-            resolve(!!access_token);
-          }
-        }, 100);
-        setTimeout(() => {
-          clearInterval(checkInterval);
-          resolve(false);
-        }, 5000);
+  if (_isRefreshing) {
+    // Un refresh est déjà en cours → on met la requête en file
+    return new Promise<Response>((resolve) => {
+      enqueueRefreshCallback((success) => {
+        resolve(success ? fetch(input, options) : response);
       });
-    }
+    });
+  }
 
-    if (refreshAttemptsRef.current >= AUTH_CONSTANTS.MAX_REFRESH_ATTEMPTS) {
-      cleanupAuthData();
-      return false;
-    }
+  _isRefreshing = true;
 
-    isRefreshingRef.current = true;
-    refreshAttemptsRef.current++;
+  try {
+    const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      credentials: "include", // envoie le cookie httpOnly refresh_token
+      headers: { "Content-Type": "application/json" },
+      // refresh_token dans le body = fallback si le cookie httpOnly
+      // n'est pas transmis (dev HTTP, Safari ITP)
+      body: JSON.stringify(
+        _refreshTokenValue ? { refresh_token: _refreshTokenValue } : {},
+      ),
+    });
 
-    const refreshPromise = (async (): Promise<boolean> => {
-      try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REFRESH}`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-        });
+    if (!refreshRes.ok) throw new Error("refresh_failed");
 
-        if (response.status === 401) return false;
-        if (!response.ok) return false;
-
-        const data: RefreshResponse = await response.json();
-        if (data.sessionExpired || !data.access_token) return false;
-
-        setAccessToken(data.access_token);
-        accessTokenRef.current = data.access_token;
-        refreshAttemptsRef.current = 0;
-        return true;
-
-      } catch {
-        return false;
-      } finally {
-        isRefreshingRef.current = false;
-        refreshPromiseRef.current = null;
-      }
-    })();
-
-    refreshPromiseRef.current = refreshPromise;
-    return refreshPromise;
-  }, [cleanupAuthData]);
-
-  // ==================== FETCH AVEC AUTH ====================
-  const fetchWithAuth = useCallback(
-    async <T = any>(endpoint: string, options: RequestInit = {}): Promise<T> => {
-      const url = `${API_CONFIG.BASE_URL}${endpoint}`;
-      let attempts = 0;
-      const maxAttempts = 2;
-      
-      while (attempts < maxAttempts) {
-        attempts++;
-        
-        try {
-          const token = accessTokenRef.current;
-          const headers: Record<string, string> = {};
-          
-          if (token) headers['Authorization'] = `Bearer ${token}`;
-          
-          if (options.headers) {
-            Object.entries(options.headers).forEach(([key, value]) => {
-              if (key !== 'Content-Type') headers[key] = value as string;
-            });
-          }
-
-          if (!(options.body instanceof FormData)) {
-            headers['Content-Type'] = 'application/json';
-          }
-
-          const response = await fetch(url, {
-            ...options,
-            headers,
-            credentials: 'include',
-          });
-
-          if (response.status === 401) {
-            const refreshed = await refreshToken();
-            if (refreshed && attempts < maxAttempts) continue;
-            throw new Error(AUTH_CONSTANTS.ERROR_CODES.SESSION_EXPIRED);
-          }
-
-          if (!response.ok) {
-            let errorData: any = {};
-            try {
-              errorData = await response.json();
-            } catch {}
-            throw new Error(errorData.message || `Erreur HTTP ${response.status}`);
-          }
-
-          return await response.json() as T;
-          
-        } catch (error) {
-          if (attempts >= maxAttempts) throw error;
-          if (error instanceof Error && error.message === AUTH_CONSTANTS.ERROR_CODES.SESSION_EXPIRED) throw error;
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-
-      throw new Error(`Échec après ${maxAttempts} tentatives`);
-    },
-    [refreshToken]
-  );
-
-  // ==================== RÉCUPÉRATION UTILISATEUR ====================
-  const fetchUserData = useCallback(async (): Promise<User | null> => {
+    // Réponse backend : { message: string, data: { refresh_token: string } }
+    // On extrait le nouveau refresh_token pour mettre à jour le fallback mémoire
     try {
-      const userData = await fetchWithAuth<User>(API_CONFIG.ENDPOINTS.ME);
-      const userWithAdmin = {
-        ...userData,
-        isAdmin: userData.role === UserRole.ADMIN,
+      const refreshBody = (await refreshRes.clone().json()) as {
+        data?: { refresh_token?: string };
       };
-      setUser(userWithAdmin);
-      return userWithAdmin;
+      const newToken = refreshBody?.data?.refresh_token;
+      if (newToken) {
+        _refreshTokenValue = newToken;
+      }
     } catch {
-      return null;
+      // Non bloquant — le cookie httpOnly reste la source principale
     }
-  }, [fetchWithAuth]);
 
-  // ==================== VÉRIFICATION AUTH ====================
-  const checkAuth = useCallback(async (): Promise<void> => {
-    if (authCheckDoneRef.current) return;
+    _isRefreshing = false;
+    flushRefreshQueue(true);
 
-    setIsLoading(true);
-    try {
-      const refreshed = await refreshToken();
-      if (refreshed) await fetchUserData();
-    } finally {
-      setIsLoading(false);
-      authCheckDoneRef.current = true;
-    }
-  }, [refreshToken, fetchUserData]);
+    // Rejouer la requête originale avec les nouveaux cookies
+    return fetch(input, options);
+  } catch {
+    _isRefreshing = false;
+    flushRefreshQueue(false);
+    return response; // propage le 401 original
+  }
+}
 
-  // ==================== GESTION MAINTENANCE ====================
-  const checkMaintenanceStatus = useCallback(async (): Promise<void> => {
-    if (!user || user.role !== UserRole.ADMIN) return;
-    try {
-      const status = await fetchWithAuth<MaintenanceStatus>(API_CONFIG.ENDPOINTS.MAINTENANCE_STATUS);
-      setMaintenanceStatus(status);
-    } catch {}
-  }, [user, fetchWithAuth]);
+// ─────────────────────────────────────────────────────────────
+// § 5 — AuthContext
+// ─────────────────────────────────────────────────────────────
 
-  const toggleMaintenanceMode = useCallback(async (enabled: boolean): Promise<boolean> => {
-    if (!user || user.role !== UserRole.ADMIN) return false;
-    try {
-      await fetchWithAuth(API_CONFIG.ENDPOINTS.MAINTENANCE_MODE, {
-        method: 'POST',
-        body: JSON.stringify({ enabled }),
-      });
-      await checkMaintenanceStatus();
-      return true;
-    } catch {
-      return false;
-    }
-  }, [user, fetchWithAuth, checkMaintenanceStatus]);
-
-  // ==================== LOGIN ====================
-  const login = useCallback(
-    async (email: string, password: string): Promise<void> => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGIN}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ email, password }),
-        });
-
-        const data: LoginResponse = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || 'Erreur de connexion');
-        }
-
-        setAccessToken(data.access_token);
-        accessTokenRef.current = data.access_token;
-        
-        const userData: User = {
-          ...data.user,
-          isAdmin: data.user.role === UserRole.ADMIN,
-        };
-        setUser(userData);
-
-        const redirectPath = userData.isAdmin
-          ? REDIRECT_PATHS.ADMIN_DASHBOARD
-          : REDIRECT_PATHS.DASHBOARD;
-
-        navigate(redirectPath, { replace: true });
-        showUniqueToast('success', TOAST_MESSAGES.LOGIN_SUCCESS, TOAST_IDS.LOGIN_SUCCESS);
-
-        if (userData.isAdmin) await checkMaintenanceStatus();
-
-      } catch (error) {
-        handleAuthError(error, 'login');
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [navigate, handleAuthError, checkMaintenanceStatus]
-  );
-
-  // ==================== LOGOUT ====================
-  const logout = useCallback(async (): Promise<void> => {
-    try {
-      await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.LOGOUT}`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(accessTokenRef.current && { Authorization: `Bearer ${accessTokenRef.current}` }),
-        },
-      });
-    } catch {
-      // Ignorer
-    } finally {
-      cleanupAuthData();
-      clearAuthToasts();
-      navigate(REDIRECT_PATHS.LOGIN, { replace: true });
-      showUniqueToast('success', TOAST_MESSAGES.LOGOUT_SUCCESS, TOAST_IDS.LOGOUT_SUCCESS);
-    }
-  }, [navigate, cleanupAuthData, clearAuthToasts]);
-
-  // ==================== LOGOUT ALL ====================
-  const logoutAll = useCallback(async (): Promise<LogoutAllResponse> => {
-    try {
-      const data = await fetchWithAuth<LogoutAllResponse>(API_CONFIG.ENDPOINTS.LOGOUT_ALL, {
-        method: 'POST',
-      });
-      cleanupAuthData();
-      clearAuthToasts();
-      navigate(REDIRECT_PATHS.LOGIN, { replace: true });
-      showUniqueToast('success', TOAST_MESSAGES.LOGOUT_SUCCESS, TOAST_IDS.LOGOUT_SUCCESS);
-      return data;
-    } catch (error) {
-      handleAuthError(error, 'logoutAll');
-      return { message: 'Erreur', success: false };
-    }
-  }, [fetchWithAuth, cleanupAuthData, navigate, handleAuthError, clearAuthToasts]);
-
-
-  // ==================== REGISTER ====================
-const register = useCallback(
-  async (formData: RegisterFormData): Promise<void> => {
-    setIsLoading(true);
-    setError(null);
-    clearAuthToasts(); // Nettoyer les toasts existants
-
-    try {
-      console.log('[register] Tentative pour:', formData.email);
-
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REGISTER}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // Important pour recevoir les cookies
-        body: JSON.stringify(formData),
-      });
-
-      let data;
-      try {
-        data = await response.json();
-      } catch {
-        data = { message: 'Erreur de parsing de la réponse' };
-      }
-
-      if (!response.ok) {
-        // Gestion plus précise des erreurs
-        if (response.status === 400) {
-          if (data.message?.includes('email') || data.message?.includes('Email')) {
-            throw new Error('Cet email est déjà utilisé');
-          } else if (data.message?.includes('téléphone') || data.message?.includes('Téléphone')) {
-            throw new Error('Ce numéro de téléphone est déjà utilisé');
-          } else {
-            throw new Error(data.message || 'Données invalides');
-          }
-        }
-        throw new Error(data.message || 'Erreur lors de l\'inscription');
-      }
-
-      console.log('[register] Inscription réussie');
-
-      // Mise à jour du token d'accès
-      if (data.access_token) {
-        setAccessToken(data.access_token);
-        accessTokenRef.current = data.access_token;
-      }
-
-      // Mise à jour des informations utilisateur
-      if (data.user) {
-        const userData: User = {
-          id: data.user.id,
-          email: data.user.email,
-          firstName: data.user.firstName,
-          lastName: data.user.lastName,
-          telephone: data.user.telephone,
-          role: data.user.role,
-          isActive: data.user.isActive ?? true,
-          isAdmin: data.user.role === UserRole.ADMIN || data.user.isAdmin === true,
-        };
-        setUser(userData);
-      }
-
-      // Redirection basée sur le rôle
-      const redirectPath = data.user?.role === UserRole.ADMIN
-        ? REDIRECT_PATHS.ADMIN_DASHBOARD
-        : REDIRECT_PATHS.DASHBOARD;
-
-      // Afficher le toast de succès
-      showUniqueToast('success', TOAST_MESSAGES.REGISTER_SUCCESS, TOAST_IDS.REGISTER_SUCCESS);
-
-      // Navigation
-      navigate(redirectPath, { replace: true });
-
-      // Vérifier le statut de maintenance pour les admins
-      if (data.user?.role === UserRole.ADMIN) {
-        await checkMaintenanceStatus();
-      }
-
-    } catch (error) {
-      console.error('[register] Erreur:', error);
-      
-      // Gestion des erreurs avec messages appropriés
-      if (error instanceof Error) {
-        setError(error.message);
-        showUniqueToast('error', error.message, 'register-error');
-      } else {
-        setError('Erreur lors de la création du compte');
-        showUniqueToast('error', 'Erreur lors de la création du compte', 'register-error');
-      }
-      
-      // Ne pas rediriger en cas d'erreur
-    } finally {
-      setIsLoading(false);
-    }
-  },
-  [navigate, handleAuthError, checkMaintenanceStatus, clearAuthToasts, showUniqueToast]
+export const AuthContext = createContext<AuthContextType | undefined>(
+  undefined,
 );
 
-  // ==================== FORGOT PASSWORD ====================
-  const forgotPassword = useCallback(
-    async (email: string): Promise<void> => {
-      setIsLoading(true);
-      setError(null);
+// ─────────────────────────────────────────────────────────────
+// § 6 — AuthProvider
+// ─────────────────────────────────────────────────────────────
 
-      try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.FORGOT_PASSWORD}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
-        });
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-        if (!response.ok) {
-          throw new Error('Erreur lors de l\'envoi de l\'email');
-        }
-
-        showUniqueToast('success', TOAST_MESSAGES.PASSWORD_RESET_SENT, TOAST_IDS.PASSWORD_RESET_SENT);
-        navigate('/connexion', { replace: true });
-      } catch (error) {
-        handleAuthError(error, 'forgotPassword');
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [navigate, handleAuthError]
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRef = useRef<((expiresInSeconds?: number) => void) | null>(
+    null,
   );
+  // Stocke le refresh_token reçu dans le body du login/refresh.
+  // Fallback pour apiFetch quand le cookie httpOnly est bloqué.
+  const refreshTokenRef = useRef<string | null>(null);
 
-  // ==================== RESET PASSWORD ====================
-  const resetPassword = useCallback(
-    async (token: string, newPassword: string): Promise<void> => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.RESET_PASSWORD}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, newPassword }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Erreur lors de la réinitialisation');
-        }
-
-        showUniqueToast('success', TOAST_MESSAGES.PASSWORD_RESET_SUCCESS, TOAST_IDS.PASSWORD_RESET_SUCCESS);
-        navigate('/connexion', { replace: true });
-      } catch (error) {
-        handleAuthError(error, 'resetPassword');
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [navigate, handleAuthError]
-  );
-
-  // ==================== UPDATE PROFILE ====================
-  const updateProfile = useCallback(async (): Promise<void> => {
-    await fetchUserData();
-  }, [fetchUserData]);
-
-  // ==================== EFFETS ====================
-  useEffect(() => {
-    checkAuth();
-    
-    return () => {
-      if (refreshTimeoutRef.current) {
-        window.clearTimeout(refreshTimeoutRef.current);
-      }
-      clearAuthToasts();
-    };
+  // ── clearRefreshTimer ─────────────────────────────────────
+  const clearRefreshTimer = useCallback(() => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
   }, []);
 
-  // ==================== VALEUR DU CONTEXT ====================
+  // ── refreshUserProfile ────────────────────────────────────
+  const refreshUserProfile = useCallback(async (): Promise<void> => {
+    try {
+      // Ajouter un timestamp pour contourner le cache
+      const timestamp = Date.now();
+      const response = await apiFetch(
+        `${API_URL}/user/profile?t=${timestamp}`,
+        {
+          method: "GET",
+        },
+      );
+
+      const body: BackendDTO_ApiResponse<BackendDTO_ProfileData> =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(body.message || "Impossible de récupérer le profil");
+      }
+
+      setUser(mapProfileToAppUser(body.data));
+      toast.success("Profil rafraîchi avec succès");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors du rafraîchissement du profil";
+      toast.error(message);
+      throw error;
+    }
+  }, []);
+
+  // ── refreshToken ──────────────────────────────────────────
+  const refreshToken = useCallback(async (): Promise<void> => {
+    if (_isRefreshing) {
+      return new Promise<void>((resolve, reject) => {
+        enqueueRefreshCallback((success) => {
+          if (!success) reject(new Error("refresh_failed"));
+          else resolve();
+        });
+      });
+    }
+
+    _isRefreshing = true;
+
+    try {
+      const response = await fetch(`${API_URL}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          refreshTokenRef.current
+            ? { refresh_token: refreshTokenRef.current }
+            : {},
+        ),
+      });
+
+      if (!response.ok) {
+        const body = (await response.json()) as { message?: string };
+        throw new Error(body.message || "refresh_failed");
+      }
+
+      // Réponse backend : { message: string, data: { refresh_token: string } }
+      try {
+        const body = (await response.clone().json()) as {
+          data?: { refresh_token?: string };
+        };
+        const newToken = body?.data?.refresh_token;
+        if (newToken) {
+          refreshTokenRef.current = newToken;
+          _refreshTokenValue = newToken;
+        }
+      } catch {
+        // Non bloquant
+      }
+
+      _isRefreshing = false;
+      flushRefreshQueue(true);
+
+      await refreshUserProfile();
+      if (scheduleRef.current) scheduleRef.current(ACCESS_TOKEN_EXPIRES_IN_S);
+    } catch (err) {
+      _isRefreshing = false;
+      flushRefreshQueue(false);
+      refreshTokenRef.current = null;
+      _refreshTokenValue = null;
+      // Le refresh a échoué définitivement → session morte côté backend.
+      // On supprime remember_me pour que checkAuth ne retente plus
+      // le backend inutilement au prochain chargement de page.
+      deleteRememberMeCookie();
+      setUser(null);
+      throw err;
+    }
+  }, [refreshUserProfile]);
+
+  // ── scheduleTokenRefresh ──────────────────────────────────
+  // expires_in est TOUJOURS 900 (ACCESS_TOKEN_EXPIRATION_MS côté
+  // backend) — jamais conditionnel. On se déclenche 60s avant
+  // l'expiration pour éviter tout flash de déconnexion.
+  const scheduleTokenRefresh = useCallback(
+    (expiresInSeconds: number = ACCESS_TOKEN_EXPIRES_IN_S): void => {
+      clearRefreshTimer();
+      const delayMs = Math.max((expiresInSeconds - 60) * 1000, 0);
+      refreshTimerRef.current = setTimeout(() => {
+        refreshToken().catch(() => {
+          // Silencieux — la prochaine requête déclenchera un 401 → retry
+        });
+      }, delayMs);
+    },
+    [clearRefreshTimer, refreshToken],
+  );
+
+  useEffect(() => {
+    scheduleRef.current = scheduleTokenRefresh;
+  }, [scheduleTokenRefresh]);
+
+  // ── checkAuth (mount) ─────────────────────────────────────
+  //
+  //  Garde préalable sur remember_me (seul cookie lisible en
+  //  JS/TS) avant toute requête réseau :
+  //
+  //  • remember_me absent → aucune session connue sur ce
+  //    navigateur → setUser(null) + setIsLoading(false)
+  //    immédiat, zéro requête réseau.
+  //
+  //  • remember_me présent → session potentielle détectée →
+  //    on interroge le backend :
+  //
+  //      1. GET /user/profile (credentials: "include")
+  //           → 200 : session valide, setUser()
+  //           → 401 : apiFetch tente le refresh auto
+  //                   (cookie httpOnly refresh_token envoyé
+  //                    par le navigateur)
+  //                → refresh ok  : rejoue /user/profile, setUser()
+  //                → refresh ko  : session expirée, setUser(null),
+  //                                on supprime remember_me
+  //
+  //  Les cookies httpOnly (access_token, refresh_token) sont
+  //  illisibles en JS/TS — on ne conditionne JAMAIS sur eux.
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkAuth = async (): Promise<void> => {
+      const hasPotentialSession = getRememberMeCookie();
+
+      if (!hasPotentialSession) {
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        // apiFetch gère le retry 401 → refresh → replay en interne
+        const response = await apiFetch(`${API_URL}/user/profile`, {
+          method: "GET",
+        });
+
+        if (cancelled) return;
+
+        if (!response.ok) {
+          // 401 après tentative de refresh = session définitivement
+          // expirée — on nettoie le cookie frontend
+          setUser(null);
+          deleteRememberMeCookie();
+          return;
+        }
+
+        const body: BackendDTO_ApiResponse<BackendDTO_ProfileData> =
+          await response.json();
+
+        setUser(mapProfileToAppUser(body.data));
+        if (scheduleRef.current) scheduleRef.current(ACCESS_TOKEN_EXPIRES_IN_S);
+      } catch {
+        if (!cancelled) {
+          setUser(null);
+          deleteRememberMeCookie();
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    checkAuth();
+
+    return () => {
+      cancelled = true;
+      clearRefreshTimer();
+    };
+  }, [clearRefreshTimer]);
+
+  // ── login ─────────────────────────────────────────────────
+  const login = async (
+    email: string,
+    password: string,
+    rememberMe = false,
+  ): Promise<void> => {
+    try {
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, remember_me: rememberMe }),
+      });
+
+      const body: BackendDTO_ApiResponse<BackendDTO_LoginData> =
+        await response.json();
+
+      if (!response.ok) {
+        const msg = body.message || "Email ou mot de passe incorrect";
+        toast.error(msg);
+        throw new Error(msg);
+      }
+
+      const dto = body.data;
+
+      // Stocker le refresh_token en mémoire pour le fallback apiFetch
+      if (dto.refresh_token) {
+        refreshTokenRef.current = dto.refresh_token;
+        _refreshTokenValue = dto.refresh_token;
+      }
+
+      // Cookie remember_me (non-httpOnly, lisible en JS/TS)
+      // Durées alignées sur REMEMBER_ME_EXPIRATION_MS /
+      // REFRESH_TOKEN_EXPIRATION_MS du backend (auth.constants.ts).
+      //
+      // Règle no-overwrite : on n'écrase JAMAIS un remember_me=true
+      // déjà présent. Si une session longue existait et que l'utilisateur
+      // se reconnecte sans cocher la case, on conserve la durée longue.
+      const existingRememberMe = getRememberMeCookie();
+      const effectiveRememberMe = existingRememberMe
+        ? dto.remember_me || true // session existante → on garde au moins true
+        : dto.remember_me; // pas encore posé → valeur du login
+
+      setRememberMeCookie(
+        effectiveRememberMe,
+        effectiveRememberMe
+          ? REMEMBER_ME_MAX_AGE_S // 14 jours (REMEMBER_ME_EXPIRATION_MS)
+          : SESSION_NORMAL_MAX_AGE_S, //  7 jours (REFRESH_TOKEN_EXPIRATION_MS)
+      );
+
+      setUser(mapLoginUserToAppUser(dto.user));
+
+      // dto.expires_in = 900 (ACCESS_TOKEN_EXPIRATION_MS/1000) — toujours 900
+      scheduleRef.current?.(dto.expires_in ?? ACCESS_TOKEN_EXPIRES_IN_S);
+
+      toast.success("Connexion réussie !");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Erreur lors de la connexion";
+      toast.error(message);
+      throw error;
+    }
+  };
+
+  // ── register ──────────────────────────────────────────────
+  // Le backend ne pose PAS de cookie ici → pas de state user.
+  const register = async (data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    telephone: string;
+  }): Promise<void> => {
+    try {
+      const response = await fetch(`${API_URL}/auth/register`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const body: BackendDTO_ApiResponse<BackendDTO_RegisterData> =
+        await response.json();
+
+      if (!response.ok) {
+        const msg = body.message || "Erreur lors de l'inscription";
+        toast.error(msg);
+        throw new Error(msg);
+      }
+
+      toast.success(body.data.message);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Erreur lors de l'inscription";
+      toast.error(message);
+      throw error;
+    }
+  };
+
+  // ── logout ────────────────────────────────────────────────
+  // On NE supprime PAS remember_me ici : il doit survivre au
+  // logout pour que checkAuth sache qu'une session a existé sur
+  // ce navigateur et tente le backend au prochain chargement.
+  // remember_me expire uniquement :
+  //   • naturellement (max-age 7 ou 14 jours)
+  //   • quand checkAuth confirme que la session est définitivement
+  //     morte côté backend (refresh échoué)
+  const logout = async (): Promise<void> => {
+    try {
+      await fetch(`${API_URL}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+    } catch {
+      // Erreur réseau non bloquante — on nettoie quand même le state
+    } finally {
+      clearRefreshTimer();
+      refreshTokenRef.current = null;
+      _refreshTokenValue = null;
+      setUser(null);
+      toast.success("Déconnexion réussie");
+    }
+  };
+
+  // ── logoutAll (ADMIN) ─────────────────────────────────────
+  const logoutAll = async (): Promise<void> => {
+    try {
+      const response = await apiFetch(`${API_URL}/admin/auth/logout-all`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+
+      const body: BackendDTO_ApiResponse<BackendDTO_LogoutAllData> =
+        await response.json();
+
+      if (!response.ok) {
+        const msg = body.message || "Erreur déconnexion globale";
+        toast.error(msg);
+        throw new Error(msg);
+      }
+
+      toast.success(
+        `${body.data.sessionsTerminated} session(s) terminée(s) (admin épargné)`,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la déconnexion globale";
+      toast.error(message);
+      throw error;
+    }
+  };
+
+  // ── forgotPassword ────────────────────────────────────────
+  const forgotPassword = async (email: string): Promise<void> => {
+    try {
+      const response = await fetch(`${API_URL}/auth/forgot-password`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      const body: BackendDTO_ApiResponse<BackendDTO_ForgotPasswordData> =
+        await response.json();
+
+      if (!response.ok) {
+        const msg =
+          body.message || "Erreur lors de la demande de réinitialisation";
+        toast.error(msg);
+        throw new Error(msg);
+      }
+
+      toast.success(body.data.message);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la demande de réinitialisation";
+      toast.error(message);
+      throw error;
+    }
+  };
+
+  // ── resetPassword ─────────────────────────────────────────
+  const resetPassword = async (
+    token: string,
+    newPassword: string,
+  ): Promise<void> => {
+    try {
+      const response = await fetch(`${API_URL}/auth/reset-password`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, new_password: newPassword }),
+      });
+
+      const body: BackendDTO_ApiResponse<BackendDTO_ResetPasswordData> =
+        await response.json();
+
+      if (!response.ok) {
+        const msg = body.message || "Token invalide ou expiré";
+        toast.error(msg);
+        throw new Error(msg);
+      }
+
+      toast.success(body.data.message);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la réinitialisation";
+      toast.error(message);
+      throw error;
+    }
+  };
+
+  // ── changePassword ────────────────────────────────────────
+  const changePassword = async (
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<void> => {
+    try {
+      const response = await apiFetch(`${API_URL}/auth/change-password`, {
+        method: "POST",
+        body: JSON.stringify({
+          old_password: oldPassword,
+          new_password: newPassword,
+        }),
+      });
+
+      const body: BackendDTO_ApiResponse<BackendDTO_ChangePasswordData> =
+        await response.json();
+
+      if (!response.ok) {
+        const msg = body.message || "Ancien mot de passe incorrect";
+        toast.error(msg);
+        throw new Error(msg);
+      }
+
+      toast.success("Mot de passe modifié avec succès");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la modification du mot de passe";
+      toast.error(message);
+      throw error;
+    }
+  };
+
+  // ── updateUser ────────────────────────────────────────────
+  const updateUser = async (patch: Partial<AppUser>): Promise<void> => {
+    try {
+      const response = await apiFetch(`${API_URL}/user/profile`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      });
+
+      const body: BackendDTO_ApiResponse<BackendDTO_ProfileData> =
+        await response.json();
+
+      if (!response.ok) {
+        const msg = body.message || "Erreur mise à jour du profil";
+        toast.error(msg);
+        throw new Error(msg);
+      }
+
+      setUser(mapProfileToAppUser(body.data));
+      toast.success("Profil mis à jour avec succès");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la mise à jour du profil";
+      toast.error(message);
+      throw error;
+    }
+  };
+
+  // ── getActiveSessions ─────────────────────────────────────
+  const getActiveSessions = async (): Promise<number> => {
+    try {
+      const response = await apiFetch(`${API_URL}/auth/sessions/active`, {
+        method: "GET",
+      });
+      if (!response.ok) return 0;
+      const body = (await response.json()) as { count?: number };
+      return body.count ?? 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────
   const value: AuthContextType = {
     user,
-    access_token,
+    isLoading,
+    isAuthenticated: user !== null,
+    isAdmin: user?.role === "ADMIN",
     login,
+    register,
     logout,
     logoutAll,
-    register,
+    refreshToken,
     forgotPassword,
     resetPassword,
-    refreshToken,
-    updateProfile,
-    fetchWithAuth,
-    checkMaintenanceStatus,
-    toggleMaintenanceMode,
-    clearAuthToasts,
-    isAuthenticated: !!user && !!access_token,
-    isLoading,
-    error,
-    maintenanceStatus,
-    isMaintenanceMode: maintenanceStatus?.isActive === true,
+    changePassword,
+    updateUser,
+    refreshUserProfile,
+    getActiveSessions,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-
-// ==================== HOOKS ====================
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-export type { User, AuthContextType, LogoutAllResponse };
-export { UserRole };

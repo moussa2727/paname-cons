@@ -1,74 +1,47 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { JwtModule } from '@nestjs/jwt';
-import { MongooseModule } from '@nestjs/mongoose';
-import { PassportModule } from '@nestjs/passport';
-import { ScheduleModule } from '@nestjs/schedule';
-import { MailModule } from '../mail/mail.module';
-import { UsersModule } from '../users/users.module';
-import { ResetToken, ResetTokenSchema } from '../schemas/reset-token.schema';
-import {
-  RefreshToken,
-  RefreshTokenSchema,
-} from '../schemas/refresh-token.schema';
-import {
-  RevokedToken,
-  RevokedTokenSchema,
-} from '../schemas/revoked-token.schema';
-import { Session, SessionSchema } from '../schemas/session.schema';
-import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { RefreshTokenService } from './refresh-token.service';
-import { RevokedTokenService } from './revoked-token.service';
-import { SessionService } from './session.service';
-import { LocalStrategy } from './strategies/local.strategy';
-import { User, UserSchema } from '../schemas/user.schema';
+import { AuthController } from './auth.controller';
+import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { UsersModule } from '../users/users.module';
+import { TokensModule } from '../tokens/tokens.module';
+import { MailModule } from '../mail/mail.module';
+import { LoggerModule } from '../common/logger/logger.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { CleanupService } from './cleanup.service';
+import { LocalStrategy } from './strategies/local.strategy';
+import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
+import { JwtModuleOptions } from '@nestjs/jwt';
 
 @Module({
   imports: [
     UsersModule,
-    PassportModule.register({ defaultStrategy: 'jwt' }),
+    TokensModule,
     MailModule,
-    ScheduleModule.forRoot(),
-    MongooseModule.forFeature([
-      { name: RevokedToken.name, schema: RevokedTokenSchema },
-      { name: Session.name, schema: SessionSchema },
-      { name: ResetToken.name, schema: ResetTokenSchema },
-      { name: RefreshToken.name, schema: RefreshTokenSchema },
-      { name: User.name, schema: UserSchema },
-    ] as const), // <-- AJOUTEZ ICI 'as const'
+    LoggerModule,
+    PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
-        signOptions: {
-          expiresIn: configService.get('JWT_EXPIRES_IN', '15m'),
-          issuer: configService.get('APP_NAME', 'panameconsulting'),
-          algorithm: 'HS256',
-        },
-      }),
       inject: [ConfigService],
+      useFactory: async (
+        configService: ConfigService,
+      ): Promise<JwtModuleOptions> => {
+        const secret =
+          configService.get<string>('JWT_SECRET') || process.env.JWT_SECRET;
+        const expiresIn =
+          configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '15m';
+
+        return await Promise.resolve({
+          secret,
+          signOptions: {
+            expiresIn: parseInt(expiresIn),
+          },
+        });
+      },
     }),
-    ConfigModule.forRoot(),
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    SessionService,
-    RefreshTokenService,
-    RevokedTokenService,
-    CleanupService,
-    LocalStrategy,
-    JwtStrategy,
-  ],
-  exports: [
-    AuthService,
-    SessionService,
-    RefreshTokenService,
-    RevokedTokenService,
-    JwtModule,
-  ],
+  providers: [AuthService, LocalStrategy, JwtStrategy, RefreshTokenStrategy],
+  exports: [AuthService],
 })
 export class AuthModule {}

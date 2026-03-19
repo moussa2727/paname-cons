@@ -1,954 +1,385 @@
 import {
-  BadRequestException,
   Injectable,
-  Logger,
   NotFoundException,
-  UnauthorizedException,
+  ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import * as bcrypt from 'bcryptjs';
-import { Model } from 'mongoose';
-import { RegisterDto } from '../auth/dto/register.dto';
-import { UpdatePasswordDto } from '../auth/dto/update-password.dto';
-import { UpdateUserDto } from '../auth/dto/update-user.dto';
-import { User } from '../schemas/user.schema';
-import { UserRole } from '../enums/user-role.enum';
-import { AuthConstants } from '../auth/auth.constants';
+import { User, UserRole } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { UpdateProfileDto } from './dto/update-user.dto';
+import { UserResponseDto } from './dto/user-response.dto';
+import { UsersRepository } from './users.repository';
+import { QueueService } from '../queue/queue.service';
+import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../common/logger/audit.service';
+import { AuditAction, Prisma } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
-  private readonly logger = new Logger(UsersService.name);
-  private readonly cache = new Map<string, { data: any; timestamp: number }>();
-  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-  private readonly MAX_CACHE_SIZE = 1000;
+  constructor(
+    private readonly usersRepository: UsersRepository,
+    private readonly queueService: QueueService,
+    private readonly configService: ConfigService,
+    private readonly auditService: AuditService,
+    private readonly prisma: PrismaService,
+  ) {}
 
-  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  // Add this method to UsersService
+  public toResponseDto(user: User): UserResponseDto {
+    const responseDto = {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      fullName: `${user.firstName} ${user.lastName}`,
+      telephone: user.telephone, // ← Le téléphone est bien inclus
+      role: user.role,
+      isActive: user.isActive,
+      canLogin:
+        user.isActive && (!user.logoutUntil || new Date() >= user.logoutUntil),
+      isTemporarilyLoggedOut: user.logoutUntil
+        ? new Date() < user.logoutUntil
+        : false,
+      logoutUntil: user.logoutUntil,
+      lastLogout: user.lastLogout,
+      lastLogin: user.lastLogin,
+      loginCount: user.loginCount,
+      logoutCount: user.logoutCount,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
 
-  private normalizeTelephone(input?: string): string | undefined {
-    if (!input) return undefined;
-
-    const trimmed = input.trim();
-    if (trimmed === '') return '';
-
-    const cleaned = trimmed.replace(/\s/g, '');
-
-    const hasPlusPrefix = cleaned.startsWith('+');
-    const digitsOnly = cleaned.replace(/\D/g, '');
-
-    if (digitsOnly.length < 8) {
-      return undefined;
-    }
-
-    return hasPlusPrefix ? `+${digitsOnly}` : digitsOnly;
+    return responseDto;
   }
 
-  private getCacheKey(method: string, identifier: string): string {
-    return `${method}:${identifier}`;
+  async create(data: Prisma.UserCreateInput): Promise<User> {
+    return this.usersRepository.create(data);
+  }
+  async findAll(
+    page: number = 1,
+    limit: number = 10,
+  ): Promise<{
+    data: UserResponseDto[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const skip = (page - 1) * limit;
+    const [users, total] = await Promise.all([
+      this.usersRepository.findAll({ skip, take: limit }),
+      this.usersRepository.count(),
+    ]);
+
+    return {
+      data: users.map((user) => this.toResponseDto(user)),
+      total,
+      page,
+      limit,
+    };
   }
 
-  private setCache(key: string, data: any): void {
-    if (this.cache.size >= this.MAX_CACHE_SIZE) {
-      const oldestKey = Array.from(this.cache.entries()).sort(
-        (a, b) => a[1].timestamp - b[1].timestamp
-      )[0]?.[0];
-      if (oldestKey) {
-        this.cache.delete(oldestKey);
-      }
-    }
+  async getStatistics(): Promise<{
+    totalUsers: number;
+    activeUsers: number;
+    inactiveUsers: number;
+    adminUsers: number;
+    userUsers: number;
+    recentlyCreated: number;
+    recentlyActive: number;
+  }> {
+    // Implémentation des statistiques
+    const allUsers = await this.usersRepository.findAll({ take: 1000 });
+    const totalUsers = allUsers.length;
 
-    this.cache.set(key, { data, timestamp: Date.now() });
+    const activeUsers = allUsers.filter((u) => u.isActive).length;
+    const inactiveUsers = allUsers.filter((u) => !u.isActive).length;
+    const adminUsers = allUsers.filter((u) => u.role === UserRole.ADMIN).length;
+    const userUsers = allUsers.filter((u) => u.role === UserRole.USER).length;
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentlyCreated = allUsers.filter(
+      (u) => u.createdAt >= thirtyDaysAgo,
+    ).length;
+    const recentlyActive = allUsers.filter(
+      (u) => u.updatedAt >= thirtyDaysAgo,
+    ).length;
+
+    return {
+      totalUsers,
+      activeUsers,
+      inactiveUsers,
+      adminUsers,
+      userUsers,
+      recentlyCreated,
+      recentlyActive,
+    };
   }
 
-  private getCache(key: string): any {
-    const cached = this.cache.get(key);
-    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-      return cached.data;
-    }
-    this.cache.delete(key);
-    return null;
-  }
-
-  private clearUserCache(userId?: string): void {
-    if (userId) {
-      for (const key of this.cache.keys()) {
-        if (key.includes(userId)) {
-          this.cache.delete(key);
-        }
-      }
-    }
-    for (const key of this.cache.keys()) {
-      if (key.startsWith('findAll:') || key.startsWith('getStats:')) {
-        this.cache.delete(key);
-      }
-    }
-  }
-
-  async exists(userId: string): Promise<boolean> {
-    const cacheKey = this.getCacheKey('exists', userId);
-    const cached = this.getCache(cacheKey);
-    if (cached !== null) {
-      return cached;
-    }
-
-    const user = await this.userModel
-      .findById(userId)
-      .select('id')
-      .lean()
-      .exec();
-    const exists = !!user;
-    this.setCache(cacheKey, exists);
-    return exists;
+  async findById(id: string): Promise<User | null> {
+    return this.usersRepository.findById(id);
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    const normalizedEmail = email.toLowerCase().trim();
-    const cacheKey = this.getCacheKey('findByEmail', normalizedEmail);
-    const cached = this.getCache(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const user = await this.userModel
-      .findOne({ email: normalizedEmail })
-      .select('+password')
-      .exec();
-
-    this.setCache(cacheKey, user);
-    return user;
+    return this.usersRepository.findByEmail(email);
   }
 
-  async findByRole(role: UserRole): Promise<User | null> {
-    const cacheKey = this.getCacheKey('findByRole', role);
-    const cached = this.getCache(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const user = await this.userModel.findOne({ role }).exec();
-    this.setCache(cacheKey, user);
-    return user;
-  }
-
-  async findOne(id: string): Promise<User | null> {
-    const cacheKey = this.getCacheKey('findOne', id);
-    const cached = this.getCache(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const user = await this.userModel.findById(id).exec();
-    this.setCache(cacheKey, user);
-
-    return user;
-  }
-
-  async findAll(): Promise<User[]> {
-    const cacheKey = this.getCacheKey('findAll', 'all');
-    const cached = this.getCache(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const users = await this.userModel.find().select('-password').exec();
-    this.setCache(cacheKey, users);
-    return users;
-  }
-
-  async findById(id: string): Promise<User> {
-    const user = await this.findOne(id);
-    if (!user) {
-      this.logger.warn('Utilisateur non trouvé');
-      throw new NotFoundException('Utilisateur non trouvé');
-    }
-    return user;
-  }
-
-  async setLogoutUntil(
+  async findByIdWithPassword(
     userId: string,
-    durationHours: number = 24
+    hashedPassword: string,
   ): Promise<void> {
-    const logoutUntil = new Date(Date.now() + durationHours * 60 * 60 * 1000);
-    await this.userModel.findByIdAndUpdate(userId, { logoutUntil });
+    await this.usersRepository.updatePassword(userId, hashedPassword);
   }
 
-  async checkUserAccess(userId: string): Promise<{
-    canAccess: boolean;
-    reason?: string;
-    user?: any;
-    details?: any;
-  }> {
-    const cacheKey = this.getCacheKey('checkUserAccess', userId);
-    const cached = this.getCache(cacheKey);
+  async findByTelephone(telephone: string): Promise<User | null> {
+    return this.usersRepository.findByPhone(telephone);
+  }
 
-    if (cached !== null) {
-      return cached;
+  async update(
+    id: string,
+    updateUserDto: UpdateUserDto,
+  ): Promise<UserResponseDto> {
+    // Vérifier si l'utilisateur existe
+    const existingUser = await this.usersRepository.findById(id);
+    if (!existingUser) {
+      throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
     }
 
-    const user = await this.userModel.findById(userId).lean().exec();
-    if (!user) {
-      const result = {
-        canAccess: false,
-        reason: 'Utilisateur non trouvé',
-      };
-      this.setCache(cacheKey, result);
-      return result;
-    }
-
-    //  Définir des variables booléennes claires
-    const isUser = user.role === UserRole.USER;
-    const isAdmin = user.role === UserRole.ADMIN;
-    const adminEmail = process.env.EMAIL_USER;
-    const isMainAdmin = adminEmail && user.email === adminEmail && isAdmin;
-
-    //  ADMIN UNIQUE : IGNORER TOUTES LES RESTRICTIONS
-    if (isMainAdmin) {
-      this.logger.log(
-        ` ADMIN DÉTECTÉ: ${this.maskEmail(user.email)} - Accès illimité accordé`
+    // Vérifier les conflits d'email
+    if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
+      const emailConflict = await this.usersRepository.findByEmail(
+        updateUserDto.email,
       );
-
-      const result = {
-        canAccess: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          telephone: user.telephone,
-          isActive: true,
-          logoutUntil: null,
-          isAdmin: true,
-        },
-        details: {
-          isTemporarilyLoggedOut: false,
-          canLogin: true,
-          maintenanceMode: false,
-          logoutUntil: null,
-          isAdmin: true,
-          hasUnlimitedAccess: true,
-        },
-      };
-
-      this.setCache(cacheKey, result);
-      setTimeout(() => {
-        this.cache.delete(cacheKey);
-      }, this.CACHE_TTL);
-
-      return result;
-    }
-
-    //  VÉRIFICATIONS POUR TOUS LES AUTRES
-    const isMaintenance = await this.isMaintenanceMode();
-
-    // Mode maintenance : seulement pour les users normaux
-    if (isMaintenance && isUser) {
-      const result = {
-        canAccess: false,
-        reason: 'Mode maintenance activé',
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          isActive: user.isActive,
-          isAdmin: isAdmin,
-        },
-        details: {
-          maintenanceMode: true,
-          isAdmin: isAdmin,
-        },
-      };
-      this.setCache(cacheKey, result);
-      return result;
-    }
-
-    // Compte désactivé : seulement pour les users normaux
-    if (isUser && !user.isActive) {
-      const result = {
-        canAccess: false,
-        reason: 'Compte désactivé',
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          telephone: user.telephone,
-          role: user.role,
-          isActive: user.isActive,
-          isAdmin: isAdmin,
-        },
-        details: {
-          isAdmin: isAdmin,
-        },
-      };
-      this.setCache(cacheKey, result);
-      return result;
-    }
-
-    // logoutUntil : pour tous sauf admin principal (déjà filtré)
-    if (user.logoutUntil && new Date() < new Date(user.logoutUntil)) {
-      const remainingHours = Math.ceil(
-        (new Date(user.logoutUntil).getTime() - Date.now()) / (1000 * 60 * 60)
-      );
-      const result = {
-        canAccess: false,
-        reason: `Déconnecté temporairement (reste ${remainingHours}h)`,
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          isActive: user.isActive,
-          logoutUntil: user.logoutUntil,
-          isAdmin: isAdmin,
-        },
-        details: {
-          logoutUntil: user.logoutUntil,
-          remainingHours,
-          isTemporarilyLoggedOut: true,
-          isAdmin: isAdmin,
-        },
-      };
-      this.setCache(cacheKey, result);
-      return result;
-    }
-
-    //  ACCÈS AUTORISÉ
-    const result = {
-      canAccess: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        telephone: user.telephone,
-        isActive: user.isActive,
-        logoutUntil: user.logoutUntil,
-        isAdmin: isAdmin,
-      },
-      details: {
-        isTemporarilyLoggedOut: false,
-        canLogin: true,
-        maintenanceMode: isMaintenance,
-        isAdmin: isAdmin,
-        hasUnlimitedAccess: false,
-      },
-    };
-
-    const cacheTTL = result.canAccess ? this.CACHE_TTL : 60000;
-    this.setCache(cacheKey, result);
-
-    setTimeout(() => {
-      this.cache.delete(cacheKey);
-    }, cacheTTL);
-
-    return result;
-  }
-
-  async isMaintenanceMode(): Promise<boolean> {
-    const cacheKey = this.getCacheKey('isMaintenanceMode', 'status');
-    const cached = this.getCache(cacheKey);
-    if (cached !== null) {
-      return cached;
-    }
-
-    const isMaintenance = process.env.MAINTENANCE_MODE === 'true';
-    this.setCache(cacheKey, isMaintenance);
-    return isMaintenance;
-  }
-
-  async setMaintenanceMode(enabled: boolean): Promise<void> {
-    this.logger.log(
-      `Changement mode maintenance: ${enabled ? 'ACTIVÉ' : 'DÉSACTIVÉ'}`
-    );
-    process.env.MAINTENANCE_MODE = enabled ? 'true' : 'false';
-    this.clearUserCache();
-  }
-
-  async create(createUserDto: RegisterDto): Promise<User> {
-    this.logger.log('Début création utilisateur');
-
-    try {
-      const existingUserWithEmail = await this.findByEmail(createUserDto.email);
-      if (existingUserWithEmail) {
-        this.logger.warn('Email déjà utilisé');
-        throw new BadRequestException('Cet email est déjà utilisé');
-      }
-
-      const adminEmail = process.env.EMAIL_USER;
-
-      const existingAdmin = await this.findByRole(UserRole.ADMIN);
-
-      let userRole = UserRole.USER;
-
-      if (createUserDto.email === adminEmail) {
-        if (existingAdmin) {
-          userRole = UserRole.USER;
-          this.logger.warn(
-            ` Email admin utilisé pour créer un USER (admin existe déjà)`
-          );
-        } else {
-          userRole = UserRole.ADMIN;
-          this.logger.log(
-            ` Création du SEUL et UNIQUE admin: ${this.maskEmail(adminEmail)}`
-          );
-        }
-      } else {
-        userRole = UserRole.USER;
-        this.logger.log(
-          ` Création d'utilisateur standard: ${this.maskEmail(createUserDto.email)}`
+      if (emailConflict && emailConflict.id !== existingUser.id) {
+        throw new ConflictException(
+          'Un utilisateur avec cet email existe déjà',
         );
       }
+    }
 
-      const normalizedTelephone = this.normalizeTelephone(
-        createUserDto.telephone
+    // Vérifier les conflits de téléphone
+    if (
+      updateUserDto.telephone &&
+      updateUserDto.telephone !== existingUser.telephone
+    ) {
+      const phoneConflict = await this.usersRepository.findByPhone(
+        updateUserDto.telephone,
       );
-
-      if (!normalizedTelephone) {
-        this.logger.warn('Téléphone invalide');
-        throw new BadRequestException('Le numéro de téléphone est invalide');
-      }
-
-      const existingUserWithPhone = await this.userModel
-        .findOne({ telephone: normalizedTelephone })
-        .select('id email')
-        .exec();
-
-      if (existingUserWithPhone) {
-        this.logger.warn('Téléphone déjà utilisé');
-        throw new BadRequestException(
-          'Ce numéro de téléphone est déjà utilisé'
+      if (phoneConflict && phoneConflict.id !== existingUser.id) {
+        throw new ConflictException(
+          'Un utilisateur avec ce numéro de téléphone existe déjà',
         );
       }
+    }
 
-      if (!createUserDto.password || createUserDto.password.trim().length < 8) {
-        this.logger.warn('Mot de passe invalide');
-        throw new BadRequestException(
-          'Le mot de passe doit contenir au moins 8 caractères'
-        );
-      }
-
-      const hashedPassword = await bcrypt.hash(
-        createUserDto.password,
-        AuthConstants.BCRYPT_SALT_ROUNDS
-      );
-
-      if (!hashedPassword || hashedPassword.trim() === '') {
-        this.logger.error('Mot de passe hashé vide');
-        throw new BadRequestException('Erreur lors de la création du compte');
-      }
-
-      const userData = {
-        firstName: createUserDto.firstName.trim(),
-        lastName: createUserDto.lastName.trim(),
-        email: createUserDto.email.toLowerCase().trim(),
-        password: hashedPassword,
-        telephone: normalizedTelephone,
-        role: userRole,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      const user = new this.userModel(userData);
-      const savedUser = await user.save();
-
-      const freshUser = await this.userModel
-        .findById(savedUser.id)
-        .select('+password')
-        .exec();
-
-      if (!freshUser?.password || freshUser.password.trim() === '') {
-        this.logger.error('Mot de passe non enregistré');
-        await this.userModel.findByIdAndDelete(savedUser.id);
-        throw new BadRequestException('Erreur lors de la création du compte');
-      }
-
-      this.clearUserCache();
-
-      this.logger.log(`Utilisateur créé avec succès (Rôle: ${userRole})`);
-
-      const userResponse = { ...savedUser.toObject() };
-      if (userResponse.password) {
-        delete (userResponse as any).password;
-      }
-
-      return userResponse as unknown as User;
-    } catch (error: any) {
-      if (error?.code === 11000) {
-        const field = Object.keys(error.keyPattern)[0];
-        if (field === 'email') {
-          this.logger.warn('Conflit email');
-          throw new BadRequestException('Cet email est déjà utilisé');
-        }
-        if (field === 'telephone') {
-          this.logger.warn('Conflit téléphone');
-          throw new BadRequestException(
-            'Ce numéro de téléphone est déjà utilisé'
-          );
-        }
-      }
-
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      this.logger.error('Erreur création utilisateur');
-
-      throw new BadRequestException(
-        error.message.includes('téléphone')
-          ? 'Ce numéro de téléphone est déjà utilisé'
-          : 'Erreur lors de la création du compte'
+    // Hasher le mot de passe si fourni
+    const updateData = { ...updateUserDto };
+    if (updateUserDto.password) {
+      updateData.password = await bcrypt.hash(
+        updateUserDto.password,
+        parseInt(this.configService.get<string>('BCRYPT_ROUNDS') || '12'),
       );
     }
-  }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
-    this.logger.log('Début mise à jour utilisateur');
+    const updatedUser = await this.usersRepository.update(id, updateData);
 
-    const filteredUpdate = this.filterAndValidateUpdateData(updateUserDto);
-
-    try {
-      await this.verifyUserExists(id);
-      await this.checkForConflicts(id, filteredUpdate);
-
-      const updatedUser = await this.userModel
-        .findByIdAndUpdate(id, filteredUpdate, {
-          returnDocument: 'after',
-          runValidators: true,
-          context: 'query',
-        })
-        .select('-password')
-        .exec();
-
-      if (!updatedUser) {
-        this.logger.error('Utilisateur non trouvé après mise à jour');
-        throw new NotFoundException('Utilisateur non trouvé après mise à jour');
-      }
-
-      this.clearUserCache(id);
-      this.logger.log('Utilisateur mis à jour avec succès');
-      return updatedUser;
-    } catch (error: any) {
-      this.handleUpdateError(error);
+    // Si l'email a été changé (pour les non-admins), synchroniser les rendez-vous
+    if (
+      'email' in updateUserDto &&
+      updateUserDto.email &&
+      updateUserDto.email !== existingUser.email
+    ) {
+      // Mettre à jour l'email dans les rendez-vous associés
+      await this.prisma.rendezvous.updateMany({
+        where: { userId: id },
+        data: { email: updateUserDto.email },
+      });
     }
-  }
 
-  private filterAndValidateUpdateData(updateUserDto: UpdateUserDto): any {
-    const allowedFields = ['email', 'telephone'];
-    const filteredUpdate: any = {};
-
-    Object.keys(updateUserDto).forEach(key => {
-      if (
-        allowedFields.includes(key) &&
-        updateUserDto[key as keyof UpdateUserDto] !== undefined
-      ) {
-        const value = updateUserDto[key as keyof UpdateUserDto];
-        if (value !== null && value !== '') {
-          filteredUpdate[key] = value;
-        }
-      }
+    // Envoyer un email de notification de mise à jour
+    await this.queueService.addEmailJob({
+      to: updatedUser.email,
+      subject: 'Votre profil a été mis à jour',
+      html: this.generateProfileUpdatedContent(updatedUser),
+      priority: 'normal',
     });
 
-    if (Object.keys(filteredUpdate).length === 0) {
-      throw new BadRequestException('Aucune donnée valide à mettre à jour');
-    }
+    // Logger l'audit
+    await this.auditService.logUserAction(id, AuditAction.UPDATE, {
+      email: updatedUser.email,
+    });
 
-    if (filteredUpdate.email) {
-      filteredUpdate.email = filteredUpdate.email.toLowerCase().trim();
-      this.validateEmail(filteredUpdate.email);
-    }
-
-    if (filteredUpdate.telephone) {
-      filteredUpdate.telephone = this.normalizeTelephone(
-        filteredUpdate.telephone
-      );
-      this.validateTelephone(filteredUpdate.telephone);
-    }
-
-    return filteredUpdate;
+    return this.toResponseDto(updatedUser);
   }
 
-  private validateEmail(email: string): void {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      throw new BadRequestException("Format d'email invalide");
-    }
-  }
+  // Méthode spécifique pour le profil admin (utilisé par /admin/profile)
+  async updateAdminProfile(
+    id: string,
+    updateProfileDto: UpdateProfileDto,
+  ): Promise<UserResponseDto> {
+    // Convertir UpdateProfileDto vers UpdateUserDto
+    const updateUserDto: UpdateUserDto = {
+      firstName: updateProfileDto.firstName,
+      lastName: updateProfileDto.lastName,
+      telephone: updateProfileDto.telephone,
+    };
 
-  private validateTelephone(telephone: string | undefined): void {
-    if (telephone && telephone.length < 5) {
-      throw new BadRequestException(
-        'Le téléphone doit contenir au moins 5 caractères'
-      );
-    }
-  }
-
-  private async verifyUserExists(userId: string): Promise<void> {
-    const existingUser = await this.userModel
-      .findById(userId)
-      .select('id')
-      .exec();
+    // Pour le profil admin, on autorise la mise à jour sans vérifier les conflits
+    // car l'utilisateur met à jour son propre profil
+    const existingUser = await this.usersRepository.findById(id);
     if (!existingUser) {
-      this.logger.warn('Utilisateur non trouvé');
-      throw new NotFoundException('Utilisateur non trouvé');
-    }
-  }
-
-  private async checkForConflicts(
-    userId: string,
-    updateData: any
-  ): Promise<void> {
-    const adminEmail = process.env.EMAIL_USER;
-
-    if (updateData.email === adminEmail) {
-      const existingUser = await this.userModel.findById(userId);
-      if (existingUser?.email !== adminEmail) {
-        this.logger.warn("Tentative d'utilisation de l'email admin réservé");
-        throw new BadRequestException(
-          "Cet email est réservé à l'administrateur principal"
-        );
-      }
+      throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
     }
 
-    if (updateData.email) {
-      const existingUserWithEmail = await this.userModel
-        .findOne({
-          email: updateData.email,
-          id: { $ne: userId },
-        })
-        .select('id')
-        .exec();
+    // Pas de vérification de conflit pour le propre profil admin
+    // L'utilisateur peut conserver son email et téléphone actuel
 
-      if (existingUserWithEmail) {
-        this.logger.warn('Conflit email déjà utilisé');
-        throw new BadRequestException('Cet email est déjà utilisé');
-      }
-    }
-
-    if (updateData.telephone) {
-      const existingUserWithPhone = await this.userModel
-        .findOne({
-          telephone: updateData.telephone,
-          id: { $ne: userId },
-        })
-        .select('id')
-        .exec();
-
-      if (existingUserWithPhone) {
-        this.logger.warn('Conflit téléphone déjà utilisé');
-        throw new BadRequestException(
-          'Ce numéro de téléphone est déjà utilisé'
-        );
-      }
-    }
-  }
-
-  private handleUpdateError(error: any): never {
-    if (error?.code === 11000) {
-      const fields = Object.keys(error.keyPattern || {});
-      if (fields.includes('email')) {
-        this.logger.warn('Erreur duplication email');
-        throw new BadRequestException('Cet email est déjà utilisé');
-      }
-      if (fields.includes('telephone')) {
-        this.logger.warn('Erreur duplication téléphone');
-        throw new BadRequestException(
-          'Ce numéro de téléphone est déjà utilisé'
-        );
-      }
-      throw new BadRequestException('Conflit de données');
-    }
-
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(
-        (err: any) => err.message
-      );
-      this.logger.warn(`Erreur validation: ${messages.join(', ')}`);
-      throw new BadRequestException(messages.join(', '));
-    }
-
-    if (error.name === 'CastError') {
-      this.logger.warn('ID utilisateur invalide');
-      throw new BadRequestException('ID utilisateur invalide');
-    }
-
-    if (
-      error instanceof BadRequestException ||
-      error instanceof NotFoundException
-    ) {
-      throw error;
-    }
-
-    this.logger.error('Erreur inattendue lors de la mise à jour');
-    throw new BadRequestException('Erreur lors de la mise à jour du profil');
-  }
-
-  async updatePassword(
-    userId: string,
-    updatePasswordDto: UpdatePasswordDto
-  ): Promise<void> {
-    this.logger.log('Début changement mot de passe');
-
-    const user = await this.userModel
-      .findById(userId)
-      .select('+password')
-      .exec();
-    if (!user) {
-      this.logger.warn('Utilisateur non trouvé pour changement mot de passe');
-      throw new NotFoundException('Utilisateur non trouvé');
-    }
-
-    if (!user.password || user.password.trim() === '') {
-      this.logger.error(
-        "L'utilisateur n'a pas de mot de passe hashé enregistré"
-      );
-
-      if (user.role === UserRole.ADMIN) {
-        this.logger.log('Admin crée un nouveau mot de passe');
-
-        user.password = await bcrypt.hash(
-          updatePasswordDto.newPassword,
-          AuthConstants.BCRYPT_SALT_ROUNDS
-        );
-
-        await user.save();
-        this.clearUserCache(userId);
-        this.logger.log('Mot de passe créé avec succès pour admin');
-        return;
-      }
-
-      throw new UnauthorizedException(
-        "Configuration du compte invalide. Contactez l'administrateur."
+    // Hasher le mot de passe si fourni
+    const updateData = { ...updateUserDto };
+    if (updateUserDto.password) {
+      updateData.password = await bcrypt.hash(
+        updateUserDto.password,
+        parseInt(this.configService.get<string>('BCRYPT_ROUNDS') || '12'),
       );
     }
 
-    if (
-      !updatePasswordDto.currentPassword ||
-      updatePasswordDto.currentPassword.trim() === ''
-    ) {
-      this.logger.warn('Mot de passe actuel non fourni');
-      throw new BadRequestException('Le mot de passe actuel est requis');
-    }
+    const updatedUser = await this.usersRepository.update(id, updateData);
 
-    let isMatch = false;
-    try {
-      const cleanCurrentPassword = updatePasswordDto.currentPassword.trim();
+    // Envoyer un email de notification de mise à jour
+    await this.queueService.addEmailJob({
+      to: updatedUser.email,
+      subject: 'Votre profil a été mis à jour',
+      html: this.generateProfileUpdatedContent(updatedUser),
+      priority: 'normal',
+    });
 
-      if (!user.password || !cleanCurrentPassword) {
-        throw new Error('Arguments manquants pour la comparaison');
-      }
+    // Logger l'audit
+    await this.auditService.logUserAction(id, AuditAction.UPDATE, {
+      email: updatedUser.email,
+    });
 
-      isMatch = await bcrypt.compare(cleanCurrentPassword, user.password);
-    } catch (error: any) {
-      this.logger.error('Erreur lors de la validation du mot de passe');
-
-      if (
-        error.message &&
-        error.message.includes('data and hash arguments required')
-      ) {
-        throw new BadRequestException(
-          'Erreur technique lors de la validation du mot de passe. Veuillez réessayer.'
-        );
-      }
-
-      throw error;
-    }
-
-    if (!isMatch) {
-      this.logger.warn('Mot de passe actuel incorrect');
-      throw new UnauthorizedException('Mot de passe actuel incorrect');
-    }
-
-    const isSamePassword = await bcrypt.compare(
-      updatePasswordDto.newPassword,
-      user.password
-    );
-
-    if (isSamePassword) {
-      this.logger.warn("Nouveau mot de passe identique à l'ancien");
-      throw new BadRequestException(
-        "Le nouveau mot de passe doit être différent de l'actuel"
-      );
-    }
-
-    user.password = await bcrypt.hash(
-      updatePasswordDto.newPassword,
-      AuthConstants.BCRYPT_SALT_ROUNDS
-    );
-
-    await user.save();
-    this.clearUserCache(userId);
-
-    this.logger.log('Mot de passe changé avec succès');
+    return this.toResponseDto(updatedUser);
   }
 
-  async resetPassword(userId: string, newPassword: string): Promise<void> {
-    this.logger.log('Réinitialisation mot de passe');
-
-    const user = await this.userModel.findById(userId);
-    if (!user) {
-      this.logger.warn('Utilisateur non trouvé pour réinitialisation');
-      throw new NotFoundException('Utilisateur non trouvé');
-    }
-
-    user.password = await bcrypt.hash(
+  async updatePassword(userId: string, newPassword: string): Promise<void> {
+    const hashedPassword = await bcrypt.hash(
       newPassword,
-      AuthConstants.BCRYPT_SALT_ROUNDS
+      parseInt(this.configService.get<string>('BCRYPT_ROUNDS') || '12'),
     );
 
-    await user.save();
-    this.clearUserCache(userId);
+    await this.usersRepository.update(userId, { password: hashedPassword });
 
-    this.logger.log('Mot de passe réinitialisé');
+    // Logger l'audit
+    await this.auditService.logUserAction(userId, AuditAction.UPDATE, {
+      action: 'PASSWORD_CHANGED',
+    });
   }
 
-  async delete(id: string): Promise<void> {
-    this.logger.log('Début suppression utilisateur');
+  async remove(id: string, currentUserRole: UserRole): Promise<void> {
+    // Vérifier si l'utilisateur existe
+    const user = await this.usersRepository.findById(id);
+    if (!user) {
+      throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
+    }
 
-    const adminEmail = process.env.EMAIL_USER;
-    const user = await this.userModel.findById(id).select('email role').exec();
-
-    if (user?.email === adminEmail && user?.role === UserRole.ADMIN) {
-      this.logger.warn("Tentative de suppression de l'admin unique");
-      throw new BadRequestException(
-        "Impossible de supprimer l'administrateur unique du système"
+    // Seul un admin peut supprimer un utilisateur
+    if (currentUserRole !== UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'Seul un administrateur peut supprimer un utilisateur',
       );
     }
 
-    const result = await this.userModel.findByIdAndDelete(id).exec();
-    if (!result) {
-      this.logger.warn('Utilisateur non trouvé pour suppression');
+    // Nettoyer les refresh tokens associés à l'utilisateur avant la suppression
+    await this.prisma.refreshToken.deleteMany({
+      where: { userId: id },
+    });
+
+    // Nettoyer les autres relations si nécessaire
+    await this.prisma.session.deleteMany({
+      where: { userId: id },
+    });
+
+    await this.prisma.resetToken.deleteMany({
+      where: { userId: id },
+    });
+
+    await this.prisma.revokedToken.deleteMany({
+      where: { userId: id },
+    });
+
+    await this.usersRepository.softDelete(id);
+
+    // Logger l'audit
+    await this.auditService.logUserAction(id, AuditAction.DELETE, {
+      email: user.email,
+    });
+  }
+
+  async updateStatus(
+    id: string,
+    updateStatusDto: UpdateUserStatusDto,
+  ): Promise<UserResponseDto> {
+    const user = await this.usersRepository.findById(id);
+    if (!user) {
       throw new NotFoundException('Utilisateur non trouvé');
     }
 
-    this.clearUserCache(id);
-    this.logger.log('Utilisateur supprimé');
-  }
-
-  async toggleStatus(id: string): Promise<User> {
-    this.logger.log('Changement statut utilisateur');
-
-    const adminEmail = process.env.EMAIL_USER;
-    const user = await this.findById(id);
-
-    if (user.email === adminEmail && user.role === UserRole.ADMIN) {
-      this.logger.warn("Tentative de désactivation de l'admin unique");
-      throw new BadRequestException(
-        "Impossible de désactiver l'administrateur unique du système"
+    // Interdire de désactiver le compte admin principal
+    const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
+    if (updateStatusDto.isActive === false && user.email === adminEmail) {
+      throw new ForbiddenException(
+        'Impossible de désactiver le compte administrateur principal',
       );
     }
 
-    const updatedUser = await this.userModel
-      .findByIdAndUpdate(id, { isActive: !user.isActive }, { returnDocument: 'after' })
-      .select('-password')
-      .exec();
-
-    if (!updatedUser) {
-      this.logger.error('Utilisateur non trouvé après changement statut');
-      throw new NotFoundException('Utilisateur non trouvé');
+    // Interdire de désactiver son propre compte
+    if (updateStatusDto.isActive === false && user.isDeleted) {
+      throw new ForbiddenException(
+        'Impossible de désactiver un compte supprimé',
+      );
     }
 
-    this.clearUserCache(id);
-    this.logger.log(
-      `Statut utilisateur modifié - Actif: ${updatedUser.isActive}`
-    );
-    return updatedUser;
+    const updatedUser = await this.usersRepository.update(id, {
+      isActive: updateStatusDto.isActive,
+      logoutUntil: updateStatusDto.logoutUntil
+        ? new Date(updateStatusDto.logoutUntil)
+        : null,
+    });
+
+    // Logger l'audit
+    await this.auditService.logUserAction(id, AuditAction.UPDATE, {
+      email: updatedUser.email,
+      action: updateStatusDto.isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED',
+      reason: updateStatusDto.reason,
+    });
+
+    return this.toResponseDto(updatedUser);
   }
 
-  async checkDatabaseConnection(): Promise<boolean> {
-    try {
-      if (!this.userModel.db || !this.userModel.db.db) {
-        this.logger.error('Connexion base de données non disponible');
-        return false;
-      }
-      await this.userModel.db.db.command({ ping: 1 });
-      return true;
-    } catch {
-      this.logger.error('Échec vérification connexion base de données');
-      return false;
-    }
-  }
+  // ==================== UTILITAIRES ====================
 
-  async getStats() {
-    const cacheKey = this.getCacheKey('getStats', 'all');
-    const cached = this.getCache(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const [totalUsers, activeUsers, adminUsers] = await Promise.all([
-      this.userModel.countDocuments().exec(),
-      this.userModel.countDocuments({ isActive: true }).exec(),
-      this.userModel.countDocuments({ role: 'admin' }).exec(),
-    ]);
-
-    const stats = {
-      totalUsers,
-      activeUsers,
-      inactiveUsers: totalUsers - activeUsers,
-      adminUsers,
-      regularUsers: totalUsers - adminUsers,
-    };
-
-    this.setCache(cacheKey, stats);
-    return stats;
-  }
-
-  async getMaintenanceStatus() {
-    const cacheKey = this.getCacheKey('getMaintenanceStatus', 'status');
-    const cached = this.getCache(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const isActive = await this.isMaintenanceMode();
-    const status = {
-      isActive,
-      enabledAt: isActive ? new Date().toISOString() : null,
-      message: isActive
-        ? 'Mode maintenance activé - Accès réservé aux administrateurs'
-        : 'Mode maintenance désactivé - Application accessible',
-    };
-
-    this.setCache(cacheKey, status);
-    return status;
-  }
-
-  async clearAllCache(): Promise<void> {
-    const cacheSize = this.cache.size;
-    this.cache.clear();
-    this.logger.log(`Cache utilisateur vidé - ${cacheSize} entrées supprimées`);
-  }
-
-  private maskEmail(email: string): string {
-    if (!email || typeof email !== 'string') return '***@***';
-
-    const trimmedEmail = email.trim();
-    const [name, domain] = trimmedEmail.split('@');
-
-    if (!name || !domain || name.length === 0 || domain.length === 0) {
-      return '***@***';
-    }
-
-    const maskedName =
-      name.length <= 2
-        ? name.charAt(0) + '*'
-        : name.charAt(0) +
-          '***' +
-          (name.length > 1 ? name.charAt(name.length - 1) : '');
-
-    const domainParts = domain.split('.');
-    if (domainParts.length < 2) return `${maskedName}@***`;
-
-    const maskedDomain =
-      domainParts.length === 2
-        ? '***.' + domainParts[1]
-        : '***.' + domainParts.slice(-2).join('.');
-
-    return `${maskedName}@${maskedDomain}`;
+  private generateProfileUpdatedContent(user: {
+    firstName: string;
+    email: string;
+  }): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Bonjour <strong>${user.firstName}</strong>,</p>
+        <p>Votre profil a été mis à jour avec succès.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #10b981;margin:25px 0;">
+          <h3 style="margin-top:0;color:#10b981;">Mise à jour réussie</h3>
+          <p style="margin:0;">Les modifications de votre profil ont été enregistrées.</p>
+        </div>
+        <p>Si vous n'êtes pas à l'origine de cette modification, veuillez nous contacter immédiatement.</p>
+        <div style="text-align:center;margin-top:30px;">
+          <a href="https://panameconsulting.com/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon profil</a>
+        </div>
+        <p style="margin-top:30px;">Cordialement,<br><strong>Paname Consulting</strong></p>
+      </div>`;
   }
 }

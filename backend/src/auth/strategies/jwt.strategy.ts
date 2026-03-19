@@ -1,109 +1,78 @@
-import { ExtractJwt, Strategy, StrategyOptions } from 'passport-jwt';
+import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Request } from 'express';
+import { TokenPayload } from '../dto';
 import { UsersService } from '../../users/users.service';
-import { AuthConstants } from '../auth.constants';
+import { CurrentUser } from '../../interfaces/current-user.interface';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly logger = new Logger(JwtStrategy.name);
+
   constructor(
-    configService: ConfigService,
-    private readonly usersService: UsersService
+    private configService: ConfigService,
+    private usersService: UsersService,
   ) {
-    const jwtSecret =
-      configService.get<string>('JWT_SECRET') || process.env.JWT_SECRET;
-
-    if (!jwtSecret) {
-      throw new Error('JWT_SECRET is not defined in environment variables');
-    }
-
-    const strategyOptions: StrategyOptions = {
+    super({
       jwtFromRequest: ExtractJwt.fromExtractors([
-        (request) => {
-          // Essayer d'abord le header Authorization (pour compatibilité)
-          const authHeader = request?.headers?.authorization;
-          if (authHeader && authHeader.startsWith('Bearer ')) {
-            return authHeader.substring(7);
-          }
-          
-          // Ensuite, essayer les cookies
-          const token = request?.cookies?.access_token;
-          if (token) {
-            return token;
-          }
-          
-          return null;
-        },
+        JwtStrategy.extractJWTFromCookie,
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
       ]),
       ignoreExpiration: false,
-      secretOrKey: jwtSecret,
-    };
-
-    super(strategyOptions);
+      secretOrKey:
+        configService.get<string>('JWT_SECRET') || process.env.JWT_SECRET,
+    });
   }
 
-  async validate(payload: any): Promise<any> {
+  private static extractJWTFromCookie(this: void, req: Request): string | null {
+    const cookies = req.cookies as { access_token?: string } | undefined;
+    if (cookies?.access_token) {
+      return cookies.access_token;
+    }
+    return null;
+  }
+
+  async validate(payload: TokenPayload): Promise<CurrentUser> {
+    const startTime = Date.now();
     try {
-      if (!payload.sub) {
-        throw new UnauthorizedException(
-          'Token invalide: ID utilisateur manquant'
-        );
+      const user = await this.usersService.findById(payload.sub);
+
+      if (!user) {
+        const duration = Date.now() - startTime;
+        this.logger.warn(`GET /api/user/profile -> 401 (${duration}ms)`);
+        throw new UnauthorizedException('Utilisateur non trouvé');
       }
 
-      const accessCheck = await this.usersService.checkUserAccess(payload.sub);
-
-      if (!accessCheck.canAccess) {
-        const reason = accessCheck.reason || '';
-
-        if (reason.includes('Compte désactivé')) {
-          throw new UnauthorizedException(
-            AuthConstants.ERROR_MESSAGES.COMPTE_DESACTIVE
-          );
-        } else if (reason.includes('Mode maintenance')) {
-          throw new UnauthorizedException(
-            AuthConstants.ERROR_MESSAGES.MAINTENANCE_MODE
-          );
-        } else if (reason.includes('Déconnecté temporairement')) {
-          const remainingHours =
-            (accessCheck.details as any)?.remainingHours || 24;
-          throw new UnauthorizedException(
-            `${AuthConstants.ERROR_MESSAGES.COMPTE_TEMPORAIREMENT_DECONNECTE}:${remainingHours}`
-          );
-        } else {
-          throw new UnauthorizedException(reason || 'Accès refusé');
-        }
+      if (!user.isActive) {
+        const duration = Date.now() - startTime;
+        this.logger.warn(`GET /api/user/profile -> 401 (${duration}ms)`);
+        throw new UnauthorizedException('Compte désactivé');
       }
 
-      const userData = {
-        id: accessCheck.user.id || payload.sub,
-        sub: payload.sub,
-        userId: payload.sub,
-        email: accessCheck.user.email,
-        role: accessCheck.user.role,
-        firstName: accessCheck.user.firstName,
-        lastName: accessCheck.user.lastName,
-        isActive: accessCheck.user.isActive,
-        telephone: accessCheck.user.telephone,
-        iat: payload.iat,
-        exp: payload.exp,
-      };
-
-      return userData;
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error occurred';
-      const errorStack = error instanceof Error ? error.stack : undefined;
-
-      console.error(`JWT Validation Error: ${errorMessage}`, {
-        userId: payload?.sub || 'unknown',
-        error: errorStack,
-      });
-
-      if (error instanceof UnauthorizedException) {
-        throw error;
+      if (user.logoutUntil && new Date() < user.logoutUntil) {
+        const duration = Date.now() - startTime;
+        this.logger.warn(`GET /api/user/profile -> 401 (${duration}ms)`);
+        throw new UnauthorizedException('Compte temporairement verrouillé');
       }
-      throw new UnauthorizedException('Token invalide ou expiré');
+
+      const duration = Date.now() - startTime;
+      this.logger.log(`GET /api/user/profile -> 200 (${duration}ms)`);
+      return {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      } as CurrentUser;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.logger.error(`GET /api/user/profile -> 500 (${duration}ms)`);
+      throw error;
     }
   }
 }

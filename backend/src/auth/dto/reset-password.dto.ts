@@ -1,38 +1,24 @@
-import {
-  IsString,
-  MinLength,
-  Matches,
-  IsNotEmpty,
-} from '@nestjs/class-validator';
+import { IsString, MinLength, IsNotEmpty, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Match } from '../../shared/decorators/match.decorator';
 
 export class ResetPasswordDto {
   @ApiProperty({ description: 'Token de réinitialisation' })
-  @IsString()
+  @IsString({ message: 'Le token doit être une chaîne de caractères' })
   @IsNotEmpty({ message: 'Le token est requis' })
   token: string;
 
   @ApiProperty({
-    example: 'NewPassword123',
+    example: 'newPassword123',
     description: 'Nouveau mot de passe',
   })
-  @IsString()
-  @MinLength(8, {
-    message: 'Le mot de passe doit contenir au moins 8 caractères',
+  @IsString({ message: 'Le mot de passe doit être une chaîne de caractères' })
+  @MinLength(6, {
+    message: 'Le mot de passe doit contenir au moins 6 caractères',
   })
-  @Matches(/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+  @Matches(/((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
     message:
-      'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre',
+      'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre',
   })
-  newPassword: string;
-
-  @ApiProperty({
-    example: 'NewPassword123',
-    description: 'Confirmation du mot de passe',
-  })
-  @IsString()
-  @MinLength(8)
-  @Match('newPassword', { message: 'Les mots de passe ne correspondent pas' })
-  confirmPassword: string;
+  @IsNotEmpty({ message: 'Le mot de passe est requis' })
+  new_password: string;
 }

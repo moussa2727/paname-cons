@@ -1,101 +1,165 @@
-import { Module, Logger } from '@nestjs/common';
+import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
-import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'path';
-import configuration from './config/configuration';
-import { AppController } from './app.controller';
+import { BullModule } from '@nestjs/bull';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
+import { RedisConfig } from './config/redis.config';
 
-// Modules métier
+// Modules
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
-import { ContactModule } from './contact/contact.module';
-import { DestinationModule } from './destination/destination.module';
+import { ProceduresModule } from './procedures/procedures.module';
+import { RendezvousModule } from './rendezvous/rendezvous.module';
+import { DestinationsModule } from './destinations/destinations.module';
+import { ContactsModule } from './contacts/contacts.module';
+import { UploadModule } from './upload/upload.module';
+import { PrismaModule } from './prisma/prisma.module';
 import { MailModule } from './mail/mail.module';
-import { RendezvousModule } from './rendez-vous/rendez-vous.module';
-import { NotificationModule } from './notification/notification.module';
-import { ProcedureModule } from './procedure/procedure.module';
-import { SmtpService } from './config/smtp.service';
+import { CronModule } from './cron/cron.module';
+import { LoggerModule } from './common/logger/logger.module';
+import { TokensModule } from './tokens/tokens.module';
+import { CacheModule } from './cache/cache.module';
+import { HolidaysModule } from './holidays/holidays.module';
+import { QueueModule } from './queue/queue.module';
+import { SessionModule } from './common/middlewares/session.module';
+
+// Common
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
+
+// Interceptors & Filters
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
+
+// Configuration
+import configuration from './config/configuration';
+import { APP_GUARD, APP_PIPE, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 
 @Module({
   imports: [
-    // 1. Configuration globale
+    // ==================== CONFIGURATION ====================
     ConfigModule.forRoot({
-      load: [configuration],
       isGlobal: true,
-      envFilePath: '.env',
+      load: [configuration],
+      envFilePath: ['.env', `.env.${process.env.NODE_ENV || 'development'}`],
     }),
 
-    // 2. Base de données - CONFIGURATION AMÉLIORÉE
-    MongooseModule.forRootAsync({
+    // ==================== RATE LIMITING ====================
+    ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => {
-        const logger = new Logger('MongooseModule');
-        const uri = configService.get<string>('MONGODB_URI');
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            ttl: config.get('THROTTLE_TTL', 60),
+            limit: config.get('THROTTLE_LIMIT', 100),
+          },
+        ],
+      }),
+    }),
 
-        if (!uri) {
-          logger.error(
-            "MONGODB_URI est non définie dans les variables d'environnement"
-          );
+    // ==================== SCHEDULER (CRON) ====================
+    ScheduleModule.forRoot(),
+
+    // ==================== REDIS QUEUE (BULL) ====================
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const redisConfig = config.get<RedisConfig>('redis');
+        if (!redisConfig.enabled) {
           throw new Error(
-            'MONGODB_URI is not defined in environment variables'
+            'Redis est désactivé. Impossible de configurer BullMQ.',
           );
         }
-
         return {
-          uri,
-          retryAttempts: 5,
-          retryDelay: 3000,
-          serverSelectionTimeoutMS: 30000,
-          socketTimeoutMS: 45000,
-          bufferCommands: false,
-          connectTimeoutMS: 30000,
-          maxPoolSize: 10,
-          minPoolSize: 1,
-          heartbeatFrequencyMS: 10000,
+          redis: redisConfig.url,
+          defaultJobOptions: {
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 5000,
+            },
+            removeOnComplete: 100,
+            removeOnFail: 500,
+          },
         };
       },
-      inject: [ConfigService],
     }),
 
-    // 3. Serveur de fichiers statiques
-     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, "..", "uploads"),
-      serveRoot: "/uploads",
-      serveStaticOptions: {
-        index: false,
-        dotfiles: 'deny',
-        cacheControl: true,
-        maxAge: 2592000000,
-      },
-    }),
+    // ==================== MODULES MÉTIER ====================
+    PrismaModule,
+    LoggerModule,
+    TokensModule,
+    ContactsModule,
+    QueueModule,
+    MailModule,
+    CronModule,
+    CacheModule,
+    HolidaysModule,
+    SessionModule,
 
-    // 4. Modules fonctionnels
+    // Modules fonctionnels
     AuthModule,
     UsersModule,
-    DestinationModule,
-    ContactModule,
-    MailModule,
-    ProcedureModule,
+    ProceduresModule,
     RendezvousModule,
-    NotificationModule,
+    DestinationsModule,
+    UploadModule,
   ],
-  controllers: [AppController],
-  providers: [
-    SmtpService,
-    {
-      provide: 'INITIALIZE_DATABASE',
-      useFactory: async (configService: ConfigService) => {
-        const uri = configService.get<string>('MONGODB_URI');
 
-        if (!uri && process.env.NODE_ENV !== 'production') {
-          console.error('MONGODB_URI manquante au démarrage');
-        }
-        // Pas de logs en production pour masquer les informations sensibles
-      },
-      inject: [ConfigService],
+  controllers: [],
+
+  providers: [
+    // ==================== GUARDS GLOBAUX (ordre important) ====================
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard, // 1️⃣ Rate limiting d'abord
+    },
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard, // 2️⃣ Authentification JWT
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard, // 3️⃣ Vérification des rôles
+    },
+
+    // ==================== PIPE GLOBAL ====================
+    {
+      provide: APP_PIPE,
+      useFactory: () =>
+        new ValidationPipe({
+          whitelist: true,
+          forbidNonWhitelisted: true,
+          transform: true,
+          disableErrorMessages: process.env.NODE_ENV === 'production',
+        }),
+    },
+
+    // ==================== INTERCEPTEURS GLOBAUX ====================
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TransformInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
+    },
+
+    // ==================== FILTRES GLOBAUX ====================
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: PrismaExceptionFilter,
     },
   ],
-  exports: [SmtpService],
+
+  exports: [ConfigModule],
 })
 export class AppModule {}

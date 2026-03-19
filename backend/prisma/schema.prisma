@@ -1,0 +1,733 @@
+// prisma/schema.prisma
+// ==================== HARMONISATION AVEC SCHEMAS MONGOOSE ====================
+// Ce schéma Prisma a été harmonisé pour correspondre exactement aux schemas Mongoose:
+// - Enums utilisent les valeurs françaises des schemas Mongoose
+// - Modèles User, Procedure, Rendezvous, Contact, Notification correspondent aux schemas Mongoose
+// - Ajout des enums TimeSlot, Destination, Filiere depuis le schema Rendezvous
+// - Méthodes virtuelles documentées pour implémentation dans les services NestJS
+// - Relations Prisma remplacent les tableaux embarqués de Mongoose
+// =========================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== ENUMS ====================
+
+enum UserRole {
+  USER  @map("USER")
+  ADMIN @map("ADMIN")
+}
+
+enum StepStatus {
+  PENDING     @map("En attente")
+  IN_PROGRESS @map("En cours")
+  COMPLETED   @map("Terminé")
+  REJECTED    @map("Rejeté")
+  CANCELLED   @map("Annulé")
+}
+
+enum StepName {
+  DEMANDE_ADMISSION    @map("DEMANDE ADMISSION")
+  ENTRETIEN_MOTIVATION @map("ENTRETIEN MOTIVATION")
+  DEMANDE_VISA         @map("DEMANDE VISA")
+  PREPARATIF_VOYAGE    @map("PREPARATIF VOYAGE")
+}
+
+enum ProcedureStatus {
+  PENDING     @map("En attente")
+  IN_PROGRESS @map("En cours")
+  COMPLETED   @map("Terminée")
+  REJECTED    @map("Refusée")
+  CANCELLED   @map("Annulée")
+}
+
+enum RendezvousStatus {
+  PENDING   @map("En attente")
+  CONFIRMED @map("Confirmé")
+  COMPLETED @map("Terminé")
+  CANCELLED @map("Annulé")
+}
+
+enum AdminOpinion {
+  FAVORABLE   @map("Favorable")
+  UNFAVORABLE @map("Défavorable")
+}
+
+enum EducationLevel {
+  Bac       @map("Bac")
+  Bac_1     @map("Bac+1")
+  Bac_2     @map("Bac+2")
+  Licence   @map("Licence")
+  Master_I  @map("Master I")
+  Master_II @map("Master II")
+  Doctorat  @map("Doctorat")
+  AUTRE     @map("Autre")
+}
+
+// Constantes depuis le schema Rendezvous
+// Créneaux horaires disponibles (pause déjeuner 12:30-14h exclue)
+enum TimeSlot {
+  SLOT_0900 @map("09:00")
+  SLOT_0930 @map("09:30")
+  SLOT_1000 @map("10:00")
+  SLOT_1030 @map("10:30")
+  SLOT_1100 @map("11:00")
+  SLOT_1130 @map("11:30")
+  // Créneaux pendant la pause déjeuner (12:30-14h) sont exclus
+  // SLOT_1200 @map("12:00") - PAUSE DEJEUNER
+  // SLOT_1230 @map("12:30") - PAUSE DEJEUNER
+  // SLOT_1300 @map("13:00") - PAUSE DEJEUNER
+  // SLOT_1330 @map("13:30") - PAUSE DEJEUNER
+  SLOT_1400 @map("14:00")
+  SLOT_1430 @map("14:30")
+  SLOT_1500 @map("15:00")
+  SLOT_1530 @map("15:30")
+  SLOT_1600 @map("16:00")
+  SLOT_1630 @map("16:30")
+}
+
+enum DestinationEnum {
+  RUSSIE  @map("Russie")
+  CHYPRE  @map("Chypre")
+  CHINE   @map("Chine")
+  MAROC   @map("Maroc")
+  ALGERIE @map("Algérie")
+  TURQUIE @map("Turquie")
+  FRANCE  @map("France")
+  AUTRE   @map("Autre")
+}
+
+enum Filiere {
+  INFORMATIQUE @map("Informatique")
+  MEDECINE     @map("Médecine")
+  DROIT        @map("Droit")
+  COMMERCE     @map("Commerce")
+  INGENIERIE   @map("Ingénierie")
+  ARCHITECTURE @map("Architecture")
+  AUTRE        @map("Autre")
+}
+
+enum TokenStatus {
+  PENDING @map("PENDING")
+  USED    @map("USED")
+  EXPIRED @map("EXPIRED")
+}
+
+enum RevocationReason {
+  SESSION_EXPIRED      @map("SESSION_EXPIRED")
+  MANUAL_LOGOUT        @map("MANUAL_LOGOUT")
+  PASSWORD_CHANGED     @map("PASSWORD_CHANGED")
+  ADMIN_REVOKE         @map("ADMIN_REVOKE")
+  MANUAL_REVOKE        @map("MANUAL_REVOKE")
+  MAX_SESSIONS_REACHED @map("MAX_SESSIONS_REACHED")
+  INACTIVITY           @map("INACTIVITY")
+  REMEMBER_ME_EXPIRED  @map("REMEMBER_ME_EXPIRED")
+  SESSION_MAX_AGE      @map("SESSION_MAX_AGE")
+}
+
+enum CancelledBy {
+  ADMIN  @map("ADMIN")
+  USER   @map("USER")
+  SYSTEM @map("SYSTEM")
+}
+
+enum NotificationType {
+  EMAIL  @map("EMAIL")
+  IN_APP @map("IN_APP")
+}
+
+enum NotificationStatus {
+  PENDING @map("PENDING")
+  SENT    @map("SENT")
+  FAILED  @map("FAILED")
+  READ    @map("READ")
+}
+
+enum AuditAction {
+  CREATE   @map("CREATE")
+  UPDATE   @map("UPDATE")
+  DELETE   @map("DELETE")
+  VIEW     @map("VIEW")
+  LOGIN    @map("LOGIN")
+  LOGOUT   @map("LOGOUT")
+  CANCEL   @map("CANCEL")
+  COMPLETE @map("COMPLETE")
+  RESPOND  @map("RESPOND")
+  EXPORT   @map("EXPORT")
+}
+
+// ==================== MODELS ====================
+
+model User {
+  // Identifiants de base
+  id       String   @id @default(cuid())
+  email    String   @unique @db.VarChar(100)
+  password String   @db.VarChar(255)
+  role     UserRole @default(USER)
+
+  // Informations personnelles
+  firstName String @db.VarChar(50)
+  lastName  String @db.VarChar(50)
+  telephone String @db.VarChar(20)
+
+  // Statut du compte
+  isActive          Boolean   @default(true)
+  logoutUntil       DateTime?
+  lastLogout        DateTime?
+  logoutReason      String?
+  logoutTransaction String?
+  logoutCount       Int       @default(0)
+  lastLogin         DateTime?
+  loginCount        Int       @default(0)
+
+  // Métadonnées
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  isDeleted Boolean   @default(false)
+
+  // Champs additionnels du schema Mongoose
+  tokenType String?
+
+  // Relations
+  sessions        Session[]
+  refreshTokens   RefreshToken[]
+  resetTokens     ResetToken[]
+  revokedTokens   RevokedToken[]
+  procedures      Procedure[]
+  rendezvous      Rendezvous[]
+  contacts        Contact[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  userPreferences UserPreferences?
+  loginHistory    LoginHistory[]
+
+  // Virtual methods from Mongoose schema (à implémenter dans les services NestJS):
+  // fullName: string => `${this.firstName} ${this.lastName}`
+  // isTemporarilyLoggedOut: boolean => this.logoutUntil && new Date() < this.logoutUntil
+  // canLogin: boolean => (role === ADMIN) || (isActive && !isTemporarilyLoggedOut)
+  // sub: string => this.id
+
+  @@index([email])
+  @@index([role, isActive])
+  @@index([logoutUntil, isActive])
+  @@index([createdAt])
+  @@index([isDeleted])
+  @@map("users")
+}
+
+model UserPreferences {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  language String @default("fr")
+  timezone String @default("Europe/Paris")
+  theme    String @default("light")
+
+  notifications   Json  @default("{\"email\":true,\"push\":false,\"sms\":false}")
+  dashboardLayout Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("user_preferences")
+}
+
+model LoginHistory {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  loginAt       DateTime  @default(now())
+  logoutAt      DateTime?
+  ipAddress     String?
+  userAgent     String?
+  location      Json?
+  successful    Boolean   @default(true)
+  failureReason String?
+
+  @@index([userId])
+  @@index([loginAt])
+  @@map("login_history")
+}
+
+model Session {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  token        String   @unique
+  expiresAt    DateTime
+  isActive     Boolean  @default(true)
+  lastActivity DateTime @default(now())
+
+  ipAddress  String?
+  userAgent  String?
+  deviceInfo Json?
+
+  deactivatedAt    DateTime?
+  revocationReason RevocationReason?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, isActive, expiresAt])
+  @@index([expiresAt])
+  @@index([token])
+  @@index([deactivatedAt])
+  @@index([lastActivity])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  token        String   @unique
+  expiresAt    DateTime
+  isActive     Boolean  @default(true)
+  isRememberMe Boolean  @default(false)
+
+  ipAddress String?
+  userAgent String?
+
+  rotationCount   Int     @default(0)
+  previousTokenId String?
+
+  deactivatedAt    DateTime?
+  revocationReason String?
+  rotatedAt        DateTime?
+  lastActivity     DateTime? // Track last user activity
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([expiresAt])
+  @@index([userId])
+  @@index([isActive])
+  @@index([deactivatedAt])
+  @@index([token])
+  @@index([lastActivity])
+  @@map("refresh_tokens")
+}
+
+model ResetToken {
+  id     String @id @default(cuid())
+  token  String @unique
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  expiresAt DateTime
+  used      Boolean     @default(false)
+  status    TokenStatus @default(PENDING)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([expiresAt])
+  @@index([token])
+  @@map("reset_tokens")
+}
+
+model RevokedToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  reason String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([expiresAt])
+  @@index([token])
+  @@map("revoked_tokens")
+}
+
+model Procedure {
+  id           String  @id @default(cuid())
+  rendezVousId String? // Rendu optionnel comme dans le schema Mongoose
+
+  // Informations personnelles
+  prenom    String @db.VarChar(50)
+  nom       String @db.VarChar(50)
+  email     String @db.VarChar(100)
+  telephone String @db.VarChar(20)
+
+  // Destination et filière
+  destination      String
+  destinationAutre String?
+  filiere          String
+  filiereAutre     String?
+  niveauEtude      String
+  niveauEtudeAutre String?
+
+  // Statut
+  statut      ProcedureStatus @default(IN_PROGRESS)
+  raisonRejet String?
+
+  // Annulation
+  cancelledAt      DateTime?
+  cancelledReason  String?
+  cancelledBy      String?
+
+  // Soft delete
+  isDeleted      Boolean   @default(false)
+  deletedAt      DateTime?
+  deletionReason String?
+
+  // Dates importantes
+  dateCompletion           DateTime?
+  dateDerniereModification DateTime? @default(now())
+
+  // Métadonnées
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  steps        Step[]
+  rendezVouses Rendezvous[]        @relation("ProcedureRendezvous")
+  userId       String?
+  user         User?               @relation(fields: [userId], references: [id])
+  comments     ProcedureComment[]
+  timeline     ProcedureTimeline[]
+  files        File[]
+
+  @@index([email, isDeleted])
+  @@index([rendezVousId])
+  @@index([statut])
+  @@index([createdAt])
+  @@index([destination])
+  @@index([filiere])
+  @@map("procedures")
+}
+
+model Step {
+  id          String @id @default(cuid())
+  procedureId String
+
+  nom         StepName
+  statut      StepStatus @default(PENDING)
+  raisonRefus String?
+  order       Int?       @default(0)
+
+  dateMaj        DateTime  @default(now())
+  dateCreation   DateTime  @default(now())
+  dateCompletion DateTime?
+
+  procedure Procedure @relation(fields: [procedureId], references: [id])
+
+  @@unique([procedureId, nom])
+  @@index([procedureId])
+  @@index([statut])
+  @@map("steps")
+}
+
+model ProcedureComment {
+  id          String    @id @default(cuid())
+  procedureId String
+  procedure   Procedure @relation(fields: [procedureId], references: [id])
+
+  content       String  @db.Text
+  createdBy     String
+  createdByRole String  @default("ADMIN")
+  isInternal    Boolean @default(false)
+
+  attachments Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([procedureId])
+  @@map("procedure_comments")
+}
+
+model ProcedureTimeline {
+  id          String    @id @default(cuid())
+  procedureId String
+  procedure   Procedure @relation(fields: [procedureId], references: [id])
+
+  type               String
+  stepName           StepName?
+  oldStatus          StepStatus?
+  newStatus          StepStatus?
+  oldProcedureStatus String?
+  newProcedureStatus String?
+  comment            String?
+
+  createdBy     String
+  createdByRole String
+  metadata      Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([procedureId])
+  @@index([createdAt])
+  @@map("procedure_timeline")
+}
+
+model Rendezvous {
+  id String @id @default(cuid())
+
+  // Informations personnelles
+  firstName String @db.VarChar(50)
+  lastName  String @db.VarChar(50)
+  email     String @db.VarChar(100)
+  telephone String @db.VarChar(20)
+
+  // Destination et filière - champs String pour valeurs personnalisées
+  destination      String  @db.VarChar(100)
+  destinationAutre String? @db.VarChar(100)
+  niveauEtude      String  @db.VarChar(100)
+  niveauEtudeAutre String? @db.VarChar(100)
+  filiere          String  @db.VarChar(100)
+  filiereAutre     String? @db.VarChar(100)
+
+  // Date et heure - utilise le nouvel enum TimeSlot
+  date String // Format: YYYY-MM-DD
+  time TimeSlot // Format: HH:MM - utilise l'enum
+
+  // Statut
+  status    RendezvousStatus @default(CONFIRMED)
+  avisAdmin AdminOpinion?
+
+  // Annulation
+  cancelledAt        DateTime?
+  cancelledBy        CancelledBy?
+  cancellationReason String?
+
+  // Métadonnées
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  procedures Procedure[]          @relation("ProcedureRendezvous")
+  userId     String?
+  user       User?                @relation(fields: [userId], references: [id])
+  reminders  RendezvousReminder[]
+  files      File[]
+
+    @@index([email, status])
+  @@index([status, date])
+  @@index([email, date])
+  @@index([date, status, time])
+  @@index([createdAt])
+  @@map("rendezvous")
+}
+
+model RendezvousReminder {
+  id           String     @id @default(cuid())
+  rendezvousId String
+  rendezvous   Rendezvous @relation(fields: [rendezvousId], references: [id])
+
+  type         String             @default("24H_BEFORE")
+  scheduledFor DateTime
+  sentAt       DateTime?
+  status       NotificationStatus @default(PENDING)
+  channel      NotificationType   @default(EMAIL)
+  attempts     Int                @default(0)
+  error        String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([rendezvousId])
+  @@index([scheduledFor, status])
+  @@map("rendezvous_reminders")
+}
+
+model Destination {
+  id        String   @id @default(cuid())
+  country   String   @unique
+  imagePath String
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([country])
+  @@map("destinations")
+}
+
+model Contact {
+  id String @id @default(cuid())
+
+  firstName String? @db.VarChar(50) // Optionnel comme dans le schema Mongoose
+  lastName  String? @db.VarChar(50) // Optionnel comme dans le schema Mongoose
+  email     String  @db.VarChar(100)
+  message   String  @db.VarChar(2000)
+
+  isRead        Boolean   @default(false)
+  adminResponse String?   @db.VarChar(2000)
+  respondedAt   DateTime?
+  respondedBy   String?
+
+  // Soft delete
+  deletedAt DateTime?
+  isDeleted Boolean   @default(false)
+
+  // Relations
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+  files  File[]
+
+  // Métadonnées
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@index([isRead])
+  @@index([createdAt])
+  @@index([isDeleted])
+  @@map("contacts")
+}
+
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  type  String // Correspond au schema Mongoose
+  title String // Correspond au schema Mongoose
+  body  String @db.Text // Correspond au schema Mongoose (remplace "contenu")
+  data  Json?
+
+  channel NotificationType   @default(IN_APP)
+  status  NotificationStatus @default(PENDING)
+  readAt  DateTime?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  sentAt    DateTime?
+
+  @@index([userId, status])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model File {
+  id String @id @default(cuid())
+
+  filename    String
+  path        String
+  mimetype    String
+  size        Int
+  entityType  String? // procedure, rendezvous, contact, user
+  entityId    String?
+  uploadedBy  String?
+  description String?
+
+  // Relations with unique constraint names
+  procedureId  String? @map("procedure_id")
+  rendezvousId String? @map("rendezvous_id")
+  contactId    String? @map("contact_id")
+
+  procedure  Procedure?  @relation(fields: [procedureId], references: [id], map: "files_procedure_fkey")
+  rendezvous Rendezvous? @relation(fields: [rendezvousId], references: [id], map: "files_rendezvous_fkey")
+  contact    Contact?    @relation(fields: [contactId], references: [id], map: "files_contact_fkey")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([entityType, entityId])
+  @@index([uploadedBy])
+  @@map("files")
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  action   AuditAction
+  entity   String
+  entityId String?
+
+  oldValue Json?
+  newValue Json?
+
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model SystemLog {
+  id String @id @default(cuid())
+
+  level    String // info, warning, error, debug
+  message  String  @db.Text
+  context  String?
+  userId   String?
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([level])
+  @@index([createdAt])
+  @@index([userId])
+  @@map("system_logs")
+}
+
+model Backup {
+  id String @id @default(cuid())
+
+  filename String  @unique
+  size     Int
+  type     String // full, incremental
+  status   String // pending, completed, failed
+  path     String
+  error    String?
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  completedAt DateTime?
+
+  @@index([createdAt])
+  @@index([status])
+  @@map("backups")
+}
+
+// ==================== VIEWS (pour les statistiques) ====================
+// Note: UserStats view commented out as views require preview feature
+// view UserStats {
+//   id        String
+//   email     String
+//   firstName String
+//   lastName  String
+//   role      UserRole
+//   isActive  Boolean
+//   loginCount Int
+//   procedureCount Int
+//   rendezvousCount Int
+//   contactCount Int
+//   lastLogin DateTime?
+//   createdAt DateTime
+// }
+
+// ==================== MIGRATIONS & EXTENSIONS ====================
+
+// Extension pour la recherche full-text
+// run `CREATE EXTENSION IF NOT EXISTS pg_trgm;` on your database
+
+// Index pour la recherche full-text sur plusieurs tables
+// Ces indexes seront créés manuellement ou via des migrations SQL
+// ```
+// CREATE INDEX CONCURRENTLY IF NOT EXISTS users_email_trgm_idx ON users USING GIN (email gin_trgm_ops);
+// CREATE INDEX CONCURRENTLY IF NOT EXISTS procedures_search_idx ON procedures USING GIN (to_tsvector('french', prenom || ' ' || nom || ' ' || email));
+// ```

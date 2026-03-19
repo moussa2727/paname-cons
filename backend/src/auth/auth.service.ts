@@ -1,1212 +1,550 @@
 import {
   Injectable,
   Logger,
-  NotFoundException,
   UnauthorizedException,
+  ConflictException,
+  NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { InjectModel } from '@nestjs/mongoose';
-import * as bcrypt from 'bcryptjs';
-import * as crypto from 'crypto';
-import { Model } from 'mongoose';
-import { randomUUID } from 'crypto';
-import { MailService } from '../mail/mail.service';
-import { ResetToken } from '../schemas/reset-token.schema';
-import { Session } from '../schemas/session.schema';
-import { User } from '../schemas/user.schema';
-import { UserRole } from '../enums/user-role.enum';
+import { ConfigService } from '@nestjs/config';
+import * as bcrypt from 'bcrypt';
+import { AuditAction, UserRole, RevocationReason } from '@prisma/client';
+
 import { UsersService } from '../users/users.service';
-import { RegisterDto } from './dto/register.dto';
-import { RevokedTokenService } from './revoked-token.service';
-import { RefreshTokenService } from './refresh-token.service';
-import { SessionService } from './session.service';
-import { AuthConstants } from './auth.constants';
-import { isValidObjectId } from 'mongoose';
+import { UsersRepository } from '../users/users.repository';
+import { RefreshTokenRepository } from '../tokens/refresh-token.repository';
+import { ResetTokenRepository } from '../tokens/reset-token.repository';
+import { QueueService } from '../queue/queue.service';
+import { AuditService } from '../common/logger/audit.service';
+import { CurrentUser } from '../interfaces/current-user.interface';
+import { RegisterDto } from './dto';
+import { AuthConstants } from '../common/constants/auth.constants';
+
+interface LoginResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: 'Bearer';
+  expires_in: 900; // TOUJOURS 900 — durée access token en secondes
+  remember_me: boolean;
+  user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    fullName: string;
+    telephone: string;
+    role: UserRole;
+    isActive: boolean;
+    canLogin: boolean;
+    isTemporarilyLoggedOut: boolean;
+    logoutUntil: Date | null;
+    lastLogin: Date | null;
+    loginCount: number;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+}
+
+interface RefreshTokenResponse {
+  access_token: string;
+  refresh_token: string;
+  isRememberMe: boolean; // retourné pour que le controller calcule le bon maxAge cookie
+}
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly loginAttempts = new Map<
-    string,
-    {
-      attempts: number;
-      lastAttempt: Date;
-      ttl: Date;
-    }
-  >();
-  private readonly MAX_CACHE_SIZE = 1000;
 
   constructor(
-    private readonly jwtService: JwtService,
     private readonly usersService: UsersService,
-    private readonly sessionService: SessionService,
-    private readonly mailService: MailService,
-    private readonly revokedTokenService: RevokedTokenService,
-    private readonly refreshTokenService: RefreshTokenService,
-    @InjectModel(ResetToken.name)
-    private readonly resetTokenModel: Model<ResetToken>,
-    @InjectModel(Session.name)
-    private readonly sessionModel: Model<Session>,
-    @InjectModel(User.name) private userModel: Model<User>
+    private readonly usersRepository: UsersRepository,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+    private readonly refreshTokenRepository: RefreshTokenRepository,
+    private readonly resetTokenRepository: ResetTokenRepository,
+    private readonly queueService: QueueService,
+    private readonly auditService: AuditService,
   ) {}
 
-  private getLoginAttempts(email: string): {
-    attempts: number;
-    lastAttempt: Date;
-  } {
-    this.cleanupExpiredAttempts();
-    const data = this.loginAttempts.get(email);
-    return data
-      ? {
-          attempts: data.attempts,
-          lastAttempt: data.lastAttempt,
-        }
-      : { attempts: 0, lastAttempt: new Date(0) };
+  private isAdminEmail(email: string): boolean {
+    return email === this.configService.get<string>('ADMIN_EMAIL');
   }
 
-  private incrementLoginAttempts(email: string): void {
-    const current = this.loginAttempts.get(email) || {
-      attempts: 0,
-      lastAttempt: new Date(0),
-      ttl: new Date(),
+  async validateUser(email: string, password: string): Promise<CurrentUser> {
+    const user = await this.usersService.findByEmail(email);
+
+    if (!user) {
+      this.logger.warn('Login failed: user not found');
+      throw new UnauthorizedException('Identifiants invalides');
+    }
+
+    if (!user.isActive) {
+      this.logger.warn('Login failed: account disabled');
+      throw new UnauthorizedException(
+        'Compte utilisateur désactivé : Contactez la société',
+      );
+    }
+
+    if (user.logoutUntil && new Date() < user.logoutUntil) {
+      this.logger.warn('Login failed: account temporarily disabled');
+      const date = user.logoutUntil.toLocaleDateString('fr-FR');
+      const time = user.logoutUntil.toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      throw new UnauthorizedException(
+        `Compte temporairement désactivé jusqu'au ${date} à ${time}`,
+      );
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      this.logger.warn('Login failed: invalid password');
+      throw new UnauthorizedException('Mot de passe incorrect');
+    }
+
+    return user;
+  }
+
+  async login(
+    user: CurrentUser,
+    rememberMe: boolean = false,
+  ): Promise<LoginResponse> {
+    this.logger.log('Login successful');
+
+    const tokens = await this.generateTokens(user.id, user.email, user.role);
+
+    // La durée BDD varie selon rememberMe — le JWT expire toujours en 7d
+    const expiresAt = new Date(
+      Date.now() +
+        (rememberMe
+          ? AuthConstants.REMEMBER_ME_EXPIRATION_MS
+          : AuthConstants.REFRESH_TOKEN_EXPIRATION_MS),
+    );
+
+    await this.refreshTokenRepository.create({
+      userId: user.id,
+      token: tokens.refresh_token,
+      expiresAt,
+      isRememberMe: rememberMe,
+    });
+
+    await this.usersRepository.incrementLoginCount(user.id);
+    await this.usersRepository.updateLastLogin(user.id);
+
+    const updatedUser = await this.usersService.findById(user.id);
+    if (!updatedUser) {
+      throw new UnauthorizedException('Utilisateur non trouvé après login');
+    }
+
+    const canLogin =
+      updatedUser.isActive &&
+      (!updatedUser.logoutUntil || new Date() >= updatedUser.logoutUntil);
+
+    const isTemporarilyLoggedOut = updatedUser.logoutUntil
+      ? new Date() < updatedUser.logoutUntil
+      : false;
+
+    await this.auditService.logUserAction(user.id, AuditAction.UPDATE, {
+      email: user.email,
+      action: 'LOGIN_SUCCESS',
+    });
+
+    this.logger.log('Login completed');
+
+    return {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      token_type: 'Bearer',
+      expires_in: 900, // TOUJOURS 900 — jamais conditionnel
+      remember_me: rememberMe,
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        fullName: `${updatedUser.firstName} ${updatedUser.lastName}`,
+        telephone: updatedUser.telephone,
+        role: updatedUser.role,
+        isActive: updatedUser.isActive,
+        canLogin,
+        isTemporarilyLoggedOut,
+        logoutUntil: updatedUser.logoutUntil,
+        lastLogin: updatedUser.lastLogin,
+        loginCount: updatedUser.loginCount,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt,
+      },
     };
-
-    current.attempts++;
-    current.lastAttempt = new Date();
-    current.ttl = new Date(
-      Date.now() + AuthConstants.LOGIN_ATTEMPTS_TTL_MINUTES * 60 * 1000
-    );
-
-    if (this.loginAttempts.size >= this.MAX_CACHE_SIZE) {
-      const oldestKey = Array.from(this.loginAttempts.entries()).sort(
-        (a, b) => a[1].ttl.getTime() - b[1].ttl.getTime()
-      )[0]?.[0];
-      if (oldestKey) {
-        this.loginAttempts.delete(oldestKey);
-      }
-    }
-
-    this.loginAttempts.set(email, current);
-    this.logger.warn(
-      `Tentative de connexion échouée pour ${this.maskEmail(email)}. Tentatives: ${current.attempts}`
-    );
-  }
-
-  private cleanupExpiredAttempts(): void {
-    const now = new Date();
-    for (const [email, data] of this.loginAttempts.entries()) {
-      if (data.ttl < now) {
-        this.loginAttempts.delete(email);
-      }
-    }
-  }
-
-  private resetLoginAttempts(email: string): void {
-    this.loginAttempts.delete(email);
-    this.logger.log(
-      `Réinitialisation des tentatives pour ${this.maskEmail(email)}`
-    );
   }
 
   async register(registerDto: RegisterDto) {
-    try {
-      const adminEmail = process.env.EMAIL_USER;
+    this.logger.log('Register attempt');
 
-      // LOGIQUE SIMPLIFIÉE : TOUJOURS USER SAUF EMAIL_USER (premier seulement)
-      const existingAdmin = await this.usersService.findByRole(UserRole.ADMIN);
-
-      if (registerDto.email === adminEmail) {
-        // Email admin spécifique détecté
-        if (existingAdmin) {
-          // Admin existe déjà → devient USER
-          registerDto.role = UserRole.USER;
-          this.logger.warn(
-            `Email admin utilisé pour créer un USER (admin existe déjà)`
-          );
-        } else {
-          // Premier admin → devient ADMIN
-          registerDto.role = UserRole.ADMIN;
-          this.logger.log(
-            `Création du SEUL et UNIQUE admin: ${this.maskEmail(adminEmail)}`
-          );
-        }
-      } else {
-        // Tous les autres emails sont USER
-        registerDto.role = UserRole.USER;
-        this.logger.log(
-          `Création d'utilisateur standard: ${this.maskEmail(registerDto.email)}`
-        );
-      }
-
-      const newUser = await this.usersService.create(registerDto);
-      const userId = newUser.id;
-
-      const jtiAccess = randomUUID();
-      const jtiRefresh = randomUUID();
-
-      const access_token = this.jwtService.sign(
-        {
-          sub: userId,
-          email: newUser.email,
-          role: newUser.role,
-          jti: jtiAccess,
-          tokenType: 'access',
-        },
-        {
-          expiresIn: AuthConstants.JWT_EXPIRATION,
-        }
-      );
-
-      const refresh_token = this.jwtService.sign(
-        {
-          sub: userId,
-          email: newUser.email,
-          role: newUser.role,
-          jti: jtiRefresh,
-          tokenType: 'refresh',
-        },
-        {
-          expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
-          secret: process.env.JWT_REFRESH_SECRET,
-        }
-      );
-
-      await this.sessionService.create(
-        userId,
-        access_token,
-        new Date(
-          Date.now() + AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000
-        )
-      );
-
-      await this.refreshTokenService.deactivateAllForUser(userId);
-      const decodedRefresh = this.jwtService.decode(refresh_token) as any;
-      const refreshExp = new Date(
-        (decodedRefresh?.exp || 0) * 1000 ||
-          Date.now() + AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000
-      );
-      await this.refreshTokenService.create(userId, refresh_token, refreshExp);
-
-      try {
-        await this.mailService.sendWelcomeEmail(
-          newUser.email,
-          newUser.firstName
-        );
-      } catch (emailError) {
-        this.logger.warn(`Échec envoi email bienvenue: ${emailError.message}`);
-      }
-
-      this.logger.log(
-        `Nouvel utilisateur enregistré: ${this.maskEmail(newUser.email)}`
-      );
-
-      return {
-        access_token,
-        refresh_token,
-        user: {
-          id: userId,
-          email: newUser.email,
-          firstName: newUser.firstName,
-          lastName: newUser.lastName,
-          telephone: newUser.telephone,
-          role: newUser.role,
-          isAdmin: newUser.role === UserRole.ADMIN,
-          isActive: newUser.isActive,
-        },
-      };
-    } catch (error) {
-      this.logger.error(
-        `Erreur lors de l'enregistrement: ${error.message}`,
-        error.stack
-      );
-      throw error;
+    const existingUser = await this.usersService.findByEmail(registerDto.email);
+    if (existingUser) {
+      this.logger.warn('Register failed: email already exists');
+      throw new ConflictException('Un utilisateur avec cet email existe déjà');
     }
-  }
 
-  async login(user: User) {
-    const jtiAccess = randomUUID();
-    const jtiRefresh = randomUUID();
-    const userId = user.id;
+    if (this.isAdminEmail(registerDto.email)) {
+      const existingAdmin = await this.usersRepository.findByRole(
+        UserRole.ADMIN,
+      );
+      if (existingAdmin) {
+        throw new ConflictException('Un compte administrateur existe déjà');
+      }
+    }
 
-    const accessPayload = {
-      sub: userId,
-      email: user.email,
-      role: user.role,
-      jti: jtiAccess,
-      tokenType: 'access',
-    };
-
-    const refreshPayload = {
-      sub: userId,
-      email: user.email,
-      role: user.role,
-      jti: jtiRefresh,
-      tokenType: 'refresh',
-    };
-
-    const access_token = this.jwtService.sign(accessPayload, {
-      expiresIn: AuthConstants.JWT_EXPIRATION,
-    });
-
-    const refresh_token = this.jwtService.sign(refreshPayload, {
-      expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
-      secret: process.env.JWT_REFRESH_SECRET,
-    });
-
-    await this.sessionService.create(
-      userId,
-      access_token,
-      new Date(
-        Date.now() + AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000
-      )
+    const hashedPassword = await bcrypt.hash(
+      registerDto.password,
+      parseInt(this.configService.get<string>('BCRYPT_ROUNDS') ?? '12', 10),
     );
 
-    try {
-      await this.refreshTokenService.deactivateAllForUser(userId);
-      const decodedRefresh = this.jwtService.decode(refresh_token) as any;
-      const refreshExp = new Date(
-        (decodedRefresh?.exp || 0) * 1000 ||
-          Date.now() + AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000
-      );
-      await this.refreshTokenService.create(userId, refresh_token, refreshExp);
-    } catch (error) {
-      this.logger.warn(
-        `Impossible d'enregistrer le refresh token: ${error.message}`
-      );
-    }
+    const userRole = this.isAdminEmail(registerDto.email)
+      ? UserRole.ADMIN
+      : UserRole.USER;
+
+    const user = await this.usersService.create({
+      email: registerDto.email,
+      password: hashedPassword,
+      firstName: registerDto.firstName,
+      lastName: registerDto.lastName,
+      role: userRole,
+      telephone: registerDto.telephone,
+    });
+
+    const tokens = await this.generateTokens(user.id, user.email, user.role);
+
+    // Register : pas de remember_me, session standard 7 jours
+    await this.refreshTokenRepository.create({
+      userId: user.id,
+      token: tokens.refresh_token,
+      expiresAt: new Date(
+        Date.now() + AuthConstants.REFRESH_TOKEN_EXPIRATION_MS,
+      ),
+      isRememberMe: false,
+    });
+
+    await this.queueService.addEmailJob({
+      to: user.email,
+      subject: 'Bienvenue chez Paname Consulting',
+      html: this.generateWelcomeContent(user),
+      priority: 'high',
+    });
+
+    await this.auditService.logUserAction(user.id, AuditAction.CREATE, {
+      email: user.email,
+    });
+
+    this.logger.log('Register successful');
 
     return {
-      access_token,
-      refresh_token,
+      message: 'Inscription réussie. Vous pouvez maintenant vous connecter.',
       user: {
-        id: userId,
+        id: user.id,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
         telephone: user.telephone,
         role: user.role,
+        isActive: user.isActive,
       },
     };
   }
 
-  async refresh(refresh_token: string): Promise<{
-    access_token: string;
-    refresh_token?: string;
-    sessionExpired?: boolean;
-  }> {
-    if (!refresh_token) {
-      throw new UnauthorizedException('Refresh token manquant');
+  /**
+   * isRememberMe est hérité du tokenDoc en base — jamais depuis le body de la requête.
+   * Le client ne peut pas upgrader une session false → true après login.
+   * isRememberMe est retourné pour que le controller pose le bon maxAge sur le cookie.
+   */
+  async refreshToken(
+    userId: string,
+    refreshToken: string,
+  ): Promise<RefreshTokenResponse> {
+    const tokenDoc =
+      await this.refreshTokenRepository.findByToken(refreshToken);
+
+    if (
+      !tokenDoc ||
+      tokenDoc.userId !== userId ||
+      !tokenDoc.isActive ||
+      tokenDoc.expiresAt < new Date()
+    ) {
+      this.logger.warn('Token refresh failed: invalid token');
+      throw new UnauthorizedException('Refresh token invalide ou expiré');
     }
 
-    try {
-      const isWhitelisted =
-        await this.refreshTokenService.isValid(refresh_token);
-      if (!isWhitelisted) {
-        throw new UnauthorizedException('Refresh token non autorisé');
-      }
-
-      const payload = this.jwtService.verify(refresh_token, {
-        secret: process.env.JWT_REFRESH_SECRET,
-      });
-
-      const user = await this.usersService.findById(payload.sub);
-      if (!user) {
-        throw new UnauthorizedException('Utilisateur non trouvé');
-      }
-
-      const userId = user.id;
-
-      const jtiAccess = randomUUID();
-      const jtiRefresh = randomUUID();
-
-      const new_access_token = this.jwtService.sign(
-        {
-          sub: userId,
-          email: user.email,
-          role: user.role,
-          jti: jtiAccess,
-          tokenType: 'access',
-        },
-        {
-          expiresIn: AuthConstants.JWT_EXPIRATION,
-        }
-      );
-
-      const new_refresh_token = this.jwtService.sign(
-        {
-          sub: userId,
-          email: user.email,
-          role: user.role,
-          jti: jtiRefresh,
-          tokenType: 'refresh',
-        },
-        {
-          expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
-          secret: process.env.JWT_REFRESH_SECRET,
-        }
-      );
-
-      await this.sessionService.create(
-        userId,
-        new_access_token,
-        new Date(
-          Date.now() + AuthConstants.ACCESS_TOKEN_EXPIRATION_SECONDS * 1000
-        )
-      );
-
-      const decodedNewRefresh = this.jwtService.decode(
-        new_refresh_token
-      ) as any;
-      const newExp = new Date(
-        (decodedNewRefresh?.exp || 0) * 1000 ||
-          Date.now() + AuthConstants.REFRESH_TOKEN_EXPIRATION_SECONDS * 1000
-      );
-      await this.refreshTokenService.create(userId, new_refresh_token, newExp);
-
-      await this.refreshTokenService.deactivateByToken(refresh_token);
-
-      this.logger.log(
-        `Tokens rafraîchis pour l'utilisateur ${this.maskUserId(userId)}`
-      );
-
-      return {
-        access_token: new_access_token,
-        refresh_token: new_refresh_token,
-      };
-    } catch (error: any) {
-      this.logger.error(` Erreur refresh token: ${error.message}`);
-
-      if (
-        error.name === 'JsonWebTokenError' ||
-        error.name === 'TokenExpiredError'
-      ) {
-        try {
-          await this.refreshTokenService.deactivateByToken(refresh_token);
-        } catch (deactivateError) {
-          this.logger.warn(
-            `Impossible de désactiver le refresh token invalide: ${deactivateError.message}`
-          );
-        }
-      }
-
-      throw new UnauthorizedException('Refresh token invalide');
+    // Charger l'utilisateur pour générer les tokens — ne pas accéder à tokenDoc.user
+    // car findByToken n'inclut pas la relation (pas de select { include: { user: true } })
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      this.logger.warn('Token refresh failed: user not found');
+      throw new UnauthorizedException('Utilisateur non trouvé');
     }
-  }
 
-  async logoutAll(): Promise<{
-    success: boolean;
-    message: string;
-    stats: {
-      usersLoggedOut: number;
-      adminPreserved: boolean;
-      adminEmail: string;
-      duration: string;
-      timestamp: string;
-      userEmails: string[];
-    };
-  }> {
-    try {
-      this.logger.log(
-        ' Début déconnexion temporaire (24h) des utilisateurs NON-ADMIN'
-      );
+    const tokens = await this.generateTokens(userId, user.email, user.role);
 
-      const adminEmail = process.env.EMAIL_USER;
-
-      if (!adminEmail) {
-        this.logger.error(' EMAIL_USER non configuré');
-        throw new BadRequestException(
-          "EMAIL_USER non défini dans l'environnement"
-        );
-      }
-
-      const adminUser = await this.userModel
-        .findOne({ email: adminEmail })
-        .exec();
-
-      if (!adminUser) {
-        this.logger.error(' Admin non trouvé en base de données');
-        throw new BadRequestException('Administrateur principal non trouvé');
-      }
-
-      const activeNonAdminUsers = await this.userModel
-        .find({
-          email: { $ne: adminEmail },
-          role: { $ne: UserRole.ADMIN },
-          isActive: true,
-        })
-        .select('id email firstName lastName role')
-        .lean()
-        .exec();
-
-      this.logger.log(
-        ` ${activeNonAdminUsers.length} utilisateurs non-admin trouvés`
-      );
-      this.logger.log(
-        ` Admin ${this.maskEmail(adminEmail)} (ID: ${adminUser.id}) préservé`
-      );
-
-      if (activeNonAdminUsers.length === 0) {
-        return {
-          success: true,
-          message: 'Aucun utilisateur non-admin à déconnecter',
-          stats: {
-            usersLoggedOut: 0,
-            adminPreserved: true,
-            adminEmail: this.maskEmail(adminEmail),
-            duration: '24h',
-            timestamp: new Date().toISOString(),
-            userEmails: [],
-          },
-        };
-      }
-
-      const userIds = activeNonAdminUsers.map(user => user.id);
-
-      const logoutUntilDate = new Date(
-        Date.now() + AuthConstants.GLOBAL_LOGOUT_DURATION
-      );
-
-      await Promise.all([
-        this.userModel
-          .updateMany(
-            {
-              id: { $in: userIds },
-              email: { $ne: adminEmail },
-            },
-            {
-              $set: {
-                logoutUntil: logoutUntilDate,
-                lastLogout: new Date(),
-              },
-            }
-          )
-          .exec(),
-
-        this.sessionModel
-          .updateMany(
-            {
-              user: { $in: userIds },
-              isActive: true,
-            },
-            {
-              isActive: false,
-              deactivatedAt: new Date(),
-              revocationReason: 'admin global logout 24h',
-            }
-          )
-          .exec(),
-
-        this.refreshTokenService.deactivateByUserIds(userIds),
-
-        this.resetTokenModel.deleteMany({ user: { $in: userIds } }).exec(),
-      ]);
-
-      this.logger.log(
-        ` DÉCONNEXION GLOBALE RÉUSSIE : ${activeNonAdminUsers.length} utilisateurs déconnectés`
-      );
-      this.logger.log(
-        ` ADMIN PRÉSERVÉ : ${this.maskEmail(adminEmail)} - ID: ${adminUser.id}`
-      );
-
-      return {
-        success: true,
-        message: `${activeNonAdminUsers.length} utilisateurs non-admin déconnectés pour 24 heures`,
-        stats: {
-          usersLoggedOut: activeNonAdminUsers.length,
-          adminPreserved: true,
-          adminEmail: this.maskEmail(adminEmail),
-          duration: '24 heures',
-          timestamp: new Date().toISOString(),
-          userEmails: [],
-        },
-      };
-    } catch (error) {
-      this.logger.error(` ÉCHEC déconnexion globale: ${error.message}`);
-      throw new BadRequestException(
-        `Échec de la déconnexion globale: ${error.message}`
-      );
-    }
-  }
-
-  async revokeToken(token: string, expiresAt: Date): Promise<void> {
-    try {
-      await this.revokedTokenService.revokeToken(token, expiresAt);
-      this.logger.log(`Token révoqué: ${this.maskToken(token)}`);
-    } catch (error) {
-      if (error?.code === 11000) {
-        this.logger.warn('Token déjà révoqué');
-        return;
-      }
-      this.logger.error(`Erreur de révocation du token: ${error.message}`);
-      throw error;
-    }
-  }
-
-  async isTokenRevoked(token: string): Promise<boolean> {
-    return await this.revokedTokenService.isTokenRevoked(token);
-  }
-
-  async revokeAllTokens(): Promise<{
-    message: string;
-    revokedCount: number;
-    sessionsCleared: number;
-  }> {
-    const tokensResult = await this.revokedTokenService.revokeAllTokens();
-
-    await this.sessionModel.updateMany(
-      { isActive: true },
-      {
-        isActive: false,
-        deactivatedAt: new Date(),
-        revocationReason: 'admin_revoke_all',
-      }
+    // isRememberMe hérité de la base — jamais depuis le body de la requête
+    const isRememberMe = tokenDoc.isRememberMe;
+    const expiresAt = new Date(
+      Date.now() +
+        (isRememberMe
+          ? AuthConstants.REMEMBER_ME_EXPIRATION_MS
+          : AuthConstants.REFRESH_TOKEN_EXPIRATION_MS),
     );
 
-    const activeSessionsCount = await this.sessionModel.countDocuments({
-      isActive: true,
+    await this.refreshTokenRepository.deactivate(
+      tokenDoc.id,
+      RevocationReason.MANUAL_LOGOUT,
+    );
+
+    await this.refreshTokenRepository.create({
+      userId,
+      token: tokens.refresh_token,
+      expiresAt,
+      isRememberMe, // hérité
+      ipAddress: tokenDoc.ipAddress ?? undefined,
+      userAgent: tokenDoc.userAgent ?? undefined,
     });
 
+    await this.auditService.logUserAction(userId, AuditAction.UPDATE, {
+      action: 'TOKEN_REFRESHED',
+    });
+
+    this.logger.log('Token refreshed');
+
     return {
-      message: 'Tokens révoqués et sessions désactivées',
-      revokedCount: tokensResult.revokedCount,
-      sessionsCleared: activeSessionsCount,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      isRememberMe,
     };
   }
 
-  async logoutWithSessionDeletion(
-    userId: string,
-    token: string
-  ): Promise<void> {
-    try {
-      await this.sessionModel.updateOne(
-        { token, user: userId },
-        {
-          isActive: false,
-          deactivatedAt: new Date(),
-          revocationReason: 'user_logout',
-        }
-      );
+  async logout(userId: string, refreshToken?: string) {
+    this.logger.log('Logout initiated');
 
-      try {
-        const decoded = this.jwtService.decode(token) as any;
-        if (decoded && decoded.exp) {
-          await this.revokeToken(token, new Date(decoded.exp * 1000));
-        }
-      } catch (error) {
-        this.logger.warn(
-          `Erreur lors de la révocation du token: ${error.message}`
+    await this.usersRepository.update(userId, { lastLogout: new Date() });
+    await this.usersRepository.decrementLoginCount(userId);
+    await this.usersRepository.incrementLogoutCount(userId);
+
+    if (refreshToken) {
+      const tokenDoc =
+        await this.refreshTokenRepository.findByToken(refreshToken);
+      if (tokenDoc && tokenDoc.userId === userId) {
+        await this.refreshTokenRepository.deactivate(
+          tokenDoc.id,
+          RevocationReason.MANUAL_LOGOUT,
         );
-      }
-
-      this.loginAttempts.delete(userId);
-      this.logger.log(
-        `Déconnexion avec désactivation de session pour l'utilisateur ${this.maskUserId(userId)}`
-      );
-    } catch (error) {
-      this.logger.error(`Erreur lors de la déconnexion: ${error.message}`);
-      throw error;
-    }
-  }
-
-  async validateUser(email: string, password: string): Promise<User | null> {
-    try {
-      const attempts = this.getLoginAttempts(email);
-
-      if (attempts.attempts >= AuthConstants.MAX_LOGIN_ATTEMPTS) {
-        const timeSinceLastAttempt =
-          (Date.now() - attempts.lastAttempt.getTime()) / (1000 * 60);
-        if (timeSinceLastAttempt < AuthConstants.LOGIN_ATTEMPTS_TTL_MINUTES) {
-          throw new UnauthorizedException(
-            `Trop de tentatives. Réessayez dans ${Math.ceil(
-              AuthConstants.LOGIN_ATTEMPTS_TTL_MINUTES - timeSinceLastAttempt
-            )} minutes`
-          );
-        } else {
-          this.resetLoginAttempts(email);
-        }
-      }
-
-      this.logger.debug(
-        `Validation utilisateur pour: ${this.maskEmail(email)}`
-      );
-
-      const user = await this.userModel
-        .findOne({ email: email.toLowerCase().trim() })
-        .select('+password')
-        .exec();
-
-      if (!user) {
-        this.logger.warn(`Utilisateur non trouvé: ${this.maskEmail(email)}`);
-        this.incrementLoginAttempts(email);
-        return null;
-      }
-
-      const adminEmail = process.env.EMAIL_USER;
-
-      if (!adminEmail) {
-        this.logger.error(' EMAIL_USER non configuré dans .env');
-        throw new UnauthorizedException('Configuration système invalide');
-      }
-
-      const isAdminEmail = user.email === adminEmail;
-      const isAdminRole = user.role === UserRole.ADMIN;
-
-      if (isAdminRole) {
-        if (!isAdminEmail) {
-          this.logger.error(
-            ` ADMIN NON AUTORISÉ DÉTECTÉ: ${this.maskEmail(user.email)} (email ne correspond pas à ${this.maskEmail(adminEmail)})`
-          );
-          this.incrementLoginAttempts(email);
-          throw new UnauthorizedException('Accès refusé');
-        }
-
-        this.logger.log(
-          ` ADMIN LÉGITIME DÉTECTÉ: ${this.maskEmail(user.email)}`
-        );
-
-        if (!user.password || user.password.trim() === '') {
-          this.logger.error(
-            ` CRITICAL: Admin ${this.maskEmail(email)} has no password in database`
-          );
-          throw new UnauthorizedException(
-            AuthConstants.ERROR_MESSAGES.PASSWORD_RESET_REQUIRED,
-            {
-              description: 'PASSWORD_RESET_REQUIRED',
-              cause: 'NO_PASSWORD_IN_DB',
-            }
-          );
-        }
-
-        if (!password || password.trim() === '') {
-          this.logger.warn(
-            `Mot de passe vide fourni pour admin: ${this.maskEmail(email)}`
-          );
-          this.incrementLoginAttempts(email);
-          return null;
-        }
-
-        let isPasswordValid = false;
-        try {
-          const cleanPassword = password.trim();
-
-          if (!user.password || !cleanPassword) {
-            this.logger.error(
-              `Arguments manquants pour bcrypt.compare (admin)`
-            );
-            throw new Error('Arguments manquants pour la comparaison');
-          }
-
-          isPasswordValid = await bcrypt.compare(cleanPassword, user.password);
-        } catch (bcryptError) {
-          this.logger.error(
-            ` Erreur bcrypt.compare pour admin ${this.maskEmail(email)}: ${bcryptError.message}`
-          );
-          this.incrementLoginAttempts(email);
-          return null;
-        }
-
-        if (!isPasswordValid) {
-          this.logger.warn(
-            `Mot de passe incorrect pour admin: ${this.maskEmail(email)}`
-          );
-          this.incrementLoginAttempts(email);
-          return null;
-        }
-
-        this.logger.log(
-          ` Admin ${this.maskEmail(user.email)} - accès accordé (ignore toutes restrictions)`
-        );
-
-        this.resetLoginAttempts(email);
-
-        const userWithoutPassword = user.toObject();
-        delete userWithoutPassword.password;
-
-        return userWithoutPassword;
-      }
-
-      if (!user.password || user.password.trim() === '') {
-        this.logger.error(
-          ` CRITICAL: User ${this.maskEmail(email)} has no password in database`
-        );
-        this.incrementLoginAttempts(email);
-        return null;
-      }
-
-      if (!password || password.trim() === '') {
-        this.logger.warn(
-          `Mot de passe vide fourni pour: ${this.maskEmail(email)}`
-        );
-        this.incrementLoginAttempts(email);
-        return null;
-      }
-
-      let isPasswordValid = false;
-      try {
-        const cleanPassword = password.trim();
-
-        if (!user.password || !cleanPassword) {
-          this.logger.error(`Arguments manquants pour bcrypt.compare`);
-          throw new Error('Arguments manquants pour la comparaison');
-        }
-
-        isPasswordValid = await bcrypt.compare(cleanPassword, user.password);
-      } catch (bcryptError) {
-        this.logger.error(
-          ` Erreur bcrypt.compare pour ${this.maskEmail(email)}: ${bcryptError.message}`
-        );
-
-        if (bcryptError.message.includes('data and hash arguments required')) {
-          this.logger.error(
-            ` BCrypt arguments manquants - user.password: ${!!user.password}, password: ${!!password}`
-          );
-        }
-
-        this.incrementLoginAttempts(email);
-        return null;
-      }
-
-      if (!isPasswordValid) {
-        this.logger.warn(
-          `Mot de passe incorrect pour: ${this.maskEmail(email)}`
-        );
-        this.incrementLoginAttempts(email);
-        return null;
-      }
-
-      const userId = user.id;
-
-      const accessCheck = await this.usersService.checkUserAccess(userId);
-
-      if (!accessCheck.canAccess) {
-        this.logger.warn(
-          `Accès refusé pour ${this.maskEmail(email)}: ${accessCheck.reason}`
-        );
-
-        // CORRECTION : Utiliser details.remainingHours si disponible
-        const remainingHours = accessCheck.details?.remainingHours || 24;
-
-        if (accessCheck.reason?.includes('Compte désactivé')) {
-          throw new UnauthorizedException(
-            AuthConstants.ERROR_MESSAGES.COMPTE_DESACTIVE
-          );
-        } else if (accessCheck.reason?.includes('Déconnecté temporairement')) {
-          throw new UnauthorizedException(
-            `${AuthConstants.ERROR_MESSAGES.COMPTE_TEMPORAIREMENT_DECONNECTE}:${remainingHours}`
-          );
-        } else if (accessCheck.reason?.includes('Mode maintenance')) {
-          throw new UnauthorizedException(
-            AuthConstants.ERROR_MESSAGES.MAINTENANCE_MODE
-          );
-        } else {
-          throw new UnauthorizedException(accessCheck.reason || 'Accès refusé');
-        }
-      }
-
-      this.resetLoginAttempts(email);
-
-      const userWithoutPassword = user.toObject();
-      delete userWithoutPassword.password;
-
-      this.logger.log(` Connexion réussie pour: ${this.maskEmail(email)}`);
-      return userWithoutPassword;
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        this.logger.log(
-          `Blocage connexion pour ${this.maskEmail(email)}: ${error.message}`
-        );
-        throw error;
-      }
-
-      this.logger.error(
-        ` Erreur inattendue validateUser ${this.maskEmail(email)}: ${error.message}`,
-        error.stack
-      );
-
-      return null;
-    }
-  }
-
-  async validateToken(token: string): Promise<boolean> {
-    try {
-      const payload = this.jwtService.verify(token);
-      const [isRevoked, isActive] = await Promise.all([
-        this.isTokenRevoked(token),
-        this.sessionService.isTokenActive(token),
-      ]);
-      const userExists = await this.usersService.exists(payload.sub);
-      return !isRevoked && isActive && userExists;
-    } catch (error) {
-      this.logger.warn(`Token invalide: ${error.message}`);
-      return false;
-    }
-  }
-
-  async resetPassword(token: string, newPassword: string): Promise<void> {
-    try {
-      let cleanToken = token;
-      if (token.includes('reset-password?token=')) {
-        this.logger.log(
-          "Détection d'URL dans le token de reset, extraction en cours..."
-        );
-        const tokenMatch = token.match(/token=([^&]+)/);
-        if (tokenMatch) {
-          cleanToken = tokenMatch[1];
-          this.logger.log(
-            `Token extrait pour reset: ${cleanToken.substring(0, 20)}...`
-          );
-        } else {
-          this.logger.warn("Échec de l'extraction du token de reset de l'URL");
-        }
-      }
-
-      const resetToken = await (this.resetTokenModel as any).findOne({
-        token: cleanToken,
-        expiresAt: { $gt: new Date() },
-      });
-
-      if (!resetToken) {
-        throw new UnauthorizedException('Token invalide ou expiré');
-      }
-
-      const user = await this.usersService.findById(resetToken.user.toString());
-      if (!user) {
-        throw new NotFoundException('Utilisateur non trouvé');
-      }
-
-      const userId = user.id;
-      await this.usersService.resetPassword(userId, newPassword);
-
-      await this.resetTokenModel.deleteOne({ id: resetToken.id });
-      this.logger.log(
-        `Mot de passe réinitialisé pour ${this.maskEmail(user.email)}`
-      );
-    } catch (error) {
-      this.logger.error(`Erreur de réinitialisation: ${error.message}`);
-      throw error;
-    }
-  }
-
-  private getFrontendUrl(): string {
-    let url = process.env.FRONTEND_URL;
-    const nodeEnv = process.env.NODE_ENV || 'development';
-
-    if (url && url.includes(',')) {
-      this.logger.warn(' URL frontend malformée détectée, nettoyage en cours');
-      url = url.split(',')[0].trim();
-    }
-
-    if (!url) {
-      url =
-        nodeEnv === 'production'
-          ? 'https://panameconsulting.vercel.app'
-          : 'http://localhost:5173';
-    }
-
-    return url.replace(/\/$/, '');
-  }
-
-  private buildResetUrl(token: string): string {
-    const baseUrl = this.getFrontendUrl();
-
-    this.logger.log(` URL frontend nettoyée: ${baseUrl}`);
-
-    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
-      throw new Error(
-        `URL frontend invalide: "${baseUrl}" - doit commencer par http:// ou https://`
-      );
-    }
-
-    let cleanToken = token;
-
-    this.logger.log(`Token original: ${token.substring(0, 100)}...`);
-
-    if (token.includes('reset-password?token=')) {
-      this.logger.log("Détection d'URL dans le token, extraction en cours...");
-      const tokenMatch = token.match(/token=([^&]+)/);
-      if (tokenMatch) {
-        cleanToken = tokenMatch[1];
-        this.logger.log(`Token extrait: ${cleanToken.substring(0, 50)}...`);
-      } else {
-        this.logger.warn("Échec de l'extraction du token de l'URL");
       }
     } else {
-      this.logger.log("Token simple détecté, pas d'extraction nécessaire");
+      await this.refreshTokenRepository.deactivateAllForUser(
+        userId,
+        RevocationReason.MANUAL_LOGOUT,
+      );
     }
 
-    const resetUrl = `${baseUrl}/reset-password?token=${cleanToken}`;
-    this.logger.log(
-      ` URL de reset finale résolue: ${resetUrl.substring(0, 50)}...`
+    await this.auditService.logUserAction(userId, AuditAction.UPDATE, {
+      action: 'LOGOUT_SUCCESS',
+    });
+
+    this.logger.log('Logout completed');
+
+    return { message: 'Déconnexion réussie' };
+  }
+
+  async logoutAll(adminUserId: string) {
+    this.logger.log('Logout all initiated');
+
+    const count = await this.refreshTokenRepository.deactivateAllExceptUser(
+      adminUserId,
+      RevocationReason.ADMIN_REVOKE,
     );
 
-    return resetUrl;
+    await this.auditService.logUserAction(adminUserId, AuditAction.UPDATE, {
+      action: 'LOGOUT_ALL_USERS',
+    });
+
+    this.logger.log(`Logout all completed: ${count} sessions terminated`);
+
+    return {
+      message:
+        'Toutes les sessions utilisateurs ont été déconnectées (admin épargné)',
+      sessionsTerminated: count,
+    };
   }
 
-  async sendPasswordResetEmail(email: string): Promise<void> {
-    try {
-      const user = await this.usersService.findByEmail(email);
-      if (!user) {
-        this.logger.warn(
-          `Demande de réinitialisation pour un email inexistant: ${this.maskEmail(email)}`
-        );
-        return;
-      }
+  async forgotPassword(email: string) {
+    this.logger.log('Forgot password request');
+    const user = await this.usersService.findByEmail(email);
 
-      const resetToken = crypto.randomBytes(32).toString('hex');
-      this.logger.log(`Token brut généré: ${resetToken.substring(0, 20)}...`);
-      const expiresAt = new Date(
-        Date.now() + AuthConstants.RESET_TOKEN_EXPIRATION_MS
-      );
-
-      await this.resetTokenModel.deleteMany({
-        user: user.id,
-      });
-
-      await this.resetTokenModel.create({
-        token: resetToken,
-        user: user.id,
-        expiresAt,
-      });
-
-      const resetUrl = this.buildResetUrl(resetToken);
-      this.logger.log(`URL avant envoi email: ${resetUrl}`);
-
-      this.logger.log(` URL de reset générée pour ${this.maskEmail(email)}`);
-
-      try {
-        await this.mailService.sendPasswordReset(user.email, resetUrl);
-        this.logger.log(
-          `Email de réinitialisation envoyé à ${this.maskEmail(email)}`
-        );
-      } catch (emailError) {
-        this.logger.error(
-          `Échec envoi email pour ${this.maskEmail(email)}: ${emailError.message}`
-        );
-        this.logger.warn(
-          `Token de réinitialisation généré pour ${this.maskEmail(email)}`
-        );
-      }
-    } catch (error) {
-      this.logger.error(
-        ` Erreur lors de la demande de réinitialisation: ${error.message}`
-      );
+    // Réponse générique — ne jamais révéler si l'email existe
+    if (!user) {
+      return {
+        message: 'Email de réinitialisation envoyé si le compte existe',
+      };
     }
+
+    await this.resetTokenRepository.invalidateAllForUser(user.id);
+
+    // Le token est généré et sauvegardé par le repository — on récupère la valeur retournée
+    const resetToken = await this.resetTokenRepository.create({
+      userId: user.id,
+      expiresIn: 2 * 60 * 60 * 1000, // 2 heures
+    });
+
+    await this.queueService.addEmailJob({
+      to: user.email,
+      subject: 'Réinitialisation de votre mot de passe',
+      html: this.generateForgotPasswordContent(user, resetToken.token),
+      priority: 'high',
+    });
+
+    await this.auditService.logUserAction(user.id, AuditAction.UPDATE, {
+      email: user.email,
+      action: 'PASSWORD_RESET_REQUEST',
+    });
+
+    return { message: 'Email de réinitialisation envoyé si le compte existe' };
   }
 
-  async getProfile(userId: string): Promise<User> {
-    try {
-      this.logger.log(
-        ` getProfile appelé avec userId: ${this.maskUserId(userId)}`
-      );
+  async resetPassword(token: string, newPassword: string) {
+    this.logger.log('Reset password attempt');
+    const resetToken = await this.resetTokenRepository.findByToken(token);
 
-      if (
-        !userId ||
-        userId === 'undefined' ||
-        userId === 'null' ||
-        userId === ''
-      ) {
-        this.logger.warn(' userId manquant ou invalide dans getProfile');
-        throw new BadRequestException('ID utilisateur manquant');
-      }
-
-      const cleanUserId = userId.trim();
-
-      if (isValidObjectId(cleanUserId)) {
-        const user = await this.usersService.findById(cleanUserId);
-
-        if (!user) {
-          this.logger.warn(
-            `Utilisateur non trouvé pour l'ID: ${this.maskUserId(cleanUserId)}`
-          );
-          throw new NotFoundException('Utilisateur non trouvé');
-        }
-
-        this.logger.log(
-          ` Profil récupéré avec succès pour l'ID: ${this.maskUserId(cleanUserId)}`
-        );
-        return user;
-      }
-
-      this.logger.log(` Recherche par email: ${this.maskEmail(cleanUserId)}`);
-
-      if (cleanUserId.includes('@')) {
-        const userByEmail = await this.usersService.findByEmail(cleanUserId);
-        if (userByEmail) {
-          this.logger.log(
-            ` Utilisateur trouvé par email: ${this.maskEmail(cleanUserId)}`
-          );
-          return userByEmail;
-        }
-      }
-
-      this.logger.error(
-        ` Aucun utilisateur trouvé avec l'identifiant: ${this.maskUserId(cleanUserId)}`
-      );
-      throw new NotFoundException('Utilisateur non trouvé');
-    } catch (error) {
-      if (
-        error instanceof BadRequestException ||
-        error instanceof NotFoundException
-      ) {
-        throw error;
-      }
-
-      this.logger.error(
-        `Erreur critique dans getProfile: ${error.message}`,
-        error.stack
-      );
-      throw new BadRequestException('Erreur lors de la récupération du profil');
+    if (!resetToken || resetToken.expiresAt < new Date() || resetToken.used) {
+      this.logger.warn('Reset password failed: invalid token');
+      throw new BadRequestException('Token invalide ou expiré');
     }
+
+    // updatePassword hache lui-même — on passe le mot de passe brut
+    await this.usersService.updatePassword(resetToken.userId, newPassword);
+    await this.resetTokenRepository.markAsUsed(resetToken.id);
+
+    await this.auditService.logUserAction(
+      resetToken.userId,
+      AuditAction.UPDATE,
+      {
+        action: 'PASSWORD_RESET',
+      },
+    );
+
+    return { message: 'Mot de passe réinitialisé avec succès' };
   }
 
-  async logoutUser(
+  async changePassword(
     userId: string,
-    reason: string = 'Logout automatique'
-  ): Promise<void> {
-    try {
-      const activeSessions =
-        await this.sessionService.getActiveSessionsByUser(userId);
-
-      for (const session of activeSessions) {
-        try {
-          const decoded = this.jwtService.decode(session.token) as any;
-          if (decoded && decoded.exp) {
-            await this.revokeToken(session.token, new Date(decoded.exp * 1000));
-          }
-        } catch (error) {
-          this.logger.warn(
-            `Erreur lors de la révocation du token: ${error.message}`
-          );
-        }
-      }
-
-      await this.sessionModel.updateMany(
-        { user: userId, isActive: true },
-        {
-          isActive: false,
-          deactivatedAt: new Date(),
-          revocationReason: reason,
-        }
-      );
-
-      this.loginAttempts.delete(userId);
-
-      this.logger.log(
-        `Logout complet pour l'utilisateur ${this.maskUserId(userId)}: ${reason}`
-      );
-    } catch (error) {
-      this.logger.error(
-        `Erreur lors du logout pour ${this.maskUserId(userId)}: ${error.message}`
-      );
-      throw error;
+    oldPassword: string,
+    newPassword: string,
+  ) {
+    this.logger.log('Change password attempt');
+    const user = await this.usersRepository.findByIdWithPassword(userId);
+    if (!user) {
+      this.logger.warn('Change password failed: user not found');
+      throw new NotFoundException('Utilisateur non trouvé');
     }
+
+    const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
+    if (!isPasswordValid) {
+      this.logger.warn('Change password failed: invalid old password');
+      throw new BadRequestException('Ancien mot de passe incorrect');
+    }
+
+    // updatePassword hache lui-même — on passe le mot de passe brut
+    await this.usersRepository.updatePassword(userId, newPassword);
+
+    await this.auditService.logUserAction(userId, AuditAction.UPDATE, {
+      action: 'PASSWORD_CHANGED',
+    });
+
+    return { message: 'Mot de passe changé avec succès' };
   }
 
-  async cleanupExpiredSessions(): Promise<void> {
-    try {
-      const expiredSessions = await this.sessionService.getExpiredSessions();
+  /**
+   * Les durées JWT sont fixes (15m access / 7d refresh) quelle que soit la valeur de isRememberMe.
+   * La durée BDD varie selon isRememberMe — le JWT est une couche de sécurité
+   * supplémentaire indépendante de la politique de session.
+   */
+  private async generateTokens(userId: string, email: string, role: string) {
+    const payload = { sub: userId, email, role };
 
-      for (const session of expiredSessions) {
-        try {
-          const decoded = this.jwtService.decode(session.token) as any;
-          if (decoded && decoded.exp) {
-            await this.revokeToken(session.token, new Date(decoded.exp * 1000));
-          }
-        } catch (error) {
-          this.logger.warn(
-            `Erreur lors de la révocation du token expiré: ${error.message}`
-          );
-        }
-      }
+    const jwtSecret = this.configService.get<string>('JWT_SECRET');
+    const jwtRefreshSecret =
+      this.configService.get<string>('JWT_REFRESH_SECRET');
 
-      await this.sessionModel.updateMany(
-        { expiresAt: { $lt: new Date() }, isActive: true },
-        {
-          isActive: false,
-          deactivatedAt: new Date(),
-          revocationReason: 'session_expired',
-        }
-      );
-
-      this.logger.log(
-        `Nettoyage de ${expiredSessions.length} sessions expirées`
-      );
-    } catch (error) {
-      this.logger.error(
-        `Erreur lors du nettoyage des sessions: ${error.message}`
-      );
-      throw error;
+    if (!jwtSecret || !jwtRefreshSecret) {
+      this.logger.error('JWT secrets not configured');
+      throw new Error('JWT secrets non configurés');
     }
+
+    const [access_token, refresh_token] = await Promise.all([
+      this.jwtService.signAsync(payload, {
+        secret: jwtSecret,
+        expiresIn: AuthConstants.ACCESS_TOKEN_EXPIRATION,
+      }),
+      this.jwtService.signAsync(payload, {
+        secret: jwtRefreshSecret,
+        expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
+      }),
+    ]);
+
+    return { access_token, refresh_token };
   }
 
-  async cleanupUserSessions(userId: string): Promise<void> {
-    try {
-      await this.sessionModel.updateMany(
-        { user: userId, isActive: true },
-        {
-          isActive: false,
-          deactivatedAt: new Date(),
-          revocationReason: 'admin_cleanup',
-        }
-      );
+  // ==================== UTILITAIRES ====================
 
-      this.logger.log(
-        `Sessions désactivées pour l'utilisateur ${this.maskUserId(userId)}`
-      );
-    } catch (error) {
-      this.logger.error(
-        `Erreur lors du nettoyage des sessions pour ${this.maskUserId(userId)}: ${error.message}`
-      );
-      throw error;
-    }
+  private generateForgotPasswordContent(
+    user: {
+      firstName: string;
+      email: string;
+    },
+    token: string,
+  ): string {
+    const resetLink = `${this.configService.get<string>('FRONTEND_URL')}/reinitialiser-mot-de-passe?token=${token}`;
+
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Bonjour <strong>${user.firstName}</strong>,</p>
+        <p>Nous avons reçu une demande de réinitialisation de votre mot de passe.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
+          <h3 style="margin-top:0;color:#0284c7;">Instructions de réinitialisation</h3>
+          <p style="margin:0;">Cliquez sur le bouton ci-dessous pour définir un nouveau mot de passe :</p>
+          <div style="text-align:center;margin:20px 0;">
+            <a href="${resetLink}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Réinitialiser mon mot de passe</a>
+          </div>
+          <p style="margin:10px 0 0 0;font-size:12px;color:#666;">Ou copiez-collez ce lien : <br>${resetLink}</p>
+        </div>
+        <div style="background:#fef3c7;padding:20px;border-radius:8px;border-left:4px solid #f59e0b;margin:25px 0;">
+          <h4 style="margin-top:0;color:#d97706;">⚠️ Important</h4>
+          <ul style="margin:10px 0;padding-left:20px;color:#666;">
+            <li>Ce lien expire dans <strong>2 heures</strong></li>
+            <li>Si vous n'avez pas demandé cette réinitialisation, ignorez cet email</li>
+            <li>Ne partagez jamais ce lien avec personne</li>
+          </ul>
+        </div>
+        <p>Si vous avez des questions, n'hésitez pas à nous contacter.</p>
+        <p style="margin-top:30px;">Cordialement,<br><strong>Paname Consulting</strong></p>
+      </div>`;
   }
 
-  private maskEmail(email: string): string {
-    if (!email || typeof email !== 'string') return '***@***';
-
-    const trimmedEmail = email.trim();
-    const [name, domain] = trimmedEmail.split('@');
-
-    if (!name || !domain || name.length === 0 || domain.length === 0) {
-      return '***@***';
-    }
-
-    const maskedName =
-      name.length <= 2
-        ? name.charAt(0) + '*'
-        : name.charAt(0) +
-          '***' +
-          (name.length > 1 ? name.charAt(name.length - 1) : '');
-
-    const domainParts = domain.split('.');
-    if (domainParts.length < 2) return `${maskedName}@***`;
-
-    const maskedDomain =
-      domainParts.length === 2
-        ? '***.' + domainParts[1]
-        : '***.' + domainParts.slice(-2).join('.');
-
-    return `${maskedName}@${maskedDomain}`;
-  }
-
-  private maskUserId(userId: string): string {
-    if (!userId || typeof userId !== 'string' || userId.length === 0) {
-      return 'user_***';
-    }
-
-    if (userId.length <= 6) {
-      return 'user_***';
-    }
-
-    return `user_${userId.substring(0, 3)}***${userId.substring(userId.length - 3)}`;
-  }
-
-  private maskToken(token: string): string {
-    if (!token || typeof token !== 'string' || token.length < 10) {
-      return 'token_***';
-    }
-
-    return `token_${token.substring(0, 4)}***${token.substring(token.length - 4)}`;
+  private generateWelcomeContent(user: {
+    firstName: string;
+    email: string;
+  }): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Bienvenue <strong>${user.firstName}</strong> !</p>
+        <p>Nous sommes ravis de vous accueillir au sein de Paname Consulting.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
+          <h3 style="margin-top:0;color:#0284c7;">Votre compte a été créé</h3>
+          <p style="margin:0;">Vous pouvez maintenant accéder à votre espace personnel et commencer votre parcours avec nous.</p>
+        </div>
+        <div style="text-align:center;margin:30px 0;">
+          <a href="${this.configService.get<string>('FRONTEND_URL')}/login" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Me connecter</a>
+        </div>
+        <p>N'hésitez pas à nous contacter si vous avez des questions.</p>
+        <p style="margin-top:30px;">Cordialement,<br><strong>L'équipe Paname Consulting</strong></p>
+      </div>`;
   }
 }

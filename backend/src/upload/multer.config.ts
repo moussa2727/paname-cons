@@ -1,15 +1,6 @@
-// multer.config.ts
-import { diskStorage } from 'multer';
-import path, { extname } from 'path';
+import { memoryStorage } from 'multer';
 import { BadRequestException } from '@nestjs/common';
-import * as fs from 'fs';
 
-const uploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Allowed file types
 const allowedMimeTypes = [
   'image/jpeg',
   'image/jpg',
@@ -17,36 +8,33 @@ const allowedMimeTypes = [
   'image/webp',
   'image/avif',
   'image/svg+xml',
+  'application/pdf',
 ];
 
-// File size limit (5MB)
 const maxFileSize = 5 * 1024 * 1024; // 5MB
 
+/**
+ * Config Multer avec memoryStorage pour Cloudinary.
+ * file.buffer est disponible → CloudinaryService.uploadFile() peut streamer vers Cloudinary.
+ * Aucun fichier n'est écrit sur le disque.
+ */
 export const multerConfig = {
-  storage: diskStorage({
-    destination: uploadDir,
-    filename: (req, file, callback) => {
-      // Generate unique filename
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      const ext = extname(file.originalname);
-      const filename = `${uniqueSuffix}${ext}`;
-      callback(null, filename);
-    },
-  }),
-  fileFilter: (req, file, callback) => {
-    // Check file type
+  storage: memoryStorage(),
+  fileFilter: (
+    _req: any,
+    file: { mimetype: string },
+    callback: (error: Error | null, acceptFile: boolean) => void,
+  ) => {
     if (allowedMimeTypes.includes(file.mimetype)) {
       callback(null, true);
     } else {
       callback(
         new BadRequestException(
-          `Invalid file type. Allowed types: ${allowedMimeTypes.join(', ')}`
+          `Type de fichier invalide. Types autorisés: JPEG, PNG, WEBP, AVIF, SVG, PDF`,
         ),
         false,
       );
     }
   },
-  limits: {
-    fileSize: maxFileSize,
-  },
+  limits: { fileSize: maxFileSize },
 };

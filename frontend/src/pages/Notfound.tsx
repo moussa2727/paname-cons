@@ -1,235 +1,226 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
+import { useEffect, useState } from "react";
 
-const NotFound: React.FC = (): React.JSX.Element => {
-  const navigate = useNavigate();
-  const [countdown, setCountdown] = useState(5);
-  const [particles, setParticles] = useState<
-    Array<{ id: number; style: React.CSSProperties }>
-  >([]);
+// Cloud component
+const Cloud = ({ scale = 1 }: { scale?: number }) => (
+  <div
+    className="relative flex items-end"
+    style={{ transform: `scale(${scale})` }}
+  >
+    <div className="w-16 h-12 rounded-full bg-white/80 shadow-[0_4px_20px_rgba(186,230,253,0.5)]" />
+    <div className="w-24 h-20 rounded-full bg-white/90 shadow-[0_4px_20px_rgba(186,230,253,0.5)] -ml-5 mb-2" />
+    <div className="w-14 h-10 rounded-full bg-white/80 shadow-[0_4px_20px_rgba(186,230,253,0.5)] -ml-4" />
+  </div>
+);
 
-  // Generate random particles on mount
+// Sun with spinning rays
+const Sun = () => (
+  <div className="relative flex items-center justify-center w-24 h-24 md:w-32 md:h-32">
+    <div className="absolute inset-0 flex items-center justify-center animate-spin [animation-duration:14s]">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div
+          key={i}
+          className="absolute w-full h-[3px] origin-center"
+          style={{ transform: `rotate(${i * 45}deg)` }}
+        >
+          <div className="w-1/2 h-full ml-auto rounded-full bg-linear-to-r from-amber-300/80 to-transparent" />
+        </div>
+      ))}
+    </div>
+    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-linear-to-br from-yellow-200 to-amber-400 shadow-[0_0_32px_rgba(251,191,36,0.6)] z-10" />
+  </div>
+);
+
+// Birds SVG
+const Birds = ({ className }: { className?: string }) => (
+  <svg
+    viewBox="0 0 200 60"
+    fill="none"
+    className={`absolute pointer-events-none ${className}`}
+    style={{ animation: "birdFloat 6s ease-in-out infinite" }}
+  >
+    <path
+      d="M10 30 Q20 18 30 30"
+      stroke="#93c5fd"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    />
+    <path
+      d="M45 18 Q56 6 67 18"
+      stroke="#93c5fd"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    />
+    <path
+      d="M80 36 Q90 24 100 36"
+      stroke="#bae6fd"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+    />
+    <path
+      d="M120 14 Q130 2 140 14"
+      stroke="#bae6fd"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+    />
+    <path
+      d="M158 28 Q168 16 178 28"
+      stroke="#93c5fd"
+      strokeWidth="1"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+const NotFound = () => {
+  const [visible, setVisible] = useState(false);
+
   useEffect(() => {
-    const newParticles = Array.from({ length: 15 }, (_, i) => ({
-      id: i,
-      style: {
-        top: `${Math.random() * 100}%`,
-        left: `${Math.random() * 100}%`,
-        animationDelay: `${i * 0.2}s`,
-        opacity: 0.5 + Math.random() * 0.5,
-      },
-    }));
-    setParticles(newParticles);
+    const t = setTimeout(() => setVisible(true), 80);
+    return () => clearTimeout(t);
   }, []);
 
-  // Handle countdown and navigation
-  useEffect(() => {
-    let countdownInterval: number;
-    let navigationTimeout: number;
-
-    if (countdown > 0) {
-      countdownInterval = window.setInterval(() => {
-        setCountdown(prev => prev - 1);
-      }, 1000);
-
-      navigationTimeout = window.setTimeout(() => {
-        navigate('/');
-      }, 5000);
-    } else {
-      navigate('/');
-    }
-
-    return () => {
-      if (countdownInterval) {
-        window.clearInterval(countdownInterval);
-      }
-      if (navigationTimeout) {
-        window.clearTimeout(navigationTimeout);
-      }
-    };
-  }, [countdown, navigate]);
-
-  const handleGoHome = useCallback(() => {
-    navigate('/');
-  }, [navigate]);
-
-  const handleGoBack = useCallback(() => {
-    navigate(-1);
-  }, [navigate]);
-
   return (
-    <>
-      <Helmet>
-        <title>Page non trouvée - Paname Consulting</title>
-        <meta
-          name='description'
-          content="La page que vous recherchez n'existe pas ou a été déplacée. Vous serez redirigé automatiquement."
-        />
-        <meta name='robots' content='noindex, nofollow' />
-      </Helmet>
+    <div className="relative min-h-screen overflow-hidden flex flex-col items-center justify-center font-[Nunito,sans-serif]">
+      {/* Keyframes */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700;800&display=swap');
 
-      <div className='min-h-screen bg-linear-to-b from-gray-50 to-white flex items-center justify-center p-4 md:p-6'>
-        <div className='max-w-2xl w-full text-center space-y-8'>
-          {/* Decorative Header */}
-          <div className='relative'>
-            <div className='absolute -inset-4 bg-linear-to-r from-blue-500/10 to-cyan-500/10 blur-3xl rounded-full' />
+        @keyframes driftA {
+          from { transform: translateX(-130%) translateY(0px); }
+          to   { transform: translateX(110vw) translateY(-14px); }
+        }
+        @keyframes driftB {
+          from { transform: translateX(-130%) translateY(0px); }
+          to   { transform: translateX(110vw) translateY(12px); }
+        }
+        @keyframes driftC {
+          from { transform: translateX(-80%) translateY(0px); }
+          to   { transform: translateX(110vw) translateY(-7px); }
+        }
+        @keyframes floatY {
+          0%,100% { transform: translateY(0px); }
+          50%      { transform: translateY(-14px); }
+        }
+        @keyframes birdFloat {
+          0%,100% { transform: translateY(0px) translateX(0px); }
+          50%      { transform: translateY(-9px) translateX(7px); }
+        }
+        @keyframes fadeInDown {
+          from { opacity:0; transform: translateY(-28px); }
+          to   { opacity:1; transform: translateY(0); }
+        }
+        @keyframes fadeInUp {
+          from { opacity:0; transform: translateY(20px); }
+          to   { opacity:1; transform: translateY(0); }
+        }
+        @keyframes pulseGlow {
+          0%,100% { box-shadow: 0 4px 20px rgba(56,189,248,0.3); }
+          50%      { box-shadow: 0 8px 40px rgba(56,189,248,0.6); }
+        }
+      `}</style>
 
-            <div className='relative'>
-              {/* Animated 404 Number */}
-              <div className='relative inline-block'>
-                <span className='text-9xl md:text-[10rem] font-black bg-linear-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent'>
-                  404
-                </span>
+      {/* Sky */}
+      <div className="absolute inset-0 bg-linear-to-b from-sky-200 via-sky-100 to-blue-50" />
 
-                {/* Glow effect */}
-                <div className='absolute inset-0 bg-linear-to-r from-blue-600/20 to-cyan-500/20 blur-2xl -z-10' />
+      {/* Glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[340px] rounded-full bg-sky-300/30 blur-3xl pointer-events-none" />
 
-                {/* Floating dots */}
-                <div className='absolute -top-4 -right-4 w-8 h-8 bg-blue-400 rounded-full animate-[float_3s_ease-in-out_infinite]' />
-                <div className='absolute -bottom-4 -left-4 w-6 h-6 bg-cyan-400 rounded-full animate-[float_3s_ease-in-out_infinite_1s]' />
-              </div>
-            </div>
-          </div>
+      {/* Clouds */}
+      <div
+        className="absolute top-[8%] pointer-events-none"
+        style={{ animation: "driftA 30s linear infinite" }}
+      >
+        <Cloud scale={1} />
+      </div>
+      <div
+        className="absolute top-[25%] pointer-events-none"
+        style={{
+          animation: "driftB 42s linear infinite",
+          animationDelay: "-16s",
+        }}
+      >
+        <Cloud scale={0.65} />
+      </div>
+      <div
+        className="absolute top-[6%] pointer-events-none"
+        style={{
+          animation: "driftC 56s linear infinite",
+          animationDelay: "-30s",
+        }}
+      >
+        <Cloud scale={0.45} />
+      </div>
 
-          {/* Main Content */}
-          <div className='space-y-6'>
-            <div>
-              <h1 className='text-3xl md:text-4xl font-bold text-gray-900 mb-3'>
-                Page introuvable
-              </h1>
-              <p className='text-lg text-gray-600 max-w-lg mx-auto'>
-                La page que vous recherchez semble avoir disparu dans l'espace
-                numérique. Ne vous inquiétez pas, nous vous ramenons sur terre.
-              </p>
-            </div>
+      {/* Birds */}
+      <Birds className="w-44 top-[17%] left-[58%] opacity-70" />
 
-            {/* Countdown Timer */}
-            <div className='max-w-sm mx-auto'>
-              <div className='bg-linear-to-br from-white to-gray-50 rounded-2xl p-6 shadow-lg border border-gray-200'>
-                <div className='space-y-4'>
-                  <div className='flex items-center justify-between'>
-                    <span className='text-gray-700 font-medium'>
-                      Redirection dans :
-                    </span>
-                    <span className='text-3xl font-bold bg-linear-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent'>
-                      {countdown}s
-                    </span>
-                  </div>
-
-                  {/* Progress Bar */}
-                  <div className='h-2 bg-gray-200 rounded-full overflow-hidden'>
-                    <div
-                      className='h-full bg-linear-to-r from-blue-500 to-cyan-400 rounded-full transition-all duration-1000 ease-linear'
-                      style={{ width: `${(countdown / 5) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className='flex flex-col sm:flex-row gap-4 justify-center pt-4'>
-              <button
-                onClick={handleGoHome}
-                className='group relative px-8 py-4 bg-linear-to-r from-blue-600 to-cyan-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 active:translate-y-0'
-              >
-                <div className='absolute inset-0 bg-white/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300' />
-                <span className='relative flex items-center justify-center gap-2'>
-                  <svg
-                    className='w-5 h-5'
-                    fill='none'
-                    stroke='currentColor'
-                    viewBox='0 0 24 24'
-                  >
-                    <path
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                      strokeWidth='2'
-                      d='M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'
-                    />
-                  </svg>
-                  Retour à l'accueil
-                </span>
-              </button>
-
-              <button
-                onClick={handleGoBack}
-                className='group relative px-8 py-4 bg-white text-gray-800 font-semibold rounded-xl border-2 border-gray-300 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 active:translate-y-0 hover:border-blue-400'
-              >
-                <div className='absolute inset-0 bg-blue-50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300' />
-                <span className='relative flex items-center justify-center gap-2'>
-                  <svg
-                    className='w-5 h-5'
-                    fill='none'
-                    stroke='currentColor'
-                    viewBox='0 0 24 24'
-                  >
-                    <path
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                      strokeWidth='2'
-                      d='M10 19l-7-7m0 0l7-7m-7 7h18'
-                    />
-                  </svg>
-                  Page précédente
-                </span>
-              </button>
-            </div>
-
-            {/* Help Text */}
-            <div className='pt-6'>
-              <p className='text-sm text-gray-500'>
-                La redirection automatique s'arrêtera si vous interagissez avec
-                la page
-              </p>
-            </div>
-          </div>
-
-          {/* Decorative Elements */}
-          <div className='fixed inset-0 pointer-events-none -z-10 overflow-hidden'>
-            {/* Background Grid */}
-            <div className='absolute inset-0 bg-[linear-gradient(to_right,#f0f0f0_1px,transparent_1px),linear-gradient(to_bottom,#f0f0f0_1px,transparent_1px)] bg-size-[50px_50px] opacity-20' />
-
-            {/* Animated Particles */}
-            {particles.map(particle => (
-              <div
-                key={particle.id}
-                className='absolute w-1 h-1 bg-linear-to-r from-blue-400 to-cyan-400 rounded-full animate-pulse'
-                style={particle.style}
-              />
-            ))}
-
-            {/* Floating Shapes */}
-            <div className='absolute top-1/4 left-1/4 w-32 h-32 border border-blue-200/30 rounded-full animate-[spin_20s_linear_infinite]' />
-            <div className='absolute bottom-1/4 right-1/4 w-24 h-24 border border-cyan-200/30 rounded-full animate-[spin_15s_linear_infinite_reverse]' />
-          </div>
+      {/* Content */}
+      <div
+        className="relative z-10 flex flex-col items-center text-center px-6"
+        style={{
+          opacity: visible ? 1 : 0,
+          animation: visible
+            ? "fadeInDown 0.85s cubic-bezier(.22,1,.36,1) both"
+            : "none",
+        }}
+      >
+        {/* 404 */}
+        <div
+          className="flex items-center justify-center gap-1 mb-6"
+          style={{ animation: "floatY 5s ease-in-out infinite" }}
+        >
+          <span className="text-[7rem] md:text-[10rem] font-extrabold text-sky-500 leading-none tracking-tighter drop-shadow-[0_4px_20px_rgba(14,165,233,0.2)]">
+            4
+          </span>
+          <Sun />
+          <span className="text-[7rem] md:text-[10rem] font-extrabold text-sky-500 leading-none tracking-tighter drop-shadow-[0_4px_20px_rgba(14,165,233,0.2)]">
+            4
+          </span>
         </div>
 
-        {/* Custom Animations */}
-        <style>{`
-          @keyframes float {
-            0%, 100% { transform: translateY(0) scale(1); }
-            50% { transform: translateY(-10px) scale(1.05); }
-          }
-          
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-          
-          @keyframes spin-reverse {
-            from { transform: rotate(360deg); }
-            to { transform: rotate(0deg); }
-          }
-          
-          .animate-\\[spin_15s_linear_infinite_reverse\\] {
-            animation: spin-reverse 15s linear infinite;
-          }
-        `}</style>
+        {/* Title */}
+        <h1
+          className="text-2xl md:text-3xl font-bold text-sky-900 mb-3"
+          style={{
+            animation: "fadeInUp 0.85s 0.18s cubic-bezier(.22,1,.36,1) both",
+            opacity: 0,
+          }}
+        >
+          Oops, cette page s'est envolée&nbsp;!
+        </h1>
+
+        {/* Subtitle */}
+        <p
+          className="text-base md:text-lg font-light text-sky-700 max-w-md leading-relaxed mb-10"
+          style={{
+            animation: "fadeInUp 0.85s 0.32s cubic-bezier(.22,1,.36,1) both",
+            opacity: 0,
+          }}
+        >
+          Il semblerait que la page que vous cherchez flotte quelque part dans
+          les nuages…
+        </p>
+
+        {/* Button */}
+        <a
+          href="/"
+          className="inline-flex items-center gap-2 px-8 py-3 rounded-full bg-linear-to-r from-sky-400 to-sky-500 text-white font-semibold text-base tracking-wide transition-transform duration-200 hover:scale-105 hover:brightness-110 active:scale-95"
+          style={{
+            animation:
+              "fadeInUp 0.85s 0.46s cubic-bezier(.22,1,.36,1) both, pulseGlow 3s ease-in-out 1.4s infinite",
+            opacity: 0,
+          }}
+        >
+          <span className="text-lg"></span>
+          Retourner à l'accueil
+        </a>
       </div>
-    </>
+
+      {/* Horizon */}
+      <div className="absolute bottom-[12%] inset-x-0 h-px bg-linear-to-r from-transparent via-sky-200/80 to-transparent" />
+      <div className="absolute bottom-0 inset-x-0 h-[12%] bg-linear-to-b from-sky-200/50 to-sky-100/80 rounded-[60%_60%_0_0/20px]" />
+    </div>
   );
 };
 
-export default React.memo(NotFound);
+export default NotFound;

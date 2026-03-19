@@ -55,7 +55,14 @@
       "form_factor": "wide"
     }
   ],
-  "categories": ["consulting", "services", "accompagnement", "études à l'étranger", "voyages d'affaires", "demandes de visa"],
+  "categories": [
+    "consulting",
+    "services",
+    "accompagnement",
+    "études à l'étranger",
+    "voyages d'affaires",
+    "demandes de visa"
+  ],
   "lang": "fr",
   "dir": "ltr",
   "scope": "/"

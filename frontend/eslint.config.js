@@ -1,63 +1,51 @@
 import js from "@eslint/js";
-import tsPlugin from "@typescript-eslint/eslint-plugin";
-import tsParser from "@typescript-eslint/parser";
-import reactPlugin from "eslint-plugin-react";
+import globals from "globals";
+import reactHooks from "eslint-plugin-react-hooks";
+import reactRefresh from "eslint-plugin-react-refresh";
+import tseslint from "typescript-eslint";
+import { resolve } from "path";
 
-/**
- * ESLint Flat Config pour React + TypeScript
- */
-export default [
-  js.configs.recommended,
+export default tseslint.config(
+  { ignores: ["dist"] },
+  // Configuration pour les fichiers de l'application
   {
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["dist/**/*", "dist/**"],
-
-    plugins: {
-      react: reactPlugin,
-      "@typescript-eslint": tsPlugin
-    },
-
     languageOptions: {
-      parser: tsParser,
+      ecmaVersion: 2020,
+      globals: globals.browser,
       parserOptions: {
-        ecmaVersion: 2020,
-        sourceType: "module",
-        ecmaFeatures: {
-          jsx: true
-        },
-        project: "./tsconfig.json"
+        tsconfigRootDir: resolve("./"),
+        project: "./tsconfig.app.json",
       },
-      globals: {
-        window: "readonly",
-        document: "readonly",
-        console: "readonly",
-        setTimeout: "readonly",
-        setInterval: "readonly",
-        clearTimeout: "readonly",
-        clearInterval: "readonly",
-        fetch: "readonly",
-        localStorage: "readonly",
-        sessionStorage: "readonly",
-        navigator: "readonly",
-        location: "readonly",
-        history: "readonly",
-        React: "readonly"
-      }
     },
-
-    settings: {
-      react: {
-        version: "detect"
-      }
+    plugins: {
+      "react-hooks": reactHooks,
+      "react-refresh": reactRefresh,
     },
-
     rules: {
-      "react/react-in-jsx-scope": "off",
-      "no-unused-vars": "off",
-      "no-undef": "off",
-      "no-useless-catch": "off",
-      "no-empty": "off",
-      "@typescript-eslint/no-unused-vars": ["warn"]
-    }
-  }
-];
+      ...reactHooks.configs.recommended.rules,
+      "react-refresh/only-export-components": [
+        "warn",
+        { allowConstantExport: true },
+      ],
+    },
+  },
+  // Configuration pour les fichiers de config (sans React)
+  {
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
+    files: ["vite.config.ts", "tailwind.config.js"],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.node,
+      parserOptions: {
+        tsconfigRootDir: resolve("./"),
+        project: "./tsconfig.node.json",
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/no-explicit-any": "warn",
+    },
+  },
+);

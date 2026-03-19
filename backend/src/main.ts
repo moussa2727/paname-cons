@@ -1,172 +1,226 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
-import { ValidationPipe, BadRequestException, Logger, VersioningType } from '@nestjs/common';
-import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
-const express = require('express');
-const helmet = require('helmet');
-const compression = require('compression');
-const cookieParser = require('cookie-parser');
-const path = require('path');
+import { ValidationPipe, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as serveStatic from 'serve-static';
+import * as cookieParser from 'cookie-parser';
+import * as compression from 'compression';
+import * as helmet from 'helmet';
+import * as path from 'path';
+import { join } from 'path';
+import { Request, Response, NextFunction } from 'express';
+import { PrismaService } from './prisma/prisma.service';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
+import { JsonExceptionFilter } from './common/filters/json-exception.filter';
+import { LoggingMiddleware } from './common/middlewares/logging.middleware';
 
-const logger = new Logger('Bootstrap');
-const isProduction = process.env.NODE_ENV === 'production';
-
-// Configuration CORS
-const allowedOrigins = [
-  "https://panameconsulting.com",
-  "https://www.panameconsulting.com",
-  "https://panameconsulting.vercel.app",
-  "https://paname-consulting.vercel.app",
-  "https://vercel.live",
-  "http://localhost:5173",
-  "http://localhost:10000",
-];
-
-const cspDirectives = {
-  defaultSrc: ["'self'"],
-  scriptSrc: ["'self'", "'unsafe-inline'"],
-  styleSrc: ["'self'", "'unsafe-inline'"],
-  imgSrc: ["'self'", "data:", "https:"],
-  connectSrc: ["'self'", ...allowedOrigins],
-  fontSrc: ["'self'", "https:"],
-  frameSrc: ["'self'", "https://vercel.live"],
-  objectSrc: ["'none'"],
-  mediaSrc: ["'self'"],
-  baseUri: ["'self'"],
-  formAction: ["'self'"],
-};
-
-// Variable globale pour conserver l'instance entre les appels serverless
-let app: any;
+const corsOrigins =
+  process.env.NODE_ENV === 'production'
+    ? ['https://panameconsulting.com', 'https://www.panameconsulting.com']
+    : ['http://localhost:5173', 'http://localhost:10000'];
 
 async function bootstrap() {
-  if (!app) {
-    const server = express();
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: process.env.NODE_ENV === 'production',
+    cors: false,
+    abortOnError: false,
+  });
 
-    app = await NestFactory.create(
-      AppModule,
-      new ExpressAdapter(server),
-      {
-        logger: isProduction ? ['error', 'warn'] : ['log', 'error', 'warn', 'debug', 'verbose'],
-      }
-    );
+  const configService = app.get(ConfigService);
+  const prismaService = app.get(PrismaService);
+  const logger = new Logger('Bootstrap');
+  app.useLogger(logger);
 
-    server.set('trust proxy', isProduction ? 1 : false);
+  // ==================== SÉCURITÉ ====================
+  app.getHttpAdapter().getInstance().set('trust proxy', 2); // 2 niveaux de proxy
+  app.use(
+    helmet.default({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: [`'self'`],
+          scriptSrc: [`'self'`, `'unsafe-inline'`, `'unsafe-eval'`],
+          scriptSrcAttr: [`'unsafe-inline'`],
+          styleSrc: [
+            `'self'`,
+            `'unsafe-inline'`,
+            `https://fonts.googleapis.com`,
+          ],
+          fontSrc: [`'self'`, `https://fonts.gstatic.com`],
+          imgSrc: [
+            `'self'`,
+            'data:',
+            'validator.swagger.io',
+            'res.cloudinary.com',
+          ],
+          connectSrc: [`'self'`],
+          frameSrc: [`'self'`, `https://www.google.com`],
+        },
+      },
+      hsts:
+        process.env.NODE_ENV === 'production'
+          ? { maxAge: 31536000, includeSubDomains: true }
+          : false,
+    }),
+  );
 
-    // CORS
-    app.enableCors({
-      origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          callback(new Error(`CORS: Origin ${origin} non autorisee`));
+  app.use(compression({ level: 6, threshold: 1024 }));
+
+  app.enableCors({
+    origin: corsOrigins,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Cookie',
+    ],
+    exposedHeaders: ['Content-Range', 'X-Content-Range'],
+    maxAge: 3600,
+  });
+
+  app.use(cookieParser(configService.get('COOKIE_SECRET')));
+
+  // ==================== LOGGING ====================
+  const loggingMiddleware = new LoggingMiddleware(configService);
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    loggingMiddleware.use(req, res, next);
+  });
+
+  // ==================== PRÉFIXE GLOBAL ====================
+  app.setGlobalPrefix('api', {
+    exclude: [
+      '/',
+      '/api',
+      '/uploads',
+      '/uploads/*path',
+      '/uploads/destinations',
+      '/uploads/destinations/*path',
+      '/uploads/profiles',
+      '/uploads/profiles/*path',
+      '/version',
+      '/debug/headers',
+      '/health',
+    ],
+  });
+
+  // ==================== PIPES ====================
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+      disableErrorMessages: process.env.NODE_ENV === 'production',
+      exceptionFactory: (errors) => ({
+        statusCode: 400,
+        message: 'Validation échouée',
+        errors: errors.map((err) => ({
+          field: err.property,
+          constraints: err.constraints,
+        })),
+      }),
+    }),
+  );
+
+  // ==================== FILTRES ====================
+  app.useGlobalFilters(
+    new JsonExceptionFilter(),
+    new PrismaExceptionFilter(),
+    new HttpExceptionFilter(),
+  );
+
+  // ==================== UPLOADS STATIQUES ====================
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });
+  // ==================== MIDDLEWARE AUTH SIMPLIFIÉ ====================
+  app.use('/api/secret', (req: Request, res: Response, next: NextFunction) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(403).json({ message: 'Accès refusé' });
+    }
+    next();
+  });
+
+  // ==================== GRACEFUL SHUTDOWN ====================
+  async function gracefulShutdown() {
+    try {
+      logger.log('Début de la fermeture graceful...');
+      await app.close();
+      logger.log('Fermeture graceful terminée avec succès');
+    } catch (error) {
+      logger.error(
+        `Erreur lors de la fermeture graceful: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  process.on(
+    'SIGTERM',
+    () => void gracefulShutdown().then(() => process.exit(0)),
+  );
+  process.on(
+    'SIGINT',
+    () => void gracefulShutdown().then(() => process.exit(0)),
+  );
+  prismaService.enableShutdownHooks();
+
+  // ==================== FRONTEND REACT ====================
+  const FRONTEND_DIST = path.join(process.cwd(), '../frontend', 'dist');
+  app.use(
+    serveStatic(FRONTEND_DIST, {
+      maxAge: process.env.NODE_ENV === 'production' ? '1y' : '1h',
+      etag: true,
+      lastModified: true,
+      setHeaders: (res: Response, filePath: string) => {
+        if (/\.(js|css)$/.test(filePath)) {
+          res.setHeader(
+            'Cache-Control',
+            process.env.NODE_ENV === 'production'
+              ? 'public, max-age=31536000, immutable'
+              : 'public, max-age=3600',
+          );
+        } else if (/\.(png|jpg|jpeg|webp|avif)$/.test(filePath)) {
+          res.setHeader(
+            'Cache-Control',
+            process.env.NODE_ENV === 'production'
+              ? 'public, max-age=2592000, immutable'
+              : 'public, max-age=3600',
+          );
+        } else if (/\.(svg|ico)$/.test(filePath)) {
+          res.setHeader(
+            'Cache-Control',
+            process.env.NODE_ENV === 'production'
+              ? 'public, max-age=86400'
+              : 'public, max-age=3600',
+          );
         }
       },
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-      exposedHeaders: ['Set-Cookie'],
-    });
+    }),
+  );
 
-    // Middlewares
-    server.use(express.urlencoded({ limit: '10mb', extended: true, parameterLimit: 1000 }));
-    server.use(express.json({ limit: '10mb' }));
-    server.use(compression());
-    server.use(cookieParser(process.env.COOKIE_SECRET || 'default-secret-change-me'));
+  // Catch-all React Router
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      return next();
+    }
+    res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
+  });
 
-    // Cookies sécurisés
-    server.use((_req: any, res: any, next: any) => {
-      const cookieOptions = {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? 'strict' as const : 'lax' as const,
-        maxAge: 30 * 60 * 1000,
-        path: '/',
-      };
+  // ==================== DÉMARRAGE ====================
+  const port = configService.get<number>('PORT', 10000);
+  await app.listen(port, '0.0.0.0');
 
-      const originalCookie = res.cookie.bind(res);
-      res.cookie = (name: string, value: string, options: any = {}) => {
-        return originalCookie(name, value, { ...cookieOptions, ...options });
-      };
-
-      next();
-    });
-
-    // Fichiers statiques (attention: Vercel a des limitations)
-    const uploadsPath = path.join('/tmp', 'uploads'); // /tmp est writable sur Vercel
-    server.use('/uploads', express.static(uploadsPath));
-
-    // Security headers
-    server.use(
-      helmet({
-        contentSecurityPolicy: {
-          directives: cspDirectives,
-        },
-        crossOriginResourcePolicy: { policy: "cross-origin" },
-        crossOriginEmbedderPolicy: false,
-        crossOriginOpenerPolicy: { policy: "same-origin" },
-        referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-        hsts: {
-          maxAge: 31536000,
-          includeSubDomains: true,
-          preload: true
-        },
-        frameguard: { action: 'deny' },
-        hidePoweredBy: true,
-        noSniff: true,
-        xssFilter: true,
-      }),
-    );
-
-    // Configuration globale
-    app.setGlobalPrefix('api', {
-      exclude: ['/', '/api', '/uploads'],
-    });
-
-    app.useGlobalPipes(
-      new ValidationPipe({
-        transform: true,
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transformOptions: { enableImplicitConversion: true },
-        validationError: { target: false, value: false },
-        exceptionFactory: (errors) => {
-          const messages = errors.map((error: any) => {
-            const constraints = error.constraints ? Object.values(error.constraints) : [];
-            return `${error.property}: ${constraints.join(', ')}`;
-          });
-          return new BadRequestException({
-            message: 'Validation failed',
-            errors: messages,
-            timestamp: new Date().toISOString(),
-          });
-        },
-      }),
-    );
-
-    app.enableVersioning({
-      type: VersioningType.URI,
-      defaultVersion: '1',
-    });
-
-    await app.init();
-    logger.log('Application initialisée avec succès');
-  }
-
-  return app;
+  logger.log(`🚀 Serveur démarré sur : http://localhost:${port}`);
+  logger.log(`Environnement : ${process.env.NODE_ENV ?? 'development'}`);
+  logger.log(`📂 Frontend dist résolu : ${FRONTEND_DIST}`);
 }
 
-// Handler serverless pour Vercel
-export default async function handler(req: any, res: any) {
-  try {
-    const appInstance = await bootstrap();
-    const server = appInstance.getHttpServer();
-    server.emit('request', req, res);
-  } catch (error) {
-    logger.error('Serverless handler failed:', error);
-    res.status(500).json({ 
-      message: 'Internal Server Error',
-      timestamp: new Date().toISOString()
-    });
-  }
-}
+bootstrap().catch((error) => {
+  console.error('Erreur fatale au démarrage:', error);
+  process.exit(1);
+});

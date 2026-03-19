@@ -1,463 +1,211 @@
 import {
-  Body,
   Controller,
-  Delete,
   Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Patch,
   Post,
-  Request,
+  Body,
+  Patch,
+  Param,
+  Delete,
   UseGuards,
-  BadRequestException,
-  Logger,
+  Query,
+  HttpStatus,
+  HttpCode,
+  ForbiddenException,
+  ParseIntPipe,
+  DefaultValuePipe,
+  NotFoundException,
 } from '@nestjs/common';
-import { RegisterDto } from '../auth/dto/register.dto';
-import { UpdateUserDto } from '../auth/dto/update-user.dto';
-import { UserRole } from '../enums/user-role.enum';
-import { Roles } from '../shared/decorators/roles.decorator';
-import { JwtAuthGuard } from '../shared/guards/jwt-auth.guard';
-import { RolesGuard } from '../shared/guards/roles.guard';
 import { UsersService } from './users.service';
-import { AuthenticatedRequest } from '../shared/interfaces/authenticated-user.interface';
+import {
+  CreateUserDto,
+  UpdateUserDto,
+  UpdateUserStatusDto,
+  UserResponseDto,
+  UpdateProfileDto,
+} from './dto';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { UserRole } from '@prisma/client';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
-@Controller('users')
+@Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requêtes par minute
+@ApiTags('users')
+@Controller('')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@ApiBearerAuth()
 export class UsersController {
-  private readonly logger = new Logger(UsersController.name);
-
   constructor(private readonly usersService: UsersService) {}
 
-  // === MÉTHODE D'EXTRACTION D'ID (SIMPLIFIÉE) ===
-  private extractUserId(id: any): string {
-    if (!id) {
-      throw new BadRequestException('ID utilisateur manquant');
-    }
-
-    // Si c'est déjà une string, la retourner
-    if (typeof id === 'string') {
-      return id;
-    }
-
-    // Dernier recours : convertir en string
-    const stringId = String(id);
-    if (stringId && stringId !== 'undefined' && stringId !== 'null') {
-      return stringId;
-    }
-
-    throw new BadRequestException(`Impossible d'extraire l'ID utilisateur`);
-  }
-
-  private maskUserId(userId: string): string {
-    if (!userId || typeof userId !== 'string' || userId.length === 0) {
-      return 'user_***';
-    }
-
-    if (userId.length <= 6) {
-      return 'user_***';
-    }
-
-    return `user_${userId.substring(0, 3)}***${userId.substring(userId.length - 3)}`;
-  }
-
-  // === ENDPOINTS ADMIN ===
-  @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Post('admin/users/create')
+  @ApiOperation({ summary: 'Créer un nouvel utilisateur (Admin seulement)' })
+  @ApiResponse({
+    status: 201,
+    description: 'Utilisateur créé',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Données invalides' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
   @Roles(UserRole.ADMIN)
-  async create(@Body() createUserDto: RegisterDto) {
-    this.logger.log("Création d'utilisateur par admin");
+  async create(@Body() createUserDto: CreateUserDto): Promise<UserResponseDto> {
+    const user = await this.usersService.create(createUserDto);
+    return this.usersService.toResponseDto(user);
+  }
 
-    // FORCER tous les comptes créés via API à être USER
-    if (createUserDto.role === UserRole.ADMIN) {
-      createUserDto.role = UserRole.USER;
-      this.logger.warn('Rôle admin forcé en USER pour création via API');
+  @Get('admin/users/all')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Liste tous les utilisateurs (Admin seulement)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Liste des utilisateurs' })
+  async findAll(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+  ) {
+    return this.usersService.findAll(page, limit);
+  }
+
+  @Get('user/profile')
+  async getProfile(
+    @CurrentUser() user: { id: string; role: UserRole },
+  ): Promise<UserResponseDto> {
+    const foundUser = await this.usersService.findById(user.id);
+
+    if (!foundUser) {
+      throw new NotFoundException('Utilisateur non trouvé');
     }
 
-    try {
-      const user = await this.usersService.create(createUserDto);
+    const responseDto = this.usersService.toResponseDto(foundUser);
 
-      //  CORRECTION: Retourner l'utilisateur avec id (pas _id)
-      const responseUser = {
-        ...user,
-        id: user.id || this.extractUserId(user),
-      };
-
-      this.logger.log('Utilisateur créé avec succès');
-      return responseUser;
-    } catch (error) {
-      this.logger.error('Erreur création utilisateur');
-      throw error;
-    }
+    return responseDto;
   }
 
-  @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Patch('admin/profile')
   @Roles(UserRole.ADMIN)
-  async findAll() {
-    this.logger.log('Liste des utilisateurs demandée par admin');
-
-    try {
-      const users = await this.usersService.findAll();
-
-      //  CORRECTION: Les users ont déjà id grâce au schéma toJSON
-      this.logger.log(`${users.length} utilisateurs récupérés`);
-      return users;
-    } catch (error) {
-      this.logger.error('Erreur récupération utilisateurs');
-      throw error;
-    }
+  @ApiOperation({
+    summary:
+      'Mettre à jour son propre profil (Admin uniquement - email protégé)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Profil admin mis à jour',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Données invalides' })
+  @ApiResponse({ status: 403, description: 'Accès refusé' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
+  async updateAdminProfile(
+    @CurrentUser() user: { id: string; role: UserRole },
+    @Body() updateProfileDto: UpdateProfileDto,
+  ): Promise<UserResponseDto> {
+    // L'admin peut uniquement modifier son propre profil (sans email)
+    return this.usersService.updateAdminProfile(user.id, updateProfileDto);
   }
 
-  @Get('stats')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async getStats() {
-    this.logger.log('Statistiques utilisateurs demandées');
-
-    try {
-      const stats = await this.usersService.getStats();
-      this.logger.log(`Statistiques générées - Total: ${stats.totalUsers}`);
-      return stats;
-    } catch (error) {
-      this.logger.error('Erreur génération stats');
-      throw error;
-    }
-  }
-
-  @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id') id: string) {
-    this.logger.log(`Suppression utilisateur demandée: ${this.maskUserId(id)}`);
-
-    try {
-      //  CORRECTION: Utiliser directement l'id
-      await this.usersService.delete(id);
-      this.logger.log('Utilisateur supprimé');
-    } catch (error) {
-      this.logger.error('Erreur suppression utilisateur');
-      throw error;
-    }
-  }
-
-  @Patch(':id/toggle-status')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async toggleStatus(@Param('id') id: string) {
-    this.logger.log(`Changement statut utilisateur: ${this.maskUserId(id)}`);
-
-    try {
-      //  CORRECTION: Utiliser directement l'id
-      const user = await this.usersService.toggleStatus(id);
-
-      this.logger.log(`Statut utilisateur modifié - Actif: ${user.isActive}`);
-      return user;
-    } catch (error) {
-      this.logger.error('Erreur changement statut');
-      throw error;
-    }
-  }
-
-  @Get('maintenance-status')
-  async getMaintenanceStatusPublic() {
-    this.logger.log('Statut maintenance demandé (public)');
-
-    const status = await this.usersService.getMaintenanceStatus();
-
-    return {
-      isActive: status.isActive,
-      enabledAt: status.enabledAt,
-      message: status.message,
-    };
-  }
-
-  @Get('admin/maintenance-status')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async getMaintenanceStatus() {
-    this.logger.log('Statut maintenance demandé (admin)');
-
-    const status = await this.usersService.getMaintenanceStatus();
-
-    return {
-      isActive: status.isActive,
-      enabledAt: status.enabledAt,
-      message: status.message,
-    };
-  }
-
-  @Post('maintenance-mode')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async setMaintenanceMode(@Body() body: { enabled: boolean }) {
-    this.logger.log(`Changement mode maintenance - Activé: ${body.enabled}`);
-
-    await this.usersService.setMaintenanceMode(body.enabled);
-    this.logger.log(
-      `Mode maintenance ${body.enabled ? 'activé' : 'désactivé'}`
-    );
-
-    return {
-      message: `Mode maintenance ${body.enabled ? 'activé' : 'désactivé'}`,
-    };
-  }
-
-  @Patch('maintenance-mode/toggle')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async toggleMaintenanceMode(): Promise<{
-    success: boolean;
-    maintenanceMode: boolean;
-  }> {
-    const currentMode = await this.usersService.getMaintenanceStatus();
-    const newMode = !currentMode.isActive;
-
-    await this.usersService.setMaintenanceMode(newMode);
-
-    this.logger.log(
-      `Mode maintenance basculé: ${currentMode.isActive} → ${newMode}`,
-      'UsersController'
-    );
-
-    return {
-      success: true,
-      maintenanceMode: newMode,
-    };
-  }
-
-  @Get('check-access/:userId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async checkUserAccess(@Param('userId') userId: string) {
-    this.logger.log(
-      `Vérification accès utilisateur: ${this.maskUserId(userId)}`
-    );
-
-    try {
-      //  CORRECTION: Utiliser directement l'id
-      const accessCheck = await this.usersService.checkUserAccess(userId);
-
-      this.logger.log(`Accès utilisateur: ${accessCheck.canAccess}`);
-      return accessCheck;
-    } catch (error) {
-      this.logger.error('Erreur vérification accès');
-      throw error;
-    }
-  }
-
-  // === ENDPOINTS PUBLIC (Pour l'utilisateur connecté) ===
-  @Patch('profile/me')
-  @UseGuards(JwtAuthGuard)
+  @Patch('user/profile')
+  @ApiOperation({ summary: 'Mettre à jour son propre profil' })
+  @ApiResponse({
+    status: 200,
+    description: 'Profil mis à jour',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Données invalides' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
   async updateProfile(
-    @Request() req: AuthenticatedRequest,
-    @Body() updateUserDto: UpdateUserDto
-  ) {
-    //  CORRECTION: Utiliser directement req.user.id
-    const userId = req.user?.id;
+    @CurrentUser() user: { id: string; role: UserRole },
+    @Body() updateUserDto: UpdateUserDto,
+  ): Promise<UserResponseDto> {
+    // L'utilisateur peut uniquement modifier son propre profil
+    return this.usersService.update(user.id, updateUserDto);
+  }
 
-    if (!userId) {
-      this.logger.warn('ID utilisateur manquant dans la requête');
-      throw new BadRequestException('ID utilisateur manquant');
+  @Get('admin/users/statistics')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Statistiques des utilisateurs (Admin seulement)' })
+  @ApiResponse({ status: 200, description: 'Statistiques récupérées' })
+  getStatistics(): Promise<{
+    totalUsers: number;
+    activeUsers: number;
+    inactiveUsers: number;
+    adminUsers: number;
+    userUsers: number;
+    recentlyCreated: number;
+    recentlyActive: number;
+  }> {
+    return this.usersService.getStatistics();
+  }
+
+  @Get('admin/user/:id')
+  @Roles(UserRole.ADMIN)
+  async findOne(@Param('id') id: string): Promise<UserResponseDto> {
+    const user = await this.usersService.findById(id);
+    if (!user) {
+      throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
     }
+    return this.usersService.toResponseDto(user);
+  }
 
-    this.logger.log(
-      `Mise à jour profil utilisateur: ${this.maskUserId(userId)}`
-    );
+  @Patch('admin/user/:id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Mettre à jour un utilisateur' })
+  @ApiResponse({
+    status: 200,
+    description: 'Utilisateur mis à jour',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Données invalides' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
+  async update(
+    @Param('id') id: string,
+    @Body() updateUserDto: UpdateUserDto,
+  ): Promise<UserResponseDto> {
+    return this.usersService.update(id, updateUserDto);
+  }
 
-    // Validation améliorée
-    if (
-      updateUserDto.email === undefined &&
-      updateUserDto.telephone === undefined
-    ) {
-      this.logger.warn('Aucun champ fourni pour mise à jour');
-      throw new BadRequestException(
-        'Au moins un champ (email ou téléphone) doit être fourni'
+  @Patch('admin/user/:id/status')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Activer/désactiver un utilisateur' })
+  @ApiResponse({
+    status: 200,
+    description: 'Statut utilisateur mis à jour',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Données invalides' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
+  async updateStatus(
+    @Param('id') id: string,
+    @Body() updateStatusDto: UpdateUserStatusDto,
+  ): Promise<UserResponseDto> {
+    return this.usersService.updateStatus(id, updateStatusDto);
+  }
+
+  @Delete('admin/user/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Supprimer un utilisateur (Admin seulement)' })
+  @ApiResponse({ status: 204, description: 'Utilisateur supprimé' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
+  async remove(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string; role: UserRole },
+  ): Promise<void> {
+    // Empêcher l'admin de supprimer son propre compte
+    if (id === user.id) {
+      throw new ForbiddenException(
+        'Vous ne pouvez pas supprimer votre propre compte',
       );
     }
-
-    // Validation de l'email si fourni
-    if (updateUserDto.email !== undefined) {
-      if (updateUserDto.email.trim() === '') {
-        this.logger.warn('Email vide fourni');
-        throw new BadRequestException("L'email ne peut pas être vide");
-      }
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(updateUserDto.email)) {
-        this.logger.warn('Format email invalide');
-        throw new BadRequestException("Format d'email invalide");
-      }
-    }
-
-    // Validation du téléphone si fourni
-    if (updateUserDto.telephone !== undefined) {
-      if (updateUserDto.telephone.trim().length < 5) {
-        this.logger.warn('Téléphone trop court');
-        throw new BadRequestException(
-          'Le téléphone doit contenir au moins 5 caractères'
-        );
-      }
-    }
-
-    const allowedUpdate: any = {};
-
-    if (
-      updateUserDto.email !== undefined &&
-      updateUserDto.email.trim() !== ''
-    ) {
-      allowedUpdate.email = updateUserDto.email.trim().toLowerCase();
-    }
-
-    if (
-      updateUserDto.telephone !== undefined &&
-      updateUserDto.telephone.trim() !== ''
-    ) {
-      allowedUpdate.telephone = updateUserDto.telephone.trim();
-    }
-
-    if (Object.keys(allowedUpdate).length === 0) {
-      this.logger.warn('Aucune donnée valide après validation');
-      throw new BadRequestException('Aucune donnée valide à mettre à jour');
-    }
-
-    this.logger.log(
-      `Données validées pour mise à jour - Champs: ${Object.keys(allowedUpdate).join(', ')}`
-    );
-
-    try {
-      const updatedUser = await this.usersService.update(userId, allowedUpdate);
-
-      this.logger.log('Profil mis à jour avec succès');
-
-      //  CORRECTION: Utiliser user.id (pas _id)
-      return {
-        id: updatedUser.id || userId,
-        email: updatedUser.email,
-        firstName: updatedUser.firstName,
-        lastName: updatedUser.lastName,
-        role: updatedUser.role,
-        telephone: updatedUser.telephone,
-        isActive: updatedUser.isActive,
-        isAdmin: updatedUser.role === UserRole.ADMIN,
-      };
-    } catch (error) {
-      this.logger.error('Erreur mise à jour profil');
-      throw error;
-    }
-  }
-
-  @Patch(':id/admin-reset-password')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async adminResetPassword(
-    @Param('id') id: string,
-    @Body() body: { newPassword: string; confirmNewPassword: string }
-  ) {
-    this.logger.log(
-      `Réinitialisation mot de passe admin pour: ${this.maskUserId(id)}`
-    );
-
-    //  EMPÊCHER RÉINITIALISATION ADMIN SI NON ADMIN CONNECTÉ
-    const adminEmail = process.env.EMAIL_USER;
-    const currentUser = await this.usersService.findById(id);
-
-    if (
-      currentUser.email === adminEmail &&
-      currentUser.role === UserRole.ADMIN
-    ) {
-      // Vérifier que l'admin connecté est bien l'admin unique
-      const requestingUser = await this.usersService.findByRole(UserRole.ADMIN);
-      if (!requestingUser || requestingUser.email !== adminEmail) {
-        this.logger.warn(` TENTATIVE DE RÉINITIALISATION ADMIN NON AUTORISÉE`);
-        throw new BadRequestException(
-          "Seul l'administrateur principal peut réinitialiser son mot de passe"
-        );
-      }
-    }
-
-    // Validation
-    if (body.newPassword !== body.confirmNewPassword) {
-      throw new BadRequestException('Les mots de passe ne correspondent pas');
-    }
-
-    if (body.newPassword.length < 8) {
-      throw new BadRequestException(
-        'Le mot de passe doit contenir au moins 8 caractères'
-      );
-    }
-
-    await this.usersService.resetPassword(id, body.newPassword);
-
-    this.logger.log(
-      `Mot de passe réinitialisé par admin pour: ${this.maskUserId(id)}`
-    );
-    return { message: 'Mot de passe réinitialisé avec succès' };
-  }
-
-  @Patch(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async updateUser(
-    @Param('id') id: string,
-    @Body() updateUserDto: UpdateUserDto
-  ) {
-    this.logger.log(
-      `Mise à jour utilisateur par admin: ${this.maskUserId(id)}`
-    );
-
-    try {
-      const updatedUser = await this.usersService.update(id, updateUserDto);
-      this.logger.log('Utilisateur mis à jour par admin');
-
-      //  CORRECTION: Utiliser user.id (pas _id)
-      return {
-        id: updatedUser.id || id,
-        email: updatedUser.email,
-        firstName: updatedUser.firstName,
-        lastName: updatedUser.lastName,
-        role: updatedUser.role,
-        telephone: updatedUser.telephone,
-        isActive: updatedUser.isActive,
-      };
-    } catch (error) {
-      this.logger.error('Erreur mise à jour utilisateur par admin');
-      throw error;
-    }
-  }
-
-  @Get('profile/me')
-  @UseGuards(JwtAuthGuard)
-  async getMyProfile(@Request() req: AuthenticatedRequest) {
-    //  CORRECTION: Utiliser directement req.user.id
-    const userId = req.user?.id;
-
-    if (!userId) {
-      this.logger.warn('ID utilisateur manquant dans la requête');
-      throw new BadRequestException('ID utilisateur manquant');
-    }
-
-    this.logger.log(
-      `Récupération profil utilisateur: ${this.maskUserId(userId)}`
-    );
-
-    try {
-      const user = await this.usersService.findById(userId);
-      this.logger.log('Profil récupéré avec succès');
-
-      //  CORRECTION: Utiliser user.id (pas _id)
-      return {
-        id: user.id || userId,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        telephone: user.telephone,
-        isActive: user.isActive,
-        isAdmin: user.role === UserRole.ADMIN,
-      };
-    } catch (error) {
-      this.logger.error('Erreur récupération profil');
-      throw error;
-    }
+    await this.usersService.remove(id, user.role);
   }
 }

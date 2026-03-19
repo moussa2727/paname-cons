@@ -1,0 +1,22 @@
+// src/enums/procedure.enum.ts
+export enum StepStatus {
+  PENDING = 'PENDING',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  REJECTED = 'REJECTED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum StepName {
+  DEMANDE_ADMISSION = 'DEMANDE_ADMISSION',
+  DEMANDE_VISA = 'DEMANDE_VISA',
+  PREPARATIF_VOYAGE = 'PREPARATIF_VOYAGE',
+}
+
+export enum ProcedureStatus {
+  PENDING = 'PENDING',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  REJECTED = 'REJECTED',
+  CANCELLED = 'CANCELLED',
+}
