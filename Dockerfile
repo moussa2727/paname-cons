@@ -14,8 +14,8 @@ RUN cd backend && pnpm install --frozen-lockfile
 # Copier le reste du code
 COPY backend/ ./backend/
 
-# Générer le client Prisma
-RUN cd backend && pnpm prisma generate
+# Sauter la génération Prisma ici - sera fait au démarrage
+# RUN cd backend && pnpm prisma generate
 
 # Exécuter les migrations (en production, utilisez plutôt Railway console)
 RUN cd backend && pnpm prisma migrate deploy || true
@@ -28,4 +28,5 @@ RUN mkdir -p /app/backend/uploads /app/backend/backup /app/backend/logs
 
 EXPOSE 10000
 
-CMD ["node", "backend/dist/src/main.js"]
+# Générer Prisma et démarrer l'application
+CMD ["sh", "-c", "cd backend && pnpm prisma generate && node dist/src/main.js"]
