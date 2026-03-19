@@ -19,7 +19,7 @@
     "commands": [
       {
         "name": "install-backend",
-        "cmd": "cd backend && pnpm install --frozen-lockfile",
+        "cmd": "npm install -g pnpm && cd backend && pnpm install --frozen-lockfile",
         "cache": ["backend/node_modules", "backend/.pnpm-store"]
       },
       {
@@ -62,7 +62,7 @@
   },
 
   "start": {
-    "cmd": "cd backend && pnpm prisma migrate deploy && node dist/src/main.js",
+    "cmd": "npm install -g pnpm && cd backend && pnpm prisma migrate deploy && node dist/src/main.js",
     "env": {
       "NODE_ENV": "production",
       "PORT": "{{env.PORT}}",
@@ -149,12 +149,13 @@
   "hooks": {
     "prebuild": [
       "echo '🚀 Début du build Paname Consulting'",
+      "npm install -g pnpm",
       "pnpm --version",
       "node --version"
     ],
     "postbuild": [
       "echo '✅ Build terminé avec succès'",
-      "ls -la backend/dist",
+      "ls -la backend/dist"
     ],
     "prestart": [
       "echo '🔧 Vérification des migrations Prisma...'",
