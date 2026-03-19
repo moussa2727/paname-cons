@@ -20,6 +20,9 @@ COPY backend/ ./backend/
 # Exécuter les migrations (en production, utilisez plutôt Railway console)
 RUN cd backend && pnpm prisma migrate deploy || true
 
+# Builder l'application
+RUN cd backend && pnpm run build
+
 # creation des différents dossier necessaire au bon fonctionnement du système /uploads , /backup , /logs dans le backend 
 RUN mkdir -p /app/backend/uploads /app/backend/backup /app/backend/logs
 
