@@ -1,166 +1,32 @@
-import {
-  Injectable,
-  OnModuleInit,
-  OnModuleDestroy,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient, ProcedureStatus, StepName } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  private readonly logger = new Logger(PrismaService.name);
-
-  constructor() {
-    const databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl) {
-      throw new Error('DATABASE_URL environment variable is not set');
-    }
-
-    const adapter = new PrismaPg({
-      connectionString: databaseUrl,
-    });
-
+  constructor(configService: ConfigService) {
     super({
-      adapter,
-      log: ['info', 'warn', 'error'],
+      adapter: new PrismaPg({
+        connectionString:
+          configService.get<string>('DATABASE_URL') || process.env.DATABASE_URL,
+      }),
+      log:
+        process.env.NODE_ENV === 'development'
+          ? ['warn', 'error'] // Moins de logs en développement
+          : ['error'],
     });
   }
 
   async onModuleInit() {
-    try {
-      this.logger.log('Connecting to database...');
-
-      // First, try to create the database if it doesn't exist
-      await this.createDatabaseIfNotExists();
-
-      await this.$connect();
-      this.logger.log('Database connected successfully');
-
-      // Test connection with a simple query
-      await this.$queryRaw`SELECT 1`;
-      this.logger.log('Database connection test passed');
-    } catch (error) {
-      this.logger.error('Failed to connect to database:', error);
-
-      // If database doesn't exist, log helpful info
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      // Type-safe way to access error code
-      let errorCode: string | undefined;
-      if (
-        error &&
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error
-      ) {
-        const errorObj = error as Record<string, unknown>;
-        const codeValue = errorObj.code;
-
-        // Ensure we get a proper string representation
-        if (typeof codeValue === 'string') {
-          errorCode = codeValue;
-        } else if (typeof codeValue === 'number') {
-          errorCode = codeValue.toString();
-        } else if (codeValue != null) {
-          // Use JSON.stringify for complex objects to avoid [object Object]
-          errorCode = JSON.stringify(codeValue);
-        }
-      }
-
-      if (errorCode === 'P2010' || errorMessage.includes('does not exist')) {
-        this.logger.error(
-          '❌ Database does not exist. Please run database initialization first.',
-        );
-        this.logger.error('💡 Run: pnpm prisma db push --force-reset');
-        this.logger.error('💡 Or check your DATABASE_URL environment variable');
-      }
-
-      throw error;
-    }
-  }
-
-  private async createDatabaseIfNotExists(): Promise<void> {
-    try {
-      const databaseUrl = process.env.DATABASE_URL;
-      if (!databaseUrl) {
-        throw new Error('DATABASE_URL environment variable is not set');
-      }
-
-      this.logger.log(`🔍 DATABASE_URL: ${databaseUrl}`);
-
-      // Parse DATABASE_URL to extract connection info
-      const url = new URL(databaseUrl);
-      const dbName = url.pathname.slice(1); // Remove leading slash
-
-      this.logger.log(`🔍 Extracted database name: ${dbName}`);
-
-      if (!dbName) {
-        this.logger.warn('No database name found in DATABASE_URL');
-        return;
-      }
-
-      // Create a connection URL to postgres database (default database)
-      const postgresUrl = databaseUrl.replace(`/${dbName}`, '/postgres');
-
-      this.logger.log(`🔍 PostgreSQL URL for admin connection: ${postgresUrl}`);
-
-      // Temporarily override DATABASE_URL for postgres connection
-      const originalUrl = process.env.DATABASE_URL;
-      process.env.DATABASE_URL = postgresUrl;
-
-      // Connect to postgres database to create our target database
-      const postgresClient = new PrismaClient({
-        adapter: new PrismaPg({
-          connectionString: postgresUrl,
-        }),
-      });
-
-      try {
-        this.logger.log(
-          '🔍 Connecting to postgres database for admin operations...',
-        );
-        await postgresClient.$connect();
-        this.logger.log('✅ Connected to postgres database');
-
-        // Check if database exists
-        const result = await postgresClient.$queryRaw`
-          SELECT 1 FROM pg_database WHERE datname = ${dbName}
-          LIMIT 1
-        `;
-
-        this.logger.log(`🔍 Database check result: ${JSON.stringify(result)}`);
-
-        if (Array.isArray(result) && result.length === 0) {
-          this.logger.log(`🗄️ Creating database: ${dbName}`);
-          await postgresClient.$queryRaw`CREATE DATABASE ${dbName}`;
-          this.logger.log(`✅ Database ${dbName} created successfully`);
-        } else {
-          this.logger.log(`📋 Database ${dbName} already exists`);
-        }
-      } finally {
-        await postgresClient.$disconnect();
-        // Restore original DATABASE_URL
-        process.env.DATABASE_URL = originalUrl;
-      }
-    } catch (error) {
-      this.logger.error('❌ Could not create database automatically:', error);
-      // Don't throw here, let the main connection attempt handle the error
-    }
+    await this.$connect();
   }
 
   async onModuleDestroy() {
-    try {
-      this.logger.log('Disconnecting from database...');
-      await this.$disconnect();
-      this.logger.log('Database disconnected successfully');
-    } catch (error) {
-      this.logger.error('Error disconnecting from database:', error);
-    }
+    await this.$disconnect();
   }
 
   // Middleware pour la gestion des dates
