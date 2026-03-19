@@ -1,0 +1,10 @@
+allowBuilds:
+  '@nestjs/core': true
+  '@prisma/engines': true
+  '@scarf/scarf': true
+  bcrypt: true
+  core-js: true
+  esbuild: true
+  msgpackr-extract: true
+  prisma: true
+  unrs-resolver: true
