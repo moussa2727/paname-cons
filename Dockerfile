@@ -1,42 +1,64 @@
-# Railway Build Configuration for NestJS Backend
-# This file tells Railway how to build and deploy your NestJS application
+# ==================== DOCKERFILE PRODUCTION - BACKEND NESTJS ====================
+FROM node:20-alpine AS builder
 
-# Use Node.js 20 (matching your Dockerfile)
-FROM node:20-alpine
-
-# Set working directory
 WORKDIR /app
 
-# Install pnpm globally
+# Installation de pnpm
 RUN npm install -g pnpm
 
-# Copy package files
+# Copie des fichiers de dépendances (sans préfixe backend car on est dans le contexte backend)
 COPY package.json pnpm-lock.yaml ./
-
-# Install dependencies
-RUN pnpm install --frozen-lockfile
-
-# Copy source code
-COPY . .
-
-# Copy Prisma schema
 COPY prisma ./prisma/
 
-# Generate Prisma client
-RUN pnpm prisma generate
+# Installation des dépendances
+RUN pnpm install --frozen-lockfile
 
-# Build the application
+# Copie du code source
+COPY . .
+
+# Génération du client Prisma et build
+RUN pnpm prisma generate
 RUN pnpm run build
 
-# Install production dependencies only
+# Nettoyage pour la production
 RUN pnpm install --prod --frozen-lockfile && pnpm store prune
 
-# Expose port
-EXPOSE 10000
+# ==================== STAGE 2 : PRODUCTION ====================
+FROM node:20-alpine AS production
 
-# Set environment variables
+# Configuration de sécurité
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nestjs
+
+# Installation des dépendances système
+RUN apk add --no-cache dumb-init curl && rm -rf /var/cache/apk/*
+
+WORKDIR /app
+
+# Installation de pnpm
+RUN npm install -g pnpm
+
+# Copie des fichiers depuis le builder
+COPY --from=builder --chown=nestjs:nodejs /app/package.json ./
+COPY --from=builder --chown=nestjs:nodejs /app/pnpm-lock.yaml ./
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
+
+# Création des répertoires nécessaires
+RUN mkdir -p ./uploads ./logs ./backup && \
+    chown -R nestjs:nodejs ./uploads ./logs ./backup
+
+# Changement d'utilisateur
+USER nestjs
+
+# Variables d'environnement
 ENV NODE_ENV=production
 ENV PORT=10000
 
-# Start the application
+# Exposition du port
+EXPOSE 10000
+
+# Démarrage
+ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "dist/src/main.js"]
