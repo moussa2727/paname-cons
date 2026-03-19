@@ -3,12 +3,10 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as serveStatic from 'serve-static';
 import * as cookieParser from 'cookie-parser';
 import * as compression from 'compression';
 import * as helmet from 'helmet';
 import * as path from 'path';
-import { join } from 'path';
 import { Request, Response, NextFunction } from 'express';
 import { PrismaService } from './prisma/prisma.service';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -18,7 +16,7 @@ import { LoggingMiddleware } from './common/middlewares/logging.middleware';
 
 const corsOrigins =
   process.env.NODE_ENV === 'production'
-    ? ['https://panameconsulting.com', 'https://www.panameconsulting.com']
+    ? ['https://panameconsulting.vercel.app', 'https://www.panameconsulting.com']
     : ['http://localhost:5173', 'http://localhost:10000'];
 
 async function bootstrap() {
@@ -135,7 +133,9 @@ async function bootstrap() {
   );
 
   // ==================== UPLOADS STATIQUES ====================
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });
+  app.useStaticAssets(path.join(__dirname, '..', 'uploads'), {
+    prefix: '/uploads',
+  });
   // ==================== MIDDLEWARE AUTH SIMPLIFIÉ ====================
   app.use('/api/secret', (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
@@ -168,56 +168,12 @@ async function bootstrap() {
   );
   prismaService.enableShutdownHooks();
 
-  // ==================== FRONTEND REACT ====================
-  const FRONTEND_DIST = path.join(process.cwd(), '../frontend', 'dist');
-  app.use(
-    serveStatic(FRONTEND_DIST, {
-      maxAge: process.env.NODE_ENV === 'production' ? '1y' : '1h',
-      etag: true,
-      lastModified: true,
-      setHeaders: (res: Response, filePath: string) => {
-        if (/\.(js|css)$/.test(filePath)) {
-          res.setHeader(
-            'Cache-Control',
-            process.env.NODE_ENV === 'production'
-              ? 'public, max-age=31536000, immutable'
-              : 'public, max-age=3600',
-          );
-        } else if (/\.(png|jpg|jpeg|webp|avif)$/.test(filePath)) {
-          res.setHeader(
-            'Cache-Control',
-            process.env.NODE_ENV === 'production'
-              ? 'public, max-age=2592000, immutable'
-              : 'public, max-age=3600',
-          );
-        } else if (/\.(svg|ico)$/.test(filePath)) {
-          res.setHeader(
-            'Cache-Control',
-            process.env.NODE_ENV === 'production'
-              ? 'public, max-age=86400'
-              : 'public, max-age=3600',
-          );
-        }
-      },
-    }),
-  );
-
-  // Catch-all React Router
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
-      return next();
-    }
-    res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
-    res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
-  });
-
   // ==================== DÉMARRAGE ====================
   const port = configService.get<number>('PORT', 10000);
   await app.listen(port, '0.0.0.0');
 
   logger.log(`🚀 Serveur démarré sur : http://localhost:${port}`);
   logger.log(`Environnement : ${process.env.NODE_ENV ?? 'development'}`);
-  logger.log(`📂 Frontend dist résolu : ${FRONTEND_DIST}`);
 }
 
 bootstrap().catch((error) => {

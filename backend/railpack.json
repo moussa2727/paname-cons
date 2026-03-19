@@ -1,11 +1,9 @@
 {
   "cookies": {
-    "sameSite": "lax",
     "secure": true,
     "httpOnly": true
   },
   "session": {
-    "sameSite": "lax",
     "secure": true,
     "httpOnly": true
   }
