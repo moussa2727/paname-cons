@@ -45,6 +45,41 @@ export class PrismaService
       this.logger.log('Database connection test passed');
     } catch (error) {
       this.logger.error('Failed to connect to database:', error);
+
+      // If database doesn't exist, log helpful info
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      // Type-safe way to access error code
+      let errorCode: string | undefined;
+      if (
+        error &&
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error
+      ) {
+        const errorObj = error as Record<string, unknown>;
+        const codeValue = errorObj.code;
+
+        // Ensure we get a proper string representation
+        if (typeof codeValue === 'string') {
+          errorCode = codeValue;
+        } else if (typeof codeValue === 'number') {
+          errorCode = codeValue.toString();
+        } else if (codeValue != null) {
+          // Use JSON.stringify for complex objects to avoid [object Object]
+          errorCode = JSON.stringify(codeValue);
+        }
+      }
+
+      if (errorCode === 'P2010' || errorMessage.includes('does not exist')) {
+        this.logger.error(
+          '❌ Database does not exist. Please run database initialization first.',
+        );
+        this.logger.error('💡 Run: pnpm prisma db push --force-reset');
+        this.logger.error('💡 Or check your DATABASE_URL environment variable');
+      }
+
       throw error;
     }
   }
