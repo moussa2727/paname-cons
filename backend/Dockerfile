@@ -6,15 +6,15 @@ WORKDIR /app
 # Installation de pnpm
 RUN npm install -g pnpm
 
-# Copie des fichiers de dépendances du backend
-COPY backend/package.json backend/pnpm-lock.yaml ./
-COPY backend/prisma ./prisma/
+# Copie des fichiers de dépendances (sans préfixe backend car on est dans le contexte backend)
+COPY package.json pnpm-lock.yaml ./
+COPY prisma ./prisma/
 
 # Installation des dépendances
 RUN pnpm install --frozen-lockfile
 
-# Copie du code source du backend
-COPY backend/ .
+# Copie du code source
+COPY . .
 
 # Génération du client Prisma et build
 RUN pnpm prisma generate
