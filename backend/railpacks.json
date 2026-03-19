@@ -1,0 +1,15 @@
+{
+  "build": {
+    "command": "npm instal pnpm@latest && pnpm install && pnpm build",
+    "output": {
+      "directory": "backend/dist"
+    }
+  },
+  "start": {
+    "command": "cd backend && node dist/src/main.js"
+  },
+  "environment": {
+    "NODE_VERSION": "20.11.0",
+    "PNPM_VERSION": "8.15.0"
+  }
+}
