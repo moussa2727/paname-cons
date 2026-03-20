@@ -15,7 +15,7 @@ const Hero = () => {
   ];
 
   const handleDestinationClick = (countrySlug: string) => {
-    navigate(`/info/${countrySlug}`);
+    navigate(`/documents/${countrySlug}`);
   };
 
   return (
