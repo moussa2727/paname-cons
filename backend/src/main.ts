@@ -170,7 +170,7 @@ async function bootstrap() {
   const port = configService.get<number>('PORT', 10000);
   await app.listen(port, '0.0.0.0');
 
-  logger.log(`🚀 Serveur démarré sur : http://localhost:${port}`);
+  logger.log(`🚀 Serveur démarré sur : http://0.0.0.0:${port}`);
   logger.log(`Environnement : ${process.env.NODE_ENV ?? 'development'}`);
   logger.log(`📂 Uploads servis depuis : /uploads`);
 }
