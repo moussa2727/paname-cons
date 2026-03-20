@@ -1,18 +1,14 @@
 import { NestFactory } from '@nestjs/core';
-import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as cookieParser from 'cookie-parser';
 import * as compression from 'compression';
 import * as helmet from 'helmet';
-import { Request, Response, NextFunction } from 'express';
-import { join } from 'path';
 import { PrismaService } from './prisma/prisma.service';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { JsonExceptionFilter } from './common/filters/json-exception.filter';
-import { LoggingMiddleware } from './common/middlewares/logging.middleware';
 
 const corsOrigins =
   process.env.NODE_ENV === 'production'
@@ -24,7 +20,7 @@ const corsOrigins =
     : ['http://localhost:5173', 'http://localhost:10000'];
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+  const app = await NestFactory.create(AppModule, {
     bufferLogs: process.env.NODE_ENV === 'production',
     cors: false,
     abortOnError: false,
@@ -36,7 +32,13 @@ async function bootstrap() {
   app.useLogger(logger);
 
   // ==================== SÉCURITÉ ====================
-  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  interface HttpAdapterWithSet {
+    set?(name: string, value: any): void;
+  }
+  const httpAdapter = app.getHttpAdapter().getInstance() as HttpAdapterWithSet;
+  if (httpAdapter?.set) {
+    httpAdapter.set('trust proxy', 1);
+  }
   app.use(
     helmet.default({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -87,12 +89,6 @@ async function bootstrap() {
 
   app.use(cookieParser(configService.get('COOKIE_SECRET')));
 
-  // ==================== LOGGING ====================
-  const loggingMiddleware = new LoggingMiddleware(configService);
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    loggingMiddleware.use(req, res, next);
-  });
-
   // ==================== PRÉFIXE GLOBAL ====================
   app.setGlobalPrefix('api', {
     exclude: [
@@ -134,19 +130,6 @@ async function bootstrap() {
     new PrismaExceptionFilter(),
     new HttpExceptionFilter(),
   );
-
-  // ==================== UPLOADS STATIQUES ====================
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });
-
-  // ==================== MIDDLEWARE AUTH SIMPLIFIÉ ====================
-  app.use('/api/secret', (req: Request, res: Response, next: NextFunction) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(403).json({ message: 'Accès refusé' });
-    }
-    next();
-  });
-
   // ==================== GRACEFUL SHUTDOWN ====================
   async function gracefulShutdown() {
     try {
@@ -174,9 +157,8 @@ async function bootstrap() {
   const port = configService.get<number>('PORT', 10000);
   await app.listen(port, '0.0.0.0');
 
-  logger.log(`🚀 Serveur démarré sur : http://0.0.0.0:${port}`);
+  logger.log(`🚀 Serveur API démarré sur : http://0.0.0.0:${port}`);
   logger.log(`Environnement : ${process.env.NODE_ENV ?? 'development'}`);
-  logger.log(`📂 Uploads servis depuis : /uploads`);
 }
 
 bootstrap().catch((error) => {

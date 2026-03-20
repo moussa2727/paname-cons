@@ -46,8 +46,11 @@ export class AuthController {
   // Options communes pour la pose et la suppression des cookies httpOnly
   private readonly cookieOptions = {
     httpOnly: true,
-    secure: true,
-    sameSite: 'none' as const,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite:
+      process.env.NODE_ENV === 'production'
+        ? ('none' as const)
+        : ('lax' as const),
     path: '/',
   };
 
