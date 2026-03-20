@@ -6,8 +6,8 @@ import { ConfigService } from '@nestjs/config';
 import * as cookieParser from 'cookie-parser';
 import * as compression from 'compression';
 import * as helmet from 'helmet';
-import * as path from 'path';
 import { Request, Response, NextFunction } from 'express';
+import { join } from 'path';
 import { PrismaService } from './prisma/prisma.service';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
@@ -16,10 +16,7 @@ import { LoggingMiddleware } from './common/middlewares/logging.middleware';
 
 const corsOrigins =
   process.env.NODE_ENV === 'production'
-    ? [
-        'https://panameconsulting.vercel.app',
-        'https://www.panameconsulting.com',
-      ]
+    ? ['https://panameconsulting.com', 'https://www.panameconsulting.com']
     : ['http://localhost:5173', 'http://localhost:10000'];
 
 async function bootstrap() {
@@ -95,7 +92,6 @@ async function bootstrap() {
   // ==================== PRÉFIXE GLOBAL ====================
   app.setGlobalPrefix('api', {
     exclude: [
-      '/',
       '/api',
       '/uploads',
       '/uploads/*path',
@@ -136,9 +132,8 @@ async function bootstrap() {
   );
 
   // ==================== UPLOADS STATIQUES ====================
-  app.useStaticAssets(path.join(__dirname, '..', 'uploads'), {
-    prefix: '/uploads',
-  });
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });
+
   // ==================== MIDDLEWARE AUTH SIMPLIFIÉ ====================
   app.use('/api/secret', (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
@@ -172,14 +167,12 @@ async function bootstrap() {
   prismaService.enableShutdownHooks();
 
   // ==================== DÉMARRAGE ====================
-  const host = configService.get<string>('HOST', '0.0.0.0');
   const port = configService.get<number>('PORT', 10000);
-  await app.listen(port, host);
+  await app.listen(port, '0.0.0.0');
 
-  const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-  const domain = process.env.DOMAIN || host;
-  logger.log(`🚀 Serveur démarré sur : ${protocol}://${domain}:${port}`);
+  logger.log(`🚀 Serveur démarré sur : http://localhost:${port}`);
   logger.log(`Environnement : ${process.env.NODE_ENV ?? 'development'}`);
+  logger.log(`📂 Uploads servis depuis : /uploads`);
 }
 
 bootstrap().catch((error) => {

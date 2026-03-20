@@ -77,7 +77,8 @@ export class ProcedureQueryDto {
   includeDeleted?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Inclure toutes les procédures (y compris terminées) - pour admin uniquement',
+    description:
+      'Inclure toutes les procédures (y compris terminées) - pour admin uniquement',
     default: false,
   })
   @IsOptional()
