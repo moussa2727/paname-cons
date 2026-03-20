@@ -81,7 +81,7 @@ const MonProfile = () => {
     try {
       // Valider le téléphone avant l'envoi
       if (editedProfile.telephone && !validatePhoneNumber(editedProfile.telephone)) {
-        toast.error("Format de téléphone invalide. Utilisez: +33612345678 ou 0612345678");
+        toast.error("Format de téléphone invalide. Utilisez: +33 6 12 34 56 78 ou 06 12 34 56 78");
         return;
       }
 
