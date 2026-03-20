@@ -43,16 +43,6 @@ const formatPhoneNumber = (phone: string): string => {
   return phone;
 };
 
-// Fonction de validation du téléphone
-const validatePhoneNumber = (phone: string): boolean => {
-  if (!phone) return true; // Vide est autorisé (optionnel)
-  
-  // Accepte tous les formats avec espaces, points, tirets : +33 6 12 34 56 78, 06.12.34.56.78, 06-12-34-56-78, etc.
-  const cleanedPhone = phone.replace(/[\s.-]/g, "");
-  const phoneRegex = /^(?:\+33|0)?[1-9]\d{8}$/;
-  return phoneRegex.test(cleanedPhone);
-};
-
 // Fonction de normalisation du téléphone
 const normalizePhoneNumber = (phone: string): string => {
   if (!phone) return "";
@@ -117,10 +107,15 @@ const MonProfile = () => {
 
   const handleSave = async () => {
     try {
-      // Valider le téléphone avant l'envoi
-      if (editedProfile.telephone && !validatePhoneNumber(editedProfile.telephone)) {
-        toast.error("Format de téléphone invalide. Utilisez: +33 6 12 34 56 78 ou 06 12 34 56 78");
-        return;
+      // Valider le téléphone avant l'envoi (validation stricte uniquement à la sauvegarde)
+      if (editedProfile.telephone) {
+        const cleanedPhone = editedProfile.telephone.replace(/[\s.-]/g, "");
+        const strictPhoneRegex = /^(?:\+33|0)?[1-9]\d{8}$/;
+        
+        if (!strictPhoneRegex.test(cleanedPhone)) {
+          toast.error("Format de téléphone invalide. Utilisez: +33 6 12 34 56 78 ou 06 12 34 56 78");
+          return;
+        }
       }
 
       // Normaliser le téléphone pour le backend
