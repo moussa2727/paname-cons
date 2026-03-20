@@ -47,7 +47,7 @@ export class AuthController {
   private readonly cookieOptions = {
     httpOnly: true,
     secure: true,
-    sameSite: 'lax' as const, // ✅ Compatible mobile
+    sameSite: 'none' as const,
     path: '/',
   };
 
