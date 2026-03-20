@@ -191,6 +191,29 @@ async function bootstrap() {
     res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
     res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
   });
+
+  // ==================== API 404 HANDLER ====================
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    // Si c'est une route API qui n'a pas été trouvée
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({
+        error: 'API endpoint not found',
+        message: "L'endpoint demandé n'existe pas",
+        path: req.path,
+        timestamp: new Date().toISOString(),
+      });
+    }
+    // Si c'est juste /api sans slash
+    if (req.path === '/api') {
+      return res.status(404).json({
+        error: 'API endpoint not found',
+        message: 'Veuillez spécifier un endpoint après /api',
+        path: req.path,
+        timestamp: new Date().toISOString(),
+      });
+    }
+    next();
+  });
   // ==================== GRACEFUL SHUTDOWN ====================
   async function gracefulShutdown() {
     try {
