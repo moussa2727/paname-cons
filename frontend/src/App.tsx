@@ -58,7 +58,7 @@ const ProcedureDetail = lazy(
   () => import("./pages/gestionnaire/procedures/[id]"),
 );
 
-import NotFound from "./pages/NotFound";
+// import NotFound from "./pages/NotFound";
 
 // ─── App : fournit le Router et le Toaster ──────────────────────────────────
 function App() {
@@ -150,7 +150,7 @@ function App() {
             </Route>
 
             {/* 404 */}
-            <Route path="*" element={<NotFound />} />
+            <Route path="*" element={<Home />} />
           </Routes>
         </ErrorBoundary>
       </Router>
