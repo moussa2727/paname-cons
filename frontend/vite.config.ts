@@ -161,6 +161,9 @@ export default defineConfig({
             }
             return "main";
           }
+          if (id.includes("/pages/NotFound")) {
+            return "not-found";
+          }
         },
       },
     },

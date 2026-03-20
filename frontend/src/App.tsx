@@ -14,7 +14,6 @@ import GestionnaireLayout from "./components/shared/Layouts/GestionnaireLayout";
 import AuthLayout from "./components/shared/Layouts/AuthLayout";
 import { Toaster } from "react-hot-toast";
 import ScrollToTop from "./components/shared/ui/ScrollToTop";
-import NotFound from "./pages/NotFound";
 
 // Pages publiques
 const Home = lazy(() => import("./pages/(main)/Home"));
@@ -58,6 +57,9 @@ const Procedures = lazy(
 const ProcedureDetail = lazy(
   () => import("./pages/gestionnaire/procedures/[id]"),
 );
+
+// NotFound
+const NotFound = lazy(() => import("./pages/NotFound").then(module => ({ default: module.default })));
 
 // ─── App : fournit le Router et le Toaster ──────────────────────────────────
 function App() {
