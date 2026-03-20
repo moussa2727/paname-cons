@@ -12,13 +12,13 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   app:
-    build: backend
+    build: .
     ports:
       - "10000:10000"
     depends_on:
       - postgres
     environment:
-      DATABASE_URL: postgresql://postgres:fXLfojVGjUGRXhkGcPjgqlJGFVBfIWAK@postgres.railway.internal:5432/railway?schema=public
+      DATABASE_URL: postgresql://postgres:fXLfojVGjUGRXhkGcPjgqlJGFVBfIWAK@postgres:5432/panameconsultingDb?schema=public
 
 volumes:
   postgres_data:

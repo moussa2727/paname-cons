@@ -46,12 +46,8 @@ export class DatabaseBackupCron {
 
       const [, user, password, host, port, database] = matches;
 
-      // Commande pg_dump avec mot de passe masqué dans les logs
-      // Syntaxe Windows pour les variables d'environnement
-      const command =
-        process.platform === 'win32'
-          ? `set PGPASSWORD=${password}&& pg_dump -U ${user} -h ${host} -p ${port} ${database} > ${filepath}`
-          : `PGPASSWORD="${password}" pg_dump -U ${user} -h ${host} -p ${port} ${database} > ${filepath}`;
+      // Commande pg_dump adaptée pour l'environnement Docker/Linux
+      const command = `PGPASSWORD="${password}" pg_dump -U ${user} -h ${host} -p ${port} ${database} > ${filepath}`;
 
       // Logger sans exposer le mot de passe
       this.logger.log(`Exécution de la sauvegarde`);

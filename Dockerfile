@@ -1,5 +1,8 @@
 FROM node:20-alpine
 
+# Installer PostgreSQL client tools pour pg_dump
+RUN apk add --no-cache postgresql-client
+
 WORKDIR /app
 
 # Enable corepack first
