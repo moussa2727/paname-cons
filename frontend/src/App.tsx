@@ -15,6 +15,10 @@ import AuthLayout from "./components/shared/Layouts/AuthLayout";
 import { Toaster } from "react-hot-toast";
 import ScrollToTop from "./components/shared/ui/ScrollToTop";
 
+
+
+const Notfound = lazy(() => import("./pages/NotFound"));
+
 // Pages publiques
 const Home = lazy(() => import("./pages/(main)/Home"));
 const Services = lazy(() => import("./pages/(main)/Services"));
@@ -57,8 +61,6 @@ const Procedures = lazy(
 const ProcedureDetail = lazy(
   () => import("./pages/gestionnaire/procedures/[id]"),
 );
-
-// import NotFound from "./pages/NotFound";
 
 // ─── App : fournit le Router et le Toaster ──────────────────────────────────
 function App() {
@@ -150,7 +152,7 @@ function App() {
             </Route>
 
             {/* 404 */}
-            <Route path="*" element={<Home />} />
+            <Route path="*" element={<Notfound />} />
           </Routes>
         </ErrorBoundary>
       </Router>
