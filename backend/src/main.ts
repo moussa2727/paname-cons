@@ -191,15 +191,6 @@ async function bootstrap() {
     res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
     res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
   });
-
-  // ==================== API 404 HANDLER ====================
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    // Si c'est une route API qui n'a pas été trouvée, rediriger vers la page 404 du frontend
-    if (req.path.startsWith('/api/') || req.path === '/api') {
-      return res.status(404).sendFile(path.join(FRONTEND_DIST, 'index.html'));
-    }
-    next();
-  });
   // ==================== GRACEFUL SHUTDOWN ====================
   async function gracefulShutdown() {
     try {
