@@ -14,6 +14,7 @@ import {
   Globe,
   FileText,
   Users,
+  Shield,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../../hooks/useAuth";
@@ -58,13 +59,15 @@ export default function AdminSidebar({
   isCollapsed,
   onToggle,
 }: AdminSidebarProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, logoutAll } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const pathname = location.pathname;
 
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showLogoutAllModal, setShowLogoutAllModal] = useState(false);
 
   // Charger le compteur de messages non lus au montage et rafraîchir toutes les 30s
   useEffect(() => {
@@ -141,13 +144,34 @@ export default function AdminSidebar({
   ];
 
   const handleLogout = useCallback(async () => {
+    setShowLogoutModal(true);
+  }, []);
+
+  const handleLogoutAll = useCallback(async () => {
+    setShowLogoutAllModal(true);
+  }, []);
+
+  const confirmLogout = useCallback(async () => {
     try {
       await logout();
       navigate("/");
     } catch (error) {
       console.error("Erreur lors de la déconnexion:", error);
+    } finally {
+      setShowLogoutModal(false);
     }
   }, [navigate, logout]);
+
+  const confirmLogoutAll = useCallback(async () => {
+    try {
+      await logoutAll();
+      navigate("/");
+    } catch (error) {
+      console.error("Erreur lors de la déconnexion globale:", error);
+    } finally {
+      setShowLogoutAllModal(false);
+    }
+  }, [navigate, logoutAll]);
 
   const toggleDropdown = useCallback((itemLabel: string) => {
     setExpandedItems((prev) =>
@@ -447,6 +471,7 @@ export default function AdminSidebar({
 
             {/* Footer avec déconnexion */}
             <div className="p-3 border-t border-sky-100 bg-white/80 backdrop-blur-sm">
+              {/* Bouton déconnexion simple */}
               <motion.button
                 initial={{ opacity: 1, scale: 1 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -454,7 +479,7 @@ export default function AdminSidebar({
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleLogout}
-                className="group flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 transition-colors border border-rose-100"
+                className="group flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 transition-colors border border-rose-100 mb-2"
               >
                 <LogOut className="w-4 h-4 text-rose-600" />
                 <motion.span
@@ -466,6 +491,29 @@ export default function AdminSidebar({
                   Déconnexion
                 </motion.span>
               </motion.button>
+
+              {/* Bouton déconnexion globale (admin seulement) */}
+              {user?.role === "ADMIN" && (
+                <motion.button
+                  initial={{ opacity: 1, scale: 1 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleLogoutAll}
+                  className="group flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl bg-orange-50 hover:bg-orange-100 transition-colors border border-orange-100"
+                >
+                  <Shield className="w-4 h-4 text-orange-600" />
+                  <motion.span
+                    initial="hidden"
+                    animate="visible"
+                    variants={contentVariants}
+                    className="text-sm font-medium text-orange-700"
+                  >
+                    Déconnecter tous
+                  </motion.span>
+                </motion.button>
+              )}
             </div>
           </motion.aside>
         )}
@@ -499,6 +547,109 @@ export default function AdminSidebar({
           className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 lg:hidden"
         />
       )}
+
+      {/* Modal de confirmation déconnexion simple */}
+      <AnimatePresence>
+        {showLogoutModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowLogoutModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center">
+                  <LogOut className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Déconnexion</h3>
+                  <p className="text-sm text-gray-600">Êtes-vous sûr de vouloir vous déconnecter ?</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowLogoutModal(false)}
+                  className="flex-1 px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  Annuler
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={confirmLogout}
+                  className="flex-1 px-4 py-2 text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors"
+                >
+                  Se déconnecter
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de confirmation déconnexion globale (admin seulement) */}
+      <AnimatePresence>
+        {showLogoutAllModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowLogoutAllModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Déconnexion globale</h3>
+                  <p className="text-sm text-gray-600">
+                    Déconnecter toutes les sessions utilisateurs actives ?
+                  </p>
+                  <p className="text-xs text-orange-600 mt-1">
+                    ⚠️ Votre session admin sera préservée
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowLogoutAllModal(false)}
+                  className="flex-1 px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  Annuler
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={confirmLogoutAll}
+                  className="flex-1 px-4 py-2 text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors"
+                >
+                  Déconnecter tous
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

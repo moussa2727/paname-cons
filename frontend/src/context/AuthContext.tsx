@@ -110,12 +110,12 @@ function getRememberMeCookie(): boolean {
 }
 
 function setRememberMeCookie(value: boolean, maxAgeSeconds: number): void {
-  // sameSite=None + Secure pour correspondre aux cookies httpOnly du backend
+  // sameSite=lax + Secure pour correspondre aux cookies httpOnly du backend
   document.cookie =
     `${encodeURIComponent("remember_me")}=${encodeURIComponent(String(value))}` +
     `; path=/` +
     `; max-age=${maxAgeSeconds}` +
-    `; SameSite=None` +
+    `; SameSite=lax` +
     `; Secure`;
 }
 
