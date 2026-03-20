@@ -3,14 +3,16 @@ import { Edit2, Save, X, Lock } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
 import { Helmet } from "react-helmet-async";
 import { pageConfigs } from "../../../components/shared/user/UserHeader.config";
+import { toast } from "react-hot-toast";
 
 // Fonction de validation du téléphone
 const validatePhoneNumber = (phone: string): boolean => {
   if (!phone) return true; // Vide est autorisé (optionnel)
   
-  // Accepte les formats: +33612345678, 0612345678, 06 12 34 56 78
-  const phoneRegex = /^(?:\+33|0)?[1-9](?:[\d\s]{2,4}){3}$/;
-  return phoneRegex.test(phone.replace(/\s/g, ""));
+  // Accepte tous les formats avec espaces, points, tirets : +33 6 12 34 56 78, 06.12.34.56.78, 06-12-34-56-78, etc.
+  const cleanedPhone = phone.replace(/[\s.-]/g, "");
+  const phoneRegex = /^(?:\+33|0)?[1-9]\d{8}$/;
+  return phoneRegex.test(cleanedPhone);
 };
 
 // Fonction de normalisation du téléphone
@@ -79,7 +81,7 @@ const MonProfile = () => {
     try {
       // Valider le téléphone avant l'envoi
       if (editedProfile.telephone && !validatePhoneNumber(editedProfile.telephone)) {
-        alert("Format de téléphone invalide. Utilisez: +33612345678 ou 0612345678");
+        toast.error("Format de téléphone invalide. Utilisez: +33612345678 ou 0612345678");
         return;
       }
 
@@ -113,12 +115,12 @@ const MonProfile = () => {
 
   const handlePasswordChange = async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert("Les nouveaux mots de passe ne correspondent pas");
+      toast.error("Les nouveaux mots de passe ne correspondent pas");
       return;
     }
 
     if (passwordData.newPassword.length < 6) {
-      alert("Le mot de passe doit contenir au moins 6 caractères");
+      toast.error("Le mot de passe doit contenir au moins 6 caractères");
       return;
     }
 
@@ -320,7 +322,7 @@ const MonProfile = () => {
                         }}
                         disabled={!isEditing}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-none focus:outline-none focus:border-sky-500 hover:border-sky-400 disabled:bg-gray-50 disabled:text-gray-500"
-                        placeholder="Format: +33612345678 ou 0612345678"
+                        placeholder="Format: +33 6 12 34 56 78, 06.12.34.56.78, 06-12-34-56-78"
                       />
                     </div>
                   </div>

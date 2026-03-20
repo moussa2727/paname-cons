@@ -41,13 +41,15 @@ export class UpdateUserDto extends PartialType(
   email?: string;
 
   @ApiProperty({
-    example: '+33612345678',
-    description: 'Téléphone',
+    example: '+33 6 12 34 56 78',
+    description: 'Téléphone (espaces, points et tirets acceptés)',
     required: false,
   })
   @IsOptional()
   @IsString({ message: 'Le téléphone doit être une chaîne de caractères' })
-  @Matches(/^\+?[1-9]\d{1,14}$/, { message: 'Format de téléphone invalide' })
+  @Matches(/^\+?[1-9][\d\s.-]{8,14}$/, {
+    message: 'Format de téléphone invalide',
+  })
   telephone?: string;
 }
 
@@ -65,12 +67,14 @@ export class UpdateProfileDto {
   lastName?: string;
 
   @ApiProperty({
-    example: '+33612345678',
-    description: 'Téléphone',
+    example: '+33 6 12 34 56 78',
+    description: 'Téléphone (espaces, points et tirets acceptés)',
     required: false,
   })
   @IsOptional()
   @IsString({ message: 'Le téléphone doit être une chaîne de caractères' })
-  @Matches(/^\+?[1-9]\d{1,14}$/, { message: 'Format de téléphone invalide' })
+  @Matches(/^\+?[1-9][\d\s.-]{8,14}$/, {
+    message: 'Format de téléphone invalide',
+  })
   telephone?: string;
 }

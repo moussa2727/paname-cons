@@ -162,18 +162,25 @@ export class UsersService {
       }
     }
 
-    // Vérifier les conflits de téléphone
+    // Vérifier les conflits de téléphone (normaliser pour la comparaison)
     if (
       updateUserDto.telephone &&
       updateUserDto.telephone !== existingUser.telephone
     ) {
-      const phoneConflict = await this.usersRepository.findByPhone(
-        updateUserDto.telephone,
-      );
-      if (phoneConflict && phoneConflict.id !== existingUser.id) {
-        throw new ConflictException(
-          'Un utilisateur avec ce numéro de téléphone existe déjà',
+      // Normaliser le téléphone (supprimer espaces, points, tirets)
+      const normalizedPhone = updateUserDto.telephone.replace(/[\s.-]/g, "");
+      const normalizedExistingPhone = existingUser.telephone?.replace(/[\s.-]/g, "") || "";
+      
+      // Si le numéro normalisé est différent, vérifier les conflits
+      if (normalizedPhone !== normalizedExistingPhone) {
+        const phoneConflict = await this.usersRepository.findByPhone(
+          normalizedPhone,
         );
+        if (phoneConflict && phoneConflict.id !== existingUser.id) {
+          throw new ConflictException(
+            'Un utilisateur avec ce numéro de téléphone existe déjà',
+          );
+        }
       }
     }
 
