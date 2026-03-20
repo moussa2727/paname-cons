@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "buildCommand": "pnpm install && pnpm build",
-  "startCommand": "pnpm start",
+  "buildCommand": "cd backend && pnpm install && cd backend && pnpm build",
+  "startCommand": "cd backend && pnpm start",
   "env": {
     "NODE_ENV": "production"
   },
@@ -16,15 +16,15 @@
       ],
       "cmds": [
         "corepack enable && corepack prepare pnpm@latest --activate",
-        "pnpm install --frozen-lockfile",
-        "pnpm prisma generate",
-        "pnpm build"
+        "cd backend && pnpm install --frozen-lockfile",
+        "cd backend && pnpm prisma generate",
+        "cd backend && pnpm build"
       ]
     },
     "run": {
       "cmds": [
-        "pnpm prisma migrate deploy || true",
-        "pnpm start"
+        "cd backend && pnpm prisma migrate deploy || true",
+        "cd backend && pnpm start"
       ]
     }
   }
