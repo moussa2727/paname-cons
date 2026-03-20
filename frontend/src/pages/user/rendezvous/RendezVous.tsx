@@ -228,13 +228,28 @@ const RendezVous = () => {
     if (!slotData || !slotData.availableSlots) return [];
     
     // availableSlots est un tableau de strings (TimeSlot), je le transforme en objets
-    return slotData.availableSlots.map((timeSlot) => ({
-      time: timeSlot,
-      displayTime: timeSlotToDisplay(timeSlot as TimeSlot),
-      available: true,
-      isPast: false, // TODO: calculer si le créneau est passé
-      isLunchBreak: false, // TODO: calculer si c'est la pause déjeuner
-    }));
+    return slotData.availableSlots.map((timeSlot) => {
+      const displayTime = timeSlotToDisplay(timeSlot as TimeSlot);
+      const [hours, minutes] = displayTime.split(':').map(Number);
+      
+      // Créer la date complète du rendez-vous
+      const rendezvousDateTime = new Date(`${formData.date}T${displayTime}:00`);
+      const now = new Date();
+      
+      // Calculer si le créneau est passé
+      const isPast = rendezvousDateTime < now;
+      
+      // Calculer si c'est la pause déjeuner (12:30-14:00)
+      const isLunchBreak = (hours === 12 && minutes >= 30) || (hours === 13);
+      
+      return {
+        time: timeSlot,
+        displayTime,
+        available: !isPast && !isLunchBreak, // Désactiver si passé ou pause déjeuner
+        isPast,
+        isLunchBreak,
+      };
+    });
   }, [hookAvailableSlots, formData.date]);
 
   // Initialiser le formulaire avec les données utilisateur
@@ -378,20 +393,7 @@ const RendezVous = () => {
     return phoneRegex.test(cleanedPhone) && !cleanedPhone.startsWith("+0");
   }, []);
 
-  // Vérifier si un horaire est passé
-  const isTimePassed = useCallback((timeStr: string, dateStr: string): boolean => {
-    const today = new Date();
-    const selectedDate = new Date(dateStr);
-
-    if (selectedDate.toDateString() !== today.toDateString()) return false;
-
-    const [hours, minutes] = timeStr.split(":").map(Number);
-    const selectedTime = new Date();
-    selectedTime.setHours(hours, minutes, 0, 0);
-
-    return selectedTime < today;
-  }, []);
-
+  
   // Validation de chaque étape
   const isStepValid = useCallback(
     (step: number): boolean => {
@@ -621,24 +623,32 @@ const RendezVous = () => {
             <div className="grid grid-cols-3 gap-1 sm:grid-cols-4">
               {availableSlotsForSelectedDate.map((slot) => {
                 const isSelected = formData.time === slot.time;
-                const isPassed = isTimePassed(slot.displayTime, formData.date);
 
                 return (
                   <button
                     key={slot.time}
                     type="button"
                     onClick={() =>
-                      !isPassed &&
+                      slot.available &&
                       setFormData((prev) => ({ ...prev, time: slot.time as TimeSlot }))
                     }
-                    disabled={isPassed || isLoadingSlots}
+                    disabled={!slot.available || isLoadingSlots}
                     className={`rounded px-2 py-1.5 text-xs transition-all duration-150 focus:outline-none focus:ring-none ${
                       isSelected
                         ? "bg-sky-600 text-white"
-                        : isPassed
+                        : slot.isPast
                           ? "cursor-not-allowed bg-gray-100 text-gray-400"
-                          : "border border-gray-300 bg-white text-gray-700 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
+                          : slot.isLunchBreak
+                            ? "cursor-not-allowed bg-orange-50 text-orange-400 border border-orange-200"
+                            : "border border-gray-300 bg-white text-gray-700 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
                     }`}
+                    title={
+                      slot.isPast 
+                        ? "Ce créneau est déjà passé" 
+                        : slot.isLunchBreak 
+                          ? "Pause déjeuner (12:30-14:00)"
+                          : "Créneau disponible"
+                    }
                   >
                     {slot.displayTime}
                   </button>

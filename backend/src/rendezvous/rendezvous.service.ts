@@ -21,6 +21,7 @@ import { CreateRendezvousDto } from './dto/create-rendezvous.dto';
 import { UpdateRendezvousDto } from './dto/update-rendezvous.dto';
 import { CurrentUser } from '../interfaces/current-user.interface';
 import { MailService } from '../mail/mail.service';
+import { QueueService } from '../queue/queue.service';
 import {
   HolidaysService,
   RENDEZVOUS_CONSTANTS,
@@ -65,6 +66,7 @@ export class RendezvousService {
     private readonly prisma: PrismaService,
     private readonly rendezvousRepository: RendezvousRepository,
     private readonly mailService: MailService,
+    private readonly queueService: QueueService,
     private readonly holidaysService: HolidaysService,
     private readonly configService: ConfigService,
   ) {}
@@ -570,6 +572,20 @@ export class RendezvousService {
         updateData,
       );
 
+      // Envoyer une notification si le statut a changé
+      if (updateData.status && updateData.status !== existing.status) {
+        await this.queueService.addEmailJob({
+          to: updatedRendezvous.email,
+          subject: 'Mise à jour de votre rendez-vous - Paname Consulting',
+          html: this.generateRendezvousStatusUpdatedContent(
+            updatedRendezvous,
+            existing.status,
+            updateData.status as RendezvousStatus,
+          ),
+          priority: 'normal',
+        });
+      }
+
       if (
         updateRendezvousDto.status === RendezvousStatus.COMPLETED &&
         updateRendezvousDto.avisAdmin === AdminOpinion.FAVORABLE
@@ -584,6 +600,76 @@ export class RendezvousService {
       this.logger.error(`Erreur mise à jour rendez-vous: ${errorMessage}`);
       throw error;
     }
+  }
+
+  private generateRendezvousCompletedContent(
+    rendezvous: Rendezvous,
+    isFavorable: boolean,
+  ): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Votre rendez-vous a été terminé.</p>
+        <div style="background:#f0fdf4;padding:25px;border-radius:8px;border-left:4px solid #10b981;margin:25px 0;">
+          <h3 style="margin-top:0;color:#10b981;">Rendez-vous terminé</h3>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Rendez-vous :</span> ${rendezvous.id}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Avis administrateur :</span> <span style="color:${isFavorable ? '#10b981' : '#ef4444'};font-weight:600;">${isFavorable ? 'Favorable' : 'Défavorable'}</span></div>
+          ${isFavorable ? '<div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Une procédure d\'admission va être créée automatiquement.</span></div>' : ''}
+        </div>
+        <p>Merci de votre confiance. Notre équipe reste à votre disposition.</p>
+        <div style="text-align:center;margin-top:30px;">
+          <a href="https://panameconsulting.com/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#10b981,#059669);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon espace</a>
+        </div>
+      </div>`;
+  }
+
+  private generateRendezvousCancelledContent(
+    rendezvous: Rendezvous,
+    cancelledBy: string,
+  ): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Votre rendez-vous a été annulé.</p>
+        <div style="background:#fef3c7;padding:25px;border-radius:8px;border-left:4px solid #f59e0b;margin:25px 0;">
+          <h3 style="margin-top:0;color:#d97706;">Rendez-vous annulé</h3>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Rendez-vous :</span> ${rendezvous.id}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Annulé par :</span> ${cancelledBy === 'ADMIN' ? 'Administrateur' : 'Utilisateur'}</div>
+        </div>
+        <p>Nous restons à votre disposition pour prendre un nouveau rendez-vous.</p>
+        <div style="text-align:center;margin-top:30px;">
+          <a href="https://panameconsulting.com/rendezvous" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Prendre un nouveau rendez-vous</a>
+        </div>
+      </div>`;
+  }
+
+  private generateRendezvousStatusUpdatedContent(
+    rendezvous: Rendezvous,
+    oldStatus: RendezvousStatus,
+    newStatus: RendezvousStatus,
+  ): string {
+    const statusLabels: Record<RendezvousStatus, string> = {
+      [RendezvousStatus.PENDING]: 'En attente',
+      [RendezvousStatus.CONFIRMED]: 'Confirmé',
+      [RendezvousStatus.COMPLETED]: 'Terminé',
+      [RendezvousStatus.CANCELLED]: 'Annulé',
+    };
+
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Votre rendez-vous a été mis à jour.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0ea5e9;margin:25px 0;">
+          <h3 style="margin-top:0;color:#0ea5e9;">Mise à jour de rendez-vous</h3>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Rendez-vous :</span> ${rendezvous.id}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Ancien statut :</span> ${statusLabels[oldStatus]}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Nouveau statut :</span> <span style="color:#0ea5e9;font-weight:600;">${statusLabels[newStatus]}</span></div>
+        </div>
+        <p>Suivez votre rendez-vous depuis votre espace personnel.</p>
+        <div style="text-align:center;margin-top:30px;">
+          <a href="https://panameconsulting.com/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mes rendez-vous</a>
+        </div>
+      </div>`;
   }
 
   private validateStatusTransition(
@@ -659,7 +745,7 @@ export class RendezvousService {
         include: { steps: true },
       });
 
-      const html = `
+      const htmlContent = `
         <div>
           <p>Nous avons le plaisir de vous informer que votre procédure d'admission a été créée avec succès.</p>
           <div>
@@ -670,11 +756,13 @@ export class RendezvousService {
           <p>Notre équipe va désormais vous accompagner pas à pas dans votre projet d'études.</p>
         </div>`;
 
-      await this.mailService.sendProcedureCreatedEmail(
-        rendezvous.email,
-        rendezvous.firstName,
-        html,
-      );
+      // Envoyer un email de confirmation via queue
+      await this.queueService.addEmailJob({
+        to: rendezvous.email,
+        subject: 'Confirmation de votre rendez-vous - Paname Consulting',
+        html: htmlContent,
+        priority: 'high',
+      });
 
       return procedure;
     } catch (error) {
@@ -998,6 +1086,17 @@ export class RendezvousService {
       cancelledBy: currentUser.role === UserRole.ADMIN ? 'ADMIN' : 'USER',
     });
 
+    // Envoyer une notification d'annulation
+    await this.queueService.addEmailJob({
+      to: cancelled.email,
+      subject: 'Annulation de votre rendez-vous - Paname Consulting',
+      html: this.generateRendezvousCancelledContent(
+        cancelled,
+        currentUser.role === UserRole.ADMIN ? 'ADMIN' : 'USER',
+      ),
+      priority: 'high',
+    });
+
     return cancelled;
   }
 
@@ -1028,6 +1127,17 @@ export class RendezvousService {
     const updatedRendezvous = await this.rendezvousRepository.update(id, {
       status: RendezvousStatus.COMPLETED,
       avisAdmin: updateRendezvousDto.avisAdmin,
+    });
+
+    // Envoyer une notification de complétion
+    await this.queueService.addEmailJob({
+      to: updatedRendezvous.email,
+      subject: 'Complétion de votre rendez-vous - Paname Consulting',
+      html: this.generateRendezvousCompletedContent(
+        updatedRendezvous,
+        updateRendezvousDto.avisAdmin === AdminOpinion.FAVORABLE,
+      ),
+      priority: 'high',
     });
 
     if (updateRendezvousDto.avisAdmin === AdminOpinion.FAVORABLE) {

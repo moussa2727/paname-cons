@@ -207,6 +207,59 @@ export class ProceduresRepository {
     }));
   }
 
+  async getTopFilieres(limit: number = 5): Promise<any[]> {
+    const results = await this.prisma.procedure.groupBy({
+      by: ['filiere'],
+      _count: {
+        filiere: true,
+      },
+      where: {
+        isDeleted: false,
+      },
+      orderBy: {
+        _count: {
+          filiere: 'desc',
+        },
+      },
+      take: limit,
+    });
+
+    return results.map((r) => ({
+      filiere: r.filiere,
+      count: r._count.filiere,
+    }));
+  }
+
+  async getAverageCompletionTime(): Promise<number> {
+    const procedures = await this.prisma.procedure.findMany({
+      where: {
+        statut: ProcedureStatus.COMPLETED,
+        isDeleted: false,
+        dateCompletion: {
+          not: null,
+        },
+      },
+      select: {
+        createdAt: true,
+        dateCompletion: true,
+      },
+    });
+
+    if (procedures.length === 0) return 0;
+
+    const totalDays = procedures.reduce((sum, proc) => {
+      if (!proc.dateCompletion) return sum;
+      const created = new Date(proc.createdAt);
+      const completed = new Date(proc.dateCompletion);
+      const days = Math.floor(
+        (completed.getTime() - created.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      return sum + days;
+    }, 0);
+
+    return Math.round(totalDays / procedures.length);
+  }
+
   async updateGlobalStatus(
     procedureId: string,
   ): Promise<Procedure & { steps: Step[] }> {

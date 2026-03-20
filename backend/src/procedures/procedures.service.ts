@@ -760,8 +760,12 @@ export class ProceduresService {
     const topDestinations =
       await this.proceduresRepository.getTopDestinations(5);
 
-    // TODO: Implémenter les statistiques par filière
-    const topFilieres: { filiere: string; count: number }[] = [];
+    // Statistiques par filière
+    const topFilieres = await this.proceduresRepository.getTopFilieres(5);
+
+    // Calculer le temps moyen de complétion (en jours)
+    const averageCompletionTime =
+      await this.proceduresRepository.getAverageCompletionTime();
 
     return {
       total: totalProcedures,
@@ -776,7 +780,7 @@ export class ProceduresService {
         totalProcedures > 0 ? (completed / totalProcedures) * 100 : 0,
       rejectionRate:
         totalProcedures > 0 ? (rejected / totalProcedures) * 100 : 0,
-      averageCompletionTime: 0, // TODO: calculer le temps moyen
+      averageCompletionTime,
       newProcedures: {
         today: proceduresToday,
         thisWeek: proceduresThisWeek,

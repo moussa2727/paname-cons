@@ -7,6 +7,7 @@ Paname Consulting est une plateforme web complète pour la gestion des services 
 ### 🎯 Mission
 
 Faciliter l'accès aux opportunités internationales en proposant :
+
 - Accompagnement personnalisé pour études à l'étranger
 - Organisation de voyages d'affaires  
 - Assistance dans les démarches de visa
@@ -19,6 +20,7 @@ Faciliter l'accès aux opportunités internationales en proposant :
 ### Stack Technologique
 
 #### Backend (NestJS)
+
 - **Framework**: NestJS 11.x avec TypeScript
 - **Base de données**: MongoDB avec Mongoose
 - **Authentification**: JWT + Passport.js
@@ -30,6 +32,7 @@ Faciliter l'accès aux opportunités internationales en proposant :
 - **Documentation**: Swagger/OpenAPI
 
 #### Frontend (React)
+
 - **Framework**: React 19.x avec TypeScript
 - **Routing**: React Router v7
 - **Styling**: TailwindCSS 4.x
@@ -40,6 +43,7 @@ Faciliter l'accès aux opportunités internationales en proposant :
 - **SEO**: React Helmet Async
 
 #### Infrastructure
+
 - **Déploiement**: Vercel (Frontend) + Vercel Functions (Backend)
 - **Package Manager**: pnpm
 - **Code Quality**: ESLint + Prettier
@@ -86,6 +90,7 @@ panameconsulting/
 ## 🚀 Fonctionnalités Principales
 
 ### Interface Publique
+
 - **Page d'accueil** avec animations et présentation des services
 - **Présentation des services** (études, voyages, tourisme)
 - **Formulaire de contact** avec notifications
@@ -94,6 +99,7 @@ panameconsulting/
 - **Espace personnel** pour suivre ses démarches
 
 ### Interface Client
+
 - **Gestion du profil** personnel
 - **Prise de rendez-vous** en ligne
 - **Suivi des procédures** administratives
@@ -101,6 +107,7 @@ panameconsulting/
 - **Messagerie** avec l'administration
 
 ### Interface Administration
+
 - **Tableau de bord** avec statistiques
 - **Gestion des utilisateurs** et rôles
 - **Gestion des destinations** et services
@@ -114,6 +121,7 @@ panameconsulting/
 ## 🔧 Installation et Configuration
 
 ### Prérequis
+
 - Node.js >= 18.20.3
 - pnpm >= 8.15.0
 - MongoDB Atlas ou local
@@ -122,12 +130,14 @@ panameconsulting/
 ### Installation
 
 1. **Cloner le projet**
+
 ```bash
 git clone <repository-url>
 cd panameconsulting
 ```
 
-2. **Installer les dépendances**
+1. **Installer les dépendances**
+
 ```bash
 # Backend
 cd backend
@@ -138,7 +148,8 @@ cd ../frontend
 pnpm install
 ```
 
-3. **Configurer l'environnement**
+1. **Configurer l'environnement**
+
 ```bash
 # Backend
 cd backend
@@ -152,7 +163,8 @@ cp .env.example .env
 # - EMAIL_USER (admin)
 ```
 
-4. **Démarrer le développement**
+1. **Démarrer le développement**
+
 ```bash
 # Backend (terminal 1)
 cd backend
@@ -164,27 +176,31 @@ pnpm start
 ```
 
 L'application sera disponible sur :
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:10000
-- Documentation API: http://localhost:10000/api
+
+- Frontend: <http://localhost:5173>
+- Backend API: <http://localhost:10000>
+- Documentation API: <http://localhost:10000/api>
 
 ---
 
 ## 🔐 Sécurité
 
 ### Authentification
+
 - JWT tokens avec expiration configurable
 - Cookies sécurisés HTTP-only
 - Rate limiting sur les endpoints sensibles
 - Validation des entrées avec class-validator
 
 ### Protection
+
 - Helmet.js pour headers HTTP sécurisés
 - CORS configuré pour les origines autorisées
 - Compression Gzip
 - Mode maintenance pour les mises à jour
 
 ### Données
+
 - Hashage des mots de passe avec bcryptjs
 - Validation et sanitization des données
 - Logging des activités sensibles
@@ -196,6 +212,7 @@ L'application sera disponible sur :
 ### ✅ Fonctionnalités Implémentées
 
 #### Backend (NestJS)
+
 - [x] Architecture modulaire complète
 - [x] Authentification JWT robuste
 - [x] Gestion utilisateurs avec rôles
@@ -208,6 +225,7 @@ L'application sera disponible sur :
 - [x] Documentation Swagger
 
 #### Frontend (React)
+
 - [x] Architecture composants moderne
 - [x] Routing complet avec lazy loading
 - [x] Authentification avec contexte
@@ -218,12 +236,14 @@ L'application sera disponible sur :
 - [x] Interface admin complète
 
 #### Infrastructure
+
 - [x] Déploiement Vercel configuré
 - [x] Variables d'environnement
 - [x] CI/CD de base
 - [x] Monitoring Vercel Analytics
 
 ### 🚧 Fonctionnalités en Développement
+
 - [ ] Tests unitaires et e2e
 - [ ] Internationalisation (i18n)
 - [ ] Notifications push
@@ -237,18 +257,21 @@ L'application sera disponible sur :
 ### 📈 Court Terme (2 mois)
 
 #### Technique
+
 - **Tests automatisés**: Mise en place Jest + Testing Library
 - **Performance**: Optimisation des bundles et lazy loading
 - **Accessibilité**: Audit WCAG 2.1 et corrections
 - **Monitoring**: Intégration Sentry pour les erreurs
 
 #### Fonctionnel
+
 - **Notifications push**: Service Workers pour les alertes
 - **Export PDF**: Génération de documents administratifs
 - **Calendrier partagé**: Synchronisation avec Google Calendar
 - **Messagerie temps réel**: WebSocket avec Socket.io
 
 #### UX/UI
+
 - **Mode sombre**: Thème dark/light
 - **Mobile first**: Optimisation mobile avancée
 - **Animations micro-interactions**: Amélioration de l'engagement
@@ -257,18 +280,21 @@ L'application sera disponible sur :
 ### 🚀 Moyen Terme (4 mois)
 
 #### Architecture
+
 - **Microservices**: Découpage des services critiques
 - **GraphQL**: Migration progressive vers GraphQL
 - **Cache avancé**: Redis Cluster pour la scalabilité
 - **CDN**: CloudFlare pour les assets statiques
 
 #### Fonctionnalités métier
+
 - **Paiements en ligne**: Stripe/PayPal integration
 - **API tierces**: Intégration services gouvernementaux
 - **Gestion multilingue**: Support anglais/espagnol
 - **Dashboard analytique**: PowerBI/Tableau intégrés
 
 #### DevOps
+
 - **CI/CD avancé**: GitHub Actions avec tests
 - **Monitoring**: Prometheus + Grafana
 - **Sécurité**: SAST/DAST automatisé
@@ -277,18 +303,21 @@ L'application sera disponible sur :
 ### 🌟 Long Terme (6 mois)
 
 #### Innovation
+
 - **IA/ML**: Recommandations personnalisées
 - **Chatbot**: Assistant virtuel 24/7
 - **Blockchain**: Vérification des documents
 - **AR/VR**: Visites virtuelles des destinations
 
 #### Scalabilité
+
 - **Architecture serverless**: Migration complète
 - **Edge computing**: CloudFlare Workers
 - **Base de données distribuée**: MongoDB Atlas Global
 - **Load balancing**: Multi-régions
 
 #### Écosystème
+
 - **API publique**: Partenaires développeurs
 - **Marketplace**: Services tiers
 - **Mobile apps**: React Native
@@ -299,6 +328,7 @@ L'application sera disponible sur :
 ## 🛠️ Scripts Utiles
 
 ### Backend
+
 ```bash
 pnpm dev          # Développement avec hot-reload
 pnpm build        # Build production
@@ -309,6 +339,7 @@ pnpm lint:format  # Lint + Format
 ```
 
 ### Frontend
+
 ```bash
 pnpm start        # Développement Vite
 pnpm build        # Build production
@@ -323,17 +354,20 @@ pnpm vercel       # Déploiement Vercel
 ## 📝 Notes de Déploiement
 
 ### Vercel Configuration
+
 - **Frontend**: Déployé automatiquement sur chaque push
 - **Backend**: Functions serverless avec cache
 - **Domaines**: panameconsulting.vercel.app
 - **Environment**: Variables configurées dans dashboard
 
 ### Base de Données
+
 - **MongoDB Atlas**: Cluster M0 gratuit pour développement
 - **Backup**: Automatique tous les 7 jours
 - **Monitoring**: Compteur de requêtes actif
 
 ### Emails
+
 - **SMTP**: Gmail pour le développement
 - **Resend**: Production (templates HTML)
 - **Templates**: Handlebars pour personnalisation
@@ -343,12 +377,14 @@ pnpm vercel       # Déploiement Vercel
 ## 🤝 Contribuer
 
 ### Guidelines
+
 - Code style avec ESLint + Prettier
 - Commits conventionnels (Conventional Commits)
 - Pull requests avec description détaillée
 - Tests requis pour nouvelles fonctionnalités
 
 ### Développement
+
 1. Forker le projet
 2. Créer une branche feature/nom-feature
 3. Commiter avec messages clairs
@@ -360,11 +396,13 @@ pnpm vercel       # Déploiement Vercel
 ## 📞 Support
 
 ### Contact Technique
-- **Email**: moussa.sangare.ma@gmail.com
+
+- **Email**: <moussa.sangare.ma@gmail.com>
 - **Documentation**: `/api` (Swagger)
 - **Issues**: GitHub Issues
 
 ### Maintenance
+
 - **Mode maintenance**: Activable via admin
 - **Monitoring**: Vercel Analytics
 - **Logs**: Winston + Vercel Logs
