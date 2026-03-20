@@ -12,13 +12,21 @@
  *
  * Cookie frontend : remember_me uniquement (non-httpOnly),
  * géré via document.cookie (API JS native, pas de lib tierce).
- * C'est le SEUL signal lisible en JS/TS indiquant qu'une
- * session a déjà été ouverte sur ce navigateur.
+ * C'est un signal OPTIONNEL indiquant qu'une session a déjà
+ * été ouverte sur ce navigateur.
  *
- * checkAuth utilise remember_me comme garde préalable :
- *   • remember_me présent  → session potentielle → requête réseau
- *   • remember_me absent   → jamais connecté sur ce navigateur
- *                            → setUser(null) immédiat, zéro requête
+ * checkAuth NE conditionne PLUS sur remember_me :
+ *   → on tente toujours GET /user/profile au montage.
+ *   → apiFetch gère le retry 401 → refresh → replay en interne.
+ *   → si le refresh échoue, session morte → setUser(null).
+ *   → remember_me est supprimé uniquement quand la session est
+ *     définitivement morte côté backend (refresh échoué).
+ *
+ * Raison du changement : sur mobile (Safari ITP, WebView,
+ * mode privé), remember_me peut être absent même si une
+ * session valide existe côté backend (cookie httpOnly intact).
+ * Bloquer checkAuth sur remember_me causait une déconnexion
+ * silencieuse à chaque refresh de page sur mobile.
  *
  * Durées alignées sur auth.constants.ts (backend) :
  *   • access_token          : 15 min  (ACCESS_TOKEN_EXPIRATION_MS)
@@ -97,6 +105,11 @@ const ACCESS_TOKEN_EXPIRES_IN_S = 15 * 60; // 15 min (= expires_in backend)
 //  IMPORTANT : access_token et refresh_token sont httpOnly →
 //  JAMAIS présents dans document.cookie côté JS/TS.
 //  Ne jamais écrire de condition basée sur leur présence.
+//
+//  FIX MOBILE : remember_me est un signal OPTIONNEL. checkAuth
+//  ne bloque plus dessus. Sur Safari/iOS/WebView, ce cookie
+//  peut être absent alors que le refresh_token httpOnly est
+//  encore valide.
 // ─────────────────────────────────────────────────────────────
 
 function getRememberMeCookie(): boolean {
@@ -110,34 +123,27 @@ function getRememberMeCookie(): boolean {
 }
 
 function setRememberMeCookie(value: boolean, maxAgeSeconds: number): void {
-  // 🍪 Stratégie mobile-first pour les cookies
-  // 
-  // Desktop : SameSite=Lax fonctionne parfaitement
-  // Mobile : SameSite=Lax requis (SameSite=None bloqué)
-  // HTTPS : Secure obligatoire
-  // 
-  // Cette approche garantit la compatibilité :
-  // - Chrome Desktop ✅
-  // - Safari Desktop ✅  
-  // - Chrome Mobile ✅
-  // - Safari Mobile ✅
-  // - Firefox Mobile ✅
-  
-  const isSecure = window.location.protocol === 'https:';
-  const cookieString = [
-    `${encodeURIComponent("remember_me")}=${encodeURIComponent(String(value))}`,
-    `path=/`,
-    `max-age=${maxAgeSeconds}`,
-    `SameSite=lax`, // ⭐ Compatible avec tous les navigateurs
-    isSecure ? 'Secure' : '' // ⚠️ Secure seulement en HTTPS
-  ].filter(Boolean).join('; ');
-  
-  document.cookie = cookieString;
+  // sameSite=None + Secure pour correspondre aux cookies httpOnly du backend
+  document.cookie =
+    `${encodeURIComponent("remember_me")}=${encodeURIComponent(String(value))}` +
+    `; path=/` +
+    `; max-age=${maxAgeSeconds}` +
+    `; SameSite=None` +
+    `; Secure`;
 }
 
 function deleteRememberMeCookie(): void {
+  // FIX : les attributs SameSite=None et Secure doivent correspondre
+  // exactement à ceux utilisés lors de la pose du cookie.
+  // Sans eux, certains navigateurs (Safari mobile, Chrome Android)
+  // ne reconnaissent pas le cookie à supprimer et l'ignorent silencieusement,
+  // laissant un cookie "zombie" qui bloque la logique de checkAuth.
   document.cookie =
-    `${encodeURIComponent("remember_me")}=` + `; path=/` + `; max-age=0`;
+    `${encodeURIComponent("remember_me")}=` +
+    `; path=/` +
+    `; max-age=0` +
+    `; SameSite=None` +
+    `; Secure`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -249,18 +255,11 @@ export async function apiFetch(
 
   // ── 401 reçu ─────────────────────────────────────────────
   // On tente TOUJOURS le refresh : le cookie httpOnly
-  // ── refresh automatique (401) ─────────────────────────────────
-  // Gestion du refresh token avec fallback pour mobile/Safari ITP
-  // 
-  // Stratégie :
-  // 1. Priorité absolue au cookie httpOnly (credentials: "include")
-  // 2. Fallback mémoire (_refreshTokenValue) pour Safari ITP
-  // 3. Détection mobile pour ajuster les attributs de cookies
-  // 
-  // Le fallback est CRUCIAL pour :
-  // - Safari ITP (Intelligent Tracking Prevention)
-  // - Mobile browsers qui bloquent SameSite=None
-  // - Développement HTTP (cookies non-sécurisés)
+  // refresh_token sera envoyé automatiquement par le navigateur
+  // via credentials: "include". On ne teste pas sa présence
+  // (httpOnly = illisible en JS/TS).
+  // _refreshTokenValue est un fallback pour les cas où le cookie
+  // est bloqué (Safari ITP, HTTP en dev).
 
   if (_isRefreshing) {
     // Un refresh est déjà en cours → on met la requête en file
@@ -274,36 +273,30 @@ export async function apiFetch(
   _isRefreshing = true;
 
   try {
-    // Stratégie double : cookie httpOnly + fallback mémoire
-    const refreshBody: { refresh_token?: string } = {};
-    
-    // Ajouter le fallback seulement si disponible
-    if (_refreshTokenValue) {
-      refreshBody.refresh_token = _refreshTokenValue;
-    }
-
     const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
       method: "POST",
       credentials: "include", // envoie le cookie httpOnly refresh_token
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(refreshBody), // 🔄 FALLBACK : si cookie bloqué
+      // refresh_token dans le body = fallback si le cookie httpOnly
+      // n'est pas transmis (dev HTTP, Safari ITP)
+      body: JSON.stringify(
+        _refreshTokenValue ? { refresh_token: _refreshTokenValue } : {},
+      ),
     });
 
     if (!refreshRes.ok) throw new Error("refresh_failed");
 
-    // Mise à jour du fallback mémoire avec le nouveau token
-    // CRUCIAL pour la persistance sur mobile/Safari
+    // Réponse backend : { message: string, data: { refresh_token: string } }
+    // On extrait le nouveau refresh_token pour mettre à jour le fallback mémoire
     try {
-      const refreshData = (await refreshRes.clone().json()) as {
+      const refreshBody = (await refreshRes.clone().json()) as {
         data?: { refresh_token?: string };
       };
-      const newRefreshToken = refreshData?.data?.refresh_token;
-      if (newRefreshToken) {
-        _refreshTokenValue = newRefreshToken;
-        console.log("🔄 Fallback refresh token mis à jour");
+      const newToken = refreshBody?.data?.refresh_token;
+      if (newToken) {
+        _refreshTokenValue = newToken;
       }
-    } catch (error) {
-      console.warn("⚠️ Impossible de mettre à jour le fallback token:", error);
+    } catch {
       // Non bloquant — le cookie httpOnly reste la source principale
     }
 
@@ -439,8 +432,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       refreshTokenRef.current = null;
       _refreshTokenValue = null;
       // Le refresh a échoué définitivement → session morte côté backend.
-      // On supprime remember_me pour que checkAuth ne retente plus
-      // le backend inutilement au prochain chargement de page.
+      // On supprime remember_me pour éviter des requêtes inutiles ultérieures.
       deleteRememberMeCookie();
       setUser(null);
       throw err;
@@ -468,71 +460,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     scheduleRef.current = scheduleTokenRefresh;
   }, [scheduleTokenRefresh]);
 
-  // ── checkAuth ─────────────────────────────────────────────
-  // Vérification initiale de l'auth au montage du composant
-  // 
-  // Stratégie optimisée :
-  // 1. Vérifier remember_me (indicateur de session passée)
-  // 2. Si présent → tenter /user/profile
-  // 3. Laisser apiFetch gérer le 401 → refresh auto
-  // 4. Si refresh échoue → nettoyage complet
-  // 
-  // Cette approche économise des requêtes réseau et garantit
-  // la compatibilité mobile/Safari ITP
+  // ── checkAuth (mount) ─────────────────────────────────────
+  //
+  //  FIX MOBILE : on ne conditionne PLUS sur remember_me.
+  //
+  //  Ancien comportement (cassé sur mobile) :
+  //    • remember_me absent → setUser(null) immédiat, zéro requête.
+  //    • Problème : sur Safari iOS / WebView / mode privé, remember_me
+  //      peut être absent même si le cookie httpOnly refresh_token
+  //      est encore valide → déconnexion silencieuse à chaque refresh.
+  //
+  //  Nouveau comportement :
+  //    • On tente TOUJOURS GET /user/profile au montage.
+  //    • apiFetch gère le retry 401 → refresh → replay en interne.
+  //    • 200 : session valide → setUser().
+  //    • 401 après refresh échoué : session morte → setUser(null)
+  //      + deleteRememberMeCookie().
+  //    • Coût : une requête réseau supplémentaire sur les navigateurs
+  //      sans session active — négligeable face à la fiabilité gagnée.
+  //
+  //  Les cookies httpOnly (access_token, refresh_token) sont
   //  illisibles en JS/TS — on ne conditionne JAMAIS sur eux.
   // ─────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
-    const checkAuthAsync = async (): Promise<void> => {
-      console.log("🔍 Début checkAuth");
-      
-      // 1. Vérifier l'indicateur de session passée
-      const hasRememberMe = getRememberMeCookie();
-      console.log("📝 remember_me présent:", hasRememberMe);
-      
-      if (!hasRememberMe) {
-        console.log("❌ Aucune session passée détectée");
-        setUser(null);
-        setIsLoading(false);
-        return;
-      }
-
-      // 2. Session potentielle → vérification backend
-      console.log("🔄 Session potentielle détectée → vérification backend");
+    const checkAuth = async (): Promise<void> => {
+      // FIX : guard remember_me supprimé — voir commentaire ci-dessus.
+      // On tente toujours le profil ; apiFetch gère le 401 → refresh.
       try {
-        const profileRes = await apiFetch(`${API_URL}/user/profile`, {
+        // apiFetch gère le retry 401 → refresh → replay en interne
+        const response = await apiFetch(`${API_URL}/user/profile`, {
           method: "GET",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
         });
 
-        if (profileRes.ok) {
-          const profileData = await profileRes.json();
-          setUser(mapLoginUserToAppUser(profileData.data));
-          console.log("✅ Session valide, utilisateur connecté");
-        } else {
-          console.log("⚠️ Session invalide, apiFetch va tenter le refresh");
-          if (!cancelled) {
-            setUser(null);
-            deleteRememberMeCookie();
-          }
+        if (cancelled) return;
+
+        if (!response.ok) {
+          // 401 après tentative de refresh = session définitivement
+          // expirée — on nettoie le cookie frontend
+          setUser(null);
+          deleteRememberMeCookie();
+          return;
         }
-      } catch (error) {
-        console.error("❌ Échec complet de checkAuth:", error);
-        // Nettoyage complet en cas d'échec
+
+        const body: BackendDTO_ApiResponse<BackendDTO_ProfileData> =
+          await response.json();
+
+        setUser(mapProfileToAppUser(body.data));
+        if (scheduleRef.current) scheduleRef.current(ACCESS_TOKEN_EXPIRES_IN_S);
+      } catch {
         if (!cancelled) {
           setUser(null);
           deleteRememberMeCookie();
-          _refreshTokenValue = null;
-          refreshTokenRef.current = null;
         }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     };
 
-    checkAuthAsync();
+    checkAuth();
 
     return () => {
       cancelled = true;
@@ -565,12 +552,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const dto = body.data;
 
-      // Stocker le refresh_token en mémoire pour le fallback mobile/Safari
-      // ⚡ CRUCIAL : Permet le refresh même si cookies bloqués
+      // Stocker le refresh_token en mémoire pour le fallback apiFetch
       if (dto.refresh_token) {
         refreshTokenRef.current = dto.refresh_token;
         _refreshTokenValue = dto.refresh_token;
-        console.log("💾 Fallback refresh token stocké");
       }
 
       // Cookie remember_me (non-httpOnly, lisible en JS/TS)
