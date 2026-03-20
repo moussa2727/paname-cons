@@ -1,12 +1,12 @@
 [phases.setup]
 nixPkgs = ["nodejs_18", "pnpm"]
-
+ 
 [phases.build]
-cmds = ["pnpm install", "pnpm run build", "pnpm prisma generate"]
-
+cmds = ["cd backend && pnpm install", "cd backend && pnpm run build", "cd backend && pnpm prisma generate"]
+ 
 [start]
-cmd = "node dist/src/main.js"
-
+cmd = "cd backend && node dist/src/main.js"
+ 
 [variables]
 NODE_ENV="production"
 PORT="10000"
