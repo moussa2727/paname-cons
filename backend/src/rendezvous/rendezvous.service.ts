@@ -348,11 +348,15 @@ export class RendezvousService {
     }
 
     if (filters?.search) {
+      // Normaliser la recherche pour le téléphone
+      const normalizedSearch = filters.search.replace(/[\s.-]/g, '');
+
       where.OR = [
         { firstName: { contains: filters.search, mode: 'insensitive' } },
         { lastName: { contains: filters.search, mode: 'insensitive' } },
         { email: { contains: filters.search, mode: 'insensitive' } },
-        { telephone: { contains: filters.search, mode: 'insensitive' } },
+        { telephone: { contains: normalizedSearch } },
+        { telephone: { contains: filters.search } },
       ];
     }
 

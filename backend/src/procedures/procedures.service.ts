@@ -194,10 +194,14 @@ export class ProceduresService {
     if (email && currentUser.role === UserRole.ADMIN) where.email = email;
     if (destination) where.destination = destination;
     if (search) {
+      // Normaliser la recherche pour le téléphone
+      const normalizedSearch = search.replace(/[\s.-]/g, '');
+
       where.OR = [
         { prenom: { contains: search, mode: 'insensitive' } },
         { nom: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
+        { telephone: { contains: normalizedSearch } },
         { telephone: { contains: search } },
       ];
     }

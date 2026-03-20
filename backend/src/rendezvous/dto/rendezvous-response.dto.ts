@@ -47,7 +47,10 @@ export class RendezvousResponseDto {
   @ApiProperty()
   email: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Téléphone (format avec espaces)',
+    example: '+33 6 12 34 56 78',
+  })
   telephone: string;
 
   @ApiProperty()

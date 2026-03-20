@@ -54,14 +54,14 @@ export class CreateRendezvousDto {
   email: string;
 
   @ApiProperty({
-    description: 'Téléphone (format international)',
-    example: '+33612345678',
+    description: 'Téléphone (espaces, points et tirets acceptés)',
+    example: '+33 6 12 34 56 78',
   })
   @IsString({ message: 'Le téléphone doit être une chaîne de caractères' })
   @IsNotEmpty({ message: 'Le téléphone est requis' })
-  @Matches(/^\+?[1-9]\d{1,14}$/, {
+  @Matches(/^\+?[1-9][\d\s.-]{8,14}$/, {
     message:
-      'Format de téléphone invalide (format international requis: +22812345678)',
+      'Format de téléphone invalide. Utilisez: +33 6 12 34 56 78 ou 06 12 34 56 78',
   })
   @MaxLength(20, { message: 'Le téléphone ne peut pas dépasser 20 caractères' })
   telephone: string;

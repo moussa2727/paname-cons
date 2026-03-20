@@ -17,7 +17,10 @@ export class UserResponseDto {
   @ApiProperty({ example: 'jean.dupont@example.com' })
   email: string;
 
-  @ApiProperty({ example: '+33612345678' })
+  @ApiProperty({
+    example: '+33 6 12 34 56 78',
+    description: 'Téléphone (format avec espaces)',
+  })
   telephone: string;
 
   @ApiProperty({ enum: UserRole, example: UserRole.USER })

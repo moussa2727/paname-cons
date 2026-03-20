@@ -75,12 +75,20 @@ export class UsersRepository {
   }
 
   async findByPhone(telephone: string): Promise<User | null> {
-    return this.prisma.user.findFirst({
+    // Normaliser le téléphone pour la recherche (supprimer espaces, points, tirets)
+    const normalizedPhone = telephone.replace(/[\s.-]/g, '');
+
+    // Rechercher avec une approche flexible : chercher le numéro normalisé
+    // ou chercher exactement ce qui est stocké
+    const users = await this.prisma.user.findMany({
       where: {
-        telephone,
+        OR: [{ telephone: normalizedPhone }, { telephone: telephone }],
         isDeleted: false,
       },
+      take: 1,
     });
+
+    return users.length > 0 ? users[0] : null;
   }
 
   async update(id: string, data: Prisma.UserUpdateInput): Promise<User> {
@@ -237,12 +245,16 @@ export class UsersRepository {
   }
 
   async search(query: string, limit: number = 10): Promise<User[]> {
+    // Normaliser la requête pour la recherche de téléphone
+    const normalizedQuery = query.replace(/[\s.-]/g, '');
+
     return this.prisma.user.findMany({
       where: {
         OR: [
           { email: { contains: query, mode: 'insensitive' } },
           { firstName: { contains: query, mode: 'insensitive' } },
           { lastName: { contains: query, mode: 'insensitive' } },
+          { telephone: { contains: normalizedQuery } },
           { telephone: { contains: query } },
         ],
         isDeleted: false,
