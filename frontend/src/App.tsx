@@ -15,8 +15,6 @@ import AuthLayout from "./components/shared/Layouts/AuthLayout";
 import { Toaster } from "react-hot-toast";
 import ScrollToTop from "./components/shared/ui/ScrollToTop";
 
-
-
 const Notfound = lazy(() => import("./Notfound"));
 
 // Pages publiques

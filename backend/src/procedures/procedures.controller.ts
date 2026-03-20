@@ -72,9 +72,16 @@ export class ProceduresController {
   @ApiQuery({ name: 'email', required: false, type: String })
   @ApiQuery({ name: 'destination', required: false, type: String })
   @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({
+    name: 'includeCompleted',
+    required: false,
+    type: Boolean,
+    description: 'Inclure toutes les procédures (y compris terminées)',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Liste paginée des procédures',
+    description:
+      'Liste paginée des procédures (par défaut: en cours et en attente seulement)',
     type: PaginatedProcedureResponseDto,
   })
   async findAll(

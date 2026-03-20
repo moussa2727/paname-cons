@@ -174,6 +174,7 @@ export class ProceduresService {
       email,
       destination,
       includeDeleted = false,
+      includeCompleted = false,
       startDate,
       endDate,
       search,
@@ -187,6 +188,14 @@ export class ProceduresService {
     // Filtres pour admin
     if (currentUser.role !== UserRole.ADMIN) {
       where.email = currentUser.email; // Les utilisateurs normaux voient seulement leurs procédures
+    } else {
+      // Par défaut, l'admin ne voit que les procédures en cours et en attente
+      // Sauf si includeCompleted est true pour voir toutes les procédures
+      if (!status && !includeCompleted) {
+        where.statut = {
+          in: [ProcedureStatus.PENDING, ProcedureStatus.IN_PROGRESS],
+        };
+      }
     }
 
     // Filtres optionnels

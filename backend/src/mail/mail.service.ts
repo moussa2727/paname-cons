@@ -17,8 +17,10 @@ export class MailService {
   private readonly frontendUrl: string;
 
   constructor(private configService: ConfigService) {
-    const emailUser = this.configService.get<string>('EMAIL_USER');
-    const emailPass = this.configService.get<string>('EMAIL_PASS');
+    const emailUser =
+      this.configService.get<string>('EMAIL_USER') || process.env.EMAIL_USER;
+    const emailPass =
+      this.configService.get<string>('EMAIL_PASS') || process.env.EMAIL_PASS;
     this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || '';
 
     if (!emailUser || !emailPass) {
@@ -26,12 +28,13 @@ export class MailService {
     }
 
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
       auth: {
-        user: emailUser || process.env.EMAIL_USER,
-        pass: emailPass || process.env.EMAIL_PASS,
+        user: emailUser,
+        pass: emailPass,
       },
-      tls: { rejectUnauthorized: false },
     });
 
     this.fromEmail = emailUser || '';
@@ -80,7 +83,7 @@ export class MailService {
       this.logger.log('Email envoyé avec succès');
       return { success: true };
     } catch (error) {
-      this.logger.error('Echec d envoi d email');
+      this.logger.error('Echec d envoi d email', (error as Error).message);
       return { success: false, error: (error as Error).message };
     }
   }

@@ -52,6 +52,7 @@ export interface ProcedureFilters {
   destination?: string;
   filiere?: string;
   includeDeleted?: boolean;
+  includeCompleted?: boolean;
 }
 
 export interface ProcedureLoadingState {
@@ -118,6 +119,7 @@ export interface ProcedureQueryDto {
   destination?: string;
   filiere?: string;
   includeDeleted?: boolean;
+  includeCompleted?: boolean;
   startDate?: string;
   endDate?: string;
   search?: string;

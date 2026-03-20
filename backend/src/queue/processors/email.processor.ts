@@ -42,7 +42,11 @@ export class EmailProcessor {
         subject: data.subject,
       };
     } catch (error) {
-      this.logger.error('Erreur envoi email', (error as Error).stack);
+      this.logger.error(
+        'Erreur envoi email',
+        (error as Error).message,
+        (error as Error).stack,
+      );
 
       if (job.attemptsMade >= (job.opts.attempts || 3) - 1) {
         this.logger.log('Échec définitif');

@@ -77,6 +77,15 @@ export class ProcedureQueryDto {
   includeDeleted?: boolean;
 
   @ApiPropertyOptional({
+    description: 'Inclure toutes les procédures (y compris terminées) - pour admin uniquement',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  includeCompleted?: boolean;
+
+  @ApiPropertyOptional({
     description: 'Date de début (YYYY-MM-DD)',
     example: '2024-01-01',
   })

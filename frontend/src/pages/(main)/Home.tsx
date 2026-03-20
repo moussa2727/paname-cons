@@ -66,13 +66,10 @@ const HomePage = () => {
       </Helmet>
       <div className="min-h-screen">
         <Hero />
-
         <AboutSection />
-
         <Valeur />
         <Partners />
         <Contact />
-
         <CtaSection />
       </div>
     </>

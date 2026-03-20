@@ -271,7 +271,7 @@ const Contact: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-3">
             {/* Section informations */}
-            <div className="lg:col-span-1 bg-linear-to-br from-blue-600 to-blue-800 text-white p-8 lg:p-10">
+            <div className="lg:col-span-1 bg-sky-500 text-white p-8 lg:p-10">
               <h2 className="text-2xl font-bold mb-8">Informations</h2>
 
               <div className="space-y-6">
@@ -519,7 +519,7 @@ const Contact: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center space-x-2"
+                  className="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold py-4 px-6 rounded-lg transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center space-x-2"
                 >
                   {isLoading ? (
                     <>

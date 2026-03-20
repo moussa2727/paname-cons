@@ -99,7 +99,7 @@ export const ProcedureValidation = {
     const UUID_RE =
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const NAME_RE = /^[a-zA-ZÀ-ÿ\s\-']+$/;
-    const PHONE_RE = /^\+?[1-9]\d{1,14}$/;
+    const PHONE_RE = /^\+?[1-9][\d\s.-]{8,14}$/;
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if ("rendezVousId" in data) {

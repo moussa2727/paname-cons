@@ -202,6 +202,10 @@ const Procedures = () => {
     setQuery({ sortBy, sortOrder, page: 1 });
   }, [setQuery]);
 
+  const handleIncludeCompleted = useCallback((include: boolean) => {
+    setQuery({ includeCompleted: include, page: 1 });
+  }, [setQuery]);
+
   const handleIncludeDeleted = useCallback((include: boolean) => {
     setQuery({ includeDeleted: include, page: 1 });
   }, [setQuery]);
@@ -310,7 +314,7 @@ const Procedures = () => {
             <p className="text-gray-600">
               {pagination?.total 
                 ? `${pagination.total} procédure${pagination.total > 1 ? 's' : ''} au total`
-                : 'Gérez toutes les procédures d\'immigration'
+                : 'Gérez les procédures en cours et en attente'
               }
             </p>
           </div>
@@ -561,6 +565,20 @@ const Procedures = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Inclure terminées */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="includeCompleted"
+                  checked={query.includeCompleted || false}
+                  onChange={(e) => handleIncludeCompleted(e.target.checked)}
+                  className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
+                />
+                <label htmlFor="includeCompleted" className="text-sm text-gray-700">
+                  Inclure terminées
+                </label>
               </div>
 
               {/* Inclure supprimés */}
