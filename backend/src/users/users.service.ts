@@ -168,14 +168,14 @@ export class UsersService {
       updateUserDto.telephone !== existingUser.telephone
     ) {
       // Normaliser le téléphone (supprimer espaces, points, tirets)
-      const normalizedPhone = updateUserDto.telephone.replace(/[\s.-]/g, "");
-      const normalizedExistingPhone = existingUser.telephone?.replace(/[\s.-]/g, "") || "";
-      
+      const normalizedPhone = updateUserDto.telephone.replace(/[\s.-]/g, '');
+      const normalizedExistingPhone =
+        existingUser.telephone?.replace(/[\s.-]/g, '') || '';
+
       // Si le numéro normalisé est différent, vérifier les conflits
       if (normalizedPhone !== normalizedExistingPhone) {
-        const phoneConflict = await this.usersRepository.findByPhone(
-          normalizedPhone,
-        );
+        const phoneConflict =
+          await this.usersRepository.findByPhone(normalizedPhone);
         if (phoneConflict && phoneConflict.id !== existingUser.id) {
           throw new ConflictException(
             'Un utilisateur avec ce numéro de téléphone existe déjà',
