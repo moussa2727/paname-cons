@@ -12,21 +12,13 @@
  *
  * Cookie frontend : remember_me uniquement (non-httpOnly),
  * géré via document.cookie (API JS native, pas de lib tierce).
- * C'est un signal OPTIONNEL indiquant qu'une session a déjà
- * été ouverte sur ce navigateur.
+ * C'est le SEUL signal lisible en JS/TS indiquant qu'une
+ * session a déjà été ouverte sur ce navigateur.
  *
- * checkAuth NE conditionne PLUS sur remember_me :
- *   → on tente toujours GET /user/profile au montage.
- *   → apiFetch gère le retry 401 → refresh → replay en interne.
- *   → si le refresh échoue, session morte → setUser(null).
- *   → remember_me est supprimé uniquement quand la session est
- *     définitivement morte côté backend (refresh échoué).
- *
- * Raison du changement : sur mobile (Safari ITP, WebView,
- * mode privé), remember_me peut être absent même si une
- * session valide existe côté backend (cookie httpOnly intact).
- * Bloquer checkAuth sur remember_me causait une déconnexion
- * silencieuse à chaque refresh de page sur mobile.
+ * checkAuth utilise remember_me comme garde préalable :
+ *   • remember_me présent  → session potentielle → requête réseau
+ *   • remember_me absent   → jamais connecté sur ce navigateur
+ *                            → setUser(null) immédiat, zéro requête
  *
  * Durées alignées sur auth.constants.ts (backend) :
  *   • access_token          : 15 min  (ACCESS_TOKEN_EXPIRATION_MS)
@@ -105,11 +97,6 @@ const ACCESS_TOKEN_EXPIRES_IN_S = 15 * 60; // 15 min (= expires_in backend)
 //  IMPORTANT : access_token et refresh_token sont httpOnly →
 //  JAMAIS présents dans document.cookie côté JS/TS.
 //  Ne jamais écrire de condition basée sur leur présence.
-//
-//  FIX MOBILE : remember_me est un signal OPTIONNEL. checkAuth
-//  ne bloque plus dessus. Sur Safari/iOS/WebView, ce cookie
-//  peut être absent alors que le refresh_token httpOnly est
-//  encore valide.
 // ─────────────────────────────────────────────────────────────
 
 function getRememberMeCookie(): boolean {
@@ -133,17 +120,8 @@ function setRememberMeCookie(value: boolean, maxAgeSeconds: number): void {
 }
 
 function deleteRememberMeCookie(): void {
-  // FIX : les attributs SameSite=None et Secure doivent correspondre
-  // exactement à ceux utilisés lors de la pose du cookie.
-  // Sans eux, certains navigateurs (Safari mobile, Chrome Android)
-  // ne reconnaissent pas le cookie à supprimer et l'ignorent silencieusement,
-  // laissant un cookie "zombie" qui bloque la logique de checkAuth.
   document.cookie =
-    `${encodeURIComponent("remember_me")}=` +
-    `; path=/` +
-    `; max-age=0` +
-    `; SameSite=None` +
-    `; Secure`;
+    `${encodeURIComponent("remember_me")}=` + `; path=/` + `; max-age=0`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -432,7 +410,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       refreshTokenRef.current = null;
       _refreshTokenValue = null;
       // Le refresh a échoué définitivement → session morte côté backend.
-      // On supprime remember_me pour éviter des requêtes inutiles ultérieures.
+      // On supprime remember_me pour que checkAuth ne retente plus
+      // le backend inutilement au prochain chargement de page.
       deleteRememberMeCookie();
       setUser(null);
       throw err;
@@ -462,22 +441,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // ── checkAuth (mount) ─────────────────────────────────────
   //
-  //  FIX MOBILE : on ne conditionne PLUS sur remember_me.
+  //  Garde préalable sur remember_me (seul cookie lisible en
+  //  JS/TS) avant toute requête réseau :
   //
-  //  Ancien comportement (cassé sur mobile) :
-  //    • remember_me absent → setUser(null) immédiat, zéro requête.
-  //    • Problème : sur Safari iOS / WebView / mode privé, remember_me
-  //      peut être absent même si le cookie httpOnly refresh_token
-  //      est encore valide → déconnexion silencieuse à chaque refresh.
+  //  • remember_me absent → aucune session connue sur ce
+  //    navigateur → setUser(null) + setIsLoading(false)
+  //    immédiat, zéro requête réseau.
   //
-  //  Nouveau comportement :
-  //    • On tente TOUJOURS GET /user/profile au montage.
-  //    • apiFetch gère le retry 401 → refresh → replay en interne.
-  //    • 200 : session valide → setUser().
-  //    • 401 après refresh échoué : session morte → setUser(null)
-  //      + deleteRememberMeCookie().
-  //    • Coût : une requête réseau supplémentaire sur les navigateurs
-  //      sans session active — négligeable face à la fiabilité gagnée.
+  //  • remember_me présent → session potentielle détectée →
+  //    on interroge le backend :
+  //
+  //      1. GET /user/profile (credentials: "include")
+  //           → 200 : session valide, setUser()
+  //           → 401 : apiFetch tente le refresh auto
+  //                   (cookie httpOnly refresh_token envoyé
+  //                    par le navigateur)
+  //                → refresh ok  : rejoue /user/profile, setUser()
+  //                → refresh ko  : session expirée, setUser(null),
+  //                                on supprime remember_me
   //
   //  Les cookies httpOnly (access_token, refresh_token) sont
   //  illisibles en JS/TS — on ne conditionne JAMAIS sur eux.
@@ -486,8 +467,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     let cancelled = false;
 
     const checkAuth = async (): Promise<void> => {
-      // FIX : guard remember_me supprimé — voir commentaire ci-dessus.
-      // On tente toujours le profil ; apiFetch gère le 401 → refresh.
+      const hasPotentialSession = getRememberMeCookie();
+
+      if (!hasPotentialSession) {
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
       try {
         // apiFetch gère le retry 401 → refresh → replay en interne
         const response = await apiFetch(`${API_URL}/user/profile`, {
