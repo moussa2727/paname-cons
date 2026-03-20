@@ -150,7 +150,7 @@ async function bootstrap() {
   });
 
   // =================== SERVICE DU FRONTEND REACT ===================
-  const FRONTEND_DIST = path.join(process.cwd(), '../frontend', 'dist');
+  const FRONTEND_DIST = path.join(__dirname, '..', 'public');
   app.use(
     serveStatic(FRONTEND_DIST, {
       maxAge: process.env.NODE_ENV === 'production' ? '1y' : '1h',
