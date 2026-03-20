@@ -4,6 +4,34 @@ import { useAuth } from "../../../hooks/useAuth";
 import { Helmet } from "react-helmet-async";
 import { pageConfigs } from "../../../components/shared/user/UserHeader.config";
 
+// Fonction de validation du téléphone
+const validatePhoneNumber = (phone: string): boolean => {
+  if (!phone) return true; // Vide est autorisé (optionnel)
+  
+  // Accepte les formats: +33612345678, 0612345678, 06 12 34 56 78
+  const phoneRegex = /^(?:\+33|0)?[1-9](?:[\d\s]{2,4}){3}$/;
+  return phoneRegex.test(phone.replace(/\s/g, ""));
+};
+
+// Fonction de normalisation du téléphone
+const normalizePhoneNumber = (phone: string): string => {
+  if (!phone) return "";
+  
+  // Supprimer tous les caractères non numériques sauf le +
+  let cleaned = phone.replace(/[^\d+]/g, "");
+  
+  // Si le numéro commence par 0 (format français), ajouter +33
+  if (cleaned.startsWith("0") && cleaned.length >= 9) {
+    cleaned = "+33" + cleaned.substring(1);
+  }
+  // Si le numéro n'a pas de + et commence par un autre chiffre, ajouter +
+  else if (!cleaned.startsWith("+") && cleaned.length > 0) {
+    cleaned = "+" + cleaned;
+  }
+  
+  return cleaned;
+};
+
 const MonProfile = () => {
   const { user, updateUser, changePassword } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
@@ -49,7 +77,19 @@ const MonProfile = () => {
 
   const handleSave = async () => {
     try {
-      await updateUser(editedProfile);
+      // Valider le téléphone avant l'envoi
+      if (editedProfile.telephone && !validatePhoneNumber(editedProfile.telephone)) {
+        alert("Format de téléphone invalide. Utilisez: +33612345678 ou 0612345678");
+        return;
+      }
+
+      // Normaliser le téléphone pour le backend
+      const normalizedProfile = {
+        ...editedProfile,
+        telephone: normalizePhoneNumber(editedProfile.telephone),
+      };
+
+      await updateUser(normalizedProfile);
       setIsEditing(false);
       // Forcer la synchronisation avec les nouvelles données de l'utilisateur
       console.log("DEBUG - Mise à jour réussie, synchronisation...");
@@ -280,9 +320,7 @@ const MonProfile = () => {
                         }}
                         disabled={!isEditing}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-none focus:outline-none focus:border-sky-500 hover:border-sky-400 disabled:bg-gray-50 disabled:text-gray-500"
-                        placeholder={
-                          editedProfile.telephone || "Numéro de téléphone"
-                        }
+                        placeholder="Format: +33612345678 ou 0612345678"
                       />
                     </div>
                   </div>
