@@ -1,12 +1,18 @@
+# backend/nixpacks.toml
 [phases.setup]
-nixPkgs = ["nodejs_18", "pnpm"]
- 
+nixPkgs = ["nodejs_18"]
+
 [phases.build]
-cmds = ["cd backend && pnpm install", "cd backend && pnpm run build", "cd backend && pnpm prisma generate"]
- 
+cmds = [
+  "cd backend && npm install -g pnpm",
+  "cd backend && pnpm install",
+  "cd backend && pnpm run build",
+  "cd backend && pnpm prisma generate"
+]
+
 [start]
 cmd = "cd backend && node dist/src/main.js"
- 
+
 [variables]
 NODE_ENV="production"
 PORT="10000"
