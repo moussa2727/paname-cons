@@ -86,13 +86,17 @@ export class AuthController {
 
     // access_token : TOUJOURS 15 minutes — remember_me n'influence jamais l'access token
     response.cookie('access_token', loginResponse.access_token, {
-      ...this.cookieOptions,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none', // ← must be 'none' for cross-origin
       maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_MS,
     });
 
     // refresh_token : 14 jours si remember_me, 7 jours sinon
     response.cookie('refresh_token', loginResponse.refresh_token, {
-      ...this.cookieOptions,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none', // ← must be 'none' for cross-origin
       maxAge: loginResponse.remember_me
         ? AuthConstants.REMEMBER_ME_EXPIRATION_MS
         : AuthConstants.REFRESH_TOKEN_EXPIRATION_MS,
@@ -135,13 +139,17 @@ export class AuthController {
 
     // access_token : TOUJOURS 15 minutes
     response.cookie('access_token', result.access_token, {
-      ...this.cookieOptions,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none', // ← must be 'none' for cross-origin
       maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_MS,
     });
 
     // refresh_token : maxAge selon isRememberMe hérité de la base
     response.cookie('refresh_token', result.refresh_token, {
-      ...this.cookieOptions,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none', // ← must be 'none' for cross-origin
       maxAge: result.isRememberMe
         ? AuthConstants.REMEMBER_ME_EXPIRATION_MS
         : AuthConstants.REFRESH_TOKEN_EXPIRATION_MS,
