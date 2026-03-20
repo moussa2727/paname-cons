@@ -149,8 +149,7 @@ async function bootstrap() {
     next();
   });
 
-  // =================== SERVICE DU FRONTEND ===================
-  // ==================== FRONTEND REACT ====================
+  // =================== SERVICE DU FRONTEND REACT ===================
   const FRONTEND_DIST = path.join(process.cwd(), '../frontend', 'dist');
   app.use(
     serveStatic(FRONTEND_DIST, {
@@ -192,7 +191,6 @@ async function bootstrap() {
     res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
     res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
   });
-  
   // ==================== GRACEFUL SHUTDOWN ====================
   async function gracefulShutdown() {
     try {

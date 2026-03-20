@@ -58,8 +58,7 @@ const ProcedureDetail = lazy(
   () => import("./pages/gestionnaire/procedures/[id]"),
 );
 
-// NotFound
-const NotFound = lazy(() => import("./pages/NotFound").then(module => ({ default: module.default })));
+import NotFound from "./pages/NotFound";
 
 // ─── App : fournit le Router et le Toaster ──────────────────────────────────
 function App() {
