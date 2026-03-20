@@ -36,6 +36,7 @@ import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter'
 // Configuration
 import configuration from './config/configuration';
 import { APP_GUARD, APP_PIPE, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -112,7 +113,7 @@ import { APP_GUARD, APP_PIPE, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
     UploadModule,
   ],
 
-  controllers: [],
+  controllers: [AppController],
 
   providers: [
     // ==================== GUARDS GLOBAUX (ordre important) ====================
