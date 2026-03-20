@@ -1,25 +1,33 @@
 [build]
 builder = "NIXPACKS"
+buildCommand = "cd backend && npm install && npm run build"
+watchPatterns = ["backend/src/**", "backend/prisma/**"]
+
+[deploy]
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+startCommand = "cd backend && node dist/src/main.js"
 
 [env]
-NODE_ENV = "production"
-PORT = "10000"
-HOST = "0.0.0.0"
+NODE_ENV="production"
+PORT="10000"
+HOST="0.0.0.0"
 
 # Database
-DATABASE_URL = "${{DATABASE_URL}}"
+DATABASE_URL="${{DATABASE_URL}}"
 
 # Redis (si utilisé)
-REDIS_URL = "${{REDIS_URL}}"
+REDIS_URL="${{REDIS_URL}}"
 
 # JWT
-JWT_SECRET = "${{JWT_SECRET}}"
-JWT_REFRESH_SECRET = "${{JWT_REFRESH_SECRET}}"
-JWT_EXPIRATION = "15m"
-JWT_REFRESH_EXPIRATION = "7d"
+JWT_SECRET="${{JWT_SECRET}}"
+JWT_REFRESH_SECRET="${{JWT_REFRESH_SECRET}}"
+JWT_EXPIRATION="15m"
+JWT_REFRESH_EXPIRATION="7d"
 
 # Cookies
-COOKIE_SECRET = "${{COOKIE_SECRET}}"
+COOKIE_SECRET="${{COOKIE_SECRET}}"
 
 # Cloudinary (pour les uploads)
 CLOUDINARY_CLOUD_NAME = "${{CLOUDINARY_CLOUD_NAME}}"

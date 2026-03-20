@@ -1,0 +1,13 @@
+[phases.setup]
+nixPkgs = ["nodejs_18", "pnpm"]
+
+[phases.build]
+cmds = ["pnpm install", "pnpm run build", "pnpm prisma generate"]
+
+[start]
+cmd = "node dist/src/main.js"
+
+[variables]
+NODE_ENV="production"
+PORT="10000"
+HOST="0.0.0.0"
