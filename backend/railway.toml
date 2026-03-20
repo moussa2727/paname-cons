@@ -1,0 +1,41 @@
+[build]
+builder = "NIXPACKS"
+
+[env]
+NODE_ENV = "production"
+PORT = "10000"
+HOST = "0.0.0.0"
+
+# Database
+DATABASE_URL = "${{DATABASE_URL}}"
+
+# Redis (si utilisé)
+REDIS_URL = "${{REDIS_URL}}"
+
+# JWT
+JWT_SECRET = "${{JWT_SECRET}}"
+JWT_REFRESH_SECRET = "${{JWT_REFRESH_SECRET}}"
+JWT_EXPIRATION = "15m"
+JWT_REFRESH_EXPIRATION = "7d"
+
+# Cookies
+COOKIE_SECRET = "${{COOKIE_SECRET}}"
+
+# Cloudinary (pour les uploads)
+CLOUDINARY_CLOUD_NAME = "${{CLOUDINARY_CLOUD_NAME}}"
+CLOUDINARY_API_KEY = "${{CLOUDINARY_API_KEY}}"
+CLOUDINARY_API_SECRET = "${{CLOUDINARY_API_SECRET}}"
+
+# Email (Nodemailer)
+EMAIL_HOST = "${{EMAIL_HOST}}"
+EMAIL_PORT = "${{EMAIL_PORT}}"
+EMAIL_USER = "${{EMAIL_USER}}"
+EMAIL_PASS = "${{EMAIL_PASS}}"
+EMAIL_FROM = "${{EMAIL_FROM}}"
+
+# Rate limiting
+THROTTLE_TTL = "60"
+THROTTLE_LIMIT = "100"
+
+# Domain pour CORS
+DOMAIN = "${{RAILWAY_PUBLIC_DOMAIN}}"
