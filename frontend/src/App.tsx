@@ -17,7 +17,7 @@ import ScrollToTop from "./components/shared/ui/ScrollToTop";
 
 
 
-const Notfound = lazy(() => import("./pages/NotFound"));
+const Notfound = lazy(() => import("./Notfound"));
 
 // Pages publiques
 const Home = lazy(() => import("./pages/(main)/Home"));
