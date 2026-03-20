@@ -18,7 +18,7 @@ services:
     depends_on:
       - postgres
     environment:
-      DATABASE_URL: postgresql://postgres:fXLfojVGjUGRXhkGcPjgqlJGFVBfIWAK@postgres:5432/panameconsultingDb?schema=public
+      DATABASE_URL: postgresql://postgres:iByZAAedmCwNNDKkuxjyVQuEnGswpDGR@ballast.proxy.rlwy.net:41731/panameconsultingDb
 
 volumes:
   postgres_data:
