@@ -13,6 +13,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { JsonExceptionFilter } from './common/filters/json-exception.filter';
 import { LoggingMiddleware } from './common/middlewares/logging.middleware';
+import * as serveStatic from 'serve-static';
 
 const corsOrigins =
   process.env.NODE_ENV === 'production'
@@ -148,6 +149,50 @@ async function bootstrap() {
     next();
   });
 
+  // =================== SERVICE DU FRONTEND ===================
+  // ==================== FRONTEND REACT ====================
+  const FRONTEND_DIST = path.join(process.cwd(), '../frontend', 'dist');
+  app.use(
+    serveStatic(FRONTEND_DIST, {
+      maxAge: process.env.NODE_ENV === 'production' ? '1y' : '1h',
+      etag: true,
+      lastModified: true,
+      setHeaders: (res: Response, filePath: string) => {
+        if (/\.(js|css)$/.test(filePath)) {
+          res.setHeader(
+            'Cache-Control',
+            process.env.NODE_ENV === 'production'
+              ? 'public, max-age=31536000, immutable'
+              : 'public, max-age=3600',
+          );
+        } else if (/\.(png|jpg|jpeg|webp|avif)$/.test(filePath)) {
+          res.setHeader(
+            'Cache-Control',
+            process.env.NODE_ENV === 'production'
+              ? 'public, max-age=2592000, immutable'
+              : 'public, max-age=3600',
+          );
+        } else if (/\.(svg|ico)$/.test(filePath)) {
+          res.setHeader(
+            'Cache-Control',
+            process.env.NODE_ENV === 'production'
+              ? 'public, max-age=86400'
+              : 'public, max-age=3600',
+          );
+        }
+      },
+    }),
+  );
+
+  // Catch-all React Router
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      return next();
+    }
+    res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
+  });
+  
   // ==================== GRACEFUL SHUTDOWN ====================
   async function gracefulShutdown() {
     try {

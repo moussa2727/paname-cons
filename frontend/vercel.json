@@ -8,7 +8,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://paname-consulting.vercel.app/api/$1"
+      "destination": "https://paname-consulting.up.railway.app/api/$1"
     },
     {
       "source": "/(.*)",
