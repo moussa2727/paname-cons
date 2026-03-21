@@ -167,17 +167,16 @@ export class UsersService {
       updateUserDto.telephone &&
       updateUserDto.telephone !== existingUser.telephone
     ) {
-      // Normaliser le téléphone avec la même méthode que le repository
-      const normalizedPhone = updateUserDto.telephone.replace(/[^\d+]/g, '');
+      // Normaliser le téléphone (supprimer espaces, points, tirets)
+      const normalizedPhone = updateUserDto.telephone.replace(/[\s.-]/g, '');
       const normalizedExistingPhone =
-        existingUser.telephone?.replace(/[^\d+]/g, '') || '';
+        existingUser.telephone?.replace(/[\s.-]/g, '') || '';
 
       // Si le numéro normalisé est différent, vérifier les conflits
       if (normalizedPhone !== normalizedExistingPhone) {
         // Utiliser la méthode existante qui fait déjà la recherche flexible
         const phoneConflict =
           await this.usersRepository.findByPhone(normalizedPhone);
-
         // Permettre la mise à jour SI c'est le même utilisateur (même ID)
         // OU si le numéro n'existe pas pour un autre utilisateur
         if (phoneConflict && phoneConflict.id !== existingUser.id) {
@@ -251,19 +250,16 @@ export class UsersService {
       updateUserDto.telephone &&
       updateUserDto.telephone !== existingUser.telephone
     ) {
-      // Normaliser le téléphone avec la même méthode que le repository
-      const normalizedPhone = updateUserDto.telephone.replace(/[^\d+]/g, '');
+      // Normaliser le téléphone (supprimer espaces, points, tirets)
+      const normalizedPhone = updateUserDto.telephone.replace(/[\s.-]/g, '');
       const normalizedExistingPhone =
-        existingUser.telephone?.replace(/[^\d+]/g, '') || '';
+        existingUser.telephone?.replace(/[\s.-]/g, '') || '';
 
       // Si le numéro normalisé est différent, vérifier les conflits
       if (normalizedPhone !== normalizedExistingPhone) {
         // Utiliser la méthode existante qui fait déjà la recherche flexible
         const phoneConflict =
           await this.usersRepository.findByPhone(normalizedPhone);
-
-        // Permettre la mise à jour SI c'est le même utilisateur (même ID)
-        // OU si le numéro n'existe pas pour un autre utilisateur
         if (phoneConflict && phoneConflict.id !== existingUser.id) {
           throw new ConflictException(
             'Un utilisateur avec ce numéro de téléphone existe déjà',

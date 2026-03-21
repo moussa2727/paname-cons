@@ -8,8 +8,8 @@ import { toast } from "react-hot-toast";
 // Fonction de validation du téléphone (mondial - tous formats)
 const validatePhoneNumber = (phone: string): boolean => {
   if (!phone) return true; // Vide est autorisé
-  // Accepte TOUS les formats : +33 6 12 34 56 78, 06 12 34 56 78, +22374972438, (0)1 23 45 67 89, etc.
-  const globalPhoneRegex = /^(\+?[0-9][\d\s\-.()]{7,20})$/;
+  // Accepte TOUS les formats mondiaux avec plus de caractères possibles
+  const globalPhoneRegex = /^(\+?[0-9][\d\s\-.()]{7,25})$/;
   const isValid = globalPhoneRegex.test(phone);
   return isValid;
 };
@@ -119,7 +119,7 @@ const MonProfile = () => {
       // Valider le téléphone avant l'envoi (validation stricte uniquement à la sauvegarde)
       if (editedProfile.telephone) {
         if (!validatePhoneNumber(editedProfile.telephone)) {
-          toast.error("Format de téléphone invalide. Accepté: +33 6 12 34 56 78, 06 12 34 56 78, +223 7 49 72 438, (0)1 23 45 67 89, etc.");
+          toast.error("Format de téléphone invalide. Accepté: tous formats internationaux (+33 6 12 34 56 78, 06 12 34 56 78, +223 7 49 72 438, (0)1 23 45 67 89, etc.)");
           return;
         }
       }

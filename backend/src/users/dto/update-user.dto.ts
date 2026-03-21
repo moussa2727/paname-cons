@@ -48,9 +48,9 @@ export class UpdateUserDto extends PartialType(
   })
   @IsOptional()
   @IsString({ message: 'Le téléphone doit être une chaîne de caractères' })
-  @Matches(/^(\+?[0-9][\d\s\-\\.\\()]{7,20})$/, {
+  @Matches(/^(\+?[0-9][\d\s\-.()]{7,25})$/, {
     message:
-      'Format de téléphone invalide. Accepté: +33 6 12 34 56 78, 06 12 34 56 78, +223 7 49 72 438, (0)1 23 45 67 89, etc.',
+      'Format de téléphone invalide. Accepté: tous formats internationaux (+33 6 12 34 56 78, 06 12 34 56 78, +223 7 49 72 438, (0)1 23 45 67 89, etc.)',
   })
   telephone?: string;
 }
@@ -76,9 +76,9 @@ export class UpdateProfileDto {
   })
   @IsOptional()
   @IsString({ message: 'Le téléphone doit être une chaîne de caractères' })
-  @Matches(/^(\+?[0-9][\d\s\-.()]{7,20})$/, {
+  @Matches(/^(\+?[0-9][\d\s\-.()]{7,25})$/, {
     message:
-      'Format de téléphone invalide. Accepté: +33 6 12 34 56 78, 06 12 34 56 78, +223 7 49 72 438, (0)1 23 45 67 89, etc.',
+      'Format de téléphone invalide. Accepté: tous formats internationaux (+33 6 12 34 56 78, 06 12 34 56 78, +223 7 49 72 438, (0)1 23 45 67 89, etc.)',
   })
   telephone?: string;
 }

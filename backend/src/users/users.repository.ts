@@ -75,45 +75,78 @@ export class UsersRepository {
   }
 
   async findByPhone(telephone: string): Promise<User | null> {
-    // Normalisation agressive : garder uniquement chiffres et +
-    const normalizedPhone = telephone.replace(/[^\d+]/g, '');
+    // Normalisation identique au service pour éviter les incohérences
+    const normalizedPhone = telephone.replace(/[\s.-]/g, '');
 
-    // Créer les variations possibles du numéro pour la recherche
-    const searchVariations = [
-      normalizedPhone, // Format normalisé
-      telephone, // Format original
+    // Approche ultra-permissive : chercher avec plusieurs stratégies
+    const searchStrategies = [
+      // 1. Recherche exacte (format normalisé)
+      normalizedPhone,
+
+      // 2. Recherche format original
+      telephone,
+
+      // 3. Recherche sans le + (pour les formats internationaux)
+      normalizedPhone.startsWith('+') ? normalizedPhone.substring(1) : null,
+
+      // 4. Recherche avec + ajouté (pour les formats locaux)
+      !normalizedPhone.startsWith('+') && normalizedPhone.length > 0
+        ? `+${normalizedPhone}`
+        : null,
     ];
 
-    // Ajouter des variations avec espaces pour les formats français
-    if (normalizedPhone.match(/^\+?\d{9,15}$/)) {
+    // 5. Variations françaises spécifiques
+    if (normalizedPhone.startsWith('0') && normalizedPhone.length >= 9) {
+      // Format français: 06 12 34 56 78 → +33 6 12 34 56 78
+      searchStrategies.push(`+33${normalizedPhone.substring(1)}`);
+    } else if (
+      normalizedPhone.startsWith('+33') &&
+      normalizedPhone.length >= 11
+    ) {
+      // Format international: +33 6 12 34 56 78 → 06 12 34 56 78
+      const frenchNumber = normalizedPhone.replace('+33', '0');
+      if (frenchNumber.length === 10) {
+        searchStrategies.push(frenchNumber);
+      }
+    }
+
+    // 6. Variations avec espaces pour les formats longs
+    if (normalizedPhone.length >= 10) {
+      // Ajouter des variations avec espaces pour les formats internationaux
       const digitsOnly = normalizedPhone.replace(/^\+?/, '');
+
+      // Formats avec espaces pour numéros longs
       if (digitsOnly.length >= 9) {
-        // Format français avec espaces: 06 12 34 56 78
-        if (digitsOnly.startsWith('0')) {
-          searchVariations.push(
+        // Format international avec espaces
+        if (normalizedPhone.startsWith('+')) {
+          const countryCode = digitsOnly.substring(0, 2);
+          const phoneNumber = digitsOnly.substring(2);
+          if (phoneNumber.length >= 7) {
+            searchStrategies.push(`+${countryCode} ${phoneNumber}`);
+          }
+        }
+
+        // Format local avec espaces
+        if (digitsOnly.startsWith('0') && digitsOnly.length >= 10) {
+          searchStrategies.push(
             digitsOnly.replace(
               /(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/,
               '$1 $2 $3 $4 $5',
             ),
           );
         }
-        // Format international avec espaces: +33 6 12 34 56 78
-        else if (normalizedPhone.startsWith('+')) {
-          const countryCode = digitsOnly.substring(0, 2);
-          const phoneNumber = digitsOnly.substring(2);
-          if (phoneNumber.length >= 9) {
-            searchVariations.push(
-              `+${countryCode} ${phoneNumber.replace(/(\d{1})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5')}`,
-            );
-          }
-        }
       }
     }
 
-    // Rechercher avec toutes les variations
+    // Filtrer les valeurs null et créer un array unique
+    const uniqueSearchTerms = [
+      ...new Set(searchStrategies.filter((term) => term !== null)),
+    ];
+
+    // Rechercher avec toutes les stratégies
     const users = await this.prisma.user.findMany({
       where: {
-        telephone: { in: searchVariations },
+        telephone: { in: uniqueSearchTerms },
         isDeleted: false,
       },
       take: 1,
