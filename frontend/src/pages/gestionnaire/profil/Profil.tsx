@@ -15,6 +15,25 @@ import { useAuth } from "../../../hooks/useAuth";
 import type { UpdateProfileParams } from "../../../types/user.types";
 import { toast } from "react-hot-toast";
 
+// Fonction de normalisation du téléphone (identique au backend)
+const normalizePhoneNumber = (phone: string): string => {
+  if (!phone) return "";
+  
+  // Normalisation IDENTIQUE au backend : supprimer espaces, points, tirets
+  let cleaned = phone.replace(/[\s.-]/g, '');
+  
+  // Si le numéro commence par 0 (format français), ajouter +33
+  if (cleaned.startsWith("0") && cleaned.length >= 9) {
+    cleaned = "+33" + cleaned.substring(1);
+  }
+  // Si le numéro n'a pas de + et commence par un autre chiffre, ajouter +
+  else if (!cleaned.startsWith("+") && cleaned.length > 0) {
+    cleaned = "+" + cleaned;
+  }
+  
+  return cleaned;
+};
+
 // Fonction de formatage automatique du téléphone pendant la saisie
 const formatPhoneNumber = (phone: string): string => {
   if (!phone) return "";
@@ -113,7 +132,7 @@ interface ProfileForm {
     const params: UpdateProfileParams = {
       firstName: formData.firstName,
       lastName: formData.lastName,
-      telephone: formData.telephone,
+      telephone: normalizePhoneNumber(formData.telephone),
     };
 
     await updateUser(params);

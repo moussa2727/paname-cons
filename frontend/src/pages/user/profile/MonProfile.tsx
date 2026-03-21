@@ -11,7 +11,6 @@ const validatePhoneNumber = (phone: string): boolean => {
   // Accepte TOUS les formats : +33 6 12 34 56 78, 06 12 34 56 78, +22374972438, (0)1 23 45 67 89, etc.
   const globalPhoneRegex = /^(\+?[0-9][\d\s\-.()]{7,20})$/;
   const isValid = globalPhoneRegex.test(phone);
-  console.log('DEBUG validation téléphone:', { phone, isValid, note: 'Global - tous formats' });
   return isValid;
 };
 
@@ -53,12 +52,12 @@ const formatPhoneNumber = (phone: string): string => {
   return phone;
 };
 
-// Fonction de normalisation du téléphone
+// Fonction de normalisation du téléphone (identique au backend)
 const normalizePhoneNumber = (phone: string): string => {
   if (!phone) return "";
   
-  // Supprimer tous les caractères non numériques sauf le +
-  let cleaned = phone.replace(/[^\d+]/g, "");
+  // Normalisation IDENTIQUE au backend : supprimer espaces, points, tirets
+  let cleaned = phone.replace(/[\s.-]/g, '');
   
   // Si le numéro commence par 0 (format français), ajouter +33
   if (cleaned.startsWith("0") && cleaned.length >= 9) {
