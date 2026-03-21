@@ -6,7 +6,6 @@ import * as cookieParser from 'cookie-parser';
 import * as compression from 'compression';
 import * as helmet from 'helmet';
 import { PrismaService } from './prisma/prisma.service';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { JsonExceptionFilter } from './common/filters/json-exception.filter';
 
@@ -125,11 +124,7 @@ async function bootstrap() {
   );
 
   // ==================== FILTRES ====================
-  app.useGlobalFilters(
-    new JsonExceptionFilter(),
-    new PrismaExceptionFilter(),
-    new HttpExceptionFilter(),
-  );
+  app.useGlobalFilters(new JsonExceptionFilter(), new PrismaExceptionFilter());
   // ==================== GRACEFUL SHUTDOWN ====================
   async function gracefulShutdown() {
     try {
