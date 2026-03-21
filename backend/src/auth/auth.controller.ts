@@ -43,17 +43,6 @@ import { LoginResponseDto } from './dto/login-response.dto';
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
-  // Options communes pour la pose et la suppression des cookies httpOnly
-  private readonly cookieOptions = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite:
-      process.env.NODE_ENV === 'production'
-        ? ('none' as const)
-        : ('lax' as const),
-    path: '/',
-  };
-
   constructor(private readonly authService: AuthService) {}
 
   @Public()
@@ -87,7 +76,7 @@ export class AuthController {
     // access_token : TOUJOURS 15 minutes — remember_me n'influence jamais l'access token
     response.cookie('access_token', loginResponse.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true, // ← toujours true pour sameSite=none
       sameSite: 'none', // ← must be 'none' for cross-origin
       maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_MS,
     });
@@ -95,7 +84,7 @@ export class AuthController {
     // refresh_token : 14 jours si remember_me, 7 jours sinon
     response.cookie('refresh_token', loginResponse.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true, // ← toujours true pour sameSite=none
       sameSite: 'none', // ← must be 'none' for cross-origin
       maxAge: loginResponse.remember_me
         ? AuthConstants.REMEMBER_ME_EXPIRATION_MS
@@ -140,7 +129,7 @@ export class AuthController {
     // access_token : TOUJOURS 15 minutes
     response.cookie('access_token', result.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true, // ← toujours true pour sameSite=none
       sameSite: 'none', // ← must be 'none' for cross-origin
       maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_MS,
     });
@@ -148,7 +137,7 @@ export class AuthController {
     // refresh_token : maxAge selon isRememberMe hérité de la base
     response.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true, // ← toujours true pour sameSite=none
       sameSite: 'none', // ← must be 'none' for cross-origin
       maxAge: result.isRememberMe
         ? AuthConstants.REMEMBER_ME_EXPIRATION_MS
@@ -176,8 +165,18 @@ export class AuthController {
     this.logger.log('POST /auth/logout -> 200');
     await this.authService.logout(user.id, logoutDto.refresh_token);
 
-    response.clearCookie('access_token', this.cookieOptions);
-    response.clearCookie('refresh_token', this.cookieOptions);
+    response.clearCookie('access_token', {
+      httpOnly: true,
+      secure: true, // ← toujours true pour sameSite=none
+      sameSite: 'none',
+      path: '/',
+    });
+    response.clearCookie('refresh_token', {
+      httpOnly: true,
+      secure: true, // ← toujours true pour sameSite=none
+      sameSite: 'none',
+      path: '/',
+    });
 
     return { message: 'Déconnexion réussie' };
   }
@@ -196,8 +195,18 @@ export class AuthController {
     this.logger.log('POST /admin/auth/logout-all -> 200');
     const result = await this.authService.logoutAll(user.id);
 
-    response.clearCookie('access_token', this.cookieOptions);
-    response.clearCookie('refresh_token', this.cookieOptions);
+    response.clearCookie('access_token', {
+      httpOnly: true,
+      secure: true, // ← toujours true pour sameSite=none
+      sameSite: 'none',
+      path: '/',
+    });
+    response.clearCookie('refresh_token', {
+      httpOnly: true,
+      secure: true, // ← toujours true pour sameSite=none
+      sameSite: 'none',
+      path: '/',
+    });
 
     return result;
   }
