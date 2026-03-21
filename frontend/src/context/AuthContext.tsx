@@ -881,10 +881,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(updatedUser);
       toast.success("Profil mis à jour avec succès");
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de la mise à jour du profil";
+      let message = "Erreur lors de la mise à jour du profil";
+      
+      if (error instanceof Error) {
+        // Gérer les erreurs spécifiques du backend
+        if (error.message.includes('Un utilisateur avec cet email existe déjà')) {
+          message = "Cet email est déjà utilisé par un autre utilisateur";
+        } else if (error.message.includes('Un utilisateur avec ce numéro de téléphone existe déjà')) {
+          message = "Ce numéro de téléphone est déjà utilisé par un autre utilisateur";
+        } else if (error.message.includes("L'email du compte administrateur principal ne peut pas être modifié")) {
+          message = "L'email administrateur principal ne peut pas être modifié";
+        } else {
+          message = error.message;
+        }
+      }
+      
       toast.error(message);
       throw error;
     }

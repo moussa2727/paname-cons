@@ -163,14 +163,28 @@ export class UsersService {
       }
     }
 
-    // Vérifier les conflits de téléphone avec une meilleure normalisation
+    // Vérifier les conflits de téléphone avec normalisation IDENTIQUE au frontend
     if (
       updateUserDto.telephone &&
       updateUserDto.telephone !== existingUser.telephone
     ) {
-      // Normaliser le téléphone en supprimant tous les caractères non numériques sauf le +
-      const normalizePhone = (phone: string) => {
-        return phone.replace(/[^\d+]/g, '');
+      // Normalisation IDENTIQUE au frontend
+      const normalizePhone = (phone: string): string => {
+        if (!phone) return '';
+
+        // Normalisation IDENTIQUE au frontend : supprimer espaces, points, tirets
+        let cleaned = phone.replace(/[\s.-]/g, '');
+
+        // Si le numéro commence par 0 (format français), ajouter +33
+        if (cleaned.startsWith('0') && cleaned.length >= 9) {
+          cleaned = '+33' + cleaned.substring(1);
+        }
+        // Si le numéro n'a pas de + et commence par un autre chiffre, ajouter +
+        else if (!cleaned.startsWith('+') && cleaned.length > 0) {
+          cleaned = '+' + cleaned;
+        }
+
+        return cleaned;
       };
 
       const normalizedNewPhone = normalizePhone(updateUserDto.telephone);
