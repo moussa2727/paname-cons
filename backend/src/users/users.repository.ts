@@ -75,78 +75,38 @@ export class UsersRepository {
   }
 
   async findByPhone(telephone: string): Promise<User | null> {
-    // Normalisation identique au service pour éviter les incohérences
-    const normalizedPhone = telephone.replace(/[\s.-]/g, '');
+    // Normalisation IDENTIQUE au service users pour éviter les conflits
+    const normalizePhone = (phone: string): string => {
+      if (!phone) return '';
 
-    // Approche ultra-permissive : chercher avec plusieurs stratégies
-    const searchStrategies = [
-      // 1. Recherche exacte (format normalisé)
-      normalizedPhone,
+      // Normalisation IDENTIQUE au service et frontend : supprimer espaces, points, tirets
+      let cleaned = phone.replace(/[\s.-]/g, '');
 
-      // 2. Recherche format original
-      telephone,
-
-      // 3. Recherche sans le + (pour les formats internationaux)
-      normalizedPhone.startsWith('+') ? normalizedPhone.substring(1) : null,
-
-      // 4. Recherche avec + ajouté (pour les formats locaux)
-      !normalizedPhone.startsWith('+') && normalizedPhone.length > 0
-        ? `+${normalizedPhone}`
-        : null,
-    ];
-
-    // 5. Variations françaises spécifiques
-    if (normalizedPhone.startsWith('0') && normalizedPhone.length >= 9) {
-      // Format français: 06 12 34 56 78 → +33 6 12 34 56 78
-      searchStrategies.push(`+33${normalizedPhone.substring(1)}`);
-    } else if (
-      normalizedPhone.startsWith('+33') &&
-      normalizedPhone.length >= 11
-    ) {
-      // Format international: +33 6 12 34 56 78 → 06 12 34 56 78
-      const frenchNumber = normalizedPhone.replace('+33', '0');
-      if (frenchNumber.length === 10) {
-        searchStrategies.push(frenchNumber);
+      // Si le numéro commence par 0 (format français), ajouter +33
+      if (cleaned.startsWith('0') && cleaned.length >= 9) {
+        cleaned = '+33' + cleaned.substring(1);
       }
-    }
-
-    // 6. Variations avec espaces pour les formats longs
-    if (normalizedPhone.length >= 10) {
-      // Ajouter des variations avec espaces pour les formats internationaux
-      const digitsOnly = normalizedPhone.replace(/^\+?/, '');
-
-      // Formats avec espaces pour numéros longs
-      if (digitsOnly.length >= 9) {
-        // Format international avec espaces
-        if (normalizedPhone.startsWith('+')) {
-          const countryCode = digitsOnly.substring(0, 2);
-          const phoneNumber = digitsOnly.substring(2);
-          if (phoneNumber.length >= 7) {
-            searchStrategies.push(`+${countryCode} ${phoneNumber}`);
-          }
-        }
-
-        // Format local avec espaces
-        if (digitsOnly.startsWith('0') && digitsOnly.length >= 10) {
-          searchStrategies.push(
-            digitsOnly.replace(
-              /(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/,
-              '$1 $2 $3 $4 $5',
-            ),
-          );
-        }
+      // Si le numéro n'a pas de + et commence par un autre chiffre, ajouter +
+      else if (!cleaned.startsWith('+') && cleaned.length > 0) {
+        cleaned = '+' + cleaned;
       }
-    }
 
-    // Filtrer les valeurs null et créer un array unique
-    const uniqueSearchTerms = [
-      ...new Set(searchStrategies.filter((term) => term !== null)),
-    ];
+      return cleaned;
+    };
 
-    // Rechercher avec toutes les stratégies
+    const normalizedPhone = normalizePhone(telephone);
+
+    // Rechercher avec la normalisation standard et quelques variations courantes
+    const searchVariations = [
+      normalizedPhone, // Format normalisé principal
+      telephone, // Format original
+      normalizedPhone.startsWith('+') ? normalizedPhone.substring(1) : null, // Sans +
+    ].filter((term) => term !== null);
+
+    // Rechercher avec toutes les variations
     const users = await this.prisma.user.findMany({
       where: {
-        telephone: { in: uniqueSearchTerms },
+        telephone: { in: searchVariations },
         isDeleted: false,
       },
       take: 1,
@@ -309,8 +269,26 @@ export class UsersRepository {
   }
 
   async search(query: string, limit: number = 10): Promise<User[]> {
-    // Normaliser la requête pour la recherche de téléphone
-    const normalizedQuery = query.replace(/[\s.-]/g, '');
+    // Normalisation IDENTIQUE au service pour la recherche de téléphone
+    const normalizePhone = (phone: string): string => {
+      if (!phone) return '';
+
+      // Normalisation IDENTIQUE au service et frontend : supprimer espaces, points, tirets
+      let cleaned = phone.replace(/[\s.-]/g, '');
+
+      // Si le numéro commence par 0 (format français), ajouter +33
+      if (cleaned.startsWith('0') && cleaned.length >= 9) {
+        cleaned = '+33' + cleaned.substring(1);
+      }
+      // Si le numéro n'a pas de + et commence par un autre chiffre, ajouter +
+      else if (!cleaned.startsWith('+') && cleaned.length > 0) {
+        cleaned = '+' + cleaned;
+      }
+
+      return cleaned;
+    };
+
+    const normalizedQuery = normalizePhone(query);
 
     return this.prisma.user.findMany({
       where: {
