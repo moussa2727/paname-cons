@@ -174,8 +174,11 @@ export class UsersService {
 
       // Si le numéro normalisé est différent, vérifier les conflits
       if (normalizedPhone !== normalizedExistingPhone) {
+        // Utiliser la méthode existante qui fait déjà la recherche flexible
         const phoneConflict =
           await this.usersRepository.findByPhone(normalizedPhone);
+        // Permettre la mise à jour SI c'est le même utilisateur (même ID)
+        // OU si le numéro n'existe pas pour un autre utilisateur
         if (phoneConflict && phoneConflict.id !== existingUser.id) {
           throw new ConflictException(
             'Un utilisateur avec ce numéro de téléphone existe déjà',
@@ -236,15 +239,37 @@ export class UsersService {
       telephone: updateProfileDto.telephone,
     };
 
-    // Pour le profil admin, on autorise la mise à jour sans vérifier les conflits
-    // car l'utilisateur met à jour son propre profil
+    // Vérifier si l'utilisateur existe
     const existingUser = await this.usersRepository.findById(id);
     if (!existingUser) {
       throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
     }
 
-    // Pas de vérification de conflit pour le propre profil admin
-    // L'utilisateur peut conserver son email et téléphone actuel
+    // Vérifier les conflits de téléphone (même logique que update normal)
+    if (
+      updateUserDto.telephone &&
+      updateUserDto.telephone !== existingUser.telephone
+    ) {
+      // Normaliser le téléphone (supprimer espaces, points, tirets)
+      const normalizedPhone = updateUserDto.telephone.replace(/[\s.-]/g, '');
+      const normalizedExistingPhone =
+        existingUser.telephone?.replace(/[\s.-]/g, '') || '';
+
+      // Si le numéro normalisé est différent, vérifier les conflits
+      if (normalizedPhone !== normalizedExistingPhone) {
+        // Utiliser la méthode existante qui fait déjà la recherche flexible
+        const phoneConflict =
+          await this.usersRepository.findByPhone(normalizedPhone);
+
+        // Permettre la mise à jour SI c'est le même utilisateur (même ID)
+        // OU si le numéro n'existe pas pour un autre utilisateur
+        if (phoneConflict && phoneConflict.id !== existingUser.id) {
+          throw new ConflictException(
+            'Un utilisateur avec ce numéro de téléphone existe déjà',
+          );
+        }
+      }
+    }
 
     // Hasher le mot de passe si fourni
     const updateData = { ...updateUserDto };

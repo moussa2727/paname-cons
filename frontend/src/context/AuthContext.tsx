@@ -810,6 +810,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // ── updateAdminProfile ─────────────────────────────────────
+  //  Met à jour le profil admin (endpoint /admin/profile)
+  //  N'accepte pas l'email pour des raisons de sécurité
+  const updateAdminProfile = async (patch: Partial<AppUser>): Promise<void> => {
+    try {
+      // Créer un patch sans email ni password pour correspondre à UpdateProfileDto
+      // Type sécurisé correspondant à UpdateProfileDto
+      type AdminPatch = {
+        firstName?: string;
+        lastName?: string;
+        telephone?: string;
+      };
+      
+      const adminPatch: AdminPatch = {};
+      
+      // Ajouter uniquement les champs autorisés pour UpdateProfileDto
+      if (patch.firstName) adminPatch.firstName = patch.firstName;
+      if (patch.lastName) adminPatch.lastName = patch.lastName;
+      if (patch.telephone) adminPatch.telephone = patch.telephone;
+      
+      const response = await apiFetch(`${API_URL}/admin/profile`, {
+        method: "PATCH",
+        body: JSON.stringify(adminPatch),
+      });
+
+      const body: BackendDTO_ApiResponse<BackendDTO_ProfileData> =
+        await response.json();
+
+      if (!response.ok) {
+        const msg = body.message || "Erreur mise à jour du profil admin";
+        toast.error(msg);
+        throw new Error(msg);
+      }
+
+      setUser(mapProfileToAppUser(body.data));
+      toast.success("Profil admin mis à jour avec succès");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la mise à jour du profil admin";
+      toast.error(message);
+      throw error;
+    }
+  };
+
   // ── getActiveSessions ─────────────────────────────────────
   const getActiveSessions = async (): Promise<number> => {
     try {
@@ -839,6 +885,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     resetPassword,
     changePassword,
     updateUser,
+    updateAdminProfile,
     refreshUserProfile,
     getActiveSessions,
   };

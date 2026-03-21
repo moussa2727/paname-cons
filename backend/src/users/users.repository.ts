@@ -75,14 +75,45 @@ export class UsersRepository {
   }
 
   async findByPhone(telephone: string): Promise<User | null> {
-    // Normaliser le téléphone pour la recherche (supprimer espaces, points, tirets)
-    const normalizedPhone = telephone.replace(/[\s.-]/g, '');
+    // Normalisation agressive : garder uniquement chiffres et +
+    const normalizedPhone = telephone.replace(/[^\d+]/g, '');
 
-    // Rechercher avec une approche flexible : chercher le numéro normalisé
-    // ou chercher exactement ce qui est stocké
+    // Créer les variations possibles du numéro pour la recherche
+    const searchVariations = [
+      normalizedPhone, // Format normalisé
+      telephone, // Format original
+    ];
+
+    // Ajouter des variations avec espaces pour les formats français
+    if (normalizedPhone.match(/^\+?\d{9,15}$/)) {
+      const digitsOnly = normalizedPhone.replace(/^\+?/, '');
+      if (digitsOnly.length >= 9) {
+        // Format français avec espaces: 06 12 34 56 78
+        if (digitsOnly.startsWith('0')) {
+          searchVariations.push(
+            digitsOnly.replace(
+              /(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/,
+              '$1 $2 $3 $4 $5',
+            ),
+          );
+        }
+        // Format international avec espaces: +33 6 12 34 56 78
+        else if (normalizedPhone.startsWith('+')) {
+          const countryCode = digitsOnly.substring(0, 2);
+          const phoneNumber = digitsOnly.substring(2);
+          if (phoneNumber.length >= 9) {
+            searchVariations.push(
+              `+${countryCode} ${phoneNumber.replace(/(\d{1})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5')}`,
+            );
+          }
+        }
+      }
+    }
+
+    // Rechercher avec toutes les variations
     const users = await this.prisma.user.findMany({
       where: {
-        OR: [{ telephone: normalizedPhone }, { telephone: telephone }],
+        telephone: { in: searchVariations },
         isDeleted: false,
       },
       take: 1,

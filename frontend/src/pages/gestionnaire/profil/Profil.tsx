@@ -88,7 +88,7 @@ interface ProfileForm {
   password?: string;
 }
   const Profil = () => {
-  const { user: profile, isLoading, updateUser } = useAuth();
+  const { user: profile, isLoading, updateAdminProfile } = useAuth();
 
   const [isEditing, setIsEditing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -135,7 +135,7 @@ interface ProfileForm {
       telephone: normalizePhoneNumber(formData.telephone),
     };
 
-    await updateUser(params);
+    await updateAdminProfile(params);
     setIsEditing(false);
   };
 

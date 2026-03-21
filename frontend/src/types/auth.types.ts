@@ -158,6 +158,7 @@ export interface AuthContextType {
   resetPassword(token: string, newPassword: string): Promise<void>;
   changePassword(oldPassword: string, newPassword: string): Promise<void>;
   updateUser(patch: Partial<AppUser>): Promise<void>;
+  updateAdminProfile(patch: Partial<AppUser>): Promise<void>;
   refreshUserProfile(): Promise<void>;
   getActiveSessions(): Promise<number>;
 }
