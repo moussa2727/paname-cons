@@ -83,7 +83,10 @@ const InputField: React.FC<InputFieldProps> = ({
   maxLength,
 }) => (
   <div>
-    <label htmlFor={name} className="mb-1 block text-xs font-medium text-gray-700">
+    <label
+      htmlFor={name}
+      className="mb-1 block text-xs font-medium text-gray-700"
+    >
       <span className="flex items-center gap-1">
         {icon}
         {label} {required && "*"}
@@ -131,7 +134,10 @@ const SelectField: React.FC<SelectFieldProps> = ({
   placeholder = "Sélectionnez",
 }) => (
   <div>
-    <label htmlFor={name} className="mb-1 block text-xs font-medium text-gray-700">
+    <label
+      htmlFor={name}
+      className="mb-1 block text-xs font-medium text-gray-700"
+    >
       <span className="flex items-center gap-1">
         {icon}
         {label} {required && "*"}
@@ -215,33 +221,33 @@ const RendezVous = () => {
   const availableSlotsForSelectedDate = useMemo(() => {
     console.log("[RendezVous] Créneaux reçus du hook:", hookAvailableSlots);
     console.log("[RendezVous] Date sélectionnée:", formData.date);
-    
+
     if (!formData.date) return [];
-    
+
     // hookAvailableSlots est un tableau de AvailableSlotsDto, je cherche celui pour la date
     const slotData = hookAvailableSlots.find(
-      (slot) => slot.date === formData.date
+      (slot) => slot.date === formData.date,
     );
-    
+
     console.log("[RendezVous] Créneaux pour la date:", slotData);
-    
+
     if (!slotData || !slotData.availableSlots) return [];
-    
+
     // availableSlots est un tableau de strings (TimeSlot), je le transforme en objets
     return slotData.availableSlots.map((timeSlot) => {
       const displayTime = timeSlotToDisplay(timeSlot as TimeSlot);
-      const [hours, minutes] = displayTime.split(':').map(Number);
-      
+      const [hours, minutes] = displayTime.split(":").map(Number);
+
       // Créer la date complète du rendez-vous
       const rendezvousDateTime = new Date(`${formData.date}T${displayTime}:00`);
       const now = new Date();
-      
+
       // Calculer si le créneau est passé
       const isPast = rendezvousDateTime < now;
-      
+
       // Calculer si c'est la pause déjeuner (12:30-14:00)
-      const isLunchBreak = (hours === 12 && minutes >= 30) || (hours === 13);
-      
+      const isLunchBreak = (hours === 12 && minutes >= 30) || hours === 13;
+
       return {
         time: timeSlot,
         displayTime,
@@ -255,7 +261,7 @@ const RendezVous = () => {
   // Initialiser le formulaire avec les données utilisateur
   useEffect(() => {
     if (user) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         firstName: user.firstName || "",
         lastName: user.lastName || "",
@@ -285,27 +291,33 @@ const RendezVous = () => {
   useEffect(() => {
     const loadDates = async () => {
       if (!isAuthenticated) {
-        console.log("[RendezVous] Utilisateur non authentifié, pas de chargement");
+        console.log(
+          "[RendezVous] Utilisateur non authentifié, pas de chargement",
+        );
         return;
       }
 
       console.log("[RendezVous] Début chargement des dates...");
       setIsLoadingDates(true);
       setLoadError(null);
-      
+
       try {
         // Charger les dates pour les 3 prochains mois
         const today = new Date();
         const threeMonthsLater = new Date();
         threeMonthsLater.setMonth(today.getMonth() + 3);
-        
-        const todayStr = today.toISOString().split('T')[0];
-        const threeMonthsStr = threeMonthsLater.toISOString().split('T')[0];
-        
-        console.log("[RendezVous] Appel getAvailableDates avec:", todayStr, threeMonthsStr);
-        
+
+        const todayStr = today.toISOString().split("T")[0];
+        const threeMonthsStr = threeMonthsLater.toISOString().split("T")[0];
+
+        console.log(
+          "[RendezVous] Appel getAvailableDates avec:",
+          todayStr,
+          threeMonthsStr,
+        );
+
         await loadAvailableDates(todayStr, threeMonthsStr);
-        
+
         console.log("[RendezVous] Dates chargées avec succès");
       } catch (err) {
         console.error("[RendezVous] Erreur détaillée chargement dates:", err);
@@ -329,12 +341,15 @@ const RendezVous = () => {
       console.log("[RendezVous] Chargement des créneaux pour:", formData.date);
       setIsLoadingSlots(true);
       setLoadError(null);
-      
+
       try {
         await getAvailableSlots(formData.date);
         console.log("[RendezVous] Créneaux chargés avec succès");
       } catch (err) {
-        console.error("[RendezVous] Erreur détaillée chargement créneaux:", err);
+        console.error(
+          "[RendezVous] Erreur détaillée chargement créneaux:",
+          err,
+        );
         setLoadError(err instanceof Error ? err.message : "Erreur inconnue");
       } finally {
         setIsLoadingSlots(false);
@@ -359,7 +374,10 @@ const RendezVous = () => {
         setter: setShowOtherDestination,
         resetField: "destinationAutre",
       },
-      niveauEtude: { setter: setShowOtherNiveau, resetField: "niveauEtudeAutre" },
+      niveauEtude: {
+        setter: setShowOtherNiveau,
+        resetField: "niveauEtudeAutre",
+      },
       filiere: { setter: setShowOtherFiliere, resetField: "filiereAutre" },
     };
 
@@ -382,7 +400,7 @@ const RendezVous = () => {
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
-    
+
     setLocalError(null);
   };
 
@@ -393,7 +411,6 @@ const RendezVous = () => {
     return phoneRegex.test(cleanedPhone) && !cleanedPhone.startsWith("+0");
   }, []);
 
-  
   // Validation de chaque étape
   const isStepValid = useCallback(
     (step: number): boolean => {
@@ -540,7 +557,9 @@ const RendezVous = () => {
             : undefined,
         filiere: formData.filiere,
         filiereAutre:
-          formData.filiere === "Autre" ? formData.filiereAutre?.trim() : undefined,
+          formData.filiere === "Autre"
+            ? formData.filiereAutre?.trim()
+            : undefined,
         date: formData.date,
         time: formData.time as TimeSlot,
       };
@@ -576,7 +595,9 @@ const RendezVous = () => {
         </label>
         {isLoadingDates ? (
           <div className="rounded border border-gray-300 bg-gray-50 px-3 py-2">
-            <p className="text-xs text-gray-600">Chargement des dates disponibles...</p>
+            <p className="text-xs text-gray-600">
+              Chargement des dates disponibles...
+            </p>
           </div>
         ) : availableDates.length > 0 ? (
           <select
@@ -617,7 +638,9 @@ const RendezVous = () => {
           </label>
           {isLoadingSlots ? (
             <div className="rounded border border-gray-300 bg-gray-50 px-3 py-2">
-              <p className="text-xs text-gray-600">Chargement des créneaux disponibles...</p>
+              <p className="text-xs text-gray-600">
+                Chargement des créneaux disponibles...
+              </p>
             </div>
           ) : availableSlotsForSelectedDate.length > 0 ? (
             <div className="grid grid-cols-3 gap-1 sm:grid-cols-4">
@@ -630,7 +653,10 @@ const RendezVous = () => {
                     type="button"
                     onClick={() =>
                       slot.available &&
-                      setFormData((prev) => ({ ...prev, time: slot.time as TimeSlot }))
+                      setFormData((prev) => ({
+                        ...prev,
+                        time: slot.time as TimeSlot,
+                      }))
                     }
                     disabled={!slot.available || isLoadingSlots}
                     className={`rounded px-2 py-1.5 text-xs transition-all duration-150 focus:outline-none focus:ring-none ${
@@ -643,9 +669,9 @@ const RendezVous = () => {
                             : "border border-gray-300 bg-white text-gray-700 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
                     }`}
                     title={
-                      slot.isPast 
-                        ? "Ce créneau est déjà passé" 
-                        : slot.isLunchBreak 
+                      slot.isPast
+                        ? "Ce créneau est déjà passé"
+                        : slot.isLunchBreak
                           ? "Pause déjeuner (12:30-14:00)"
                           : "Créneau disponible"
                     }
@@ -784,10 +810,16 @@ const RendezVous = () => {
                         </div>
                         <span
                           className={`mt-1 text-xs font-medium ${
-                            currentStep >= step ? "text-sky-600" : "text-gray-400"
+                            currentStep >= step
+                              ? "text-sky-600"
+                              : "text-gray-400"
                           }`}
                         >
-                          {step === 1 ? "Personnel" : step === 2 ? "Projet" : "Créneau"}
+                          {step === 1
+                            ? "Personnel"
+                            : step === 2
+                              ? "Projet"
+                              : "Créneau"}
                         </span>
                       </div>
                     ))}
@@ -857,7 +889,8 @@ const RendezVous = () => {
                           required
                           icon={<Phone className="text-sky-500 h-3 w-3" />}
                           error={
-                            formData.telephone && !validatePhone(formData.telephone)
+                            formData.telephone &&
+                            !validatePhone(formData.telephone)
                               ? "Format: +22812345678 (8-15 chiffres)"
                               : undefined
                           }
@@ -920,7 +953,9 @@ const RendezVous = () => {
                                 onChange={handleInputChange}
                                 placeholder="Ex: BTS, DUT, Formation professionnelle..."
                                 required
-                                icon={<Target className="text-sky-500 h-3 w-3" />}
+                                icon={
+                                  <Target className="text-sky-500 h-3 w-3" />
+                                }
                                 maxLength={100}
                               />
                             </div>
@@ -945,7 +980,9 @@ const RendezVous = () => {
                                 onChange={handleInputChange}
                                 placeholder="Ex: Architecture, Psychologie..."
                                 required
-                                icon={<Target className="text-sky-500 h-3 w-3" />}
+                                icon={
+                                  <Target className="text-sky-500 h-3 w-3" />
+                                }
                                 maxLength={100}
                               />
                             </div>

@@ -65,20 +65,37 @@ interface UseRendezvousReturn {
   filters: RendezvousFilters;
 
   // Actions utilisateur
-  createRendezvous: (data: CreateRendezvousDto) => Promise<RendezvousResponseDto | null>;
+  createRendezvous: (
+    data: CreateRendezvousDto,
+  ) => Promise<RendezvousResponseDto | null>;
   getRendezvousByEmail: (email: string) => Promise<RendezvousResponseDto[]>;
-  cancelRendezvous: (id: string, data: CancelRendezvousDto) => Promise<RendezvousResponseDto | null>;
-  checkAvailability: (date: string, time: TimeSlot) => Promise<AvailabilityCheckDto | null>;
+  cancelRendezvous: (
+    id: string,
+    data: CancelRendezvousDto,
+  ) => Promise<RendezvousResponseDto | null>;
+  checkAvailability: (
+    date: string,
+    time: TimeSlot,
+  ) => Promise<AvailabilityCheckDto | null>;
 
   // Actions admin
   loadRendezvous: (params?: RendezvousQueryDto) => Promise<void>;
   loadRendezvousById: (id: string) => Promise<void>;
   loadStatistics: () => Promise<void>;
   loadAvailableDates: (startDate?: string, endDate?: string) => Promise<void>;
-  getAvailableDates: (startDate?: string, endDate?: string) => Promise<AvailableDatesResponseDto[]>;
+  getAvailableDates: (
+    startDate?: string,
+    endDate?: string,
+  ) => Promise<AvailableDatesResponseDto[]>;
   getAvailableSlots: (date: string) => Promise<AvailableSlotsDto>;
-  updateRendezvous: (id: string, data: UpdateRendezvousDto) => Promise<RendezvousResponseDto | null>;
-  completeRendezvous: (id: string, data: CompleteRendezvousDto) => Promise<RendezvousResponseDto | null>;
+  updateRendezvous: (
+    id: string,
+    data: UpdateRendezvousDto,
+  ) => Promise<RendezvousResponseDto | null>;
+  completeRendezvous: (
+    id: string,
+    data: CompleteRendezvousDto,
+  ) => Promise<RendezvousResponseDto | null>;
   deleteRendezvous: (id: string) => Promise<boolean>;
   getRendezvousByDate: (date: string) => Promise<RendezvousResponseDto[]>;
   refreshTodayRendezvous: () => Promise<void>;
@@ -116,10 +133,15 @@ export const useRendezvous = (
 
   // État
   const [rendezvous, setRendezvous] = useState<RendezvousResponseDto[]>([]);
-  const [selectedRendezvous, setSelectedRendezvous] = useState<RendezvousResponseDto | null>(null);
-  const [statistics, setStatistics] = useState<RendezvousStatisticsDto | null>(null);
+  const [selectedRendezvous, setSelectedRendezvous] =
+    useState<RendezvousResponseDto | null>(null);
+  const [statistics, setStatistics] = useState<RendezvousStatisticsDto | null>(
+    null,
+  );
   const [availableSlots, setAvailableSlots] = useState<AvailableSlotsDto[]>([]);
-  const [availableDates, setAvailableDates] = useState<AvailableDatesResponseDto[]>([]);
+  const [availableDates, setAvailableDates] = useState<
+    AvailableDatesResponseDto[]
+  >([]);
   const [filters, setFiltersState] = useState<RendezvousFilters>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -167,14 +189,17 @@ export const useRendezvous = (
   }, []);
 
   // Helper pour filtrer par statuts actifs uniquement
-  const getActiveParams = useCallback((params: RendezvousQueryDto = {}): RendezvousQueryDto => {
-    return {
-      ...getDefaultParams(),
-      ...params,
-      // Si un statut est spécifié, l'utiliser, sinon laisser le backend appliquer le filtre par défaut
-      ...(params.status ? {} : {}),
-    };
-  }, [getDefaultParams]);
+  const getActiveParams = useCallback(
+    (params: RendezvousQueryDto = {}): RendezvousQueryDto => {
+      return {
+        ...getDefaultParams(),
+        ...params,
+        // Si un statut est spécifié, l'utiliser, sinon laisser le backend appliquer le filtre par défaut
+        ...(params.status ? {} : {}),
+      };
+    },
+    [getDefaultParams],
+  );
 
   // Actions admin
   const loadRendezvous = useCallback(
@@ -256,7 +281,10 @@ export const useRendezvous = (
   );
 
   const getAvailableDates = useCallback(
-    async (startDate?: string, endDate?: string): Promise<AvailableDatesResponseDto[]> => {
+    async (
+      startDate?: string,
+      endDate?: string,
+    ): Promise<AvailableDatesResponseDto[]> => {
       try {
         return await rendezvousService.getAvailableDates(startDate, endDate);
       } catch {
@@ -272,14 +300,18 @@ export const useRendezvous = (
 
       try {
         const slots = await rendezvousService.getAvailableSlots(date);
-        
+
         // Normaliser la date pour la comparaison (YYYY-MM-DD)
-        const normalizedDate = slots.date.split('T')[0];
+        const normalizedDate = slots.date.split("T")[0];
 
         setAvailableSlots((prev) => {
           const exists = prev.some((s) => s.date === normalizedDate);
           if (exists) {
-            return prev.map((s) => (s.date === normalizedDate ? { ...slots, date: normalizedDate } : s));
+            return prev.map((s) =>
+              s.date === normalizedDate
+                ? { ...slots, date: normalizedDate }
+                : s,
+            );
           }
           return [...prev, { ...slots, date: normalizedDate }];
         });
@@ -287,7 +319,7 @@ export const useRendezvous = (
         return slots;
       } catch {
         const defaultSlots: AvailableSlotsDto = {
-          date: new Date().toISOString().split('T')[0],
+          date: new Date().toISOString().split("T")[0],
           available: false,
           availableSlots: [],
           totalSlots: 16,
@@ -302,7 +334,10 @@ export const useRendezvous = (
   );
 
   const updateRendezvous = useCallback(
-    async (id: string, data: UpdateRendezvousDto): Promise<RendezvousResponseDto | null> => {
+    async (
+      id: string,
+      data: UpdateRendezvousDto,
+    ): Promise<RendezvousResponseDto | null> => {
       if (!isAdmin) return null;
 
       setLoadingKey("update", true);
@@ -310,7 +345,9 @@ export const useRendezvous = (
       try {
         const updated = await rendezvousService.updateRendezvous(id, data);
 
-        setRendezvous((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+        setRendezvous((prev) =>
+          prev.map((r) => (r.id === updated.id ? updated : r)),
+        );
 
         if (selectedRendezvous?.id === updated.id) {
           setSelectedRendezvous(updated);
@@ -341,7 +378,10 @@ export const useRendezvous = (
   );
 
   const completeRendezvous = useCallback(
-    async (id: string, data: CompleteRendezvousDto): Promise<RendezvousResponseDto | null> => {
+    async (
+      id: string,
+      data: CompleteRendezvousDto,
+    ): Promise<RendezvousResponseDto | null> => {
       if (!isAdmin) return null;
 
       setLoadingKey("complete", true);
@@ -349,7 +389,9 @@ export const useRendezvous = (
       try {
         const completed = await rendezvousService.completeRendezvous(id, data);
 
-        setRendezvous((prev) => prev.map((r) => (r.id === completed.id ? completed : r)));
+        setRendezvous((prev) =>
+          prev.map((r) => (r.id === completed.id ? completed : r)),
+        );
 
         if (selectedRendezvous?.id === completed.id) {
           setSelectedRendezvous(completed);
@@ -432,7 +474,9 @@ export const useRendezvous = (
 
   // Actions utilisateur
   const createRendezvous = useCallback(
-    async (data: CreateRendezvousDto): Promise<RendezvousResponseDto | null> => {
+    async (
+      data: CreateRendezvousDto,
+    ): Promise<RendezvousResponseDto | null> => {
       if (!isAuthenticated) return null;
 
       setLoadingKey("create", true);
@@ -465,7 +509,10 @@ export const useRendezvous = (
   );
 
   const cancelRendezvous = useCallback(
-    async (id: string, data: CancelRendezvousDto): Promise<RendezvousResponseDto | null> => {
+    async (
+      id: string,
+      data: CancelRendezvousDto,
+    ): Promise<RendezvousResponseDto | null> => {
       if (!isAuthenticated) return null;
 
       setLoadingKey("cancel", true);
@@ -473,7 +520,9 @@ export const useRendezvous = (
       try {
         const updated = await rendezvousService.cancelRendezvous(id, data);
 
-        setRendezvous((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+        setRendezvous((prev) =>
+          prev.map((r) => (r.id === updated.id ? updated : r)),
+        );
 
         if (selectedRendezvous?.id === updated.id) {
           setSelectedRendezvous(updated);
@@ -491,7 +540,10 @@ export const useRendezvous = (
   );
 
   const checkAvailability = useCallback(
-    async (date: string, time: TimeSlot): Promise<AvailabilityCheckDto | null> => {
+    async (
+      date: string,
+      time: TimeSlot,
+    ): Promise<AvailabilityCheckDto | null> => {
       setLoadingKey("availability", true);
 
       try {
@@ -517,12 +569,9 @@ export const useRendezvous = (
     [loadRendezvous],
   );
 
-  const setFilters = useCallback(
-    (newFilters: RendezvousFilters) => {
-      setFiltersState(newFilters);
-    },
-    [],
-  );
+  const setFilters = useCallback((newFilters: RendezvousFilters) => {
+    setFiltersState(newFilters);
+  }, []);
 
   // Effet pour charger les rendez-vous quand les filtres changent
   useEffect(() => {
@@ -533,7 +582,14 @@ export const useRendezvous = (
     }, 100);
 
     return () => clearTimeout(timeoutId);
-  }, [filters, autoLoad, isAuthenticated, isAdmin, loadRendezvous]);
+  }, [
+    filters,
+    autoLoad,
+    isAuthenticated,
+    isAdmin,
+    loadRendezvous,
+    loadStatistics,
+  ]);
 
   const resetFilters = useCallback(() => {
     setFiltersState({});
@@ -589,6 +645,8 @@ export const useRendezvous = (
     isAuthenticated,
     isAdmin,
     loadAvailableDates,
+    loadRendezvous,
+    loadStatistics,
   ]);
 
   useEffect(() => {
@@ -600,7 +658,13 @@ export const useRendezvous = (
     }, refreshInterval);
 
     return () => clearInterval(intervalId);
-  }, [refreshInterval, isAdmin, refreshTodayRendezvous, loadStatistics, statistics]);
+  }, [
+    refreshInterval,
+    isAdmin,
+    refreshTodayRendezvous,
+    loadStatistics,
+    statistics,
+  ]);
 
   return {
     rendezvous,

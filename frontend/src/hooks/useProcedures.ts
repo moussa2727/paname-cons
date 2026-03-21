@@ -2,7 +2,10 @@
 // STRICTEMENT CALQUÉ sur ProceduresService + procedures.types.ts
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ProceduresService, ProcedureValidation } from "../services/procedures.service";
+import {
+  ProceduresService,
+  ProcedureValidation,
+} from "../services/procedures.service";
 import { useAuth } from "./useAuth";
 import type {
   ProcedureResponseDto,
@@ -282,7 +285,10 @@ export function useProcedures(
       try {
         const procedure = await ProceduresService.create(data);
         setProcedures((prev: ProcedureResponseDto[]) => [procedure, ...prev]);
-        setPagination((prev: ProcedurePagination) => ({ ...prev, total: prev.total + 1 }));
+        setPagination((prev: ProcedurePagination) => ({
+          ...prev,
+          total: prev.total + 1,
+        }));
         await loadStatistics();
         return procedure;
       } catch (err: unknown) {
@@ -311,8 +317,8 @@ export function useProcedures(
       setError(null);
       try {
         const updated = await ProceduresService.update(id, data);
-        setProcedures((prev: ProcedureResponseDto[]) => 
-          prev.map((p) => (p.id === id ? updated : p))
+        setProcedures((prev: ProcedureResponseDto[]) =>
+          prev.map((p) => (p.id === id ? updated : p)),
         );
         if (selectedProcedure?.id === id) setSelectedProcedure(updated);
         return updated;
@@ -347,8 +353,8 @@ export function useProcedures(
       setError(null);
       try {
         const updated = await ProceduresService.updateStep(id, stepName, data);
-        setProcedures((prev: ProcedureResponseDto[]) => 
-          prev.map((p) => (p.id === id ? updated : p))
+        setProcedures((prev: ProcedureResponseDto[]) =>
+          prev.map((p) => (p.id === id ? updated : p)),
         );
         if (selectedProcedure?.id === id) setSelectedProcedure(updated);
         return updated;
@@ -382,8 +388,8 @@ export function useProcedures(
       setError(null);
       try {
         const updated = await ProceduresService.addStep(id, stepName);
-        setProcedures((prev: ProcedureResponseDto[]) => 
-          prev.map((p) => (p.id === id ? updated : p))
+        setProcedures((prev: ProcedureResponseDto[]) =>
+          prev.map((p) => (p.id === id ? updated : p)),
         );
         if (selectedProcedure?.id === id) setSelectedProcedure(updated);
         return updated;
@@ -409,7 +415,9 @@ export function useProcedures(
       const original = procedures.find((p) => p.id === id) ?? null;
 
       // Optimistic update
-      setProcedures((prev: ProcedureResponseDto[]) => prev.filter((p) => p.id !== id));
+      setProcedures((prev: ProcedureResponseDto[]) =>
+        prev.filter((p) => p.id !== id),
+      );
       setPagination((prev: ProcedurePagination) => ({
         ...prev,
         total: Math.max(0, prev.total - 1),
@@ -426,7 +434,10 @@ export function useProcedures(
         // Rollback
         if (original) {
           setProcedures((prev: ProcedureResponseDto[]) => [...prev, original]);
-          setPagination((prev: ProcedurePagination) => ({ ...prev, total: prev.total + 1 }));
+          setPagination((prev: ProcedurePagination) => ({
+            ...prev,
+            total: prev.total + 1,
+          }));
         }
         setError(
           err instanceof Error ? err.message : "Erreur lors de la suppression",
@@ -451,8 +462,8 @@ export function useProcedures(
       setError(null);
       try {
         const updated = await ProceduresService.cancel(id, reason);
-        setProcedures((prev: ProcedureResponseDto[]) => 
-          prev.map((p) => (p.id === id ? updated : p))
+        setProcedures((prev: ProcedureResponseDto[]) =>
+          prev.map((p) => (p.id === id ? updated : p)),
         );
         if (selectedProcedure?.id === id) setSelectedProcedure(updated);
         return updated;
@@ -518,7 +529,11 @@ export function useProcedures(
   // Gestion des filtres & pagination
   // ─────────────────────────────────────────────────────────────────────────
   const setQuery = useCallback((partial: Partial<ProcedureQueryDto>) => {
-    setQueryState((prev: ProcedureQueryDto) => ({ ...prev, ...partial, page: 1 }));
+    setQueryState((prev: ProcedureQueryDto) => ({
+      ...prev,
+      ...partial,
+      page: 1,
+    }));
   }, []);
 
   const setFilters = useCallback(
@@ -555,12 +570,14 @@ export function useProcedures(
   }, [initialQuery]);
 
   const setPage = useCallback(
-    (page: number) => setQueryState((prev: ProcedureQueryDto) => ({ ...prev, page })),
+    (page: number) =>
+      setQueryState((prev: ProcedureQueryDto) => ({ ...prev, page })),
     [],
   );
 
   const setLimit = useCallback(
-    (limit: number) => setQueryState((prev: ProcedureQueryDto) => ({ ...prev, limit, page: 1 })),
+    (limit: number) =>
+      setQueryState((prev: ProcedureQueryDto) => ({ ...prev, limit, page: 1 })),
     [],
   );
 
@@ -570,7 +587,7 @@ export function useProcedures(
     (data: Partial<CreateProcedureDto>) => ProcedureValidation.validate(data),
     [],
   );
-  
+
   const isValid = useCallback(
     (data: Partial<CreateProcedureDto>) => ProcedureValidation.isValid(data),
     [],
@@ -589,20 +606,28 @@ export function useProcedures(
         // Le backend va automatiquement déterminer le statut final
         const updated = await ProceduresService.completeProcedure(id);
         setProcedures((prev: ProcedureResponseDto[]) =>
-          prev.map((p) => (p.id === id ? updated : p))
+          prev.map((p) => (p.id === id ? updated : p)),
         );
         if (selectedProcedure?.id === id) setSelectedProcedure(updated);
         return updated;
       } catch (err: unknown) {
         setError(
-          err instanceof Error ? err.message : "Erreur lors de la complétion de la procédure",
+          err instanceof Error
+            ? err.message
+            : "Erreur lors de la complétion de la procédure",
         );
         return null;
       } finally {
         setLoad("update", false);
       }
     },
-    [user?.role, setLoad, selectedProcedure, setProcedures, setSelectedProcedure],
+    [
+      user?.role,
+      setLoad,
+      selectedProcedure,
+      setProcedures,
+      setSelectedProcedure,
+    ],
   );
 
   // ─────────────────────────────────────────────────────────────────────────

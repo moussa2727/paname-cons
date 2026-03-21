@@ -112,9 +112,9 @@ export default function ProcedureDetail() {
       }
     };
 
-    document.addEventListener('click', handleClickOutside);
+    document.addEventListener("click", handleClickOutside);
     return () => {
-      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener("click", handleClickOutside);
     };
   }, [showStepMenu]);
 
@@ -223,8 +223,12 @@ export default function ProcedureDetail() {
     );
   }
 
-  const canBeModified = !["COMPLETED", "CANCELLED", "REJECTED"].includes(selectedProcedure.statut);
-  const canBeCancelled = !["COMPLETED", "CANCELLED"].includes(selectedProcedure.statut);
+  const canBeModified = !["COMPLETED", "CANCELLED", "REJECTED"].includes(
+    selectedProcedure.statut,
+  );
+  const canBeCancelled = !["COMPLETED", "CANCELLED"].includes(
+    selectedProcedure.statut,
+  );
   const getEffectiveValue = (value: string, autre?: string | null) => {
     return value === "Autre" && autre ? autre : value;
   };
@@ -233,8 +237,7 @@ export default function ProcedureDetail() {
     <>
       <Helmet>
         <title>Procédure #{selectedProcedure.id} - Paname Consulting</title>
-        <meta name="robots" content="noindex, nofollow"/>
-
+        <meta name="robots" content="noindex, nofollow" />
       </Helmet>
 
       <div className="min-h-screen">
@@ -253,7 +256,9 @@ export default function ProcedureDetail() {
                 <h1 className="text-xl font-semibold text-gray-900">
                   Procédure #{selectedProcedure.id.slice(-8)}
                 </h1>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium border ${STATUS_COLORS[selectedProcedure.statut]}`}>
+                <span
+                  className={`px-3 py-1 rounded-full text-sm font-medium border ${STATUS_COLORS[selectedProcedure.statut]}`}
+                >
                   {STATUS_LABELS[selectedProcedure.statut]}
                 </span>
               </div>
@@ -296,34 +301,48 @@ export default function ProcedureDetail() {
             <div className="lg:col-span-2 space-y-6">
               {/* Informations personnelles */}
               <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Informations personnelles</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                  Informations personnelles
+                </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-center gap-3">
                     <User className="w-5 h-5 text-gray-400" />
                     <div>
-                      <div className="font-medium">{selectedProcedure.prenom} {selectedProcedure.nom}</div>
+                      <div className="font-medium">
+                        {selectedProcedure.prenom} {selectedProcedure.nom}
+                      </div>
                       <div className="text-sm text-gray-500">Nom complet</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <Mail className="w-5 h-5 text-gray-400" />
                     <div>
-                      <div className="font-medium">{selectedProcedure.email}</div>
+                      <div className="font-medium">
+                        {selectedProcedure.email}
+                      </div>
                       <div className="text-sm text-gray-500">Email</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <Phone className="w-5 h-5 text-gray-400" />
                     <div>
-                      <div className="font-medium">{selectedProcedure.telephone}</div>
+                      <div className="font-medium">
+                        {selectedProcedure.telephone}
+                      </div>
                       <div className="text-sm text-gray-500">Téléphone</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <Calendar className="w-5 h-5 text-gray-400" />
                     <div>
-                      <div className="font-medium">{new Date(selectedProcedure.createdAt).toLocaleDateString()}</div>
-                      <div className="text-sm text-gray-500">Date de création</div>
+                      <div className="font-medium">
+                        {new Date(
+                          selectedProcedure.createdAt,
+                        ).toLocaleDateString()}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Date de création
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -331,26 +350,45 @@ export default function ProcedureDetail() {
 
               {/* Informations académiques */}
               <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Informations académiques</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                  Informations académiques
+                </h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="flex items-center gap-3">
                     <MapPin className="w-5 h-5 text-gray-400" />
                     <div>
-                      <div className="font-medium">{getEffectiveValue(selectedProcedure.destination, selectedProcedure.destinationAutre)}</div>
+                      <div className="font-medium">
+                        {getEffectiveValue(
+                          selectedProcedure.destination,
+                          selectedProcedure.destinationAutre,
+                        )}
+                      </div>
                       <div className="text-sm text-gray-500">Destination</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <GraduationCap className="w-5 h-5 text-gray-400" />
                     <div>
-                      <div className="font-medium">{getEffectiveValue(selectedProcedure.niveauEtude, selectedProcedure.niveauEtudeAutre)}</div>
-                      <div className="text-sm text-gray-500">Niveau d'étude</div>
+                      <div className="font-medium">
+                        {getEffectiveValue(
+                          selectedProcedure.niveauEtude,
+                          selectedProcedure.niveauEtudeAutre,
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Niveau d'étude
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <BookOpen className="w-5 h-5 text-gray-400" />
                     <div>
-                      <div className="font-medium">{getEffectiveValue(selectedProcedure.filiere, selectedProcedure.filiereAutre)}</div>
+                      <div className="font-medium">
+                        {getEffectiveValue(
+                          selectedProcedure.filiere,
+                          selectedProcedure.filiereAutre,
+                        )}
+                      </div>
                       <div className="text-sm text-gray-500">Filière</div>
                     </div>
                   </div>
@@ -360,7 +398,9 @@ export default function ProcedureDetail() {
               {/* Étapes de la procédure */}
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900">Étapes de la procédure</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Étapes de la procédure
+                  </h2>
                   {canBeModified && (
                     <div className="relative">
                       <button
@@ -371,7 +411,7 @@ export default function ProcedureDetail() {
                         Ajouter une étape
                         <ChevronDown className="w-4 h-4" />
                       </button>
-                      
+
                       {showStepMenu && (
                         <div className="absolute top-full mt-2 right-0 bg-white border border-gray-300 rounded-lg shadow-lg z-10 min-w-[200px]">
                           <div className="py-1">
@@ -396,20 +436,28 @@ export default function ProcedureDetail() {
 
                 <div className="space-y-4">
                   {selectedProcedure.steps?.map((step, index) => (
-                    <div key={step.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div
+                      key={step.id}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
                       <div className="flex items-center gap-4">
                         <div className="w-8 h-8 bg-sky-100 text-sky-700 rounded-full flex items-center justify-center text-sm font-bold">
                           {index + 1}
                         </div>
                         <div>
-                          <div className="font-medium">{STEP_LABELS[step.nom]}</div>
+                          <div className="font-medium">
+                            {STEP_LABELS[step.nom]}
+                          </div>
                           <div className="text-sm text-gray-500">
-                            Créée le {new Date(step.dateCreation).toLocaleDateString()}
+                            Créée le{" "}
+                            {new Date(step.dateCreation).toLocaleDateString()}
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${STEP_STATUS_COLORS[step.statut]}`}>
+                        <span
+                          className={`px-3 py-1 rounded-full text-sm font-medium ${STEP_STATUS_COLORS[step.statut]}`}
+                        >
                           {STEP_STATUS_LABELS[step.statut]}
                         </span>
                         {canBeModified && (
@@ -431,19 +479,26 @@ export default function ProcedureDetail() {
             <div className="space-y-6">
               {/* Progression */}
               <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Progression</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                  Progression
+                </h2>
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Étapes complétées</span>
                     <span className="font-medium">
-                      {selectedProcedure.steps?.filter(s => s.statut === "COMPLETED").length} / {selectedProcedure.steps?.length}
+                      {
+                        selectedProcedure.steps?.filter(
+                          (s) => s.statut === "COMPLETED",
+                        ).length
+                      }{" "}
+                      / {selectedProcedure.steps?.length}
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
+                    <div
                       className="bg-sky-600 h-2 rounded-full transition-all"
-                      style={{ 
-                        width: `${(selectedProcedure.steps?.filter(s => s.statut === "COMPLETED").length || 0) / (selectedProcedure.steps?.length || 1) * 100}%` 
+                      style={{
+                        width: `${((selectedProcedure.steps?.filter((s) => s.statut === "COMPLETED").length || 0) / (selectedProcedure.steps?.length || 1)) * 100}%`,
                       }}
                     />
                   </div>
@@ -452,22 +507,38 @@ export default function ProcedureDetail() {
 
               {/* Historique */}
               <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Historique</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                  Historique
+                </h2>
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Création</span>
-                    <span>{new Date(selectedProcedure.createdAt).toLocaleDateString()}</span>
+                    <span>
+                      {new Date(
+                        selectedProcedure.createdAt,
+                      ).toLocaleDateString()}
+                    </span>
                   </div>
                   {selectedProcedure.updatedAt && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Dernière modification</span>
-                      <span>{new Date(selectedProcedure.updatedAt).toLocaleDateString()}</span>
+                      <span className="text-gray-600">
+                        Dernière modification
+                      </span>
+                      <span>
+                        {new Date(
+                          selectedProcedure.updatedAt,
+                        ).toLocaleDateString()}
+                      </span>
                     </div>
                   )}
                   {selectedProcedure.dateCompletion && (
                     <div className="flex justify-between">
                       <span className="text-gray-600">Date de complétion</span>
-                      <span>{new Date(selectedProcedure.dateCompletion).toLocaleDateString()}</span>
+                      <span>
+                        {new Date(
+                          selectedProcedure.dateCompletion,
+                        ).toLocaleDateString()}
+                      </span>
                     </div>
                   )}
                 </div>

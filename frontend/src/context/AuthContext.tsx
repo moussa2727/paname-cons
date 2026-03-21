@@ -79,9 +79,7 @@ import type {
   BackendDTO_ResetPasswordData,
   BackendDTO_ChangePasswordData,
 } from "../types/auth.types";
-import type {
-  UpdateProfileParams,
-} from "../types/user.types";
+import type { UpdateProfileParams } from "../types/user.types";
 import { updateUserProfile } from "../services/users.service";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
@@ -229,25 +227,28 @@ let _refreshQueue: Array<(success: boolean) => void> = [];
 let _refreshTokenValue: string | null = null;
 
 // CRITICAL FOR MOBILE: Helper pour localStorage fallback
-function getLocalStorageToken(): { access_token: string | null; refresh_token: string | null } {
-  const accessExpiresAt = localStorage.getItem('access_token_expires_at');
-  const refreshExpiresAt = localStorage.getItem('refresh_token_expires_at');
+function getLocalStorageToken(): {
+  access_token: string | null;
+  refresh_token: string | null;
+} {
+  const accessExpiresAt = localStorage.getItem("access_token_expires_at");
+  const refreshExpiresAt = localStorage.getItem("refresh_token_expires_at");
   const now = Date.now();
-  
+
   // Vérifier les expirations
   if (accessExpiresAt && now > parseInt(accessExpiresAt)) {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('access_token_expires_at');
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("access_token_expires_at");
   }
-  
+
   if (refreshExpiresAt && now > parseInt(refreshExpiresAt)) {
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('refresh_token_expires_at');
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("refresh_token_expires_at");
   }
-  
+
   return {
-    access_token: localStorage.getItem('access_token'),
-    refresh_token: localStorage.getItem('refresh_token')
+    access_token: localStorage.getItem("access_token"),
+    refresh_token: localStorage.getItem("refresh_token"),
   };
 }
 
@@ -281,8 +282,8 @@ export async function apiFetch(
   const localStorageTokens = getLocalStorageToken();
   if (localStorageTokens.access_token) {
     const headers = new Headers(options.headers);
-    if (!headers.has('Authorization')) {
-      headers.set('Authorization', `Bearer ${localStorageTokens.access_token}`);
+    if (!headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${localStorageTokens.access_token}`);
     }
     options.headers = headers;
   }
@@ -314,7 +315,7 @@ export async function apiFetch(
   try {
     // CRITICAL FOR MOBILE: Get localStorage tokens for fallback
     const localStorageTokens = getLocalStorageToken();
-    
+
     const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
       method: "POST",
       credentials: "include", // envoie le cookie httpOnly refresh_token
@@ -323,7 +324,10 @@ export async function apiFetch(
       // n'est pas transmis (dev HTTP, Safari ITP)
       body: JSON.stringify(
         _refreshTokenValue || localStorageTokens.refresh_token
-          ? { refresh_token: _refreshTokenValue || localStorageTokens.refresh_token }
+          ? {
+              refresh_token:
+                _refreshTokenValue || localStorageTokens.refresh_token,
+            }
           : {},
       ),
     });
@@ -437,14 +441,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       // CRITICAL FOR MOBILE: Get localStorage tokens for fallback
       const localStorageTokens = getLocalStorageToken();
-      
+
       const response = await fetch(`${API_URL}/auth/refresh`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           refreshTokenRef.current || localStorageTokens.refresh_token
-            ? { refresh_token: refreshTokenRef.current || localStorageTokens.refresh_token }
+            ? {
+                refresh_token:
+                  refreshTokenRef.current || localStorageTokens.refresh_token,
+              }
             : {},
         ),
       });
@@ -463,16 +470,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         if (newToken) {
           refreshTokenRef.current = newToken;
           _refreshTokenValue = newToken;
-          
+
           // CRITICAL FOR MOBILE: Update localStorage with new tokens
           // Note: access_token sera mis à jour via les cookies httpOnly,
           // mais on le récupère aussi pour localStorage fallback
-          localStorage.setItem('refresh_token', newToken);
-          
+          localStorage.setItem("refresh_token", newToken);
+
           // Mettre à jour l'expiration du refresh_token (14 ou 7 jours selon remember_me)
           const rememberMe = getRememberMeCookie();
-          const refreshExpiresIn = rememberMe ? 14 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
-          localStorage.setItem('refresh_token_expires_at', String(Date.now() + refreshExpiresIn * 1000));
+          const refreshExpiresIn = rememberMe
+            ? 14 * 24 * 60 * 60
+            : 7 * 24 * 60 * 60;
+          localStorage.setItem(
+            "refresh_token_expires_at",
+            String(Date.now() + refreshExpiresIn * 1000),
+          );
         }
       } catch {
         // Non bloquant
@@ -488,13 +500,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       flushRefreshQueue(false);
       refreshTokenRef.current = null;
       _refreshTokenValue = null;
-      
+
       // CRITICAL FOR MOBILE: Clear localStorage fallback
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('access_token_expires_at');
-      localStorage.removeItem('refresh_token_expires_at');
-      
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("access_token_expires_at");
+      localStorage.removeItem("refresh_token_expires_at");
+
       // Le refresh a échoué définitivement → session morte côté backend.
       // On supprime remember_me pour éviter des requêtes inutiles ultérieures.
       deleteRememberMeCookie();
@@ -632,18 +644,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (dto.refresh_token) {
         refreshTokenRef.current = dto.refresh_token;
         _refreshTokenValue = dto.refresh_token;
-        
+
         // CRITICAL FOR MOBILE: Store tokens in localStorage
         // Pour Safari ITP et WebView qui bloquent les cookies httpOnly
-        localStorage.setItem('refresh_token', dto.refresh_token);
-        localStorage.setItem('access_token', dto.access_token);
-        
+        localStorage.setItem("refresh_token", dto.refresh_token);
+        localStorage.setItem("access_token", dto.access_token);
+
         // Set expiration times
         const expiresIn = dto.expires_in || 900; // 15 minutes
-        localStorage.setItem('access_token_expires_at', String(Date.now() + expiresIn * 1000));
-        
-        const refreshExpiresIn = effectiveRememberMe ? 14 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
-        localStorage.setItem('refresh_token_expires_at', String(Date.now() + refreshExpiresIn * 1000));
+        localStorage.setItem(
+          "access_token_expires_at",
+          String(Date.now() + expiresIn * 1000),
+        );
+
+        const refreshExpiresIn = effectiveRememberMe
+          ? 14 * 24 * 60 * 60
+          : 7 * 24 * 60 * 60;
+        localStorage.setItem(
+          "refresh_token_expires_at",
+          String(Date.now() + refreshExpiresIn * 1000),
+        );
       }
 
       setRememberMeCookie(
@@ -724,13 +744,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       clearRefreshTimer();
       refreshTokenRef.current = null;
       _refreshTokenValue = null;
-      
+
       // CRITICAL FOR MOBILE: Clear localStorage fallback
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('access_token_expires_at');
-      localStorage.removeItem('refresh_token_expires_at');
-      
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("access_token_expires_at");
+      localStorage.removeItem("refresh_token_expires_at");
+
       setUser(null);
       toast.success("Déconnexion réussie");
     }
@@ -869,33 +889,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       // Créer un patch avec tous les champs autorisés par UpdateProfileDto
       const profilePatch: UpdateProfileParams = {};
-      
+
       // Ajouter tous les champs autorisés pour UpdateProfileDto
       if (patch.firstName) profilePatch.firstName = patch.firstName;
       if (patch.lastName) profilePatch.lastName = patch.lastName;
       if (patch.email) profilePatch.email = patch.email;
       if (patch.telephone) profilePatch.telephone = patch.telephone;
       if (patch.password) profilePatch.password = patch.password;
-      
+
       const updatedUser = await updateUserProfile(profilePatch);
       setUser(updatedUser);
       toast.success("Profil mis à jour avec succès");
     } catch (error) {
       let message = "Erreur lors de la mise à jour du profil";
-      
+
       if (error instanceof Error) {
         // Gérer les erreurs spécifiques du backend
-        if (error.message.includes('Un utilisateur avec cet email existe déjà')) {
+        if (
+          error.message.includes("Un utilisateur avec cet email existe déjà")
+        ) {
           message = "Cet email est déjà utilisé par un autre utilisateur";
-        } else if (error.message.includes('Un utilisateur avec ce numéro de téléphone existe déjà')) {
-          message = "Ce numéro de téléphone est déjà utilisé par un autre utilisateur";
-        } else if (error.message.includes("L'email du compte administrateur principal ne peut pas être modifié")) {
+        } else if (
+          error.message.includes(
+            "Un utilisateur avec ce numéro de téléphone existe déjà",
+          )
+        ) {
+          message =
+            "Ce numéro de téléphone est déjà utilisé par un autre utilisateur";
+        } else if (
+          error.message.includes(
+            "L'email du compte administrateur principal ne peut pas être modifié",
+          )
+        ) {
           message = "L'email administrateur principal ne peut pas être modifié";
         } else {
           message = error.message;
         }
       }
-      
+
       toast.error(message);
       throw error;
     }
@@ -913,14 +944,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         lastName?: string;
         telephone?: string;
       };
-      
+
       const adminPatch: AdminPatch = {};
-      
+
       // Ajouter uniquement les champs autorisés pour UpdateProfileDto
       if (patch.firstName) adminPatch.firstName = patch.firstName;
       if (patch.lastName) adminPatch.lastName = patch.lastName;
       if (patch.telephone) adminPatch.telephone = patch.telephone;
-      
+
       const response = await apiFetch(`${API_URL}/admin/profile`, {
         method: "PATCH",
         body: JSON.stringify(adminPatch),
@@ -946,7 +977,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       throw error;
     }
   };
-
 
   // ─────────────────────────────────────────────────────────
   const value: AuthContextType = {

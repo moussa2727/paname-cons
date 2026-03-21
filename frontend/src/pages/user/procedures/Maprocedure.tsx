@@ -321,7 +321,9 @@ function ProcedureDetailModal({
                 <p className="text-xs text-orange-500 font-medium mb-0.5">
                   Raison d'annulation
                 </p>
-                <p className="text-sm text-orange-700">{procedure.cancelledReason}</p>
+                <p className="text-sm text-orange-700">
+                  {procedure.cancelledReason}
+                </p>
               </div>
             )}
           </div>
@@ -577,22 +579,25 @@ function FilterSheet({
 export default function MaProcedures() {
   const { user } = useAuth();
 
-  const { 
-    procedures, 
-    error, 
-    cancelProcedure, 
+  const {
+    procedures,
+    error,
+    cancelProcedure,
     findByEmail,
     refresh,
     loading: { list: isLoading },
-    overdue
-  } = useProcedures({ 
+    overdue,
+  } = useProcedures({
     autoLoad: false,
-    refreshInterval: 30000
+    refreshInterval: 30000,
   });
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ProcedureStatus | "ALL">("ALL");
-  const [selectedProcedure, setSelectedProcedure] = useState<ProcedureResponseDto | null>(null);
+  const [statusFilter, setStatusFilter] = useState<ProcedureStatus | "ALL">(
+    "ALL",
+  );
+  const [selectedProcedure, setSelectedProcedure] =
+    useState<ProcedureResponseDto | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
@@ -608,11 +613,11 @@ export default function MaProcedures() {
   // Filtrage local uniquement pour l'affichage UI
   const filtered = useMemo(() => {
     let list = [...procedures];
-    
+
     if (statusFilter !== "ALL") {
       list = list.filter((p) => p.statut === statusFilter);
     }
-    
+
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -623,14 +628,14 @@ export default function MaProcedures() {
           p.fullName.toLowerCase().includes(q),
       );
     }
-    
+
     return list;
   }, [procedures, statusFilter, search]);
 
   // Compteurs pour les statistiques
   const counts = useMemo(() => {
-    const c: Partial<Record<ProcedureStatus | "ALL", number>> = { 
-      ALL: procedures.length 
+    const c: Partial<Record<ProcedureStatus | "ALL", number>> = {
+      ALL: procedures.length,
     };
     for (const p of procedures) {
       c[p.statut] = (c[p.statut] ?? 0) + 1;
@@ -644,7 +649,10 @@ export default function MaProcedures() {
     async (id: string) => {
       setCancelling(true);
       try {
-        const result = await cancelProcedure(id, "Annulation par l'utilisateur");
+        const result = await cancelProcedure(
+          id,
+          "Annulation par l'utilisateur",
+        );
         if (result) {
           setSelectedProcedure(result);
         }
@@ -830,11 +838,21 @@ export default function MaProcedures() {
 
               {/* Compteur de résultats */}
               <div className="flex items-center justify-between text-xs text-slate-400 mt-4 pb-2">
-                <span>{filtered.length} procédure{filtered.length > 1 ? "s" : ""}</span>
-                {hasFilters && <span> trouvée{filtered.length > 1 ? "s" : ""}</span>}
+                <span>
+                  {filtered.length} procédure{filtered.length > 1 ? "s" : ""}
+                </span>
+                {hasFilters && (
+                  <span> trouvée{filtered.length > 1 ? "s" : ""}</span>
+                )}
                 {filtered.length > 0 && (
                   <span>
-                    • {Math.round((filtered.filter(p => p.statut === "COMPLETED").length / filtered.length) * 100)}% terminées
+                    •{" "}
+                    {Math.round(
+                      (filtered.filter((p) => p.statut === "COMPLETED").length /
+                        filtered.length) *
+                        100,
+                    )}
+                    % terminées
                   </span>
                 )}
               </div>

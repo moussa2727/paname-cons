@@ -128,7 +128,7 @@ const Statistiques: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // ─── Hooks - Utilisation UNIQUEMENT des méthodes stats disponibles ─────
-  
+
   // useRendezvous - loadStatistics() est la seule méthode de stats
   const { statistics: rendezvousStats, loadStatistics: loadRendezvousStats } =
     useRendezvous({
@@ -156,7 +156,7 @@ const Statistiques: React.FC = () => {
 
     const loadAllStatistics = async () => {
       console.log("[Statistiques] Chargement de toutes les stats...");
-      
+
       try {
         await Promise.all([
           loadRendezvousStats(),
@@ -165,7 +165,7 @@ const Statistiques: React.FC = () => {
           refreshMessages(), // refresh recharge tout, y compris les stats
           getDestinationsStatistics(), // Méthode spécifique aux destinations
         ]);
-        
+
         console.log("[Statistiques] ✅ Toutes les stats chargées");
       } catch (error) {
         console.error("[Statistiques] Erreur chargement stats:", error);
@@ -187,16 +187,16 @@ const Statistiques: React.FC = () => {
   const weeklyActivity = useMemo(() => {
     // Utiliser les données disponibles dans les stats
     const days = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
-    
+
     return days.map((day) => ({
       name: day,
-      rendezvous: rendezvousStats?.upcoming?.thisWeek 
+      rendezvous: rendezvousStats?.upcoming?.thisWeek
         ? Math.floor(rendezvousStats.upcoming.thisWeek / 7) // Répartition approximative
         : 0,
-      procedures: procedureStats?.newProcedures?.thisWeek 
+      procedures: procedureStats?.newProcedures?.thisWeek
         ? Math.floor(procedureStats.newProcedures.thisWeek / 7)
         : 0,
-      messages: messageStats?.thisWeek 
+      messages: messageStats?.thisWeek
         ? Math.floor(messageStats.thisWeek / 7)
         : 0,
     }));
@@ -210,7 +210,7 @@ const Statistiques: React.FC = () => {
         value: dest.count,
       }));
     }
-    
+
     // Fallback sur données vides
     return [{ name: "Aucune donnée", value: 1 }];
   }, [procedureStats]);
@@ -335,7 +335,7 @@ const Statistiques: React.FC = () => {
   // ─── Rafraîchissement manuel ──────────────────────────────────────────
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    
+
     try {
       await Promise.all([
         loadRendezvousStats(),
@@ -369,7 +369,8 @@ const Statistiques: React.FC = () => {
             Accès non autorisé
           </h2>
           <p className="text-red-600">
-            Vous n'avez pas les permissions nécessaires pour accéder aux statistiques.
+            Vous n'avez pas les permissions nécessaires pour accéder aux
+            statistiques.
           </p>
         </div>
       </div>
@@ -377,7 +378,8 @@ const Statistiques: React.FC = () => {
   }
 
   // ─── Vérification chargement initial ───────────────────────────────────
-  const isLoading = !rendezvousStats || !procedureStats || !messageStats || !userStats;
+  const isLoading =
+    !rendezvousStats || !procedureStats || !messageStats || !userStats;
 
   // ─── Rendu ─────────────────────────────────────────────────────────────
   return (
@@ -442,16 +444,40 @@ const Statistiques: React.FC = () => {
                     <AreaChart data={weeklyActivity}>
                       <defs>
                         <linearGradient id="gRdv" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#0284c7" stopOpacity={0.2} />
-                          <stop offset="95%" stopColor="#0284c7" stopOpacity={0} />
+                          <stop
+                            offset="5%"
+                            stopColor="#0284c7"
+                            stopOpacity={0.2}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="#0284c7"
+                            stopOpacity={0}
+                          />
                         </linearGradient>
                         <linearGradient id="gProc" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                          <stop
+                            offset="5%"
+                            stopColor="#10b981"
+                            stopOpacity={0.2}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="#10b981"
+                            stopOpacity={0}
+                          />
                         </linearGradient>
                         <linearGradient id="gMsg" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2} />
-                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                          <stop
+                            offset="5%"
+                            stopColor="#f59e0b"
+                            stopOpacity={0.2}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="#f59e0b"
+                            stopOpacity={0}
+                          />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f9ff" />
@@ -533,7 +559,9 @@ const Statistiques: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-3">
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Rendez-vous</p>
+                        <p className="text-xs text-gray-500 mb-1">
+                          Rendez-vous
+                        </p>
                         <p className="text-2xl font-bold text-sky-600">
                           {rendezvousStats?.upcoming?.thisWeek || 0}
                         </p>
@@ -553,7 +581,9 @@ const Statistiques: React.FC = () => {
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Taux complétion</p>
+                        <p className="text-xs text-gray-500 mb-1">
+                          Taux complétion
+                        </p>
                         <p className="text-2xl font-bold text-violet-600">
                           {Math.round(procedureStats?.completionRate || 0)}%
                         </p>
@@ -571,7 +601,9 @@ const Statistiques: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-3">
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Rendez-vous</p>
+                        <p className="text-xs text-gray-500 mb-1">
+                          Rendez-vous
+                        </p>
                         <p className="text-2xl font-bold text-indigo-600">
                           {rendezvousStats?.upcoming?.thisMonth || 0}
                         </p>
@@ -616,8 +648,12 @@ const Statistiques: React.FC = () => {
                         key={i}
                         className={`flex items-center gap-3 p-3 ${alert.bg} rounded-xl`}
                       >
-                        <alert.icon className={`w-4 h-4 ${alert.color} shrink-0`} />
-                        <span className="text-sm text-gray-700">{alert.text}</span>
+                        <alert.icon
+                          className={`w-4 h-4 ${alert.color} shrink-0`}
+                        />
+                        <span className="text-sm text-gray-700">
+                          {alert.text}
+                        </span>
                       </div>
                     ))}
                   </div>

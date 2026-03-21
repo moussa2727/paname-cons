@@ -112,10 +112,13 @@ const STATUS_CFG: Record<
 };
 
 // Helper pour afficher la valeur effective ou "Non renseigné"
-  const displayEffectiveValue = (value: string, fallback: string = "Non renseigné") => {
-    if (!value || value.trim() === "") return fallback;
-    return value;
-  };
+const displayEffectiveValue = (
+  value: string,
+  fallback: string = "Non renseigné",
+) => {
+  if (!value || value.trim() === "") return fallback;
+  return value;
+};
 const getInitials = (firstName?: string | null, lastName?: string | null) => {
   const fullName = [firstName, lastName].filter(Boolean).join(" ");
   return (fullName || "??")
@@ -158,7 +161,13 @@ const ModalHeader = ({
   </div>
 );
 
-const PanelRow = ({ rdv, onView }: { rdv: RendezvousResponseDto; onView: () => void }) => (
+const PanelRow = ({
+  rdv,
+  onView,
+}: {
+  rdv: RendezvousResponseDto;
+  onView: () => void;
+}) => (
   <div className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors">
     <div className="w-9 h-9 bg-sky-100 text-sky-700 rounded-full flex items-center justify-center text-sm font-bold shrink-0">
       {getInitials(rdv.firstName, rdv.lastName)}
@@ -213,29 +222,30 @@ const RendezvousAdmin = () => {
     exportRendezvous,
     setFilters,
     resetFilters,
-    goToPage
-  } = useRendezvous({ 
+    goToPage,
+  } = useRendezvous({
     autoLoad: true,
-    refreshInterval: 30000
+    refreshInterval: 30000,
   });
 
-  const { 
-    destinations = [], 
-    loading: loadingDestinations 
-  } = useDestinations();
+  const { destinations = [], loading: loadingDestinations } = useDestinations();
 
   // État local
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [modal, setModal] = useState<ModalState>({ type: null, rdv: null });
-  const [activeTab, setActiveTab] = useState<"list" | "today" | "upcoming">("list");
+  const [activeTab, setActiveTab] = useState<"list" | "today" | "upcoming">(
+    "list",
+  );
   const [todayList, setTodayList] = useState<RendezvousResponseDto[]>([]);
   const [upcomingList, setUpcomingList] = useState<RendezvousResponseDto[]>([]);
   const [loadingPanel, setLoadingPanel] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  const [completeOpinion, setCompleteOpinion] = useState<AdminOpinion>(AdminOpinion.FAVORABLE);
+  const [completeOpinion, setCompleteOpinion] = useState<AdminOpinion>(
+    AdminOpinion.FAVORABLE,
+  );
   const [completeComment, setCompleteComment] = useState("");
-  
+
   // Formulaire d'édition
   const [editForm, setEditForm] = useState<UpdateRendezvousDto>({
     firstName: "",
@@ -250,11 +260,11 @@ const RendezvousAdmin = () => {
     date: "",
     time: "" as TimeSlot,
   });
-  
+
   const [showOtherDestination, setShowOtherDestination] = useState(false);
   const [showOtherNiveau, setShowOtherNiveau] = useState(false);
   const [showOtherFiliere, setShowOtherFiliere] = useState(false);
-  
+
   const [createForm, setCreateForm] = useState<CreateRendezvousDto>({
     firstName: "",
     lastName: "",
@@ -269,11 +279,12 @@ const RendezvousAdmin = () => {
     date: "",
     time: "" as TimeSlot,
   });
-  
-  const [showOtherDestinationCreate, setShowOtherDestinationCreate] = useState(false);
+
+  const [showOtherDestinationCreate, setShowOtherDestinationCreate] =
+    useState(false);
   const [showOtherNiveauCreate, setShowOtherNiveauCreate] = useState(false);
   const [showOtherFiliereCreate, setShowOtherFiliereCreate] = useState(false);
-  
+
   const [confirmModal, setConfirmModal] = useState<{
     open: boolean;
     id: string | null;
@@ -291,18 +302,18 @@ const RendezvousAdmin = () => {
   // Debounce recherche
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    
+
     searchTimer.current = setTimeout(() => {
       setFilters({
         ...filters,
         searchTerm: searchTerm.trim() || undefined,
       });
     }, 350);
-    
+
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
     };
-  }, [searchTerm]); // ✅ Garder seulement searchTerm
+  }, [searchTerm, filters, setFilters]); // Ajout de filters et setFilters
 
   // Panels
   const loadTodayPanel = useCallback(async () => {
@@ -319,18 +330,21 @@ const RendezvousAdmin = () => {
     }
   }, [getRendezvousByDate]);
 
-  const loadUpcomingPanel = useCallback(async (limit = 10) => {
-    setLoadingPanel(true);
-    try {
-      const data = await getUpcomingRendezvous(limit);
-      setUpcomingList(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Erreur chargement à venir:", error);
-      setUpcomingList([]);
-    } finally {
-      setLoadingPanel(false);
-    }
-  }, [getUpcomingRendezvous]);
+  const loadUpcomingPanel = useCallback(
+    async (limit = 10) => {
+      setLoadingPanel(true);
+      try {
+        const data = await getUpcomingRendezvous(limit);
+        setUpcomingList(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Erreur chargement à venir:", error);
+        setUpcomingList([]);
+      } finally {
+        setLoadingPanel(false);
+      }
+    },
+    [getUpcomingRendezvous],
+  );
 
   // Switch d'onglet
   const switchTab = useCallback((tab: "list" | "today" | "upcoming") => {
@@ -347,68 +361,74 @@ const RendezvousAdmin = () => {
   }, [activeTab, loadTodayPanel, loadUpcomingPanel]);
 
   // Filtre rapide par date
-  const handleDateQuickFilter = useCallback(async (date: string) => {
-    if (!date) {
-      await loadRendezvous();
-      return;
-    }
-    setActiveTab("today");
-    setLoadingPanel(true);
-    try {
-      const data = await getRendezvousByDate(date);
-      setTodayList(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Erreur filtre par date:", error);
-      setTodayList([]);
-    } finally {
-      setLoadingPanel(false);
-    }
-  }, [getRendezvousByDate, loadRendezvous]);
+  const handleDateQuickFilter = useCallback(
+    async (date: string) => {
+      if (!date) {
+        await loadRendezvous();
+        return;
+      }
+      setActiveTab("today");
+      setLoadingPanel(true);
+      try {
+        const data = await getRendezvousByDate(date);
+        setTodayList(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Erreur filtre par date:", error);
+        setTodayList([]);
+      } finally {
+        setLoadingPanel(false);
+      }
+    },
+    [getRendezvousByDate, loadRendezvous],
+  );
 
   // Ouvrir modal
-  const openModal = useCallback(async (type: ModalType, rdv: RendezvousResponseDto) => {
-    try {
-      if (type !== "create" && rdv?.id) {
-        await loadRendezvousById(rdv.id);
+  const openModal = useCallback(
+    async (type: ModalType, rdv: RendezvousResponseDto) => {
+      try {
+        if (type !== "create" && rdv?.id) {
+          await loadRendezvousById(rdv.id);
+        }
+
+        const data = selectedRendezvous ?? rdv;
+        if (!data) return;
+
+        setModal({ type, rdv: data });
+
+        if (type === "update") {
+          const isDestAutre = data.destination === "Autre";
+          const isNiveauAutre = data.niveauEtude === "Autre";
+          const isFiliereAutre = data.filiere === "Autre";
+
+          setShowOtherDestination(isDestAutre);
+          setShowOtherNiveau(isNiveauAutre);
+          setShowOtherFiliere(isFiliereAutre);
+
+          setEditForm({
+            firstName: data.firstName || "",
+            lastName: data.lastName || "",
+            telephone: data.telephone || "",
+            destination: isDestAutre ? "Autre" : data.destination || "",
+            destinationAutre: data.destinationAutre || "",
+            niveauEtude: isNiveauAutre ? "Autre" : data.niveauEtude || "",
+            niveauEtudeAutre: data.niveauEtudeAutre || "",
+            filiere: isFiliereAutre ? "Autre" : data.filiere || "",
+            filiereAutre: data.filiereAutre || "",
+            date: data.date || "",
+            time: data.time,
+          });
+        } else if (type === "complete") {
+          setCompleteOpinion(AdminOpinion.FAVORABLE);
+          setCompleteComment("");
+        } else if (type === "cancel") {
+          setCancelReason("");
+        }
+      } catch (error) {
+        console.error("Erreur ouverture modal:", error);
       }
-      
-      const data = selectedRendezvous ?? rdv;
-      if (!data) return;
-      
-      setModal({ type, rdv: data });
-      
-      if (type === "update") {
-        const isDestAutre = data.destination === "Autre";
-        const isNiveauAutre = data.niveauEtude === "Autre";
-        const isFiliereAutre = data.filiere === "Autre";
-        
-        setShowOtherDestination(isDestAutre);
-        setShowOtherNiveau(isNiveauAutre);
-        setShowOtherFiliere(isFiliereAutre);
-        
-        setEditForm({
-          firstName: data.firstName || "",
-          lastName: data.lastName || "",
-          telephone: data.telephone || "",
-          destination: isDestAutre ? "Autre" : data.destination || "",
-          destinationAutre: data.destinationAutre || "",
-          niveauEtude: isNiveauAutre ? "Autre" : data.niveauEtude || "",
-          niveauEtudeAutre: data.niveauEtudeAutre || "",
-          filiere: isFiliereAutre ? "Autre" : data.filiere || "",
-          filiereAutre: data.filiereAutre || "",
-          date: data.date || "",
-          time: data.time,
-        });
-      } else if (type === "complete") {
-        setCompleteOpinion(AdminOpinion.FAVORABLE);
-        setCompleteComment("");
-      } else if (type === "cancel") {
-        setCancelReason("");
-      }
-    } catch (error) {
-      console.error("Erreur ouverture modal:", error);
-    }
-  }, [loadRendezvousById, selectedRendezvous]);
+    },
+    [loadRendezvousById, selectedRendezvous],
+  );
 
   const closeModal = () => {
     setModal({ type: null, rdv: null });
@@ -419,13 +439,13 @@ const RendezvousAdmin = () => {
   // Mutations
   const handleComplete = async () => {
     if (!modal.rdv?.id) return;
-    
+
     try {
       const data: CompleteRendezvousDto = {
         avisAdmin: completeOpinion,
         comments: completeComment.trim() || undefined,
       };
-      
+
       const result = await completeRendezvous(modal.rdv.id, data);
       if (result) {
         closeModal();
@@ -440,13 +460,13 @@ const RendezvousAdmin = () => {
 
   const handleCancel = async () => {
     if (!modal.rdv?.id || !cancelReason.trim()) return;
-    
+
     try {
       const data: CancelRendezvousDto = {
         reason: cancelReason.trim(),
         cancelledBy: CancelledBy.ADMIN,
       };
-      
+
       const result = await cancelRendezvous(modal.rdv.id, data);
       if (result) {
         closeModal();
@@ -461,15 +481,22 @@ const RendezvousAdmin = () => {
 
   const handleUpdate = async () => {
     if (!modal.rdv?.id) return;
-    
+
     try {
       const cleanData: UpdateRendezvousDto = {
         ...editForm,
-        destinationAutre: editForm.destination === "Autre" ? editForm.destinationAutre : undefined,
-        niveauEtudeAutre: editForm.niveauEtude === "Autre" ? editForm.niveauEtudeAutre : undefined,
-        filiereAutre: editForm.filiere === "Autre" ? editForm.filiereAutre : undefined,
+        destinationAutre:
+          editForm.destination === "Autre"
+            ? editForm.destinationAutre
+            : undefined,
+        niveauEtudeAutre:
+          editForm.niveauEtude === "Autre"
+            ? editForm.niveauEtudeAutre
+            : undefined,
+        filiereAutre:
+          editForm.filiere === "Autre" ? editForm.filiereAutre : undefined,
       };
-      
+
       const result = await updateRendezvous(modal.rdv.id, cleanData);
       if (result) {
         closeModal();
@@ -486,18 +513,25 @@ const RendezvousAdmin = () => {
     try {
       const cleanData: CreateRendezvousDto = {
         ...createForm,
-        destinationAutre: createForm.destination === "Autre" ? createForm.destinationAutre : undefined,
-        niveauEtudeAutre: createForm.niveauEtude === "Autre" ? createForm.niveauEtudeAutre : undefined,
-        filiereAutre: createForm.filiere === "Autre" ? createForm.filiereAutre : undefined,
+        destinationAutre:
+          createForm.destination === "Autre"
+            ? createForm.destinationAutre
+            : undefined,
+        niveauEtudeAutre:
+          createForm.niveauEtude === "Autre"
+            ? createForm.niveauEtudeAutre
+            : undefined,
+        filiereAutre:
+          createForm.filiere === "Autre" ? createForm.filiereAutre : undefined,
       };
-      
+
       const result = await createRendezvous(cleanData);
       if (result) {
         closeModal();
         await loadStatistics();
         if (activeTab === "today") await loadTodayPanel();
         if (activeTab === "upcoming") await loadUpcomingPanel();
-        
+
         setCreateForm({
           firstName: "",
           lastName: "",
@@ -569,7 +603,7 @@ const RendezvousAdmin = () => {
     try {
       const csv = await exportRendezvous(filters || {});
       if (!csv) return;
-      
+
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -599,15 +633,19 @@ const RendezvousAdmin = () => {
   };
 
   // Gestionnaires pour les filtres
-  const handleStatusFilter = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleStatusFilter = async (
+    e: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
     const value = e.target.value;
     setFilters({
       ...filters,
-      status: value ? value as RendezvousStatus : undefined,
+      status: value ? (value as RendezvousStatus) : undefined,
     });
   };
 
-  const handleDestinationFilter = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleDestinationFilter = async (
+    e: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
     const value = e.target.value;
     setFilters({
       ...filters,
@@ -615,7 +653,9 @@ const RendezvousAdmin = () => {
     });
   };
 
-  const handleStartDateFilter = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleStartDateFilter = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const value = e.target.value;
     setFilters({
       ...filters,
@@ -626,7 +666,9 @@ const RendezvousAdmin = () => {
     });
   };
 
-  const handleEndDateFilter = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEndDateFilter = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const value = e.target.value;
     setFilters({
       ...filters,
@@ -650,7 +692,7 @@ const RendezvousAdmin = () => {
   // Statistiques sécurisées avec valeurs par défaut
   const safeStatistics = useMemo(() => {
     if (!statistics) return null;
-    
+
     return {
       total: statistics.total ?? 0,
       byStatus: {
@@ -674,7 +716,7 @@ const RendezvousAdmin = () => {
   // Rendu des statistiques
   const renderStatistics = () => {
     if (!isAdmin) return null;
-    
+
     if (loading.statistics) {
       return (
         <div className="flex justify-center py-8">
@@ -682,7 +724,7 @@ const RendezvousAdmin = () => {
         </div>
       );
     }
-    
+
     if (!safeStatistics) {
       return (
         <div className="bg-gray-50 rounded-xl p-8 text-center">
@@ -690,7 +732,7 @@ const RendezvousAdmin = () => {
         </div>
       );
     }
-    
+
     return (
       <>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -740,9 +782,7 @@ const RendezvousAdmin = () => {
               >
                 <Icon className={`w-4 h-4 ${color}`} />
               </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {value}
-              </p>
+              <p className="text-2xl font-bold text-gray-900">{value}</p>
               <p className="text-xs text-gray-500 mt-0.5">{label}</p>
             </div>
           ))}
@@ -813,38 +853,36 @@ const RendezvousAdmin = () => {
               </p>
             ) : (
               <div className="space-y-2">
-                {safeStatistics.topDestinations
-                  .slice(0, 5)
-                  .map((d, i) => {
-                    const max = safeStatistics.topDestinations[0]?.count ?? 1;
-                    const pct = Math.round((d.count / max) * 100);
-                    return (
-                      <div
-                        key={d.destination}
-                        className="flex items-center gap-2"
-                      >
-                        <span className="text-xs font-bold text-gray-400 w-4">
-                          {i + 1}
-                        </span>
-                        <div className="flex-1">
-                          <div className="flex justify-between text-xs mb-0.5">
-                            <span className="font-medium text-gray-700 truncate">
-                              {d.destination}
-                            </span>
-                            <span className="text-gray-500 ml-2 shrink-0">
-                              {d.count}
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-100 rounded-full h-1.5">
-                            <div
-                              className="bg-sky-500 h-1.5 rounded-full"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
+                {safeStatistics.topDestinations.slice(0, 5).map((d, i) => {
+                  const max = safeStatistics.topDestinations[0]?.count ?? 1;
+                  const pct = Math.round((d.count / max) * 100);
+                  return (
+                    <div
+                      key={d.destination}
+                      className="flex items-center gap-2"
+                    >
+                      <span className="text-xs font-bold text-gray-400 w-4">
+                        {i + 1}
+                      </span>
+                      <div className="flex-1">
+                        <div className="flex justify-between text-xs mb-0.5">
+                          <span className="font-medium text-gray-700 truncate">
+                            {d.destination}
+                          </span>
+                          <span className="text-gray-500 ml-2 shrink-0">
+                            {d.count}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-1.5">
+                          <div
+                            className="bg-sky-500 h-1.5 rounded-full"
+                            style={{ width: `${pct}%` }}
+                          />
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -881,19 +919,14 @@ const RendezvousAdmin = () => {
                   Icon: TrendingDown,
                 },
               ].map(({ label, value, color, Icon }) => (
-                <div
-                  key={label}
-                  className="flex items-center justify-between"
-                >
+                <div key={label} className="flex items-center justify-between">
                   <div
                     className={`flex items-center gap-2 text-sm text-gray-600`}
                   >
                     <Icon className={`w-4 h-4 ${color}`} />
                     {label}
                   </div>
-                  <span className={`text-lg font-bold ${color}`}>
-                    {value}
-                  </span>
+                  <span className={`text-lg font-bold ${color}`}>{value}</span>
                 </div>
               ))}
             </div>
@@ -1057,7 +1090,7 @@ const RendezvousAdmin = () => {
                 {/* Statut */}
                 <div className="relative">
                   <select
-                    value={filters?.status as string || ""}
+                    value={(filters?.status as string) || ""}
                     onChange={handleStatusFilter}
                     className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   >
@@ -1114,7 +1147,8 @@ const RendezvousAdmin = () => {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
-                <CalendarDays className="w-4 h-4 text-sky-500" /> Rendez-vous du jour
+                <CalendarDays className="w-4 h-4 text-sky-500" /> Rendez-vous du
+                jour
               </h2>
               <button
                 onClick={loadTodayPanel}
@@ -1154,7 +1188,8 @@ const RendezvousAdmin = () => {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-indigo-500" /> Prochains rendez-vous
+                <TrendingUp className="w-4 h-4 text-indigo-500" /> Prochains
+                rendez-vous
               </h2>
               <button
                 onClick={() => loadUpcomingPanel(20)}
@@ -1235,7 +1270,7 @@ const RendezvousAdmin = () => {
                             </div>
                             <div className="flex flex-wrap gap-2">
                               <StatusBadge status={rdv.status} />
-                              {(rdv.status === RendezvousStatus.CANCELLED || 
+                              {(rdv.status === RendezvousStatus.CANCELLED ||
                                 rdv.status === RendezvousStatus.COMPLETED) && (
                                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border bg-gray-100 text-gray-600 border-gray-300">
                                   <Lock className="w-3 h-3" />
@@ -1268,7 +1303,8 @@ const RendezvousAdmin = () => {
                             </span>
                             <span className="flex items-center gap-1">
                               <GraduationCap className="w-3.5 h-3.5 text-gray-400" />
-                              {displayEffectiveValue(rdv.effectiveNiveauEtude)} · {displayEffectiveValue(rdv.effectiveFiliere)}
+                              {displayEffectiveValue(rdv.effectiveNiveauEtude)}{" "}
+                              · {displayEffectiveValue(rdv.effectiveFiliere)}
                             </span>
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3.5 h-3.5 text-gray-400" />
@@ -1300,20 +1336,22 @@ const RendezvousAdmin = () => {
                               Détails
                             </button>
 
-                            {rdv.canModify && rdv.status !== RendezvousStatus.CANCELLED && rdv.status !== RendezvousStatus.COMPLETED && (
-                              <button
-                                onClick={() => openModal("update", rdv)}
-                                disabled={loading.update}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-sky-300 text-sky-700 rounded-lg hover:bg-sky-50 transition-colors disabled:opacity-50"
-                              >
-                                {loading.update ? (
-                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                )}
-                                Modifier
-                              </button>
-                            )}
+                            {rdv.canModify &&
+                              rdv.status !== RendezvousStatus.CANCELLED &&
+                              rdv.status !== RendezvousStatus.COMPLETED && (
+                                <button
+                                  onClick={() => openModal("update", rdv)}
+                                  disabled={loading.update}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-sky-300 text-sky-700 rounded-lg hover:bg-sky-50 transition-colors disabled:opacity-50"
+                                >
+                                  {loading.update ? (
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  )}
+                                  Modifier
+                                </button>
+                              )}
 
                             {rdv.status === RendezvousStatus.CONFIRMED && (
                               <button
@@ -1360,35 +1398,37 @@ const RendezvousAdmin = () => {
                               </button>
                             )}
 
-                            {rdv.canCancel && rdv.status !== RendezvousStatus.COMPLETED && (
-                              <button
-                                onClick={() => openModal("cancel", rdv)}
-                                disabled={loading.cancel}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors disabled:opacity-50"
-                              >
-                                {loading.cancel ? (
-                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <Ban className="w-3.5 h-3.5" />
-                                )}
-                                Annuler
-                              </button>
-                            )}
+                            {rdv.canCancel &&
+                              rdv.status !== RendezvousStatus.COMPLETED && (
+                                <button
+                                  onClick={() => openModal("cancel", rdv)}
+                                  disabled={loading.cancel}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors disabled:opacity-50"
+                                >
+                                  {loading.cancel ? (
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Ban className="w-3.5 h-3.5" />
+                                  )}
+                                  Annuler
+                                </button>
+                              )}
 
-                            {rdv.status !== RendezvousStatus.CANCELLED && rdv.status !== RendezvousStatus.COMPLETED && (
-                              <button
-                                onClick={() => handleDelete(rdv.id)}
-                                disabled={loading.delete}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors ml-auto disabled:opacity-50"
-                              >
-                                {loading.delete ? (
-                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                )}
-                                Supprimer
-                              </button>
-                            )}
+                            {rdv.status !== RendezvousStatus.CANCELLED &&
+                              rdv.status !== RendezvousStatus.COMPLETED && (
+                                <button
+                                  onClick={() => handleDelete(rdv.id)}
+                                  disabled={loading.delete}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors ml-auto disabled:opacity-50"
+                                >
+                                  {loading.delete ? (
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  )}
+                                  Supprimer
+                                </button>
+                              )}
                           </div>
                         </div>
                       </div>
@@ -1466,10 +1506,7 @@ const RendezvousAdmin = () => {
       {modal.type === "detail" && modal.rdv && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
-            <ModalHeader
-              title="Détails du rendez-vous"
-              onClose={closeModal}
-            />
+            <ModalHeader title="Détails du rendez-vous" onClose={closeModal} />
             <div className="p-6 space-y-5">
               {loading.details ? (
                 <div className="flex justify-center py-8">
@@ -1511,17 +1548,23 @@ const RendezvousAdmin = () => {
                       {
                         Icon: MapPin,
                         label: "Destination",
-                        value: displayEffectiveValue(modal.rdv.effectiveDestination),
+                        value: displayEffectiveValue(
+                          modal.rdv.effectiveDestination,
+                        ),
                       },
                       {
                         Icon: GraduationCap,
                         label: "Niveau",
-                        value: displayEffectiveValue(modal.rdv.effectiveNiveauEtude),
+                        value: displayEffectiveValue(
+                          modal.rdv.effectiveNiveauEtude,
+                        ),
                       },
                       {
                         Icon: BookOpen,
                         label: "Filière",
-                        value: displayEffectiveValue(modal.rdv.effectiveFiliere),
+                        value: displayEffectiveValue(
+                          modal.rdv.effectiveFiliere,
+                        ),
                       },
                       {
                         Icon: Calendar,
@@ -1534,10 +1577,7 @@ const RendezvousAdmin = () => {
                         value: timeSlotToDisplay(modal.rdv.time),
                       },
                     ].map(({ Icon, label, value }) => (
-                      <div
-                        key={label}
-                        className="bg-gray-50 rounded-xl p-3"
-                      >
+                      <div key={label} className="bg-gray-50 rounded-xl p-3">
                         <div className="flex items-center gap-2 text-gray-400 mb-1">
                           <Icon className="w-3.5 h-3.5" />
                           <span className="text-xs">{label}</span>
@@ -1648,10 +1688,7 @@ const RendezvousAdmin = () => {
       {modal.type === "complete" && modal.rdv && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
-            <ModalHeader
-              title="Terminer le rendez-vous"
-              onClose={closeModal}
-            />
+            <ModalHeader title="Terminer le rendez-vous" onClose={closeModal} />
             <div className="p-6 space-y-5">
               <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600">
                 <span className="font-semibold text-gray-900">
@@ -1667,10 +1704,7 @@ const RendezvousAdmin = () => {
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   {(
-                    [
-                      AdminOpinion.FAVORABLE,
-                      AdminOpinion.UNFAVORABLE,
-                    ] as const
+                    [AdminOpinion.FAVORABLE, AdminOpinion.UNFAVORABLE] as const
                   ).map((op) => (
                     <button
                       key={op}
@@ -1700,9 +1734,7 @@ const RendezvousAdmin = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Commentaire{" "}
-                  <span className="text-gray-400 font-normal">
-                    (optionnel)
-                  </span>
+                  <span className="text-gray-400 font-normal">(optionnel)</span>
                 </label>
                 <textarea
                   value={completeComment}
@@ -1742,15 +1774,12 @@ const RendezvousAdmin = () => {
       {modal.type === "cancel" && modal.rdv && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
-            <ModalHeader
-              title="Annuler le rendez-vous"
-              onClose={closeModal}
-            />
+            <ModalHeader title="Annuler le rendez-vous" onClose={closeModal} />
             <div className="p-6 space-y-5">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
                 Cette action annulera le rendez-vous de{" "}
-                <span className="font-semibold">{modal.rdv.fullName}</span>.
-                Le client sera notifié.
+                <span className="font-semibold">{modal.rdv.fullName}</span>. Le
+                client sera notifié.
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -1797,10 +1826,7 @@ const RendezvousAdmin = () => {
       {modal.type === "create" && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
-            <ModalHeader
-              title="Créer un rendez-vous"
-              onClose={closeModal}
-            />
+            <ModalHeader title="Créer un rendez-vous" onClose={closeModal} />
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1888,7 +1914,8 @@ const RendezvousAdmin = () => {
                     setCreateForm({
                       ...createForm,
                       destination: value,
-                      destinationAutre: value !== "Autre" ? "" : createForm.destinationAutre,
+                      destinationAutre:
+                        value !== "Autre" ? "" : createForm.destinationAutre,
                     });
                   }}
                   className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
@@ -1902,7 +1929,7 @@ const RendezvousAdmin = () => {
                   ))}
                   <option value="Autre">Autre</option>
                 </select>
-                
+
                 {showOtherDestinationCreate && (
                   <div className="mt-2">
                     <input
@@ -1934,7 +1961,8 @@ const RendezvousAdmin = () => {
                       setCreateForm({
                         ...createForm,
                         niveauEtude: value,
-                        niveauEtudeAutre: value !== "Autre" ? "" : createForm.niveauEtudeAutre,
+                        niveauEtudeAutre:
+                          value !== "Autre" ? "" : createForm.niveauEtudeAutre,
                       });
                     }}
                     className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
@@ -1946,7 +1974,7 @@ const RendezvousAdmin = () => {
                       </option>
                     ))}
                   </select>
-                  
+
                   {showOtherNiveauCreate && (
                     <div className="mt-2">
                       <input
@@ -1964,7 +1992,7 @@ const RendezvousAdmin = () => {
                     </div>
                   )}
                 </div>
-                
+
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">
                     Filière *
@@ -1977,7 +2005,8 @@ const RendezvousAdmin = () => {
                       setCreateForm({
                         ...createForm,
                         filiere: value,
-                        filiereAutre: value !== "Autre" ? "" : createForm.filiereAutre,
+                        filiereAutre:
+                          value !== "Autre" ? "" : createForm.filiereAutre,
                       });
                     }}
                     className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
@@ -1989,7 +2018,7 @@ const RendezvousAdmin = () => {
                       </option>
                     ))}
                   </select>
-                  
+
                   {showOtherFiliereCreate && (
                     <div className="mt-2">
                       <input
@@ -2023,7 +2052,7 @@ const RendezvousAdmin = () => {
                         date: e.target.value,
                       })
                     }
-                    min={new Date().toISOString().split('T')[0]}
+                    min={new Date().toISOString().split("T")[0]}
                     className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
@@ -2043,7 +2072,10 @@ const RendezvousAdmin = () => {
                   >
                     <option value="">Sélectionner</option>
                     {TIME_SLOT_OPTIONS.map((time) => (
-                      <option key={time} value={`SLOT_${time.replace(':', '')}`}>
+                      <option
+                        key={time}
+                        value={`SLOT_${time.replace(":", "")}`}
+                      >
                         {time}
                       </option>
                     ))}
@@ -2080,10 +2112,7 @@ const RendezvousAdmin = () => {
       {modal.type === "update" && modal.rdv && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
-            <ModalHeader
-              title="Modifier le rendez-vous"
-              onClose={closeModal}
-            />
+            <ModalHeader title="Modifier le rendez-vous" onClose={closeModal} />
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 {(["firstName", "lastName"] as const).map((field) => (
@@ -2150,7 +2179,7 @@ const RendezvousAdmin = () => {
                   >
                     <option value="">Sélectionner</option>
                     {TIME_SLOT_OPTIONS.map((t) => (
-                      <option key={t} value={`SLOT_${t.replace(':', '')}`}>
+                      <option key={t} value={`SLOT_${t.replace(":", "")}`}>
                         {t}
                       </option>
                     ))}
@@ -2171,7 +2200,8 @@ const RendezvousAdmin = () => {
                       setEditForm({
                         ...editForm,
                         niveauEtude: value,
-                        niveauEtudeAutre: value !== "Autre" ? "" : editForm.niveauEtudeAutre,
+                        niveauEtudeAutre:
+                          value !== "Autre" ? "" : editForm.niveauEtudeAutre,
                       });
                     }}
                     className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
@@ -2183,7 +2213,7 @@ const RendezvousAdmin = () => {
                       </option>
                     ))}
                   </select>
-                  
+
                   {showOtherNiveau && (
                     <div className="mt-2">
                       <input
@@ -2201,7 +2231,7 @@ const RendezvousAdmin = () => {
                     </div>
                   )}
                 </div>
-                
+
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">
                     Filière
@@ -2214,7 +2244,8 @@ const RendezvousAdmin = () => {
                       setEditForm({
                         ...editForm,
                         filiere: value,
-                        filiereAutre: value !== "Autre" ? "" : editForm.filiereAutre,
+                        filiereAutre:
+                          value !== "Autre" ? "" : editForm.filiereAutre,
                       });
                     }}
                     className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
@@ -2226,7 +2257,7 @@ const RendezvousAdmin = () => {
                       </option>
                     ))}
                   </select>
-                  
+
                   {showOtherFiliere && (
                     <div className="mt-2">
                       <input
@@ -2259,7 +2290,8 @@ const RendezvousAdmin = () => {
                       setEditForm({
                         ...editForm,
                         destination: value,
-                        destinationAutre: value !== "Autre" ? "" : editForm.destinationAutre,
+                        destinationAutre:
+                          value !== "Autre" ? "" : editForm.destinationAutre,
                       });
                     }}
                     className="w-full appearance-none border border-gray-300 rounded-xl px-3 py-2 pr-8 text-sm focus:ring-2 focus:ring-sky-500"
@@ -2273,7 +2305,7 @@ const RendezvousAdmin = () => {
                   </select>
                   <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                 </div>
-                
+
                 {showOtherDestination && (
                   <div className="mt-2">
                     <input

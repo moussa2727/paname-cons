@@ -58,7 +58,10 @@ async function handleResponse<T>(res: Response): Promise<T> {
   // Le backend retourne directement la structure attendue
   // Si la réponse a une propriété 'data', on l'utilise, sinon on utilise le corps directement
   const responseBodyObj = responseBody as Record<string, unknown>;
-  const result = responseBodyObj.data !== undefined ? responseBodyObj.data as T : responseBody as T;
+  const result =
+    responseBodyObj.data !== undefined
+      ? (responseBodyObj.data as T)
+      : (responseBody as T);
   return result;
 }
 
@@ -72,11 +75,12 @@ const API = {
   ADMIN_CREATE: "/admin/procedures/create",
   ADMIN_ALL: "/admin/procedures/all",
   ADMIN_STATISTICS: "/admin/procedures/statistics",
-  ADMIN_STEP: (id: string, stepName: StepName) => `/admin/procedures/${id}/steps/${stepName}`,
+  ADMIN_STEP: (id: string, stepName: StepName) =>
+    `/admin/procedures/${id}/steps/${stepName}`,
   ADMIN_DELETE: (id: string) => `/admin/procedures/${id}/delete`,
   ADMIN_COMPLETE: (id: string) => `/admin/procedures/${id}/complete`,
   ADMIN_EXPORT: "/admin/procedures/export",
-  
+
   // Routes utilisateur
   PROCEDURE_CREATE: "/procedures/create",
   PROCEDURE_ALL: "/procedures",
@@ -261,7 +265,7 @@ export const ProceduresService = {
     }
   },
 
-   /**
+  /**
    * GET /admin/procedures/export
    * @see ProceduresController.exportProcedures()
    */
@@ -271,18 +275,18 @@ export const ProceduresService = {
   ): Promise<Blob> {
     try {
       const params = new URLSearchParams();
-      params.set('format', format);
-      
+      params.set("format", format);
+
       // Ajouter tous les paramètres de query
       for (const [key, value] of Object.entries(query)) {
-        if (value !== undefined && value !== null && value !== '') {
+        if (value !== undefined && value !== null && value !== "") {
           params.set(key, String(value));
         }
       }
-      
+
       const url = `${BASE_URL}${API.ADMIN_EXPORT}?${params}`;
-      
-      const res = await apiFetch(url, { 
+
+      const res = await apiFetch(url, {
         method: "GET",
         // Pas de headers JSON car on attend un blob
       });

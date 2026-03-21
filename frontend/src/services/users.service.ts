@@ -26,7 +26,6 @@ import type {
   BackendDTO_UserStatistics,
   BackendDTO_CreateUserBody,
   BackendDTO_UpdateUserBody,
-  BackendDTO_AdminUpdateProfileBody,
   BackendDTO_AdminUpdateUserBody,
   // Types applicatifs
   AppUser,
@@ -36,7 +35,6 @@ import type {
   GetUsersParams,
   CreateUserParams,
   UpdateProfileParams,
-  UpdateAdminProfileParams,
   UpdateUserParams,
   UpdateUserStatusParams,
 } from "../types/user.types";
@@ -136,6 +134,43 @@ export async function updateUserProfile(
     toast.error("Erreur lors de la mise à jour du profil", {
       duration: 4000,
     });
+    throw error;
+  }
+}
+
+/**
+ * PATCH /admin/profile   [ADMIN]
+ * Met à jour le profil de l'admin connecté.
+ * N'accepte pas l'email pour des raisons de sécurité.
+ */
+export async function updateAdminProfile(
+  params: UpdateProfileParams,
+): Promise<AppUser> {
+  // Créer le corps avec seulement les champs autorisés pour l'admin
+  const body: BackendDTO_AdminUpdateUserBody = {
+    ...(params.firstName !== undefined && { firstName: params.firstName }),
+    ...(params.lastName !== undefined && { lastName: params.lastName }),
+    ...(params.telephone !== undefined && { telephone: params.telephone }),
+    ...(params.password !== undefined && { password: params.password }),
+  };
+
+  try {
+    const response = await apiFetch(`${API_URL}/admin/profile`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+
+    const dto = await parseResponse<BackendDTO_UserResponse>(response);
+    const user = mapUserResponseToAppUser(dto);
+
+    // Toast de succès
+    toast.success("Profil admin mis à jour avec succès", {
+      duration: 4000,
+    });
+
+    return user;
+  } catch (error) {
+    console.error("Erreur updateAdminProfile:", error);
     throw error;
   }
 }

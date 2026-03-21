@@ -36,7 +36,8 @@ export const RendezvousStatus = {
   COMPLETED: "COMPLETED",
   CANCELLED: "CANCELLED",
 } as const;
-export type RendezvousStatus = typeof RendezvousStatus[keyof typeof RendezvousStatus];
+export type RendezvousStatus =
+  (typeof RendezvousStatus)[keyof typeof RendezvousStatus];
 
 /**
  * Avis administrateur - Correspond exactement à Prisma AdminOpinion
@@ -45,7 +46,7 @@ export const AdminOpinion = {
   FAVORABLE: "FAVORABLE",
   UNFAVORABLE: "UNFAVORABLE",
 } as const;
-export type AdminOpinion = typeof AdminOpinion[keyof typeof AdminOpinion];
+export type AdminOpinion = (typeof AdminOpinion)[keyof typeof AdminOpinion];
 
 /**
  * Annulé par - Correspond exactement à Prisma CancelledBy
@@ -55,7 +56,7 @@ export const CancelledBy = {
   ADMIN: "ADMIN",
   SYSTEM: "SYSTEM",
 } as const;
-export type CancelledBy = typeof CancelledBy[keyof typeof CancelledBy];
+export type CancelledBy = (typeof CancelledBy)[keyof typeof CancelledBy];
 
 // ==================== DTOs REQUÊTE (Miroir EXACT du backend) ====================
 

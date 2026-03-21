@@ -5,11 +5,11 @@ import { useProcedures } from "../../../hooks/useProcedures";
 import { useAuth } from "../../../hooks/useAuth";
 import Loader from "../../../components/shared/admin/Loader";
 import ConfirmationModal from "../../../components/shared/admin/ConfirMationModal";
-import type { 
-  ProcedureStatus, 
+import type {
+  ProcedureStatus,
   SortOrder,
   StepName,
-  ExportFormat
+  ExportFormat,
 } from "../../../types/procedures.types";
 import {
   Search,
@@ -123,21 +123,17 @@ const Procedures = () => {
     error,
     query,
     overdue,
-    
+
     // États de chargement
-    loading: { 
-      list: loading, 
-      delete: loadingDelete, 
-      statistics: loadingStats 
-    },
-    
+    loading: { list: loading, delete: loadingDelete, statistics: loadingStats },
+
     // Méthodes admin uniquement
-    remove,              // DELETE /admin/procedures/:id/delete
-    setQuery,            // Met à jour les query params
-    resetFilters,        // Réinitialise tous les filtres
-    refresh,             // GET /admin/procedures/all + statistics
-    setPage,             // Change la page
-    setLimit,            // Change la limite par page
+    remove, // DELETE /admin/procedures/:id/delete
+    setQuery, // Met à jour les query params
+    resetFilters, // Réinitialise tous les filtres
+    refresh, // GET /admin/procedures/all + statistics
+    setPage, // Change la page
+    setLimit, // Change la limite par page
   } = useProcedures({
     autoLoad: true,
     shouldLoadStatistics: isAdmin,
@@ -152,9 +148,9 @@ const Procedures = () => {
   });
 
   // Debug pour voir les statistiques
-  console.log('Statistics:', statistics);
-  console.log('Is Admin:', isAdmin);
-  console.log('Loading Stats:', loadingStats);
+  console.log("Statistics:", statistics);
+  console.log("Is Admin:", isAdmin);
+  console.log("Loading Stats:", loadingStats);
 
   // ─── Données pour les filtres (depuis les stats du backend) ────────────
   const destinations = useMemo(() => {
@@ -172,43 +168,64 @@ const Procedures = () => {
   }, [statistics]);
 
   // ─── Handlers pour les filtres (délégation totale au hook) ─────────────
-  const handleSearch = useCallback((term: string) => {
-    setQuery({ search: term || undefined, page: 1 });
-  }, [setQuery]);
+  const handleSearch = useCallback(
+    (term: string) => {
+      setQuery({ search: term || undefined, page: 1 });
+    },
+    [setQuery],
+  );
 
-  const handleStatusFilter = useCallback((status: string) => {
-    setQuery({
-      status: status === "ALL" ? undefined : (status as ProcedureStatus),
-      page: 1,
-    });
-  }, [setQuery]);
+  const handleStatusFilter = useCallback(
+    (status: string) => {
+      setQuery({
+        status: status === "ALL" ? undefined : (status as ProcedureStatus),
+        page: 1,
+      });
+    },
+    [setQuery],
+  );
 
-  const handleDestinationFilter = useCallback((destination: string) => {
-    setQuery({
-      destination: destination === "ALL" ? undefined : destination,
-      page: 1,
-    });
-  }, [setQuery]);
+  const handleDestinationFilter = useCallback(
+    (destination: string) => {
+      setQuery({
+        destination: destination === "ALL" ? undefined : destination,
+        page: 1,
+      });
+    },
+    [setQuery],
+  );
 
-  const handleFiliereFilter = useCallback((filiere: string) => {
-    setQuery({
-      filiere: filiere === "ALL" ? undefined : filiere,
-      page: 1,
-    });
-  }, [setQuery]);
+  const handleFiliereFilter = useCallback(
+    (filiere: string) => {
+      setQuery({
+        filiere: filiere === "ALL" ? undefined : filiere,
+        page: 1,
+      });
+    },
+    [setQuery],
+  );
 
-  const handleSortChange = useCallback((value: string) => {
-    const [sortBy, sortOrder] = value.split('-') as [string, SortOrder];
-    setQuery({ sortBy, sortOrder, page: 1 });
-  }, [setQuery]);
+  const handleSortChange = useCallback(
+    (value: string) => {
+      const [sortBy, sortOrder] = value.split("-") as [string, SortOrder];
+      setQuery({ sortBy, sortOrder, page: 1 });
+    },
+    [setQuery],
+  );
 
-  const handleIncludeCompleted = useCallback((include: boolean) => {
-    setQuery({ includeCompleted: include, page: 1 });
-  }, [setQuery]);
+  const handleIncludeCompleted = useCallback(
+    (include: boolean) => {
+      setQuery({ includeCompleted: include, page: 1 });
+    },
+    [setQuery],
+  );
 
-  const handleIncludeDeleted = useCallback((include: boolean) => {
-    setQuery({ includeDeleted: include, page: 1 });
-  }, [setQuery]);
+  const handleIncludeDeleted = useCallback(
+    (include: boolean) => {
+      setQuery({ includeDeleted: include, page: 1 });
+    },
+    [setQuery],
+  );
 
   const handleResetFilters = useCallback(() => {
     resetFilters();
@@ -219,22 +236,34 @@ const Procedures = () => {
   }, [refresh]);
 
   // ─── Handlers pour la pagination ───────────────────────────────────────
-  const handlePageChange = useCallback((pageNum: number) => {
-    setPage(pageNum);
-  }, [setPage]);
+  const handlePageChange = useCallback(
+    (pageNum: number) => {
+      setPage(pageNum);
+    },
+    [setPage],
+  );
 
-  const handleLimitChange = useCallback((limit: number) => {
-    setLimit(limit);
-  }, [setLimit]);
+  const handleLimitChange = useCallback(
+    (limit: number) => {
+      setLimit(limit);
+    },
+    [setLimit],
+  );
 
   // ─── Handlers pour les actions ─────────────────────────────────────────
-  const handleViewDetails = useCallback((id: string) => {
-    navigate(`/gestionnaire/procedures/${id}`);
-  }, [navigate]);
+  const handleViewDetails = useCallback(
+    (id: string) => {
+      navigate(`/gestionnaire/procedures/${id}`);
+    },
+    [navigate],
+  );
 
-  const handleEdit = useCallback((id: string) => {
-    navigate(`/gestionnaire/procedures/${id}`);
-  }, [navigate]);
+  const handleEdit = useCallback(
+    (id: string) => {
+      navigate(`/gestionnaire/procedures/${id}`);
+    },
+    [navigate],
+  );
 
   const handleDelete = useCallback((id: string) => {
     setConfirmModal({ open: true, id });
@@ -257,23 +286,25 @@ const Procedures = () => {
   }, []);
 
   // ─── Export des données (utilise le service d'export) ───────────────────
-  const handleExport = useCallback(async (format: ExportFormat = 'excel') => {
-    try {
-      // Récupérer les query params actuels du hook
-      const blob = await ProceduresService.exportProcedures(format, query);
-      
-      // Créer le lien de téléchargement
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `procedures-${new Date().toISOString().split('T')[0]}.${format}`;
-      a.click();
-      URL.revokeObjectURL(url);
-      
-    } catch (err) {
-      console.error("Erreur export:", err);
-    }
-  }, [query]);
+  const handleExport = useCallback(
+    async (format: ExportFormat = "excel") => {
+      try {
+        // Récupérer les query params actuels du hook
+        const blob = await ProceduresService.exportProcedures(format, query);
+
+        // Créer le lien de téléchargement
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `procedures-${new Date().toISOString().split("T")[0]}.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Erreur export:", err);
+      }
+    },
+    [query],
+  );
 
   // ─── Vérification des permissions ──────────────────────────────────────
   if (!isAdmin) {
@@ -281,16 +312,24 @@ const Procedures = () => {
       <div className="p-8 text-center">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
           <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-red-700 mb-2">Accès non autorisé</h2>
+          <h2 className="text-xl font-bold text-red-700 mb-2">
+            Accès non autorisé
+          </h2>
           <p className="text-red-600">
-            Vous n'avez pas les permissions nécessaires pour accéder à cette page.
+            Vous n'avez pas les permissions nécessaires pour accéder à cette
+            page.
           </p>
         </div>
       </div>
     );
   }
 
-  const hasActiveFilters = !!(query.search || query.status || query.destination || query.filiere);
+  const hasActiveFilters = !!(
+    query.search ||
+    query.status ||
+    query.destination ||
+    query.filiere
+  );
 
   return (
     <>
@@ -312,10 +351,9 @@ const Procedures = () => {
               Gestion des procédures
             </h1>
             <p className="text-gray-600">
-              {pagination?.total 
-                ? `${pagination.total} procédure${pagination.total > 1 ? 's' : ''} au total`
-                : 'Gérez les procédures en cours et en attente'
-              }
+              {pagination?.total
+                ? `${pagination.total} procédure${pagination.total > 1 ? "s" : ""} au total`
+                : "Gérez les procédures en cours et en attente"}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -334,7 +372,7 @@ const Procedures = () => {
               className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm transition-colors"
             >
               <Filter className="w-4 h-4" />
-              Filtres {hasActiveFilters && '(actifs)'}
+              Filtres {hasActiveFilters && "(actifs)"}
             </button>
             {hasActiveFilters && (
               <button
@@ -346,22 +384,22 @@ const Procedures = () => {
               </button>
             )}
             <div className="flex items-center gap-2">
-              <button 
-                onClick={() => handleExport('csv')}
+              <button
+                onClick={() => handleExport("csv")}
                 className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm transition-colors"
               >
                 <Download className="w-4 h-4" />
                 CSV
               </button>
-              <button 
-                onClick={() => handleExport('excel')}
+              <button
+                onClick={() => handleExport("excel")}
                 className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm transition-colors"
               >
                 <Download className="w-4 h-4" />
                 Excel
               </button>
-              <button 
-                onClick={() => handleExport('pdf')}
+              <button
+                onClick={() => handleExport("pdf")}
                 className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm transition-colors"
               >
                 <Download className="w-4 h-4" />
@@ -376,113 +414,122 @@ const Procedures = () => {
           <div className="mb-6 p-8 bg-gray-50 rounded-lg text-center">
             <Loader loading={true} size="md" />
           </div>
-        ) : statistics && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Total</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {statistics.total}
-                  </p>
+        ) : (
+          statistics && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {statistics.total}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <User className="w-6 h-6 text-gray-600" />
+                  </div>
                 </div>
-                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <User className="w-6 h-6 text-gray-600" />
+              </div>
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">En cours</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {statistics.byStatus?.IN_PROGRESS ?? 0}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Clock className="w-6 h-6 text-blue-600" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Terminées</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {statistics.byStatus?.COMPLETED ?? 0}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <CheckCircle className="w-6 h-6 text-green-600" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Taux complétion</p>
+                    <p className="text-2xl font-bold text-emerald-600">
+                      {!isAdmin
+                        ? "N/A"
+                        : loadingStats
+                          ? "..."
+                          : statistics
+                            ? Math.round(statistics.completionRate)
+                            : 0}
+                      %
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <CheckCircle className="w-6 h-6 text-emerald-600" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">En attente</p>
+                    <p className="text-2xl font-bold text-yellow-600">
+                      {statistics.byStatus?.PENDING ?? 0}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                    <AlertCircle className="w-6 h-6 text-yellow-600" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Rejetées</p>
+                    <p className="text-2xl font-bold text-red-600">
+                      {statistics.byStatus?.REJECTED ?? 0}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                    <XCircle className="w-6 h-6 text-red-600" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Annulées</p>
+                    <p className="text-2xl font-bold text-gray-600">
+                      {statistics.byStatus?.CANCELLED ?? 0}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <Ban className="w-6 h-6 text-gray-600" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">En retard</p>
+                    <p className="text-2xl font-bold text-amber-600">
+                      {overdue?.length ?? 0}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+                    <AlertTriangle className="w-6 h-6 text-amber-600" />
+                  </div>
                 </div>
               </div>
             </div>
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">En cours</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {statistics.byStatus?.IN_PROGRESS ?? 0}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-blue-600" />
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Terminées</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {statistics.byStatus?.COMPLETED ?? 0}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Taux complétion</p>
-                  <p className="text-2xl font-bold text-emerald-600">
-                    {!isAdmin ? "N/A" : loadingStats ? "..." : statistics ? Math.round(statistics.completionRate) : 0}%
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6 text-emerald-600" />
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">En attente</p>
-                  <p className="text-2xl font-bold text-yellow-600">
-                    {statistics.byStatus?.PENDING ?? 0}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-yellow-600" />
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Rejetées</p>
-                  <p className="text-2xl font-bold text-red-600">
-                    {statistics.byStatus?.REJECTED ?? 0}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                  <XCircle className="w-6 h-6 text-red-600" />
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Annulées</p>
-                  <p className="text-2xl font-bold text-gray-600">
-                    {statistics.byStatus?.CANCELLED ?? 0}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Ban className="w-6 h-6 text-gray-600" />
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">En retard</p>
-                  <p className="text-2xl font-bold text-amber-600">
-                    {overdue?.length ?? 0}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6 text-amber-600" />
-                </div>
-              </div>
-            </div>
-          </div>
+          )
         )}
 
         {/* ─── Panneau de filtres ───────────────────────────────────────── */}
@@ -576,7 +623,10 @@ const Procedures = () => {
                   onChange={(e) => handleIncludeCompleted(e.target.checked)}
                   className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
                 />
-                <label htmlFor="includeCompleted" className="text-sm text-gray-700">
+                <label
+                  htmlFor="includeCompleted"
+                  className="text-sm text-gray-700"
+                >
                   Inclure terminées
                 </label>
               </div>
@@ -590,7 +640,10 @@ const Procedures = () => {
                   onChange={(e) => handleIncludeDeleted(e.target.checked)}
                   className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
                 />
-                <label htmlFor="includeDeleted" className="text-sm text-gray-700">
+                <label
+                  htmlFor="includeDeleted"
+                  className="text-sm text-gray-700"
+                >
                   Inclure supprimés
                 </label>
               </div>
@@ -662,7 +715,7 @@ const Procedures = () => {
                           Aucune procédure trouvée
                         </p>
                         <p className="text-sm">
-                          {hasActiveFilters 
+                          {hasActiveFilters
                             ? "Essayez de modifier vos filtres de recherche"
                             : "Aucune procédure n'a encore été créée"}
                         </p>
@@ -681,7 +734,8 @@ const Procedures = () => {
                             {procedure.email}
                           </div>
                           <div className="text-xs text-gray-400 mt-1">
-                            ID: {procedure.id ? procedure.id.slice(0, 8) : 'N/A'}...
+                            ID:{" "}
+                            {procedure.id ? procedure.id.slice(0, 8) : "N/A"}...
                           </div>
                           {procedure.isDeleted && (
                             <span className="inline-block mt-1 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
@@ -733,7 +787,8 @@ const Procedures = () => {
                                 className={`h-2 rounded-full transition-all duration-300 ${
                                   procedure.statut === "COMPLETED"
                                     ? "bg-emerald-500"
-                                    : procedure.statut === "REJECTED" || procedure.statut === "CANCELLED"
+                                    : procedure.statut === "REJECTED" ||
+                                        procedure.statut === "CANCELLED"
                                       ? "bg-red-400"
                                       : "bg-sky-600"
                                 }`}
@@ -747,11 +802,13 @@ const Procedures = () => {
                             </span>
                           </div>
                           <div className="text-xs text-gray-500">
-                            {procedure.completedSteps}/{procedure.totalSteps} étapes
+                            {procedure.completedSteps}/{procedure.totalSteps}{" "}
+                            étapes
                           </div>
                           {procedure.activeStep && (
                             <div className="text-xs text-sky-600">
-                              {STEP_LABELS[procedure.activeStep] ?? procedure.activeStep.replace(/_/g, ' ')}
+                              {STEP_LABELS[procedure.activeStep] ??
+                                procedure.activeStep.replace(/_/g, " ")}
                             </div>
                           )}
                           {procedure.dateCompletion && (
@@ -782,7 +839,11 @@ const Procedures = () => {
                             className="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
                             onClick={() => handleDelete(procedure.id)}
                             disabled={loadingDelete || procedure.isDeleted}
-                            title={procedure.isDeleted ? "Déjà supprimé" : "Supprimer"}
+                            title={
+                              procedure.isDeleted
+                                ? "Déjà supprimé"
+                                : "Supprimer"
+                            }
                           >
                             {loadingDelete ? (
                               <RefreshCw className="w-4 h-4 animate-spin" />

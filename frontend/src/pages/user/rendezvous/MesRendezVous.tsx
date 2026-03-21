@@ -58,9 +58,7 @@ const getRemainingCancellationTime = (
   if (!rdv.canCancel) return null;
 
   const now = new Date();
-  const rdvDateTime = new Date(
-    `${rdv.date}T${timeSlotToDisplay(rdv.time)}:00`,
-  );
+  const rdvDateTime = new Date(`${rdv.date}T${timeSlotToDisplay(rdv.time)}:00`);
   const diffMs = rdvDateTime.getTime() - now.getTime();
 
   if (diffMs <= 0) return null;
@@ -78,9 +76,18 @@ const getRemainingCancellationTime = (
 const statusOptions: { value: RendezvousStatus | ""; label: string }[] = [
   { value: "", label: "Tous les statuts" },
   { value: RendezvousStatus.PENDING, label: RendezvousStatusLabels.PENDING },
-  { value: RendezvousStatus.CONFIRMED, label: RendezvousStatusLabels.CONFIRMED },
-  { value: RendezvousStatus.COMPLETED, label: RendezvousStatusLabels.COMPLETED },
-  { value: RendezvousStatus.CANCELLED, label: RendezvousStatusLabels.CANCELLED },
+  {
+    value: RendezvousStatus.CONFIRMED,
+    label: RendezvousStatusLabels.CONFIRMED,
+  },
+  {
+    value: RendezvousStatus.COMPLETED,
+    label: RendezvousStatusLabels.COMPLETED,
+  },
+  {
+    value: RendezvousStatus.CANCELLED,
+    label: RendezvousStatusLabels.CANCELLED,
+  },
 ];
 
 const statusColors: Record<RendezvousStatus, string> = {

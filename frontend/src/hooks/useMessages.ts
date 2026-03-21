@@ -121,7 +121,6 @@ export function useMessages(): UseMessagesReturn {
         MessagesService.getStatistics(),
       ]);
 
-
       // Vérifier si listResult est un tableau direct ou un objet avec data
       const messagesData = Array.isArray(listResult)
         ? listResult

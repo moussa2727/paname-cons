@@ -86,8 +86,14 @@ class RendezvousService {
 
     // Si la réponse a une structure enveloppée (data), l'extraire
     // SAUF si c'est déjà une réponse paginée (qui a déjà une propriété 'data')
-    if (data && typeof data === "object" && "data" in data && 
-        !("total" in data) && !("page" in data) && !("limit" in data)) {
+    if (
+      data &&
+      typeof data === "object" &&
+      "data" in data &&
+      !("total" in data) &&
+      !("page" in data) &&
+      !("limit" in data)
+    ) {
       return data.data as T;
     }
 
@@ -217,7 +223,9 @@ class RendezvousService {
    * GET /admin/rendezvous/statistics
    */
   async getStatistics(): Promise<RendezvousStatisticsDto> {
-    const response = await apiFetch(`${this.baseUrl}/admin/rendezvous/statistics`);
+    const response = await apiFetch(
+      `${this.baseUrl}/admin/rendezvous/statistics`,
+    );
     return this.handleResponse<RendezvousStatisticsDto>(response);
   }
 
@@ -304,17 +312,21 @@ class RendezvousService {
     const params: RendezvousQueryDto = {
       limit: 1000,
       ...(filters && {
-        ...(filters.status && { 
-          status: Array.isArray(filters.status) ? filters.status[0] : filters.status 
+        ...(filters.status && {
+          status: Array.isArray(filters.status)
+            ? filters.status[0]
+            : filters.status,
         }),
-        ...(filters.dateRange && { 
-          startDate: filters.dateRange.start, 
-          endDate: filters.dateRange.end 
+        ...(filters.dateRange && {
+          startDate: filters.dateRange.start,
+          endDate: filters.dateRange.end,
         }),
         ...(filters.searchTerm && { search: filters.searchTerm }),
         ...(filters.avisAdmin && { hasAvis: true }),
-        ...(filters.hasProcedure !== undefined && { hasProcedure: filters.hasProcedure }),
-      })
+        ...(filters.hasProcedure !== undefined && {
+          hasProcedure: filters.hasProcedure,
+        }),
+      }),
     };
 
     const result = await this.searchRendezvous(params);

@@ -28,7 +28,7 @@ import type {
   AppUserStatistics,
   GetUsersParams,
   CreateUserParams,
-  UpdateAdminProfileParams,
+  UpdateProfileParams,
   UpdateUserParams,
   UpdateUserStatusParams,
 } from "../types/user.types";
@@ -67,7 +67,7 @@ export interface UseUserReturn {
 
   // ── Actions utilisateur ───────────────────────────────────
   /** PATCH /admin/profile — sans email */
-  patchAdminProfile(params: UpdateAdminProfileParams): Promise<AppUser | null>;
+  patchAdminProfile(params: UpdateProfileParams): Promise<AppUser | null>;
 
   // ── Actions admin ─────────────────────────────────────────
   /** GET /admin/users/all */
@@ -135,7 +135,7 @@ export function useUser(): UseUserReturn {
   // PATCH /admin/profile  (sans email)
   // ─────────────────────────────────────────────────────────
   const patchAdminProfile = useCallback(
-    async (params: UpdateAdminProfileParams): Promise<AppUser | null> => {
+    async (params: UpdateProfileParams): Promise<AppUser | null> => {
       startLoading("updateProfile");
       try {
         const updated = await updateAdminProfile(params);

@@ -140,7 +140,6 @@ export default function AdminSidebar({
       icon: User,
       label: "Profil",
     },
-    
   ];
 
   const handleLogout = useCallback(async () => {
@@ -246,31 +245,31 @@ export default function AdminSidebar({
                 >
                   {/* Icône settings en haut */}
                   <div className="relative flex items-center gap-3">
-                      {/* Icône avec badge de statut */}
-                      <div className="relative">
-                        <Link
-                          to="/"
-                          className="w-10 h-10 bg-linear-to-br from-sky-400 to-sky-600 rounded-lg flex items-center justify-center shadow-md shadow-sky-500/30"
-                        >
-                          {user.role === "ADMIN" ? (
-                            <Settings className="w-5 h-5 text-white" />
-                          ) : (
-                            <User className="w-5 h-5 text-white" />
-                          )}
-                        </Link>
-                        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full animate-pulse"></div>
-                      </div>
-
-                      {/* Texte aligné à droite de l'icône */}
-                      <div className="flex flex-col">
-                        <h2 className="font-bold text-sky-900 text-sm leading-tight">
-                          Gestionnaire
-                        </h2>
-                        <p className="text-xs text-sky-700 leading-tight">
-                          Paname Consulting
-                        </p>
-                      </div>
+                    {/* Icône avec badge de statut */}
+                    <div className="relative">
+                      <Link
+                        to="/"
+                        className="w-10 h-10 bg-linear-to-br from-sky-400 to-sky-600 rounded-lg flex items-center justify-center shadow-md shadow-sky-500/30"
+                      >
+                        {user.role === "ADMIN" ? (
+                          <Settings className="w-5 h-5 text-white" />
+                        ) : (
+                          <User className="w-5 h-5 text-white" />
+                        )}
+                      </Link>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full animate-pulse"></div>
                     </div>
+
+                    {/* Texte aligné à droite de l'icône */}
+                    <div className="flex flex-col">
+                      <h2 className="font-bold text-sky-900 text-sm leading-tight">
+                        Gestionnaire
+                      </h2>
+                      <p className="text-xs text-sky-700 leading-tight">
+                        Paname Consulting
+                      </p>
+                    </div>
+                  </div>
 
                   {/* Informations utilisateur en dessous */}
                   <div className="text-start">
@@ -571,7 +570,9 @@ export default function AdminSidebar({
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">Déconnexion</h3>
-                  <p className="text-sm text-gray-600">Êtes-vous sûr de vouloir vous déconnecter ?</p>
+                  <p className="text-sm text-gray-600">
+                    Êtes-vous sûr de vouloir vous déconnecter ?
+                  </p>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -619,7 +620,9 @@ export default function AdminSidebar({
                   <Shield className="w-5 h-5 text-orange-600" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">Déconnexion globale</h3>
+                  <h3 className="font-semibold text-gray-900">
+                    Déconnexion globale
+                  </h3>
                   <p className="text-sm text-gray-600">
                     Déconnecter toutes les sessions utilisateurs actives ?
                   </p>

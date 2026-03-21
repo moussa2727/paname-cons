@@ -18,10 +18,10 @@ import { toast } from "react-hot-toast";
 // Fonction de normalisation du téléphone (identique au backend)
 const normalizePhoneNumber = (phone: string): string => {
   if (!phone) return "";
-  
+
   // Normalisation IDENTIQUE au backend : supprimer espaces, points, tirets
-  let cleaned = phone.replace(/[\s.-]/g, '');
-  
+  let cleaned = phone.replace(/[\s.-]/g, "");
+
   // Si le numéro commence par 0 (format français), ajouter +33
   if (cleaned.startsWith("0") && cleaned.length >= 9) {
     cleaned = "+33" + cleaned.substring(1);
@@ -30,44 +30,57 @@ const normalizePhoneNumber = (phone: string): string => {
   else if (!cleaned.startsWith("+") && cleaned.length > 0) {
     cleaned = "+" + cleaned;
   }
-  
+
   return cleaned;
 };
 
 // Fonction de formatage automatique du téléphone pendant la saisie
 const formatPhoneNumber = (phone: string): string => {
   if (!phone) return "";
-  
+
   // Supprimer tous les caractères non numériques sauf le +
   const cleaned = phone.replace(/[^\d+]/g, "");
-  
+
   // Si le numéro commence par 0 et a 9 chiffres, formater en français
   if (cleaned.startsWith("0") && cleaned.length >= 9) {
     // Formater progressivement : 06 → 06 1 → 06 12 → 06 12 3 → etc.
     if (cleaned.length === 2) return cleaned;
-    if (cleaned.length === 3) return `${cleaned.slice(0, 2)} ${cleaned.slice(2)}`;
-    if (cleaned.length === 4) return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)}`;
-    if (cleaned.length === 5) return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4)}`;
-    if (cleaned.length === 6) return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4, 6)}`;
-    if (cleaned.length === 7) return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4, 6)} ${cleaned.slice(6)}`;
-    if (cleaned.length === 8) return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4, 6)} ${cleaned.slice(6, 8)}`;
+    if (cleaned.length === 3)
+      return `${cleaned.slice(0, 2)} ${cleaned.slice(2)}`;
+    if (cleaned.length === 4)
+      return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)}`;
+    if (cleaned.length === 5)
+      return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4)}`;
+    if (cleaned.length === 6)
+      return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4, 6)}`;
+    if (cleaned.length === 7)
+      return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4, 6)} ${cleaned.slice(6)}`;
+    if (cleaned.length === 8)
+      return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4, 6)} ${cleaned.slice(6, 8)}`;
     return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4, 6)} ${cleaned.slice(6, 8)} ${cleaned.slice(8)}`;
   }
-  
+
   // Si le numéro commence par +33 et a 11 chiffres, formater en international
   if (cleaned.startsWith("+33") && cleaned.length >= 4) {
     const frenchNumber = cleaned.substring(3);
     if (frenchNumber.length === 1) return cleaned;
-    if (frenchNumber.length === 2) return `${cleaned.slice(0, 3)} ${frenchNumber}`;
-    if (frenchNumber.length === 3) return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)}`;
-    if (frenchNumber.length === 4) return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2)}`;
-    if (frenchNumber.length === 5) return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)}`;
-    if (frenchNumber.length === 6) return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)} ${frenchNumber.slice(4)}`;
-    if (frenchNumber.length === 7) return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)} ${frenchNumber.slice(4, 6)}`;
-    if (frenchNumber.length === 8) return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)} ${frenchNumber.slice(4, 6)} ${frenchNumber.slice(6)}`;
+    if (frenchNumber.length === 2)
+      return `${cleaned.slice(0, 3)} ${frenchNumber}`;
+    if (frenchNumber.length === 3)
+      return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)}`;
+    if (frenchNumber.length === 4)
+      return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2)}`;
+    if (frenchNumber.length === 5)
+      return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)}`;
+    if (frenchNumber.length === 6)
+      return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)} ${frenchNumber.slice(4)}`;
+    if (frenchNumber.length === 7)
+      return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)} ${frenchNumber.slice(4, 6)}`;
+    if (frenchNumber.length === 8)
+      return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)} ${frenchNumber.slice(4, 6)} ${frenchNumber.slice(6)}`;
     return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)} ${frenchNumber.slice(4, 6)} ${frenchNumber.slice(6, 8)} ${frenchNumber.slice(8)}`;
   }
-  
+
   // Sinon, retourner tel quel (pour les saisies en cours)
   return phone;
 };
@@ -87,7 +100,7 @@ interface ProfileForm {
   telephone: string;
   password?: string;
 }
-  const Profil = () => {
+const Profil = () => {
   const { user: profile, isLoading, updateAdminProfile } = useAuth();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -125,7 +138,9 @@ interface ProfileForm {
 
     // Valider le téléphone avant l'envoi
     if (formData.telephone && !validatePhoneNumber(formData.telephone)) {
-      toast.error("Format de téléphone invalide. Accepté: tous formats internationaux (+33 6 12 34 56 78, 06 12 34 56 78, +223 7 49 72 438, (0)1 23 45 67 89, etc.)");
+      toast.error(
+        "Format de téléphone invalide. Accepté: tous formats internationaux (+33 6 12 34 56 78, 06 12 34 56 78, +223 7 49 72 438, (0)1 23 45 67 89, etc.)",
+      );
       return;
     }
 
