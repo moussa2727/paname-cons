@@ -224,6 +224,29 @@ let _refreshQueue: Array<(success: boolean) => void> = [];
 // Valeur du refresh_token reçu dans le body (fallback cookie httpOnly bloqué)
 let _refreshTokenValue: string | null = null;
 
+// CRITICAL FOR MOBILE: Helper pour localStorage fallback
+function getLocalStorageToken(): { access_token: string | null; refresh_token: string | null } {
+  const accessExpiresAt = localStorage.getItem('access_token_expires_at');
+  const refreshExpiresAt = localStorage.getItem('refresh_token_expires_at');
+  const now = Date.now();
+  
+  // Vérifier les expirations
+  if (accessExpiresAt && now > parseInt(accessExpiresAt)) {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('access_token_expires_at');
+  }
+  
+  if (refreshExpiresAt && now > parseInt(refreshExpiresAt)) {
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('refresh_token_expires_at');
+  }
+  
+  return {
+    access_token: localStorage.getItem('access_token'),
+    refresh_token: localStorage.getItem('refresh_token')
+  };
+}
+
 export function _setRefreshTokenValue(token: string | null): void {
   _refreshTokenValue = token;
 }
@@ -250,6 +273,16 @@ export async function apiFetch(
     },
   };
 
+  // CRITICAL FOR MOBILE: Add Authorization header from localStorage fallback
+  const localStorageTokens = getLocalStorageToken();
+  if (localStorageTokens.access_token) {
+    const headers = new Headers(options.headers);
+    if (!headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${localStorageTokens.access_token}`);
+    }
+    options.headers = headers;
+  }
+
   const response = await fetch(input, options);
 
   // Pas un 401 → retour direct, rien à faire
@@ -275,6 +308,9 @@ export async function apiFetch(
   _isRefreshing = true;
 
   try {
+    // CRITICAL FOR MOBILE: Get localStorage tokens for fallback
+    const localStorageTokens = getLocalStorageToken();
+    
     const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
       method: "POST",
       credentials: "include", // envoie le cookie httpOnly refresh_token
@@ -282,7 +318,9 @@ export async function apiFetch(
       // refresh_token dans le body = fallback si le cookie httpOnly
       // n'est pas transmis (dev HTTP, Safari ITP)
       body: JSON.stringify(
-        _refreshTokenValue ? { refresh_token: _refreshTokenValue } : {},
+        _refreshTokenValue || localStorageTokens.refresh_token
+          ? { refresh_token: _refreshTokenValue || localStorageTokens.refresh_token }
+          : {},
       ),
     });
 
@@ -393,13 +431,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     _isRefreshing = true;
 
     try {
+      // CRITICAL FOR MOBILE: Get localStorage tokens for fallback
+      const localStorageTokens = getLocalStorageToken();
+      
       const response = await fetch(`${API_URL}/auth/refresh`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          refreshTokenRef.current
-            ? { refresh_token: refreshTokenRef.current }
+          refreshTokenRef.current || localStorageTokens.refresh_token
+            ? { refresh_token: refreshTokenRef.current || localStorageTokens.refresh_token }
             : {},
         ),
       });
@@ -418,6 +459,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         if (newToken) {
           refreshTokenRef.current = newToken;
           _refreshTokenValue = newToken;
+          
+          // CRITICAL FOR MOBILE: Update localStorage with new tokens
+          // Note: access_token sera mis à jour via les cookies httpOnly,
+          // mais on le récupère aussi pour localStorage fallback
+          localStorage.setItem('refresh_token', newToken);
+          
+          // Mettre à jour l'expiration du refresh_token (14 ou 7 jours selon remember_me)
+          const rememberMe = getRememberMeCookie();
+          const refreshExpiresIn = rememberMe ? 14 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
+          localStorage.setItem('refresh_token_expires_at', String(Date.now() + refreshExpiresIn * 1000));
         }
       } catch {
         // Non bloquant
@@ -433,6 +484,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       flushRefreshQueue(false);
       refreshTokenRef.current = null;
       _refreshTokenValue = null;
+      
+      // CRITICAL FOR MOBILE: Clear localStorage fallback
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('access_token_expires_at');
+      localStorage.removeItem('refresh_token_expires_at');
+      
       // Le refresh a échoué définitivement → session morte côté backend.
       // On supprime remember_me pour éviter des requêtes inutiles ultérieures.
       deleteRememberMeCookie();
@@ -554,12 +612,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const dto = body.data;
 
-      // Stocker le refresh_token en mémoire pour le fallback apiFetch
-      if (dto.refresh_token) {
-        refreshTokenRef.current = dto.refresh_token;
-        _refreshTokenValue = dto.refresh_token;
-      }
-
       // Cookie remember_me (non-httpOnly, lisible en JS/TS)
       // Durées alignées sur REMEMBER_ME_EXPIRATION_MS /
       // REFRESH_TOKEN_EXPIRATION_MS du backend (auth.constants.ts).
@@ -571,6 +623,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const effectiveRememberMe = existingRememberMe
         ? dto.remember_me || true // session existante → on garde au moins true
         : dto.remember_me; // pas encore posé → valeur du login
+
+      // Stocker le refresh_token en mémoire pour le fallback apiFetch
+      if (dto.refresh_token) {
+        refreshTokenRef.current = dto.refresh_token;
+        _refreshTokenValue = dto.refresh_token;
+        
+        // CRITICAL FOR MOBILE: Store tokens in localStorage
+        // Pour Safari ITP et WebView qui bloquent les cookies httpOnly
+        localStorage.setItem('refresh_token', dto.refresh_token);
+        localStorage.setItem('access_token', dto.access_token);
+        
+        // Set expiration times
+        const expiresIn = dto.expires_in || 900; // 15 minutes
+        localStorage.setItem('access_token_expires_at', String(Date.now() + expiresIn * 1000));
+        
+        const refreshExpiresIn = effectiveRememberMe ? 14 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
+        localStorage.setItem('refresh_token_expires_at', String(Date.now() + refreshExpiresIn * 1000));
+      }
 
       setRememberMeCookie(
         effectiveRememberMe,
@@ -650,6 +720,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       clearRefreshTimer();
       refreshTokenRef.current = null;
       _refreshTokenValue = null;
+      
+      // CRITICAL FOR MOBILE: Clear localStorage fallback
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('access_token_expires_at');
+      localStorage.removeItem('refresh_token_expires_at');
+      
       setUser(null);
       toast.success("Déconnexion réussie");
     }
