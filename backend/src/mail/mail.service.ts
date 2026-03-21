@@ -45,11 +45,8 @@ export class MailService {
       },
     };
 
-    // Forcer IPv4 en utilisant une approche alternative
-    // Créer le transport avec des options modifiées pour IPv4
-    this.transporter = nodemailer.createTransport({
-      ...transportConfig,
-    });
+    // Créer le transport sans la propriété family (non supportée)
+    this.transporter = nodemailer.createTransport(transportConfig);
     this.fromEmail = emailUser || '';
   }
 
