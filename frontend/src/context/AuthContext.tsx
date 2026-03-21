@@ -123,27 +123,29 @@ function getRememberMeCookie(): boolean {
 }
 
 function setRememberMeCookie(value: boolean, maxAgeSeconds: number): void {
-  // sameSite=None + Secure pour correspondre aux cookies httpOnly du backend
+  // sameSite=none + Secure pour correspondre aux cookies httpOnly du backend
+  const isProduction = import.meta.env.PROD;
   document.cookie =
     `${encodeURIComponent("remember_me")}=${encodeURIComponent(String(value))}` +
     `; path=/` +
     `; max-age=${maxAgeSeconds}` +
-    `; SameSite=None` +
-    `; Secure`;
+    `; sameSite=none` +
+    (isProduction ? `; Secure` : ``);
 }
 
 function deleteRememberMeCookie(): void {
-  // FIX : les attributs SameSite=None et Secure doivent correspondre
+  // FIX : les attributs sameSite=none et Secure doivent correspondre
   // exactement à ceux utilisés lors de la pose du cookie.
   // Sans eux, certains navigateurs (Safari mobile, Chrome Android)
   // ne reconnaissent pas le cookie à supprimer et l'ignorent silencieusement,
   // laissant un cookie "zombie" qui bloque la logique de checkAuth.
+  const isProduction = import.meta.env.PROD;
   document.cookie =
     `${encodeURIComponent("remember_me")}=` +
     `; path=/` +
     `; max-age=0` +
-    `; SameSite=None` +
-    `; Secure`;
+    `; sameSite=none` +
+    (isProduction ? `; Secure` : ``);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -856,19 +858,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  // ── getActiveSessions ─────────────────────────────────────
-  const getActiveSessions = async (): Promise<number> => {
-    try {
-      const response = await apiFetch(`${API_URL}/auth/sessions/active`, {
-        method: "GET",
-      });
-      if (!response.ok) return 0;
-      const body = (await response.json()) as { count?: number };
-      return body.count ?? 0;
-    } catch {
-      return 0;
-    }
-  };
 
   // ─────────────────────────────────────────────────────────
   const value: AuthContextType = {
@@ -887,7 +876,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     updateUser,
     updateAdminProfile,
     refreshUserProfile,
-    getActiveSessions,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -107,8 +107,10 @@ function Header(): React.JSX.Element {
   const handleLogout = async (): Promise<void> => {
     try {
       await logout();
+      const isProduction = import.meta.env.PROD;
       document.cookie =
-        "redirect_after_login=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; secure; samesite=none";
+        "redirect_after_login=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;" +
+        (isProduction ? "secure; " : "") + "sameSite=none";
     } catch (error) {
       console.error("Header - Logout failed:", error);
     } finally {
@@ -120,7 +122,8 @@ function Header(): React.JSX.Element {
   const handleProtectedNavigation = (path: string): void => {
     if (!isAuthenticated) {
       const encodedPath = encodeURIComponent(path);
-      document.cookie = `redirect_after_login=${encodedPath}; max-age=${5 * 60}; path=/; secure; samesite=none`;
+      const isProduction = import.meta.env.PROD;
+      document.cookie = `redirect_after_login=${encodedPath}; max-age=${5 * 60}; path=/; ${isProduction ? 'secure; ' : ''}sameSite=none`;
       navigate("/connexion", {
         state: {
           message: "Veuillez vous connecter pour accéder à cette page",

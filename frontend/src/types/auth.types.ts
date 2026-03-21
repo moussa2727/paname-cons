@@ -160,5 +160,4 @@ export interface AuthContextType {
   updateUser(patch: Partial<AppUser>): Promise<void>;
   updateAdminProfile(patch: Partial<AppUser>): Promise<void>;
   refreshUserProfile(): Promise<void>;
-  getActiveSessions(): Promise<number>;
 }

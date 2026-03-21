@@ -36,8 +36,8 @@ const Login: React.FC = () => {
     const cookieString =
       "redirect_after_login=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
     document.cookie = import.meta.env.PROD
-      ? cookieString + "; secure; samesite=none"
-      : cookieString;
+      ? cookieString + "; secure; sameSite=none"
+      : cookieString + "; sameSite=none";
   };
 
   useEffect(() => {

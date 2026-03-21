@@ -76,7 +76,7 @@ export class AuthController {
     // access_token : TOUJOURS 15 minutes — remember_me n'influence jamais l'access token
     response.cookie('access_token', loginResponse.access_token, {
       httpOnly: true,
-      secure: true, // ← toujours true pour sameSite=none
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'none', // ← must be 'none' for cross-origin
       maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_MS,
     });
@@ -84,7 +84,7 @@ export class AuthController {
     // refresh_token : 14 jours si remember_me, 7 jours sinon
     response.cookie('refresh_token', loginResponse.refresh_token, {
       httpOnly: true,
-      secure: true, // ← toujours true pour sameSite=none
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'none', // ← must be 'none' for cross-origin
       maxAge: loginResponse.remember_me
         ? AuthConstants.REMEMBER_ME_EXPIRATION_MS
@@ -129,7 +129,7 @@ export class AuthController {
     // access_token : TOUJOURS 15 minutes
     response.cookie('access_token', result.access_token, {
       httpOnly: true,
-      secure: true, // ← toujours true pour sameSite=none
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'none', // ← must be 'none' for cross-origin
       maxAge: AuthConstants.ACCESS_TOKEN_EXPIRATION_MS,
     });
@@ -137,7 +137,7 @@ export class AuthController {
     // refresh_token : maxAge selon isRememberMe hérité de la base
     response.cookie('refresh_token', result.refresh_token, {
       httpOnly: true,
-      secure: true, // ← toujours true pour sameSite=none
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'none', // ← must be 'none' for cross-origin
       maxAge: result.isRememberMe
         ? AuthConstants.REMEMBER_ME_EXPIRATION_MS
@@ -167,13 +167,13 @@ export class AuthController {
 
     response.clearCookie('access_token', {
       httpOnly: true,
-      secure: true, // ← toujours true pour sameSite=none
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'none',
       path: '/',
     });
     response.clearCookie('refresh_token', {
       httpOnly: true,
-      secure: true, // ← toujours true pour sameSite=none
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'none',
       path: '/',
     });
@@ -197,13 +197,13 @@ export class AuthController {
 
     response.clearCookie('access_token', {
       httpOnly: true,
-      secure: true, // ← toujours true pour sameSite=none
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'none',
       path: '/',
     });
     response.clearCookie('refresh_token', {
       httpOnly: true,
-      secure: true, // ← toujours true pour sameSite=none
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'none',
       path: '/',
     });
