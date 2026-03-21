@@ -28,9 +28,7 @@ export class MailService {
     }
 
     this.transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
+      service: 'gmail',
       auth: {
         user: emailUser,
         pass: emailPass,
@@ -39,6 +37,10 @@ export class MailService {
       connectionTimeout: 30000, // 30 secondes
       greetingTimeout: 15000, // 15 secondes
       socketTimeout: 45000, // 45 secondes
+      // Options TLS pour la connexion
+      tls: {
+        rejectUnauthorized: false, // Pour les environnements de production
+      },
     });
 
     this.fromEmail = emailUser || '';
@@ -88,6 +90,13 @@ export class MailService {
       return { success: true };
     } catch (error) {
       this.logger.error('Echec d envoi d email', (error as Error).message);
+      
+      // En cas d'erreur de connexion, logger plus de détails
+      if ((error as Error).message.includes('ENETUNREACH') || 
+          (error as Error).message.includes('Délai de connexion dépassé')) {
+        this.logger.error('Problème de connexion SMTP - vérifier la configuration réseau et les identifiants Gmail');
+      }
+      
       return { success: false, error: (error as Error).message };
     }
   }
