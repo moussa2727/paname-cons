@@ -5,6 +5,15 @@ import { Helmet } from "react-helmet-async";
 import { pageConfigs } from "../../../components/shared/user/UserHeader.config";
 import { toast } from "react-hot-toast";
 
+// Fonction de validation du téléphone (identique au backend)
+const validatePhoneNumber = (phone: string): boolean => {
+  if (!phone) return true; // Vide est autorisé
+  const strictPhoneRegex = /^(\+33\s?[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2}|0[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2})$/;
+  const isValid = strictPhoneRegex.test(phone);
+  console.log('DEBUG validation téléphone:', { phone, isValid });
+  return isValid;
+};
+
 // Fonction de formatage automatique du téléphone pendant la saisie
 const formatPhoneNumber = (phone: string): string => {
   if (!phone) return "";
@@ -109,9 +118,7 @@ const MonProfile = () => {
     try {
       // Valider le téléphone avant l'envoi (validation stricte uniquement à la sauvegarde)
       if (editedProfile.telephone) {
-        const strictPhoneRegex = /^(\+33\s?[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2}|0[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2})$/;
-        
-        if (!strictPhoneRegex.test(editedProfile.telephone)) {
+        if (!validatePhoneNumber(editedProfile.telephone)) {
           toast.error("Format de téléphone invalide. Utilisez: +33 6 12 34 56 78 ou 06 12 34 56 78");
           return;
         }
