@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
-import * as dns from 'dns';
 import type { Attachment } from 'nodemailer/lib/mailer';
 import { RendezvousEntity } from '../rendezvous/entities/rendezvous.entity';
 import { ProcedureEntity } from '../procedures/entities/procedure.entity';
@@ -28,13 +27,14 @@ export class MailService {
       this.logger.warn('Configuration email manquante');
     }
 
-    // Forcer IPv4 au niveau du DNS pour éviter les problèmes Gmail
-    if (process.env.NODE_ENV === 'production') {
-      dns.setDefaultResultOrder('ipv4first');
-    }
+    // Forcer IPv4 en utilisant directement l'IP de Gmail SMTP
+    // Gmail SMTP IPv4 addresses (ces IPs sont stables pour Gmail)
+    const gmailIPv4 = '142.250.191.108'; // smtp.gmail.com IPv4
 
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: gmailIPv4, // Utiliser l'IP directement pour forcer IPv4
+      port: 465,
+      secure: true, // SSL pour port 465
       auth: {
         user: emailUser,
         pass: emailPass,
