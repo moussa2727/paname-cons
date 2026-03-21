@@ -35,6 +35,10 @@ export class MailService {
         user: emailUser,
         pass: emailPass,
       },
+      // Ajouter un timeout pour éviter les blocages infinis
+      connectionTimeout: 30000, // 30 secondes
+      greetingTimeout: 15000, // 15 secondes
+      socketTimeout: 45000, // 45 secondes
     });
 
     this.fromEmail = emailUser || '';

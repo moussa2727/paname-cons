@@ -29,6 +29,14 @@ import { RendezvousProcessor } from './processors/rendezvous.processor';
             backoff: { type: 'exponential', delay: 5000 },
             removeOnComplete: 100,
             removeOnFail: 500,
+            // Ajouter un timeout pour éviter les jobs bloqués
+            jobId: undefined, // laisser Bull générer l'ID
+            delay: 0,
+            priority: 0,
+          },
+          settings: {
+            stalledInterval: 30000, // Vérifier les jobs bloqués toutes les 30 secondes
+            maxStalledCount: 1, // Considérer bloqué après 1 check
           },
         };
       },

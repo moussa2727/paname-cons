@@ -18,7 +18,12 @@ export class EmailProcessor {
     this.logger.log('Traitement email');
 
     try {
-      const result = await this.mailService.sendEmail({
+      // Ajouter un timeout manuel pour éviter les blocages
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout email après 60 secondes')), 60000);
+      });
+
+      const emailPromise = this.mailService.sendEmail({
         to: data.to,
         from: data.from,
         fromName: data.fromName,
@@ -29,6 +34,9 @@ export class EmailProcessor {
         bcc: data.bcc,
         replyTo: data.replyTo,
       });
+
+      // Utiliser Promise.race pour éviter les blocages
+      const result = await Promise.race([emailPromise, timeoutPromise]) as { success: boolean; error?: string };
 
       if (!result.success) {
         throw new Error(result.error || 'Échec envoi email');
