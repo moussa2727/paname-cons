@@ -109,10 +109,9 @@ const MonProfile = () => {
     try {
       // Valider le téléphone avant l'envoi (validation stricte uniquement à la sauvegarde)
       if (editedProfile.telephone) {
-        const cleanedPhone = editedProfile.telephone.replace(/[\s.-]/g, "");
-        const strictPhoneRegex = /^(?:\+33|0)?[1-9]\d{8}$/;
+        const strictPhoneRegex = /^(\+33\s?[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2}|0[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2})$/;
         
-        if (!strictPhoneRegex.test(cleanedPhone)) {
+        if (!strictPhoneRegex.test(editedProfile.telephone)) {
           toast.error("Format de téléphone invalide. Utilisez: +33 6 12 34 56 78 ou 06 12 34 56 78");
           return;
         }

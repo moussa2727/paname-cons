@@ -42,14 +42,19 @@ export class UpdateUserDto extends PartialType(
 
   @ApiProperty({
     example: '+33 6 12 34 56 78',
-    description: 'Téléphone (espaces, points et tirets acceptés)',
+    description:
+      'Téléphone (formats acceptés: +33 6 12 34 56 78 ou 06 12 34 56 78)',
     required: false,
   })
   @IsOptional()
   @IsString({ message: 'Le téléphone doit être une chaîne de caractères' })
-  @Matches(/^\+?[1-9][\d\s.-]{8,14}$/, {
-    message: 'Format de téléphone invalide',
-  })
+  @Matches(
+    /^(\+33\s?[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2}|0[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2})$/,
+    {
+      message:
+        'Format de téléphone invalide. Utilisez: +33 6 12 34 56 78 ou 06 12 34 56 78',
+    },
+  )
   telephone?: string;
 }
 
@@ -68,13 +73,18 @@ export class UpdateProfileDto {
 
   @ApiProperty({
     example: '+33 6 12 34 56 78',
-    description: 'Téléphone (espaces, points et tirets acceptés)',
+    description:
+      'Téléphone (formats acceptés: +33 6 12 34 56 78 ou 06 12 34 56 78)',
     required: false,
   })
   @IsOptional()
   @IsString({ message: 'Le téléphone doit être une chaîne de caractères' })
-  @Matches(/^\+?[1-9][\d\s.-]{8,14}$/, {
-    message: 'Format de téléphone invalide',
-  })
+  @Matches(
+    /^(\+33\s?[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2}|0[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2})$/,
+    {
+      message:
+        'Format de téléphone invalide. Utilisez: +33 6 12 34 56 78 ou 06 12 34 56 78',
+    },
+  )
   telephone?: string;
 }
