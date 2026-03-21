@@ -153,22 +153,31 @@ export class UsersService {
 
     // Vérifier les conflits d'email
     if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
+      console.log('[UsersService.update] Vérification conflit email:', {
+        newEmail: updateUserDto.email,
+        existingEmail: existingUser.email,
+        userId: existingUser.id,
+      });
       const emailConflict = await this.usersRepository.findByEmail(
         updateUserDto.email,
       );
       if (emailConflict && emailConflict.id !== existingUser.id) {
+        console.log('[UsersService.update] Conflit email détecté:', {
+          conflictingUserId: emailConflict.id,
+          conflictingEmail: emailConflict.email,
+        });
         throw new ConflictException(
           'Un utilisateur avec cet email existe déjà',
         );
       }
     }
 
-    // Vérifier les conflits de téléphone avec normalisation IDENTIQUE au frontend
+    // Vérifier les conflits de téléphone avec normalisation UNIFIÉE
     if (
       updateUserDto.telephone &&
       updateUserDto.telephone !== existingUser.telephone
     ) {
-      // Normalisation IDENTIQUE au frontend
+      // Utiliser la fonction de normalisation UNIFIÉE
       const normalizePhone = (phone: string): string => {
         if (!phone) return '';
 
@@ -192,6 +201,14 @@ export class UsersService {
         ? normalizePhone(existingUser.telephone)
         : '';
 
+      console.log('[UsersService.update] Vérification conflit téléphone:', {
+        newPhone: updateUserDto.telephone,
+        existingPhone: existingUser.telephone,
+        normalizedNewPhone,
+        normalizedExistingPhone,
+        userId: existingUser.id,
+      });
+
       // Si le numéro normalisé est différent, vérifier les conflits
       if (normalizedNewPhone !== normalizedExistingPhone) {
         // Vérifier si ce numéro existe déjà pour un autre utilisateur
@@ -199,6 +216,11 @@ export class UsersService {
           updateUserDto.telephone,
         );
         if (phoneConflict && phoneConflict.id !== existingUser.id) {
+          console.log('[UsersService.update] Conflit téléphone détecté:', {
+            conflictingUserId: phoneConflict.id,
+            conflictingPhone: phoneConflict.telephone,
+            newPhone: updateUserDto.telephone,
+          });
           throw new ConflictException(
             'Un utilisateur avec ce numéro de téléphone existe déjà',
           );

@@ -130,6 +130,13 @@ export async function updateUserProfile(
 
     return user;
   } catch (error) {
+    console.error('[updateUserProfile] Erreur:', {
+      error,
+      status: (error as { status?: number })?.status,
+      message: (error as { message?: string })?.message,
+      body,
+    });
+
     // Toast d'erreur
     toast.error("Erreur lors de la mise à jour du profil", {
       duration: 4000,

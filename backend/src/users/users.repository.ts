@@ -60,9 +60,32 @@ export class UsersRepository {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
-      where: { email },
+    console.log('[UsersRepository.findByEmail] Recherche email:', {
+      searchEmail: email,
     });
+
+    const result = await this.prisma.user.findFirst({
+      where: {
+        email,
+        isDeleted: false,
+        isActive: true, // <-- IMPORTANT : Ignorer les utilisateurs désactivés
+      },
+    });
+
+    console.log('[UsersRepository.findByEmail] Résultat:', {
+      found: !!result,
+      resultUser: result
+        ? {
+            id: result.id,
+            email: result.email,
+            telephone: result.telephone,
+            isActive: result.isActive,
+            isDeleted: result.isDeleted,
+          }
+        : null,
+    });
+
+    return result;
   }
 
   async findByEmailWithPassword(email: string): Promise<User | null> {
@@ -96,23 +119,31 @@ export class UsersRepository {
 
     const normalizedPhone = normalizePhone(telephone);
 
-    // Rechercher avec la normalisation standard et quelques variations courantes
+    // Logging pour diagnostiquer les conflits
     const searchVariations = [
-      normalizedPhone, // Format normalisé principal
-      telephone, // Format original
-      normalizedPhone.startsWith('+') ? normalizedPhone.substring(1) : null, // Sans +
+      normalizedPhone,
+      telephone,
+      normalizedPhone.startsWith('+') ? normalizedPhone.substring(1) : null,
     ].filter((term) => term !== null);
+
+    console.log('[UsersRepository.findByPhone] Recherche téléphone:', {
+      inputPhone: telephone,
+      normalizedPhone,
+      searchVariations,
+    });
 
     // Rechercher avec toutes les variations
     const users = await this.prisma.user.findMany({
       where: {
         telephone: { in: searchVariations },
         isDeleted: false,
+        isActive: true, // <-- IMPORTANT : Ignorer les utilisateurs désactivés
       },
       take: 1,
     });
 
-    return users.length > 0 ? users[0] : null;
+    const result = users.length > 0 ? users[0] : null;
+    return result;
   }
 
   async update(id: string, data: Prisma.UserUpdateInput): Promise<User> {
