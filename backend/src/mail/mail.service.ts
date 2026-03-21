@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import * as dns from 'dns';
 import type { Attachment } from 'nodemailer/lib/mailer';
 import { RendezvousEntity } from '../rendezvous/entities/rendezvous.entity';
 import { ProcedureEntity } from '../procedures/entities/procedure.entity';
@@ -25,6 +26,11 @@ export class MailService {
 
     if (!emailUser || !emailPass) {
       this.logger.warn('Configuration email manquante');
+    }
+
+    // Forcer IPv4 au niveau du DNS pour éviter les problèmes Gmail
+    if (process.env.NODE_ENV === 'production') {
+      dns.setDefaultResultOrder('ipv4first');
     }
 
     this.transporter = nodemailer.createTransport({
@@ -90,13 +96,17 @@ export class MailService {
       return { success: true };
     } catch (error) {
       this.logger.error('Echec d envoi d email', (error as Error).message);
-      
+
       // En cas d'erreur de connexion, logger plus de détails
-      if ((error as Error).message.includes('ENETUNREACH') || 
-          (error as Error).message.includes('Délai de connexion dépassé')) {
-        this.logger.error('Problème de connexion SMTP - vérifier la configuration réseau et les identifiants Gmail');
+      if (
+        (error as Error).message.includes('ENETUNREACH') ||
+        (error as Error).message.includes('Délai de connexion dépassé')
+      ) {
+        this.logger.error(
+          'Problème de connexion SMTP - vérifier la configuration réseau et les identifiants Gmail',
+        );
       }
-      
+
       return { success: false, error: (error as Error).message };
     }
   }
