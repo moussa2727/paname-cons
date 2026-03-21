@@ -48,13 +48,10 @@ export class UpdateUserDto extends PartialType(
   })
   @IsOptional()
   @IsString({ message: 'Le téléphone doit être une chaîne de caractères' })
-  @Matches(
-    /^(\+33\s?[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2}|0[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2})$/,
-    {
-      message:
-        'Format de téléphone invalide. Utilisez: +33 6 12 34 56 78 ou 06 12 34 56 78',
-    },
-  )
+  @Matches(/^(\+?[0-9][\d\s\-\\.\\()]{7,20})$/, {
+    message:
+      'Format de téléphone invalide. Accepté: +33 6 12 34 56 78, 06 12 34 56 78, +223 7 49 72 438, (0)1 23 45 67 89, etc.',
+  })
   telephone?: string;
 }
 
@@ -79,12 +76,9 @@ export class UpdateProfileDto {
   })
   @IsOptional()
   @IsString({ message: 'Le téléphone doit être une chaîne de caractères' })
-  @Matches(
-    /^(\+33\s?[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2}|0[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2})$/,
-    {
-      message:
-        'Format de téléphone invalide. Utilisez: +33 6 12 34 56 78 ou 06 12 34 56 78',
-    },
-  )
+  @Matches(/^(\+?[0-9][\d\s\-.()]{7,20})$/, {
+    message:
+      'Format de téléphone invalide. Accepté: +33 6 12 34 56 78, 06 12 34 56 78, +223 7 49 72 438, (0)1 23 45 67 89, etc.',
+  })
   telephone?: string;
 }

@@ -53,11 +53,12 @@ const formatPhoneNumber = (phone: string): string => {
   return phone;
 };
 
-// Fonction de validation du téléphone
+// Fonction de validation du téléphone (mondial - tous formats)
 const validatePhoneNumber = (phone: string): boolean => {
   if (!phone) return true; // Vide est autorisé
-  const strictPhoneRegex = /^(\+33\s?[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2}|0[1-9]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2})$/;
-  return strictPhoneRegex.test(phone);
+  // Accepte TOUS les formats : +33 6 12 34 56 78, 06 12 34 56 78, +22374972438, (0)1 23 45 67 89, etc.
+  const globalPhoneRegex = /^(\+?[0-9][\d\s\-.()]{7,20})$/;
+  return globalPhoneRegex.test(phone);
 };
 
 interface ProfileForm {
@@ -105,7 +106,7 @@ interface ProfileForm {
 
     // Valider le téléphone avant l'envoi
     if (formData.telephone && !validatePhoneNumber(formData.telephone)) {
-      toast.error("Format de téléphone invalide. Utilisez: +33 6 12 34 56 78 ou 06 12 34 56 78");
+      toast.error("Format de téléphone invalide. Accepté: +33 6 12 34 56 78, 06 12 34 56 78, +223 7 49 72 438, (0)1 23 45 67 89, etc.");
       return;
     }
 
