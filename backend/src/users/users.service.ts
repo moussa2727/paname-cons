@@ -7,9 +7,9 @@ import {
 import { User, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserDto, UpdateProfileDto } from './dto/update-user.dto';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
-import { UpdateProfileDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { UsersRepository } from './users.repository';
 import { QueueService } from '../queue/queue.service';
@@ -140,9 +140,10 @@ export class UsersService {
     return this.usersRepository.findByPhone(telephone);
   }
 
+  // Dans users.service.ts - Amélioration de la méthode update
   async update(
     id: string,
-    updateUserDto: UpdateUserDto,
+    updateUserDto: UpdateUserDto | AdminUpdateUserDto | UpdateProfileDto,
   ): Promise<UserResponseDto> {
     // Vérifier si l'utilisateur existe
     const existingUser = await this.usersRepository.findById(id);
@@ -162,23 +163,27 @@ export class UsersService {
       }
     }
 
-    // Vérifier les conflits de téléphone (normaliser pour la comparaison)
+    // Vérifier les conflits de téléphone avec une meilleure normalisation
     if (
       updateUserDto.telephone &&
       updateUserDto.telephone !== existingUser.telephone
     ) {
-      // Normaliser le téléphone (supprimer espaces, points, tirets)
-      const normalizedPhone = updateUserDto.telephone.replace(/[\s.-]/g, '');
-      const normalizedExistingPhone =
-        existingUser.telephone?.replace(/[\s.-]/g, '') || '';
+      // Normaliser le téléphone en supprimant tous les caractères non numériques sauf le +
+      const normalizePhone = (phone: string) => {
+        return phone.replace(/[^\d+]/g, '');
+      };
+
+      const normalizedNewPhone = normalizePhone(updateUserDto.telephone);
+      const normalizedExistingPhone = existingUser.telephone
+        ? normalizePhone(existingUser.telephone)
+        : '';
 
       // Si le numéro normalisé est différent, vérifier les conflits
-      if (normalizedPhone !== normalizedExistingPhone) {
-        // Utiliser la méthode existante qui fait déjà la recherche flexible
-        const phoneConflict =
-          await this.usersRepository.findByPhone(normalizedPhone);
-        // Permettre la mise à jour SI c'est le même utilisateur (même ID)
-        // OU si le numéro n'existe pas pour un autre utilisateur
+      if (normalizedNewPhone !== normalizedExistingPhone) {
+        // Vérifier si ce numéro existe déjà pour un autre utilisateur
+        const phoneConflict = await this.usersRepository.findByPhone(
+          updateUserDto.telephone,
+        );
         if (phoneConflict && phoneConflict.id !== existingUser.id) {
           throw new ConflictException(
             'Un utilisateur avec ce numéro de téléphone existe déjà',
@@ -187,8 +192,22 @@ export class UsersService {
       }
     }
 
+    // EMPÊCHER LA MODIFICATION DE L'EMAIL ADMIN
+    const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
+    if (
+      existingUser.email === adminEmail &&
+      updateUserDto.email &&
+      updateUserDto.email !== adminEmail
+    ) {
+      throw new ForbiddenException(
+        "L'email du compte administrateur principal ne peut pas être modifié",
+      );
+    }
+
+    // Préparer les données de mise à jour
+    const updateData: Record<string, any> = { ...updateUserDto };
+
     // Hasher le mot de passe si fourni
-    const updateData = { ...updateUserDto };
     if (updateUserDto.password) {
       updateData.password = await bcrypt.hash(
         updateUserDto.password,
@@ -196,15 +215,17 @@ export class UsersService {
       );
     }
 
+    // Nettoyer les champs undefined pour ne pas écraser avec des valeurs vides
+    Object.keys(updateData).forEach((key) => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+
     const updatedUser = await this.usersRepository.update(id, updateData);
 
-    // Si l'email a été changé (pour les non-admins), synchroniser les rendez-vous
-    if (
-      'email' in updateUserDto &&
-      updateUserDto.email &&
-      updateUserDto.email !== existingUser.email
-    ) {
-      // Mettre à jour l'email dans les rendez-vous associés
+    // Si l'email a été changé, synchroniser les rendez-vous
+    if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
       await this.prisma.rendezvous.updateMany({
         where: { userId: id },
         data: { email: updateUserDto.email },
@@ -222,6 +243,7 @@ export class UsersService {
     // Logger l'audit
     await this.auditService.logUserAction(id, AuditAction.UPDATE, {
       email: updatedUser.email,
+      updatedFields: Object.keys(updateData),
     });
 
     return this.toResponseDto(updatedUser);

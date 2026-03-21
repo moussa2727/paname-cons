@@ -79,6 +79,10 @@ import type {
   BackendDTO_ResetPasswordData,
   BackendDTO_ChangePasswordData,
 } from "../types/auth.types";
+import type {
+  UpdateProfileParams,
+} from "../types/user.types";
+import { updateUserProfile } from "../services/users.service";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
@@ -863,21 +867,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   // ── updateUser ────────────────────────────────────────────
   const updateUser = async (patch: Partial<AppUser>): Promise<void> => {
     try {
-      const response = await apiFetch(`${API_URL}/user/profile`, {
-        method: "PATCH",
-        body: JSON.stringify(patch),
-      });
-
-      const body: BackendDTO_ApiResponse<BackendDTO_ProfileData> =
-        await response.json();
-
-      if (!response.ok) {
-        const msg = body.message || "Erreur mise à jour du profil";
-        toast.error(msg);
-        throw new Error(msg);
-      }
-
-      setUser(mapProfileToAppUser(body.data));
+      // Créer un patch avec tous les champs autorisés par UpdateProfileDto
+      const profilePatch: UpdateProfileParams = {};
+      
+      // Ajouter tous les champs autorisés pour UpdateProfileDto
+      if (patch.firstName) profilePatch.firstName = patch.firstName;
+      if (patch.lastName) profilePatch.lastName = patch.lastName;
+      if (patch.email) profilePatch.email = patch.email;
+      if (patch.telephone) profilePatch.telephone = patch.telephone;
+      if (patch.password) profilePatch.password = patch.password;
+      
+      const updatedUser = await updateUserProfile(profilePatch);
+      setUser(updatedUser);
       toast.success("Profil mis à jour avec succès");
     } catch (error) {
       const message =

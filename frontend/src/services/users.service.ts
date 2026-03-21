@@ -25,6 +25,7 @@ import type {
   BackendDTO_UsersListResponse,
   BackendDTO_UserStatistics,
   BackendDTO_CreateUserBody,
+  BackendDTO_UpdateUserBody,
   BackendDTO_AdminUpdateProfileBody,
   BackendDTO_AdminUpdateUserBody,
   // Types applicatifs
@@ -34,6 +35,7 @@ import type {
   // Params d'appel
   GetUsersParams,
   CreateUserParams,
+  UpdateProfileParams,
   UpdateAdminProfileParams,
   UpdateUserParams,
   UpdateUserStatusParams,
@@ -99,23 +101,23 @@ async function parseResponse<T>(response: Response): Promise<T> {
  * Récupère le profil de l'utilisateur connecté.
  * Utilisé au mount (checkAuth) et lors d'un rafraîchissement explicite.
 /**
- * PATCH /admin/profile
- * Met à jour le profil de l'admin connecté.
- * L'email est ABSENT : AdminUpdateUserDto backend ne l'expose pas.
- * Correspond à AdminUpdateUserDto backend.
+ * PATCH /user/profile
+ * Met à jour le profil de l'utilisateur connecté.
+ * Correspond à UpdateProfileDto backend - TOUS les champs y compris email et password.
  */
-export async function updateAdminProfile(
-  params: UpdateAdminProfileParams,
+export async function updateUserProfile(
+  params: UpdateProfileParams,
 ): Promise<AppUser> {
-  const body: BackendDTO_AdminUpdateProfileBody = {
+  const body: BackendDTO_UpdateUserBody = {
     ...(params.firstName !== undefined && { firstName: params.firstName }),
     ...(params.lastName !== undefined && { lastName: params.lastName }),
+    ...(params.email !== undefined && { email: params.email }),
     ...(params.telephone !== undefined && { telephone: params.telephone }),
     ...(params.password !== undefined && { password: params.password }),
   };
 
   try {
-    const response = await apiFetch(`${API_URL}/admin/profile`, {
+    const response = await apiFetch(`${API_URL}/user/profile`, {
       method: "PATCH",
       body: JSON.stringify(body),
     });
@@ -124,14 +126,14 @@ export async function updateAdminProfile(
     const user = mapUserResponseToAppUser(dto);
 
     // Toast de succès
-    toast.success("Profil administrateur mis à jour avec succès", {
+    toast.success("Profil mis à jour avec succès", {
       duration: 4000,
     });
 
     return user;
   } catch (error) {
     // Toast d'erreur
-    toast.error("Erreur lors de la mise à jour du profil administrateur", {
+    toast.error("Erreur lors de la mise à jour du profil", {
       duration: 4000,
     });
     throw error;

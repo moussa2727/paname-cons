@@ -173,8 +173,8 @@ export interface CreateUserParams {
 }
 
 /**
- * Données pour mettre à jour son propre profil (utilisateur).
- * L'email est autorisé ici (UpdateUserDto backend l'accepte).
+ * Données pour mettre à jour son propre profil (utilisateur standard).
+ * Correspond à UpdateProfileDto backend - TOUS les champs y compris email et password.
  */
 export interface UpdateProfileParams {
   firstName?: string;

@@ -1,4 +1,10 @@
-import { IsOptional, IsString, MinLength, Matches } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsEmail,
+  MinLength,
+  Matches,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class AdminUpdateUserDto {
@@ -21,6 +27,15 @@ export class AdminUpdateUserDto {
   @IsString({ message: 'Le nom doit être une chaîne de caractères' })
   @MinLength(2, { message: 'Le nom doit contenir au moins 2 caractères' })
   lastName?: string;
+
+  @ApiProperty({
+    example: 'jean.dupont@example.com',
+    description: 'Email',
+    required: false,
+  })
+  @IsOptional()
+  @IsEmail({}, { message: 'Email invalide' })
+  email?: string;
 
   @ApiProperty({
     example: '+33 6 12 34 56 78',

@@ -130,6 +130,7 @@ export interface AppUser {
   logoutCount: number;
   createdAt: string;
   updatedAt: string;
+  password?: string; // Optionnel pour la mise à jour
 }
 
 // ─────────────────────────────────────────────────────────────

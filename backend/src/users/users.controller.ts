@@ -18,10 +18,10 @@ import {
 import { UsersService } from './users.service';
 import {
   CreateUserDto,
-  UpdateUserDto,
   UpdateUserStatusDto,
   UserResponseDto,
   UpdateProfileDto,
+  AdminUpdateUserDto,
 } from './dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -121,10 +121,9 @@ export class UsersController {
   @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
   async updateProfile(
     @CurrentUser() user: { id: string; role: UserRole },
-    @Body() updateUserDto: UpdateUserDto,
+    @Body() updateProfileDto: UpdateProfileDto,
   ): Promise<UserResponseDto> {
-    // L'utilisateur peut uniquement modifier son propre profil
-    return this.usersService.update(user.id, updateUserDto);
+    return this.usersService.update(user.id, updateProfileDto);
   }
 
   @Get('admin/users/statistics')
@@ -155,18 +154,15 @@ export class UsersController {
 
   @Patch('admin/user/:id')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Mettre à jour un utilisateur' })
+  @ApiOperation({ summary: 'Mettre à jour un utilisateur (Admin)' })
   @ApiResponse({
     status: 200,
     description: 'Utilisateur mis à jour',
     type: UserResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Données invalides' })
-  @ApiResponse({ status: 403, description: 'Non autorisé' })
-  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
-  async update(
+  async updateUser(
     @Param('id') id: string,
-    @Body() updateUserDto: UpdateUserDto,
+    @Body() updateUserDto: AdminUpdateUserDto, // Utiliser AdminUpdateUserDto pour l'admin
   ): Promise<UserResponseDto> {
     return this.usersService.update(id, updateUserDto);
   }
