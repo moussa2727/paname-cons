@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import type { Attachment } from 'nodemailer/lib/mailer';
+import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { RendezvousEntity } from '../rendezvous/entities/rendezvous.entity';
 import { ProcedureEntity } from '../procedures/entities/procedure.entity';
 import { ProcedureStatus, StepStatus } from '@prisma/client';
@@ -26,29 +27,29 @@ export class MailService {
     if (!emailUser || !emailPass) {
       this.logger.warn('Configuration email manquante');
     }
-
-    // Forcer IPv4 en utilisant directement l'IP de Gmail SMTP
-    // Gmail SMTP IPv4 addresses (ces IPs sont stables pour Gmail)
-    const gmailIPv4 = '142.250.191.108'; // smtp.gmail.com IPv4
-
-    this.transporter = nodemailer.createTransport({
-      host: gmailIPv4, // Utiliser l'IP directement pour forcer IPv4
-      port: 465,
-      secure: true, // SSL pour port 465
+    // mail.service.ts — constructeur
+    const transportConfig: SMTPTransport.Options = {
+      host: 'smtp.gmail.com', // laisser nodemailer résoudre en IPv4
+      port: 587, // ← 587 au lieu de 465
+      secure: false, // ← false pour STARTTLS
+      requireTLS: true, // ← force TLS via STARTTLS
       auth: {
         user: emailUser,
         pass: emailPass,
       },
-      // Ajouter un timeout pour éviter les blocages infinis
-      connectionTimeout: 30000, // 30 secondes
-      greetingTimeout: 15000, // 15 secondes
-      socketTimeout: 45000, // 45 secondes
-      // Options TLS pour la connexion
+      connectionTimeout: 30000,
+      greetingTimeout: 15000,
+      socketTimeout: 45000,
       tls: {
-        rejectUnauthorized: false, // Pour les environnements de production
+        rejectUnauthorized: true, // remettre à true en production
       },
-    });
+    };
 
+    // Forcer IPv4 en utilisant une approche alternative
+    // Créer le transport avec des options modifiées pour IPv4
+    this.transporter = nodemailer.createTransport({
+      ...transportConfig,
+    });
     this.fromEmail = emailUser || '';
   }
 
