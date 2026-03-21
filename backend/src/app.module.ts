@@ -30,7 +30,6 @@ import { RolesGuard } from './common/guards/roles.guard';
 // Interceptors & Filters
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 
 // Configuration
@@ -153,10 +152,6 @@ import { AppController } from './app.controller';
     },
 
     // ==================== FILTRES GLOBAUX ====================
-    {
-      provide: APP_FILTER,
-      useClass: HttpExceptionFilter,
-    },
     {
       provide: APP_FILTER,
       useClass: PrismaExceptionFilter,
