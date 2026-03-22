@@ -189,9 +189,10 @@ const MonProfile = () => {
     setIsSaving(true);
     try {
       await updateUser(patch);
+      toast.success("Profil mis à jour avec succès");
       setIsEditing(false);
-    } catch {
-      // Le toast d'erreur est géré dans AuthContext.updateUser
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde:", error);
     } finally {
       setIsSaving(false);
     }
