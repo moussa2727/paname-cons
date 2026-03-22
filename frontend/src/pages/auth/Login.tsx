@@ -123,7 +123,10 @@ const Login: React.FC = () => {
         <div className="w-full max-w-md">
           <div className="bg-white rounded shadow-xl overflow-hidden">
             <div className="bg-linear-to-r from-sky-500 to-sky-600 p-6 text-center">
-              <Link to="/" className="flex items-center justify-center space-x-3">
+              <Link
+                to="/"
+                className="flex items-center justify-center space-x-3"
+              >
                 <div className="bg-white p-2 rounded-full">
                   <div className="w-10 h-10 rounded-full bg-linear-to-r from-sky-500 to-sky-600 flex items-center justify-center">
                     <FiLock className="text-white text-xl" />

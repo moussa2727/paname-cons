@@ -744,7 +744,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       // Construire le body avec les champs à mettre à jour
       const updateBody: Record<string, string> = {};
-      
+
       if (patch.firstName !== undefined) updateBody.firstName = patch.firstName;
       if (patch.lastName !== undefined) updateBody.lastName = patch.lastName;
       if (patch.email !== undefined) updateBody.email = patch.email;
@@ -757,18 +757,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         body: JSON.stringify(updateBody),
       });
 
-      const body: BackendDTO_ApiResponse<BackendDTO_ProfileData> = await response.json();
+      const body: BackendDTO_ApiResponse<BackendDTO_ProfileData> =
+        await response.json();
 
       if (!response.ok) {
         let message = body.message || "Erreur lors de la mise à jour du profil";
-        
+
         // Gérer les erreurs spécifiques
-        if (body.message?.includes("Un utilisateur avec cet email existe déjà")) {
+        if (
+          body.message?.includes("Un utilisateur avec cet email existe déjà")
+        ) {
           message = "Cet email est déjà utilisé par un autre utilisateur";
-        } else if (body.message?.includes("Un utilisateur avec ce numéro de téléphone existe déjà")) {
-          message = "Ce numéro de téléphone est déjà utilisé par un autre utilisateur";
+        } else if (
+          body.message?.includes(
+            "Un utilisateur avec ce numéro de téléphone existe déjà",
+          )
+        ) {
+          message =
+            "Ce numéro de téléphone est déjà utilisé par un autre utilisateur";
         }
-        
+
         toast.error(message);
         throw new Error(message);
       }
@@ -777,7 +785,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(mapProfileToAppUser(body.data));
       toast.success("Profil mis à jour avec succès");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Erreur lors de la mise à jour du profil";
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la mise à jour du profil";
       toast.error(message);
       throw error;
     }
@@ -920,10 +931,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       if (!response.ok) {
         const body = (await response.json()) as { message?: string };
-        throw new Error(body.message || "Impossible de récupérer les sessions actives");
+        throw new Error(
+          body.message || "Impossible de récupérer les sessions actives",
+        );
       }
 
-      const body = (await response.json()) as { data: { activeSessions: number } };
+      const body = (await response.json()) as {
+        data: { activeSessions: number };
+      };
       return body.data.activeSessions;
     } catch (error) {
       const message =

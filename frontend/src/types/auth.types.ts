@@ -17,9 +17,6 @@ export interface BackendDTO_ApiResponse<T> {
   data: T;
 }
 
-
-
-
 /** POST /auth/register */
 export interface BackendDTO_RegisterData {
   message: string;

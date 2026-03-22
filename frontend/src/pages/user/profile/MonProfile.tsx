@@ -181,7 +181,7 @@ const MonProfile = () => {
     }
 
     if (Object.keys(patch).length === 0) {
-      toast("Aucune modification détectée", { icon: "ℹ️" });
+      toast("Aucune modification détectée");
       setIsEditing(false);
       return;
     }
