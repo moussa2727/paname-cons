@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
 import { toast } from "react-hot-toast";
-
+import { updateAdminProfile } from "../../../services/users.service";
 // ─────────────────────────────────────────────────────────────
 // Helpers téléphone (affichage uniquement — non envoyé au backend)
 // ─────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ const Profil = () => {
    * Envoie uniquement firstName, lastName, password.
    * Défini dans AuthContext et AuthContextType.
    */
-  const { user: profile, updateAdminProfile } = useAuth();
+  const { user: profile } = useAuth();
 
   const [isEditing, setIsEditing] = useState(false);
   // isSaving est un état LOCAL — isLoading du context est réservé

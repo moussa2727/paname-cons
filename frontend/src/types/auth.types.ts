@@ -17,6 +17,9 @@ export interface BackendDTO_ApiResponse<T> {
   data: T;
 }
 
+
+
+
 /** POST /auth/register */
 export interface BackendDTO_RegisterData {
   message: string;
@@ -151,12 +154,6 @@ export interface AuthContextType {
     lastName: string;
     telephone: string;
   }): Promise<void>;
-  logout(): Promise<void>;
-  logoutAll(): Promise<void>;
-  refreshToken(): Promise<void>;
-  forgotPassword(email: string): Promise<void>;
-  resetPassword(token: string, newPassword: string): Promise<void>;
-  changePassword(oldPassword: string, newPassword: string): Promise<void>;
   updateUser(patch: {
     firstName?: string;
     lastName?: string;
@@ -164,16 +161,11 @@ export interface AuthContextType {
     telephone?: string;
     password?: string;
   }): Promise<void>;
-  /**
-   * PATCH /admin/profile
-   * Champs autorisés : firstName, lastName, password uniquement.
-   * Email et téléphone protégés — jamais envoyés au backend.
-   */
-  updateAdminProfile(params: {
-    firstName?: string;
-    lastName?: string;
-    password?: string;
-  }): Promise<void>;
-  refreshUserProfile(): Promise<void>;
+  logout(): Promise<void>;
+  logoutAll(): Promise<void>;
+  refreshToken(): Promise<void>;
+  forgotPassword(email: string): Promise<void>;
+  resetPassword(token: string, newPassword: string): Promise<void>;
+  changePassword(oldPassword: string, newPassword: string): Promise<void>;
   getActiveSessions(): Promise<number>;
 }

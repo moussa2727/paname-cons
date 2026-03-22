@@ -79,15 +79,8 @@ import type {
   BackendDTO_ResetPasswordData,
   BackendDTO_ChangePasswordData,
 } from "../types/auth.types";
-import type { UpdateProfileParams, UpdateAdminProfileParams } from "../types/user.types";
-import { updateAdminProfile as updateAdminProfileService } from "../services/users.service";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
-
-// Type pour les mises à jour de profil (inclut le mot de passe)
-type ProfileUpdatePatch = Partial<AppUser> & {
-  password?: string;
-};
 
 export { API_URL };
 
@@ -399,37 +392,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  // ── refreshUserProfile ────────────────────────────────────
-  const refreshUserProfile = useCallback(async (): Promise<void> => {
-    try {
-      // Ajouter un timestamp pour contourner le cache
-      const timestamp = Date.now();
-      const response = await apiFetch(
-        `${API_URL}/user/profile?t=${timestamp}`,
-        {
-          method: "GET",
-        },
-      );
-
-      const body: BackendDTO_ApiResponse<BackendDTO_ProfileData> =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(body.message || "Impossible de récupérer le profil");
-      }
-
-      setUser(mapProfileToAppUser(body.data));
-      toast.success("Profil rafraîchi avec succès");
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Erreur lors du rafraîchissement du profil";
-      toast.error(message);
-      throw error;
-    }
-  }, []);
-
   // ── refreshToken ──────────────────────────────────────────
   const refreshToken = useCallback(async (): Promise<void> => {
     if (_isRefreshing) {
@@ -498,7 +460,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       _isRefreshing = false;
       flushRefreshQueue(true);
 
-      await refreshUserProfile();
+      // Récupérer le profil après refresh réussi
+      const profileResponse = await apiFetch(`${API_URL}/user/profile`, {
+        method: "GET",
+      });
+
+      if (profileResponse.ok) {
+        const profileBody: BackendDTO_ApiResponse<BackendDTO_ProfileData> =
+          await profileResponse.json();
+        setUser(mapProfileToAppUser(profileBody.data));
+      }
+
       if (scheduleRef.current) scheduleRef.current(ACCESS_TOKEN_EXPIRES_IN_S);
     } catch (err) {
       _isRefreshing = false;
@@ -518,7 +490,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(null);
       throw err;
     }
-  }, [refreshUserProfile]);
+  }, []);
 
   // ── scheduleTokenRefresh ──────────────────────────────────
   // expires_in est TOUJOURS 900 (ACCESS_TOKEN_EXPIRATION_MS côté
@@ -761,6 +733,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // ── updateUser ────────────────────────────────────────────
+  const updateUser = async (patch: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    telephone?: string;
+    password?: string;
+  }): Promise<void> => {
+    try {
+      // Construire le body avec les champs à mettre à jour
+      const updateBody: Record<string, string> = {};
+      
+      if (patch.firstName !== undefined) updateBody.firstName = patch.firstName;
+      if (patch.lastName !== undefined) updateBody.lastName = patch.lastName;
+      if (patch.email !== undefined) updateBody.email = patch.email;
+      if (patch.telephone !== undefined) updateBody.telephone = patch.telephone;
+      if (patch.password !== undefined) updateBody.password = patch.password;
+
+      // Appel direct à l'API avec apiFetch (gère le refresh automatique)
+      const response = await apiFetch(`${API_URL}/user/profile`, {
+        method: "PATCH",
+        body: JSON.stringify(updateBody),
+      });
+
+      const body: BackendDTO_ApiResponse<BackendDTO_ProfileData> = await response.json();
+
+      if (!response.ok) {
+        let message = body.message || "Erreur lors de la mise à jour du profil";
+        
+        // Gérer les erreurs spécifiques
+        if (body.message?.includes("Un utilisateur avec cet email existe déjà")) {
+          message = "Cet email est déjà utilisé par un autre utilisateur";
+        } else if (body.message?.includes("Un utilisateur avec ce numéro de téléphone existe déjà")) {
+          message = "Ce numéro de téléphone est déjà utilisé par un autre utilisateur";
+        }
+        
+        toast.error(message);
+        throw new Error(message);
+      }
+
+      // Mettre à jour l'utilisateur dans le state
+      setUser(mapProfileToAppUser(body.data));
+      toast.success("Profil mis à jour avec succès");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erreur lors de la mise à jour du profil";
+      toast.error(message);
+      throw error;
+    }
+  };
+
   // ── logoutAll (ADMIN) ─────────────────────────────────────
   const logoutAll = async (): Promise<void> => {
     try {
@@ -889,107 +911,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  // ── updateUser ────────────────────────────────────────────
-  const updateUser = async (patch: ProfileUpdatePatch): Promise<void> => {
-    try {
-      // Créer un patch avec tous les champs autorisés par UpdateProfileDto
-      const profilePatch: UpdateProfileParams = {};
-
-      // Ajouter tous les champs autorisés pour UpdateProfileDto
-      if (patch.firstName) profilePatch.firstName = patch.firstName;
-      if (patch.lastName) profilePatch.lastName = patch.lastName;
-      if (patch.email) profilePatch.email = patch.email;
-      if (patch.telephone) profilePatch.telephone = patch.telephone;
-      if (patch.password) profilePatch.password = patch.password;
-
-      const updatedUser = await updateAdminProfileService(profilePatch);
-      setUser(updatedUser);
-      toast.success("Profil mis à jour avec succès");
-    } catch (error) {
-      let message = "Erreur lors de la mise à jour du profil";
-
-      if (error instanceof Error) {
-        // Gérer les erreurs spécifiques du backend
-        if (
-          error.message.includes("Un utilisateur avec cet email existe déjà")
-        ) {
-          message = "Cet email est déjà utilisé par un autre utilisateur";
-        } else if (
-          error.message.includes(
-            "Un utilisateur avec ce numéro de téléphone existe déjà",
-          )
-        ) {
-          message =
-            "Ce numéro de téléphone est déjà utilisé par un autre utilisateur";
-        } else if (
-          error.message.includes(
-            "L'email du compte administrateur principal ne peut pas être modifié",
-          )
-        ) {
-          message = "L'email administrateur principal ne peut pas être modifié";
-        } else {
-          message = error.message;
-        }
-      }
-
-      toast.error(message);
-      throw error;
-    }
-  };
-
-  // ── updateAdminProfile ─────────────────────────────────────
-  //  Met à jour le profil admin (endpoint /admin/profile)
-  //  Utilise UpdateAdminProfileParams (firstName, lastName, password uniquement)
-  const updateAdminProfile = async (patch: ProfileUpdatePatch & {
-    firstName?: string;
-    lastName?: string;
-    password?: string;
-  }): Promise<void> => {
-    try {
-      // Créer un patch avec les champs autorisés pour admin (pas email/téléphone)
-      const profilePatch: UpdateAdminProfileParams = {};
-
-      // Ajouter uniquement les champs autorisés pour UpdateAdminProfileParams
-      if (patch.firstName) profilePatch.firstName = patch.firstName;
-      if (patch.lastName) profilePatch.lastName = patch.lastName;
-      if (patch.password) profilePatch.password = patch.password;
-      // Note: email et téléphone ne sont PAS inclus - protégés côté backend
-
-      const updatedUser = await updateAdminProfileService(profilePatch);
-      setUser(updatedUser as AppUser);
-      toast.success("Profil admin mis à jour avec succès");
-    } catch (error) {
-      let message = "Erreur lors de la mise à jour du profil admin";
-
-      if (error instanceof Error) {
-        // Gérer les erreurs spécifiques du backend
-        if (
-          error.message.includes("Un utilisateur avec cet email existe déjà")
-        ) {
-          message = "Cet email est déjà utilisé par un autre utilisateur";
-        } else if (
-          error.message.includes(
-            "Un utilisateur avec ce numéro de téléphone existe déjà",
-          )
-        ) {
-          message =
-            "Ce numéro de téléphone est déjà utilisé par un autre utilisateur";
-        } else if (
-          error.message.includes(
-            "L'email du compte administrateur principal ne peut pas être modifié",
-          )
-        ) {
-          message = "L'email administrateur principal ne peut pas être modifié";
-        } else {
-          message = error.message;
-        }
-      }
-
-      toast.error(message);
-      throw error;
-    }
-  };
-
   // ── getActiveSessions ───────────────────────────────
   const getActiveSessions = async (): Promise<number> => {
     try {
@@ -1022,13 +943,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     login,
     register,
     logout,
+    updateUser,
     logoutAll,
     refreshToken,
     forgotPassword,
     resetPassword,
-    refreshUserProfile,
-    updateUser,
-    updateAdminProfile,
     changePassword,
     getActiveSessions,
   };
