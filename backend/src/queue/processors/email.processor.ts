@@ -4,25 +4,31 @@ import { Logger } from '@nestjs/common';
 import { MailService } from '../../mail/mail.service';
 import { EmailJobData } from '../../interfaces/queue.interface';
 import { LoggerSanitizer } from '../../common/utils/logger-sanitizer.util';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 
 @Processor('email')
 export class EmailProcessor {
   private readonly logger = new Logger(EmailProcessor.name);
 
-  constructor(private readonly mailService: MailService) {}
+  constructor(
+    private readonly mailService: MailService,
+    @InjectQueue('email') private readonly emailQueue: Queue,
+  ) {}
 
   @Process('send-email')
   async handleSendEmail(job: Job<EmailJobData>) {
     const { data } = job;
 
-    this.logger.log('Traitement email');
+    const toEmail = Array.isArray(data.to) ? data.to.join(', ') : data.to;
+    this.logger.log(`Traitement email pour ${toEmail}`);
 
     try {
-      // Ajouter un timeout manuel pour éviter les blocages
+      // Augmenter le timeout à 120 secondes pour les connexions lentes
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(
-          () => reject(new Error('Timeout email après 60 secondes')),
-          60000,
+          () => reject(new Error('Timeout email après 120 secondes')),
+          120000,
         );
       });
 
@@ -48,7 +54,7 @@ export class EmailProcessor {
         throw new Error(result.error || 'Échec envoi email');
       }
 
-      this.logger.log('Email envoyé avec succès');
+      this.logger.log(`Email envoyé avec succès à ${toEmail}`);
 
       return {
         success: true,
@@ -56,14 +62,32 @@ export class EmailProcessor {
         subject: data.subject,
       };
     } catch (error) {
+      const errorMessage = (error as Error).message;
       this.logger.error(
-        'Erreur envoi email',
-        (error as Error).message,
+        `Erreur envoi email à ${toEmail}`,
+        errorMessage,
         (error as Error).stack,
       );
 
+      // Gérer les erreurs de connexion spécifiques
+      if (
+        errorMessage.includes('ENETUNREACH') ||
+        errorMessage.includes('Connection timeout') ||
+        errorMessage.includes('ECONNREFUSED')
+      ) {
+        this.logger.error(
+          `Problème de connexion SMTP pour ${toEmail} - tentative ${job.attemptsMade + 1}/${job.opts.attempts || 3}`,
+        );
+        // Ne pas marquer comme échec définitif trop rapidement
+        if (job.attemptsMade < (job.opts.attempts || 3) - 1) {
+          throw error; // Retenter automatiquement
+        }
+      }
+
       if (job.attemptsMade >= (job.opts.attempts || 3) - 1) {
-        this.logger.log('Échec définitif');
+        this.logger.error(
+          `Échec définitif d'envoi d'email à ${toEmail} après ${job.attemptsMade + 1} tentatives`,
+        );
       }
 
       throw error;
@@ -123,5 +147,33 @@ export class EmailProcessor {
     this.logger.log('Emails bulk traités');
 
     return results;
+  }
+
+  // Méthode pour nettoyer les jobs en erreur
+  async cleanFailedJobs(): Promise<void> {
+    try {
+      const failed = await this.emailQueue.getFailed();
+      // Note: getStalled() n'existe pas dans Bull, on utilise getActive() à la place
+      const active = await this.emailQueue.getActive();
+
+      this.logger.log(
+        `Nettoyage: ${failed.length} jobs échoués, ${active.length} jobs actifs`,
+      );
+
+      // Nettoyer les jobs échoués après 24h
+      for (const job of failed) {
+        const jobAge = Date.now() - job.timestamp;
+        if (jobAge > 24 * 60 * 60 * 1000) {
+          // 24 heures
+          await job.remove();
+          this.logger.log(`Job échoué supprimé: ${job.id}`);
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        'Erreur lors du nettoyage des jobs',
+        (error as Error).message,
+      );
+    }
   }
 }

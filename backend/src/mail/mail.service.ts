@@ -29,23 +29,26 @@ export class MailService {
     }
     // mail.service.ts — constructeur
     const transportConfig: SMTPTransport.Options = {
-      host: 'smtp.gmail.com', // laisser nodemailer résoudre en IPv4
-      port: 587, // ← 587 au lieu de 465
-      secure: false, // ← false pour STARTTLS
-      requireTLS: true, // ← force TLS via STARTTLS
+      // Utiliser l'adresse IP IPv4 de Gmail SMTP pour éviter les problèmes IPv6
+      host: '142.250.74.108', // smtp.gmail.com IPv4
+      port: 587,
+      secure: false, // false pour STARTTLS
+      requireTLS: true, // force TLS via STARTTLS
       auth: {
         user: emailUser,
         pass: emailPass,
       },
-      connectionTimeout: 30000,
-      greetingTimeout: 15000,
-      socketTimeout: 45000,
+      // Augmenter les timeouts pour éviter les erreurs de connexion
+      connectionTimeout: 60000, // Augmenter à 60s
+      greetingTimeout: 30000, // Augmenter à 30s
+      socketTimeout: 90000, // Augmenter à 90s
       tls: {
-        rejectUnauthorized: true, // remettre à true en production
+        rejectUnauthorized: true,
+        minVersion: 'TLSv1.2',
       },
     };
 
-    // Créer le transport sans la propriété family (non supportée)
+    // Créer le transport avec l'IP IPv4 pour éviter les problèmes IPv6
     this.transporter = nodemailer.createTransport(transportConfig);
     this.fromEmail = emailUser || '';
   }

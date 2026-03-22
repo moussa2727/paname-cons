@@ -72,7 +72,7 @@ const ForgotPassword: React.FC = () => {
         <div className="w-full max-w-md">
           <div className="bg-white rounded shadow-xl overflow-hidden">
             <div className="bg-linear-to-r from-sky-500 to-sky-600 p-6 text-center">
-              <div className="flex items-center justify-center space-x-2">
+              <Link to="/" className="flex items-center justify-center space-x-2">
                 <div className="bg-white p-2 rounded-full">
                   <div className="w-10 h-10 rounded-full bg-linear-to-r from-sky-500 to-sky-600 flex items-center justify-center">
                     <FiMail className="text-white text-xl" />
@@ -81,7 +81,7 @@ const ForgotPassword: React.FC = () => {
                 <Link to="/" className="text-2xl font-bold text-white">
                   Mot de passe oublié
                 </Link>
-              </div>
+              </Link>
             </div>
 
             <div className="p-6 md:p-8">
