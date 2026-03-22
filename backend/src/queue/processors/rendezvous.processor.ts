@@ -1,9 +1,10 @@
 import { Processor, Process } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
-import bull from 'bull';
-import { ConfigService } from '@nestjs/config';
+import { Job } from 'bull';
 import { MailService } from '../../mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
+import { CancelledBy } from '@prisma/client';
 
 interface RendezvousJobData {
   action: 'create' | 'cancel' | 'reminder' | 'auto_cancel';
@@ -11,7 +12,9 @@ interface RendezvousJobData {
   userId?: string;
   email?: string;
   firstName?: string;
-  details?: any;
+  details?: {
+    cancelledBy?: CancelledBy;
+  };
 }
 
 @Processor('rendezvous')
@@ -25,14 +28,13 @@ export class RendezvousProcessor {
   ) {}
 
   @Process('create-rendezvous')
-  async handleCreateRendezvous(job: bull.Job<RendezvousJobData>) {
+  async handleCreateRendezvous(job: Job<RendezvousJobData>) {
     const { data } = job;
     this.logger.log(
       `Traitement creation rendezvous ${data.rendezvousId?.substring(0, 8)}***`,
     );
 
     try {
-      // Envoyer email de confirmation
       if (data.email && data.firstName && data.rendezvousId) {
         const rendezvous = await this.prisma.rendezvous.findUnique({
           where: { id: data.rendezvousId },
@@ -43,25 +45,16 @@ export class RendezvousProcessor {
           return { success: false, error: 'Rendez-vous non trouve' };
         }
 
-        const html = `
-          <div style="margin:25px 0;line-height:1.8;">
-            <p>Nous avons le plaisir de vous confirmer votre rendez-vous.</p>
-            <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-              <h3 style="margin-top:0;color:#0284c7;">Votre rendez-vous</h3>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure :</span> ${rendezvous.time}</div>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Lieu :</span> ${rendezvous.destination || rendezvous.destinationAutre || 'Non spécifié'}</div>
-            </div>
-            <p>Nous sommes impatients de vous rencontrer à notre bureau.</p>
-            <div style="text-align:center;margin-top:30px;">
-              <a href="${this.configService.get<string>('FRONTEND_URL')}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon rendez-vous</a>
-            </div>
-          </div>`;
-
-        await this.mailService.sendRendezvousReminderEmail(
+        await this.mailService.sendRendezvousConfirmationEmail(
           data.email,
           data.firstName,
-          html,
+          {
+            id: rendezvous.id,
+            date: new Date(rendezvous.date),
+            time: rendezvous.time,
+            destination: rendezvous.destination,
+            destinationAutre: rendezvous.destinationAutre,
+          },
         );
       }
 
@@ -76,12 +69,11 @@ export class RendezvousProcessor {
   }
 
   @Process('cancel-rendezvous')
-  async handleCancelRendezvous(job: bull.Job<RendezvousJobData>) {
+  async handleCancelRendezvous(job: Job<RendezvousJobData>) {
     const { data } = job;
     this.logger.log('Traitement annulation rendez-vous');
 
     try {
-      // Envoyer email d'annulation
       if (data.email && data.firstName && data.rendezvousId) {
         const rendezvous = await this.prisma.rendezvous.findUnique({
           where: { id: data.rendezvousId },
@@ -92,25 +84,15 @@ export class RendezvousProcessor {
           return { success: false, error: 'Rendez-vous non trouvé' };
         }
 
-        const html = `
-          <div style="margin:25px 0;line-height:1.8;">
-            <p>Votre rendez-vous a été annulé.</p>
-            <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-              <h3 style="margin-top:0;color:#0284c7;">Rendez-vous annulé</h3>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date prévue :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure prévue :</span> ${rendezvous.time}</div>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Lieu :</span> ${rendezvous.destination || rendezvous.destinationAutre || 'Non spécifié'}</div>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Raison :</span> Annulation de rendez-vous</div>
-            </div>
-            <div style="text-align:center;margin-top:30px;">
-              <a href="${this.configService.get<string>('FRONTEND_URL')}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Reprogrammer un rendez-vous</a>
-            </div>
-          </div>`;
-
         await this.mailService.sendRendezvousCancelledEmail(
           data.email,
           data.firstName,
-          html,
+          {
+            id: rendezvous.id,
+            date: new Date(rendezvous.date),
+            time: rendezvous.time,
+          },
+          data.details?.cancelledBy ?? 'USER',
         );
       }
 
@@ -125,7 +107,7 @@ export class RendezvousProcessor {
   }
 
   @Process('send-reminder')
-  async handleSendReminder(job: bull.Job<RendezvousJobData>) {
+  async handleSendReminder(job: Job<RendezvousJobData>) {
     const { data } = job;
     this.logger.log('Envoi rappel rendez-vous');
 
@@ -140,22 +122,13 @@ export class RendezvousProcessor {
           return { success: false, error: 'Rendez-vous non trouvé' };
         }
 
-        const html = `
-          <div style="margin:25px 0;line-height:1.8;">
-            <p>Rappel : Vous avez un rendez-vous.</p>
-            <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-              <h3 style="margin-top:0;color:#0284c7;">Votre rendez-vous</h3>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure :</span> ${rendezvous.time}</div>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Lieu :</span> Paname Consulting - Kalaban Coura</div>
-            </div>
-            <p>Nous sommes impatients de vous rencontrer.</p>
-          </div>`;
-
         await this.mailService.sendRendezvousReminderEmail(
           data.email,
           data.firstName,
-          html,
+          {
+            date: new Date(rendezvous.date),
+            time: rendezvous.time,
+          },
         );
       }
 
@@ -172,11 +145,9 @@ export class RendezvousProcessor {
     this.logger.log('Annulation automatique des rendez-vous en attente');
 
     try {
-      // Logique réelle pour l'annulation automatique
       const fiveHoursAgo = new Date();
       fiveHoursAgo.setHours(fiveHoursAgo.getHours() - 5);
 
-      // Trouver les rendez-vous en attente depuis plus de 5 heures
       const pendingToCancel = await this.prisma.rendezvous.findMany({
         where: {
           status: 'PENDING',
@@ -195,7 +166,6 @@ export class RendezvousProcessor {
 
       for (const rdv of pendingToCancel) {
         try {
-          // Mettre à jour le statut du rendez-vous
           await this.prisma.rendezvous.update({
             where: { id: rdv.id },
             data: {
@@ -206,26 +176,10 @@ export class RendezvousProcessor {
             },
           });
 
-          // Envoyer email d'annulation automatique
-          const html = `
-            <div style="margin:25px 0;line-height:1.8;">
-              <p>Votre rendez-vous a été annulé.</p>
-              <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #ef4444;margin:25px 0;">
-                <h3 style="margin-top:0;color:#ef4444;">Rendez-vous annulé</h3>
-                <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date prévue :</span> ${new Date(rdv.date).toLocaleDateString('fr-FR')}</div>
-                <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure prévue :</span> ${rdv.time}</div>
-                <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Raison :</span> Annulation automatique: non confirmé dans les 5 heures</div>
-              </div>
-              <div style="text-align:center;margin-top:30px;">
-                <a href="${this.configService.get<string>('FRONTEND_URL')}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Reprogrammer un rendez-vous</a>
-              </div>
-            </div>`;
-
-          await this.mailService.sendRendezvousCancelledEmail(
-            rdv.email,
-            rdv.firstName,
-            html,
-          );
+          await this.mailService.sendAutoCancelEmail(rdv.email, rdv.firstName, {
+            date: new Date(rdv.date),
+            time: rdv.time,
+          });
 
           cancelledCount++;
           this.logger.log('Rendez-vous annulé');

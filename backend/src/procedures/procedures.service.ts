@@ -32,6 +32,7 @@ import { CurrentUser } from '../interfaces/current-user.interface';
 import { Response } from 'express';
 import * as ExcelJS from 'exceljs';
 import * as PDFKit from 'pdfkit';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class ProceduresService {
@@ -41,6 +42,7 @@ export class ProceduresService {
     private proceduresRepository: ProceduresRepository,
     private queueService: QueueService,
     private prisma: PrismaService,
+    private mailService: MailService,
   ) {}
 
   async create(
@@ -133,7 +135,7 @@ export class ProceduresService {
     await this.queueService.addEmailJob({
       to: procedure.email,
       subject: 'Confirmation de procédure - Paname Consulting',
-      html: this.generateProcedureCreatedContent(procedure),
+      html: this.mailService.generateProcedureCreatedContent(procedure),
       priority: 'high',
     });
 
@@ -475,7 +477,9 @@ export class ProceduresService {
       await this.queueService.addEmailJob({
         to: updatedProcedure.email,
         subject: 'Mise à jour de votre procédure - Paname Consulting',
-        html: this.generateProcedureStatusUpdatedContent(updatedProcedure),
+        html: this.mailService.generateProcedureStatusUpdatedContent(
+          updatedProcedure,
+        ),
         priority: 'normal',
       });
     }
@@ -624,7 +628,7 @@ export class ProceduresService {
     await this.queueService.addEmailJob({
       to: procedure.email,
       subject: 'Suppression de votre procédure - Paname Consulting',
-      html: this.generateProcedureDeletedContent(procedure, reason),
+      html: this.mailService.generateProcedureDeletedContent(procedure, reason),
       priority: 'high',
     });
 
@@ -706,12 +710,15 @@ export class ProceduresService {
 
     // Notifier l'administrateur
     await this.queueService.addEmailJob({
-      to: process.env.EMAIL_USER || 'admin@panameconsulting.com',
+      to: process.env.EMAIL_USER,
       subject: 'Annulation de procédure - Paname Consulting',
-      html: this.generateProcedureCancelledContent(
-        this.toResponseDto(procedureWithRelations),
+      html: this.mailService.generateProcedureDeletedContent(
+        {
+          id: procedureWithRelations.id,
+          prenom: procedureWithRelations.user?.firstName || 'Utilisateur',
+          destination: procedureWithRelations.destination || 'Non spécifiée',
+        },
         reason,
-        currentUser,
       ),
       priority: 'normal',
     });
@@ -1392,97 +1399,5 @@ export class ProceduresService {
     this.logger.log(
       `Export ${format as string} des procédures effectué par ${currentUser.email}`,
     );
-  }
-
-  private generateProcedureCreatedContent(procedure: {
-    id: string;
-    prenom: string;
-    destination: string;
-    filiere: string;
-    statut: string;
-  }): string {
-    return `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Nous avons le plaisir de vous informer que votre procédure d'admission a été créée avec succès.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #10b981;margin:25px 0;">
-          <h3 style="margin-top:0;color:#10b981;">Détails de votre procédure</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Procédure :</span> ${procedure.id}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Destination :</span> ${procedure.destination}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Filière :</span> ${procedure.filiere}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Statut :</span> <span style="color:#10b981;font-weight:600;">${procedure.statut}</span></div>
-        </div>
-        <p>Notre équipe va désormais vous accompagner pas à pas dans votre projet d'études.</p>
-        <div style="text-align:center;margin-top:30px;">
-          <a href="https://panameconsulting.com/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Suivre ma procédure</a>
-        </div>
-      </div>`;
-  }
-
-  private generateProcedureStatusUpdatedContent(procedure: {
-    id: string;
-    prenom: string;
-    destination: string;
-    statut: string;
-  }): string {
-    return `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Votre procédure d'admission a été mise à jour.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0ea5e9;margin:25px 0;">
-          <h3 style="margin-top:0;color:#0ea5e9;">Mise à jour de procédure</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Procédure :</span> ${procedure.id}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Destination :</span> ${procedure.destination}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Nouveau statut :</span> <span style="color:#0ea5e9;font-weight:600;">${procedure.statut}</span></div>
-        </div>
-        <p>Suivez votre dossier depuis votre espace personnel.</p>
-        <div style="text-align:center;margin-top:30px;">
-          <a href="https://panameconsulting.com/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir ma procédure</a>
-        </div>
-      </div>`;
-  }
-
-  private generateProcedureDeletedContent(
-    procedure: {
-      id: string;
-      prenom: string;
-      destination: string;
-    },
-    reason: string,
-  ): string {
-    return `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Votre procédure d'admission a été supprimée.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #ef4444;margin:25px 0;">
-          <h3 style="margin-top:0;color:#ef4444;">Procédure supprimée</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Procédure :</span> ${procedure.id}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Destination :</span> ${procedure.destination}</div>
-          ${reason ? `<div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Raison :</span> ${reason}</div>` : ''}
-        </div>
-        <p>Nous restons à votre disposition pour toute question ou pour créer une nouvelle procédure.</p>
-        <div style="text-align:center;margin-top:30px;">
-          <a href="https://panameconsulting.com/contact" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Nous contacter</a>
-        </div>
-      </div>`;
-  }
-
-  private generateProcedureCancelledContent(
-    procedure: ProcedureResponseDto,
-    reason: string,
-    currentUser: CurrentUser,
-  ): string {
-    return `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Une procédure a été annulée par l'utilisateur.</p>
-        <div style="background:#fef3c7;padding:25px;border-radius:8px;border-left:4px solid #f59e0b;margin:25px 0;">
-          <h3 style="margin-top:0;color:#d97706;">Procédure annulée</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Procédure :</span> ${procedure.id}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Étudiant :</span> ${procedure.prenom} ${procedure.nom}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Destination :</span> ${procedure.destination}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Email :</span> ${procedure.email}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Raison :</span> ${reason}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Annulé par :</span> ${currentUser.email}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date d'annulation :</span> ${new Date().toLocaleDateString('fr-FR')}</div>
-        </div>
-        <p>Veuillez contacter l'utilisateur si nécessaire pour plus d'informations.</p>
-      </div>`;
   }
 }

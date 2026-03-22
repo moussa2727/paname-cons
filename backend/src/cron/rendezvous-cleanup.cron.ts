@@ -60,26 +60,11 @@ export class RendezvousCleanupCron {
             },
           });
 
-          // Envoyer un email d'annulation
-          const html = `
-            <div style="margin:25px 0;line-height:1.8;">
-              <p>Votre rendez-vous a été annulé.</p>
-              <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-                <h3 style="margin-top:0;color:#0284c7;">Rendez-vous annulé</h3>
-                <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date prévue :</span> ${new Date(rdv.date).toLocaleDateString('fr-FR')}</div>
-                <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure prévue :</span> ${rdv.time}</div>
-                <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Lieu :</span> ${rdv.destination || rdv.destinationAutre || 'Non spécifié'}</div>
-                <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Raison :</span> Automatiquement annulé après 5h en attente de confirmation</div>
-              </div>
-              <div style="text-align:center;margin-top:30px;">
-                <a href="${this.configService.get<string>('FRONTEND_URL')}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Reprogrammer un rendez-vous</a>
-              </div>
-            </div>`;
-
           await this.mailService.sendRendezvousCancelledEmail(
             rdv.email,
             rdv.firstName,
-            html,
+            { id: rdv.id, date: new Date(rdv.date), time: rdv.time },
+            'Système',
           );
 
           this.logger.log('Rendez-vous annulé et email envoyé');

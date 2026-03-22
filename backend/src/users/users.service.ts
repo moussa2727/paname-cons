@@ -17,6 +17,7 @@ import { QueueService } from '../queue/queue.service';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../common/logger/audit.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class UsersService {
@@ -26,6 +27,7 @@ export class UsersService {
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
     private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
   ) {}
 
   // ==================== HASHAGE (point unique) ====================
@@ -228,12 +230,10 @@ export class UsersService {
       });
     }
 
-    await this.queueService.addEmailJob({
-      to: updatedUser.email,
-      subject: 'Votre profil a été mis à jour',
-      html: this.generateProfileUpdatedContent(updatedUser),
-      priority: 'normal',
-    });
+    await this.mailService.sendProfileUpdatedEmail(
+      updatedUser.email,
+      updatedUser.firstName,
+    );
 
     await this.auditService.logUserAction(id, AuditAction.UPDATE, {
       email: updatedUser.email,
@@ -244,10 +244,6 @@ export class UsersService {
 
   /**
    * Met à jour le profil d'un utilisateur avec rôle ADMIN.
-   *
-   * ✅ Champs autorisés : firstName, lastName, password.
-   * ❌ Email et téléphone : définitivement protégés, jamais modifiables.
-   *
    * La vérification est double :
    *  1. Le DTO UpdateProfileDto ne contient pas les champs email/telephone (niveau typage)
    *  2. Une vérification défensive au runtime rejette toute tentative de contournement
@@ -290,12 +286,10 @@ export class UsersService {
 
     const updatedUser = await this.usersRepository.update(id, updateData);
 
-    await this.queueService.addEmailJob({
-      to: updatedUser.email,
-      subject: 'Votre profil a été mis à jour',
-      html: this.generateProfileUpdatedContent(updatedUser),
-      priority: 'normal',
-    });
+    await this.mailService.sendProfileUpdatedEmail(
+      updatedUser.email,
+      updatedUser.firstName,
+    );
 
     await this.auditService.logUserAction(id, AuditAction.UPDATE, {
       email: updatedUser.email,
@@ -383,27 +377,5 @@ export class UsersService {
     });
 
     return this.toResponseDto(updatedUser);
-  }
-
-  // ==================== UTILITAIRES PRIVÉS ====================
-
-  private generateProfileUpdatedContent(user: {
-    firstName: string;
-    email: string;
-  }): string {
-    return `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Bonjour <strong>${user.firstName}</strong>,</p>
-        <p>Votre profil a été mis à jour avec succès.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #10b981;margin:25px 0;">
-          <h3 style="margin-top:0;color:#10b981;">Mise à jour réussie</h3>
-          <p style="margin:0;">Les modifications de votre profil ont été enregistrées.</p>
-        </div>
-        <p>Si vous n'êtes pas à l'origine de cette modification, veuillez nous contacter immédiatement.</p>
-        <div style="text-align:center;margin-top:30px;">
-          <a href="https://panameconsulting.com/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon profil</a>
-        </div>
-        <p style="margin-top:30px;">Cordialement,<br><strong>Paname Consulting</strong></p>
-      </div>`;
   }
 }

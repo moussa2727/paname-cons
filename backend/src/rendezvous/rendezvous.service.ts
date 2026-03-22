@@ -21,7 +21,6 @@ import { CreateRendezvousDto } from './dto/create-rendezvous.dto';
 import { UpdateRendezvousDto } from './dto/update-rendezvous.dto';
 import { CurrentUser } from '../interfaces/current-user.interface';
 import { MailService } from '../mail/mail.service';
-import { QueueService } from '../queue/queue.service';
 import {
   HolidaysService,
   RENDEZVOUS_CONSTANTS,
@@ -47,9 +46,8 @@ export class RendezvousService {
       '16:30': TimeSlot.SLOT_1630,
     };
 
-    // Note: 12:00 n'est pas dans l'enum TimeSlot, on le gère comme un cas spécial
     if (timeString === '12:00') {
-      return '12:00' as TimeSlot; // Cast nécessaire car non présent dans l'enum
+      return '12:00' as TimeSlot;
     }
 
     const timeSlot = timeMap[timeString];
@@ -66,7 +64,6 @@ export class RendezvousService {
     private readonly prisma: PrismaService,
     private readonly rendezvousRepository: RendezvousRepository,
     private readonly mailService: MailService,
-    private readonly queueService: QueueService,
     private readonly holidaysService: HolidaysService,
     private readonly configService: ConfigService,
   ) {}
@@ -158,7 +155,6 @@ export class RendezvousService {
       },
     };
 
-    // Vérification explicite de disponibilité avant création
     const isAvailable = await this.rendezvousRepository.checkAvailability(
       createRendezvousDto.date,
       this.convertTimeStringToTimeSlot(createRendezvousDto.time),
@@ -170,6 +166,20 @@ export class RendezvousService {
 
     try {
       const rendezvous = await this.rendezvousRepository.create(data);
+
+      // Send confirmation email using MailService
+      await this.mailService.sendRendezvousConfirmationEmail(
+        rendezvous.email,
+        rendezvous.firstName,
+        {
+          id: rendezvous.id,
+          date: new Date(rendezvous.date),
+          time: rendezvous.time,
+          destination: rendezvous.destination,
+          destinationAutre: rendezvous.destinationAutre,
+        },
+      );
+
       return rendezvous;
     } catch (error) {
       const errorMessage =
@@ -322,7 +332,6 @@ export class RendezvousService {
       where.email = currentUser.email;
     }
 
-    // Par défaut, ne retourner que les rendez-vous PENDING et CONFIRMED (actifs)
     if (!filters?.status) {
       where.status = {
         in: [RendezvousStatus.PENDING, RendezvousStatus.CONFIRMED],
@@ -348,7 +357,6 @@ export class RendezvousService {
     }
 
     if (filters?.search) {
-      // Normaliser la recherche pour le téléphone
       const normalizedSearch = filters.search.replace(/[\s.-]/g, '');
 
       where.OR = [
@@ -396,7 +404,6 @@ export class RendezvousService {
       take: limit,
     });
 
-    // Ajouter les champs effective* pour chaque rendez-vous
     const enrichedData = data.map((rdv) => this.addEffectiveFields(rdv));
 
     const totalPages = Math.ceil(total / limit);
@@ -446,7 +453,6 @@ export class RendezvousService {
   ) {
     const existing = await this.findById(id, currentUser);
 
-    // Les rendez-vous annulés et terminés sont immuables
     if (
       existing.status === RendezvousStatus.CANCELLED ||
       existing.status === RendezvousStatus.COMPLETED
@@ -576,18 +582,21 @@ export class RendezvousService {
         updateData,
       );
 
-      // Envoyer une notification si le statut a changé
+      // Send status update notification using MailService
       if (updateData.status && updateData.status !== existing.status) {
-        await this.queueService.addEmailJob({
-          to: updatedRendezvous.email,
-          subject: 'Mise à jour de votre rendez-vous - Paname Consulting',
-          html: this.generateRendezvousStatusUpdatedContent(
-            updatedRendezvous,
-            existing.status,
-            updateData.status as RendezvousStatus,
-          ),
-          priority: 'normal',
-        });
+        await this.mailService.sendRendezvousStatusUpdatedEmail(
+          updatedRendezvous.email,
+          updatedRendezvous.firstName,
+          {
+            id: updatedRendezvous.id,
+            date: new Date(updatedRendezvous.date),
+            time: updatedRendezvous.time,
+            destination: updatedRendezvous.destination,
+            destinationAutre: updatedRendezvous.destinationAutre,
+          },
+          existing.status,
+          updateData.status as RendezvousStatus,
+        );
       }
 
       if (
@@ -606,76 +615,6 @@ export class RendezvousService {
     }
   }
 
-  private generateRendezvousCompletedContent(
-    rendezvous: Rendezvous,
-    isFavorable: boolean,
-  ): string {
-    return `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Votre rendez-vous a été terminé.</p>
-        <div style="background:#f0fdf4;padding:25px;border-radius:8px;border-left:4px solid #10b981;margin:25px 0;">
-          <h3 style="margin-top:0;color:#10b981;">Rendez-vous terminé</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Rendez-vous :</span> ${rendezvous.id}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Avis administrateur :</span> <span style="color:${isFavorable ? '#10b981' : '#ef4444'};font-weight:600;">${isFavorable ? 'Favorable' : 'Défavorable'}</span></div>
-          ${isFavorable ? '<div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Une procédure d\'admission va être créée automatiquement.</span></div>' : ''}
-        </div>
-        <p>Merci de votre confiance. Notre équipe reste à votre disposition.</p>
-        <div style="text-align:center;margin-top:30px;">
-          <a href="https://panameconsulting.com/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#10b981,#059669);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon espace</a>
-        </div>
-      </div>`;
-  }
-
-  private generateRendezvousCancelledContent(
-    rendezvous: Rendezvous,
-    cancelledBy: string,
-  ): string {
-    return `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Votre rendez-vous a été annulé.</p>
-        <div style="background:#fef3c7;padding:25px;border-radius:8px;border-left:4px solid #f59e0b;margin:25px 0;">
-          <h3 style="margin-top:0;color:#d97706;">Rendez-vous annulé</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Rendez-vous :</span> ${rendezvous.id}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Annulé par :</span> ${cancelledBy === 'ADMIN' ? 'Administrateur' : 'Utilisateur'}</div>
-        </div>
-        <p>Nous restons à votre disposition pour prendre un nouveau rendez-vous.</p>
-        <div style="text-align:center;margin-top:30px;">
-          <a href="https://panameconsulting.com/rendezvous" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Prendre un nouveau rendez-vous</a>
-        </div>
-      </div>`;
-  }
-
-  private generateRendezvousStatusUpdatedContent(
-    rendezvous: Rendezvous,
-    oldStatus: RendezvousStatus,
-    newStatus: RendezvousStatus,
-  ): string {
-    const statusLabels: Record<RendezvousStatus, string> = {
-      [RendezvousStatus.PENDING]: 'En attente',
-      [RendezvousStatus.CONFIRMED]: 'Confirmé',
-      [RendezvousStatus.COMPLETED]: 'Terminé',
-      [RendezvousStatus.CANCELLED]: 'Annulé',
-    };
-
-    return `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Votre rendez-vous a été mis à jour.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0ea5e9;margin:25px 0;">
-          <h3 style="margin-top:0;color:#0ea5e9;">Mise à jour de rendez-vous</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Rendez-vous :</span> ${rendezvous.id}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Ancien statut :</span> ${statusLabels[oldStatus]}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Nouveau statut :</span> <span style="color:#0ea5e9;font-weight:600;">${statusLabels[newStatus]}</span></div>
-        </div>
-        <p>Suivez votre rendez-vous depuis votre espace personnel.</p>
-        <div style="text-align:center;margin-top:30px;">
-          <a href="https://panameconsulting.com/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mes rendez-vous</a>
-        </div>
-      </div>`;
-  }
-
   private validateStatusTransition(
     currentStatus: RendezvousStatus,
     newStatus: RendezvousStatus,
@@ -688,10 +627,10 @@ export class RendezvousService {
       [RendezvousStatus.CONFIRMED]: [
         RendezvousStatus.COMPLETED,
         RendezvousStatus.CANCELLED,
-        RendezvousStatus.PENDING, // Possibilité de remettre en attente
+        RendezvousStatus.PENDING,
       ],
-      [RendezvousStatus.COMPLETED]: [], // Statut final
-      [RendezvousStatus.CANCELLED]: [], // Plus de réactivation possible
+      [RendezvousStatus.COMPLETED]: [],
+      [RendezvousStatus.CANCELLED]: [],
     };
 
     const validTransitions = allowedTransitions[currentStatus];
@@ -749,24 +688,17 @@ export class RendezvousService {
         include: { steps: true },
       });
 
-      const htmlContent = `
-        <div>
-          <p>Nous avons le plaisir de vous informer que votre procédure d'admission a été créée avec succès.</p>
-          <div>
-            <h3>Détails de votre procédure</h3>
-            <div>Destination : ${rendezvous.destinationAutre || rendezvous.destination}</div>
-            <div>Statut : Créée</div>
-          </div>
-          <p>Notre équipe va désormais vous accompagner pas à pas dans votre projet d'études.</p>
-        </div>`;
-
-      // Envoyer un email de confirmation via queue
-      await this.queueService.addEmailJob({
-        to: rendezvous.email,
-        subject: 'Confirmation de votre rendez-vous - Paname Consulting',
-        html: htmlContent,
-        priority: 'high',
-      });
+      // Send procedure creation email using MailService
+      await this.mailService.sendProcedureCreatedEmail(
+        procedure.email,
+        procedure.prenom,
+        {
+          id: procedure.id,
+          destination: procedure.destination,
+          filiere: procedure.filiere,
+          statut: procedure.statut,
+        },
+      );
 
       return procedure;
     } catch (error) {
@@ -1060,7 +992,6 @@ export class RendezvousService {
       throw new BadRequestException('Ce rendez-vous est déjà annulé');
     }
 
-    // Les rendez-vous terminés ne peuvent pas être annulés
     if (existing.status === RendezvousStatus.COMPLETED) {
       throw new BadRequestException(
         "Impossible d'annuler un rendez-vous terminé",
@@ -1090,16 +1021,17 @@ export class RendezvousService {
       cancelledBy: currentUser.role === UserRole.ADMIN ? 'ADMIN' : 'USER',
     });
 
-    // Envoyer une notification d'annulation
-    await this.queueService.addEmailJob({
-      to: cancelled.email,
-      subject: 'Annulation de votre rendez-vous - Paname Consulting',
-      html: this.generateRendezvousCancelledContent(
-        cancelled,
-        currentUser.role === UserRole.ADMIN ? 'ADMIN' : 'USER',
-      ),
-      priority: 'high',
-    });
+    // Send cancellation email using MailService
+    await this.mailService.sendRendezvousCancelledEmail(
+      cancelled.email,
+      cancelled.firstName,
+      {
+        id: cancelled.id,
+        date: new Date(cancelled.date),
+        time: cancelled.time,
+      },
+      currentUser.role === UserRole.ADMIN ? 'ADMIN' : 'USER',
+    );
 
     return cancelled;
   }
@@ -1111,7 +1043,6 @@ export class RendezvousService {
   ) {
     const existing = await this.findById(id, currentUser);
 
-    // Les rendez-vous déjà terminés ne peuvent pas être modifiés
     if (existing.status === RendezvousStatus.COMPLETED) {
       throw new BadRequestException('Ce rendez-vous est déjà terminé');
     }
@@ -1133,16 +1064,13 @@ export class RendezvousService {
       avisAdmin: updateRendezvousDto.avisAdmin,
     });
 
-    // Envoyer une notification de complétion
-    await this.queueService.addEmailJob({
-      to: updatedRendezvous.email,
-      subject: 'Complétion de votre rendez-vous - Paname Consulting',
-      html: this.generateRendezvousCompletedContent(
-        updatedRendezvous,
-        updateRendezvousDto.avisAdmin === AdminOpinion.FAVORABLE,
-      ),
-      priority: 'high',
-    });
+    // Send completion email using MailService
+    await this.mailService.sendRendezvousCompletedEmail(
+      updatedRendezvous.email,
+      updatedRendezvous.firstName,
+      updatedRendezvous,
+      updateRendezvousDto.avisAdmin === AdminOpinion.FAVORABLE,
+    );
 
     if (updateRendezvousDto.avisAdmin === AdminOpinion.FAVORABLE) {
       await this.createProcedureFromRendezvous(updatedRendezvous);

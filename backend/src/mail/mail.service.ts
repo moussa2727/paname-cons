@@ -1,12 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Rendezvous, RendezvousStatus } from '@prisma/client';
 import * as nodemailer from 'nodemailer';
 import type { Attachment } from 'nodemailer/lib/mailer';
-import type SMTPTransport from 'nodemailer/lib/smtp-transport';
-import { RendezvousEntity } from '../rendezvous/entities/rendezvous.entity';
-import { ProcedureEntity } from '../procedures/entities/procedure.entity';
-import { ProcedureStatus, StepStatus } from '@prisma/client';
-import { RendezvousStatus, AdminOpinion, CancelledBy } from '@prisma/client';
 
 @Injectable()
 export class MailService {
@@ -18,38 +14,23 @@ export class MailService {
   private readonly frontendUrl: string;
 
   constructor(private configService: ConfigService) {
-    const emailUser =
-      this.configService.get<string>('EMAIL_USER') || process.env.EMAIL_USER;
-    const emailPass =
-      this.configService.get<string>('EMAIL_PASS') || process.env.EMAIL_PASS;
+    const emailUser = this.configService.get<string>('EMAIL_USER');
+    const emailPass = this.configService.get<string>('EMAIL_PASS');
     this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || '';
 
     if (!emailUser || !emailPass) {
       this.logger.warn('Configuration email manquante');
     }
-    // mail.service.ts — constructeur
-    const transportConfig: SMTPTransport.Options = {
-      // Utiliser l'adresse IP IPv4 de Gmail SMTP pour éviter les problèmes IPv6
-      host: '142.250.74.108', // smtp.gmail.com IPv4
-      port: 587,
-      secure: false, // false pour STARTTLS
-      requireTLS: true, // force TLS via STARTTLS
-      auth: {
-        user: emailUser,
-        pass: emailPass,
-      },
-      // Augmenter les timeouts pour éviter les erreurs de connexion
-      connectionTimeout: 60000, // Augmenter à 60s
-      greetingTimeout: 30000, // Augmenter à 30s
-      socketTimeout: 90000, // Augmenter à 90s
-      tls: {
-        rejectUnauthorized: true,
-        minVersion: 'TLSv1.2',
-      },
-    };
 
-    // Créer le transport avec l'IP IPv4 pour éviter les problèmes IPv6
-    this.transporter = nodemailer.createTransport(transportConfig);
+    this.transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: emailUser || process.env.EMAIL_USER,
+        pass: emailPass || process.env.EMAIL_PASS,
+      },
+      tls: { rejectUnauthorized: false },
+    });
+
     this.fromEmail = emailUser || '';
   }
 
@@ -96,18 +77,7 @@ export class MailService {
       this.logger.log('Email envoyé avec succès');
       return { success: true };
     } catch (error) {
-      this.logger.error('Echec d envoi d email', (error as Error).message);
-
-      // En cas d'erreur de connexion, logger plus de détails
-      if (
-        (error as Error).message.includes('ENETUNREACH') ||
-        (error as Error).message.includes('Délai de connexion dépassé')
-      ) {
-        this.logger.error(
-          'Problème de connexion SMTP - vérifier la configuration réseau et les identifiants Gmail',
-        );
-      }
-
+      this.logger.error('Echec d envoi d email');
       return { success: false, error: (error as Error).message };
     }
   }
@@ -170,106 +140,424 @@ export class MailService {
 </html>`;
   }
 
-  // ==================== CONTACTS ====================
+  // ==================== PROCÉDURE CONTENT GENERATORS ====================
 
-  /**
-   * Notification admin - expéditeur dynamique = email du formulaire
-   */
-  buildContactNotificationHtml(data: {
+  generateProcedureCreatedContent(procedure: {
+    id: string;
+    prenom: string;
+    destination: string;
+    filiere: string;
+    statut: string;
+  }): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Nous avons le plaisir de vous informer que votre procédure d'admission a été créée avec succès.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #10b981;margin:25px 0;">
+          <h3 style="margin-top:0;color:#10b981;">Détails de votre procédure</h3>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Procédure :</span> ${procedure.id}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Destination :</span> ${procedure.destination}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Filière :</span> ${procedure.filiere}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Statut :</span> <span style="color:#10b981;font-weight:600;">${procedure.statut}</span></div>
+        </div>
+        <p>Notre équipe va désormais vous accompagner pas à pas dans votre projet d'études.</p>
+        <div style="text-align:center;margin-top:30px;">
+          <a href="${this.frontendUrl}/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Suivre ma procédure</a>
+        </div>
+      </div>`;
+  }
+
+  generateProcedureStatusUpdatedContent(procedure: {
+    id: string;
+    prenom: string;
+    destination: string;
+    statut: string;
+  }): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Votre procédure d'admission a été mise à jour.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0ea5e9;margin:25px 0;">
+          <h3 style="margin-top:0;color:#0ea5e9;">Mise à jour de procédure</h3>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Procédure :</span> ${procedure.id}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Destination :</span> ${procedure.destination}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Nouveau statut :</span> <span style="color:#0ea5e9;font-weight:600;">${procedure.statut}</span></div>
+        </div>
+        <p>Suivez votre dossier depuis votre espace personnel.</p>
+        <div style="text-align:center;margin-top:30px;">
+          <a href="${this.frontendUrl}/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir ma procédure</a>
+        </div>
+      </div>`;
+  }
+
+  generateProcedureDeletedContent(
+    procedure: {
+      id: string;
+      prenom: string;
+      destination: string;
+    },
+    reason: string,
+  ): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Votre procédure d'admission a été supprimée.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #ef4444;margin:25px 0;">
+          <h3 style="margin-top:0;color:#ef4444;">Procédure supprimée</h3>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Procédure :</span> ${procedure.id}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Destination :</span> ${procedure.destination}</div>
+          ${reason ? `<div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Raison :</span> ${reason}</div>` : ''}
+        </div>
+        <p>Nous restons à votre disposition pour toute question ou pour créer une nouvelle procédure.</p>
+        <div style="text-align:center;margin-top:30px;">
+          <a href="${this.frontendUrl}/contact" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Nous contacter</a>
+        </div>
+      </div>`;
+  }
+
+  // ==================== RENDEZ-VOUS CONTENT GENERATORS ====================
+
+  generateRendezvousCompletedContent(
+    rendezvous: Rendezvous,
+    isFavorable: boolean,
+  ): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Votre rendez-vous a été terminé.</p>
+        <div style="background:#f0fdf4;padding:25px;border-radius:8px;border-left:4px solid #10b981;margin:25px 0;">
+          <h3 style="margin-top:0;color:#10b981;">Rendez-vous terminé</h3>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Avis administrateur :</span> <span style="color:${isFavorable ? '#10b981' : '#ef4444'};font-weight:600;">${isFavorable ? 'Favorable' : 'Défavorable'}</span></div>
+          ${isFavorable ? '<div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Une procédure d\'admission va être créée automatiquement.</span></div>' : ''}
+        </div>
+        <p>Merci de votre confiance. Notre équipe reste à votre disposition.</p>
+        <div style="text-align:center;margin-top:30px;">
+          <a href="${this.frontendUrl}/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#10b981,#059669);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon espace</a>
+        </div>
+      </div>`;
+  }
+
+  generateRendezvousCancelledContent(
+    rendezvous: Rendezvous,
+    cancelledBy: string,
+  ): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Votre rendez-vous a été annulé.</p>
+        <div style="background:#fef3c7;padding:25px;border-radius:8px;border-left:4px solid #f59e0b;margin:25px 0;">
+          <h3 style="margin-top:0;color:#d97706;">Rendez-vous annulé</h3>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Annulé par :</span> ${cancelledBy === 'ADMIN' ? 'Administrateur' : 'Utilisateur'}</div>
+        </div>
+        <p>Nous restons à votre disposition pour prendre un nouveau rendez-vous.</p>
+        <div style="text-align:center;margin-top:30px;">
+          <a href="${this.frontendUrl}/rendezvous" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Prendre un nouveau rendez-vous</a>
+        </div>
+      </div>`;
+  }
+
+  generateRendezvousConfirmationContent(rendezvous: {
+    id: string;
+    date: Date;
+    time: string;
+    destination?: string;
+    destinationAutre?: string;
+  }): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Nous avons le plaisir de vous confirmer votre rendez-vous.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
+          <h3 style="margin-top:0;color:#0284c7;">Votre rendez-vous</h3>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure :</span> ${rendezvous.time}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Lieu :</span> ${rendezvous.destination || rendezvous.destinationAutre || 'Non spécifié'}</div>
+        </div>
+        <p>Nous sommes impatients de vous rencontrer à notre bureau.</p>
+        <div style="text-align:center;margin-top:30px;">
+          <a href="${this.frontendUrl}/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon rendez-vous</a>
+        </div>
+      </div>`;
+  }
+
+  generateRendezvousReminderContent(rendezvous: {
+    date: Date;
+    time: string;
+  }): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Rappel : Vous avez un rendez-vous.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
+          <h3 style="margin-top:0;color:#0284c7;">Votre rendez-vous</h3>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure :</span> ${rendezvous.time}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Lieu :</span> Paname Consulting - Kalaban Coura</div>
+        </div>
+        <p>Nous sommes impatients de vous rencontrer.</p>
+      </div>`;
+  }
+
+  // Add this method to MailService class
+  async sendRendezvousStatusUpdatedEmail(
+    email: string,
+    firstName: string,
+    rendezvous: {
+      id: string;
+      date: Date;
+      time: string;
+      destination?: string;
+      destinationAutre?: string;
+    },
+    oldStatus: RendezvousStatus,
+    newStatus: RendezvousStatus,
+  ): Promise<boolean> {
+    const content = this.generateRendezvousStatusUpdatedContent(
+      rendezvous,
+      oldStatus,
+      newStatus,
+    );
+    const result = await this.sendEmail({
+      to: email,
+      subject: 'Mise à jour de votre rendez-vous - Paname Consulting',
+      html: this.getBaseTemplate(
+        'Mise à jour de Rendez-vous',
+        content,
+        firstName,
+      ),
+    });
+    return result.success;
+  }
+
+  // Add this method to generate the content
+  generateRendezvousStatusUpdatedContent(
+    rendezvous: {
+      id: string;
+      date: Date;
+      time: string;
+      destination?: string;
+      destinationAutre?: string;
+    },
+    oldStatus: RendezvousStatus,
+    newStatus: RendezvousStatus,
+  ): string {
+    const statusLabels: Record<RendezvousStatus, string> = {
+      [RendezvousStatus.PENDING]: 'En attente',
+      [RendezvousStatus.CONFIRMED]: 'Confirmé',
+      [RendezvousStatus.COMPLETED]: 'Terminé',
+      [RendezvousStatus.CANCELLED]: 'Annulé',
+    };
+
+    return `
+    <div style="margin:25px 0;line-height:1.8;">
+      <p>Votre rendez-vous a été mis à jour.</p>
+      <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0ea5e9;margin:25px 0;">
+        <h3 style="margin-top:0;color:#0ea5e9;">Mise à jour de rendez-vous</h3>
+        <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">ID Rendez-vous :</span> ${rendezvous.id}</div>
+        <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
+        <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure :</span> ${rendezvous.time}</div>
+        <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Ancien statut :</span> ${statusLabels[oldStatus]}</div>
+        <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Nouveau statut :</span> <span style="color:#0ea5e9;font-weight:600;">${statusLabels[newStatus]}</span></div>
+      </div>
+      <p>Suivez votre rendez-vous depuis votre espace personnel.</p>
+      <div style="text-align:center;margin-top:30px;">
+        <a href="${this.frontendUrl}/user/mes-rendezvous²" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mes rendez-vous</a>
+      </div>
+    </div>`;
+  }
+
+  generateAutoCancelContent(rendezvous: { date: Date; time: string }): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Votre rendez-vous a été annulé.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #ef4444;margin:25px 0;">
+          <h3 style="margin-top:0;color:#ef4444;">Rendez-vous annulé</h3>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date prévue :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure prévue :</span> ${rendezvous.time}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Raison :</span> Annulation automatique: non confirmé dans les 5 heures</div>
+        </div>
+        <div style="text-align:center;margin-top:30px;">
+          <a href="${this.frontendUrl}/user/mes-rendezvous" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Reprogrammer un rendez-vous</a>
+        </div>
+      </div>`;
+  }
+
+  // ==================== USER CONTENT GENERATORS ====================
+
+  generateProfileUpdatedContent(user: {
+    firstName: string;
+    email: string;
+  }): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Bonjour <strong>${user.firstName}</strong>,</p>
+        <p>Votre profil a été mis à jour avec succès.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #10b981;margin:25px 0;">
+          <h3 style="margin-top:0;color:#10b981;">Mise à jour réussie</h3>
+          <p style="margin:0;">Les modifications de votre profil ont été enregistrées.</p>
+        </div>
+        <p>Si vous n'êtes pas à l'origine de cette modification, veuillez nous contacter immédiatement.</p>
+        <div style="text-align:center;margin-top:30px;">
+          <a href="${this.frontendUrl}/user/mon-profil" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon profil</a>
+        </div>
+        <p style="margin-top:30px;">Cordialement,<br><strong>${this.appName}</strong></p>
+      </div>`;
+  }
+
+  generateForgotPasswordContent(
+    user: { firstName: string; email: string },
+    token: string,
+  ): string {
+    const resetLink = `${this.frontendUrl}/reinitialiser-mot-de-passe?token=${token}`;
+
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Bonjour <strong>${user.firstName}</strong>,</p>
+        <p>Nous avons reçu une demande de réinitialisation de votre mot de passe.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
+          <h3 style="margin-top:0;color:#0284c7;">Instructions de réinitialisation</h3>
+          <p style="margin:0;">Cliquez sur le bouton ci-dessous pour définir un nouveau mot de passe :</p>
+          <div style="text-align:center;margin:20px 0;">
+            <a href="${resetLink}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Réinitialiser mon mot de passe</a>
+          </div>
+          <p style="margin:10px 0 0 0;font-size:12px;color:#666;">Ou copiez-collez ce lien : <br>${resetLink}</p>
+        </div>
+        <div style="background:#fef3c7;padding:20px;border-radius:8px;border-left:4px solid #f59e0b;margin:25px 0;">
+          <h4 style="margin-top:0;color:#d97706;">⚠️ Important</h4>
+          <ul style="margin:10px 0;padding-left:20px;color:#666;">
+            <li>Ce lien expire dans <strong>2 heures</strong></li>
+            <li>Si vous n'avez pas demandé cette réinitialisation, ignorez cet email</li>
+            <li>Ne partagez jamais ce lien avec personne</li>
+          </ul>
+        </div>
+        <p>Si vous avez des questions, n'hésitez pas à nous contacter.</p>
+        <p style="margin-top:30px;">Cordialement,<br><strong>Paname Consulting</strong></p>
+      </div>`;
+  }
+
+  generateWelcomeContent(user: { firstName: string; email: string }): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Bienvenue <strong>${user.firstName}</strong> !</p>
+        <p>Nous sommes ravis de vous accueillir au sein de Paname Consulting.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
+          <h3 style="margin-top:0;color:#0284c7;">Votre compte a été créé</h3>
+          <p style="margin:0;">Vous pouvez maintenant accéder à votre espace personnel et commencer votre parcours avec nous.</p>
+        </div>
+        <div style="text-align:center;margin:30px 0;">
+          <a href="${this.frontendUrl}/login" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Me connecter</a>
+        </div>
+        <p>N'hésitez pas à nous contacter si vous avez des questions.</p>
+        <p style="margin-top:30px;">Cordialement,<br><strong>L'équipe Paname Consulting</strong></p>
+      </div>`;
+  }
+
+  // ==================== CONTACT CONTENT GENERATORS ====================
+
+  generateContactConfirmationContent(contact: {
+    firstName: string;
+    lastName: string;
+    message: string;
+  }): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Bonjour <strong>${contact.firstName} ${contact.lastName}</strong>,</p>
+        <p>Nous avons bien reçu votre message et vous en remercions. Nous vous répondrons dans les plus brefs délais.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #10b981;margin:25px 0;">
+          <h3 style="margin-top:0;color:#10b981;">Votre message</h3>
+          <div style="background:#f8fafc;padding:15px;border-radius:6px;font-style:italic;color:#374151;">
+            ${contact.message}
+          </div>
+        </div>
+        <p>N'hésitez pas à nous contacter si vous avez d'autres questions.</p>
+        <p style="margin-top:30px;">Cordialement,<br><strong>Paname Consulting</strong></p>
+      </div>`;
+  }
+
+  generateContactNotificationContent(contact: {
     firstName: string;
     lastName: string;
     email: string;
     message: string;
-    id: string;
-    receivedAt: string;
+    createdAt: Date;
   }): string {
-    const content = `
-      <div style="margin:20px 0;line-height:1.5;">
-        <p>Nouveau message de contact reçu.</p>
-        <div style="border-left:4px solid #0284c7;margin:15px 0;padding-left:15px;">
-          <p style="margin:0 0 5px 0;"><strong>Nom :</strong> ${data.firstName} ${data.lastName}</p>
-          <p style="margin:0 0 5px 0;"><strong>Email :</strong> ${data.email}</p>
-          <p style="margin:0 0 5px 0;"><strong>Date :</strong> ${data.receivedAt}</p>
-        </div>
-        <div style="border-left:4px solid #64748b;margin:15px 0;padding-left:15px;">
-          <p style="margin:0 0 5px 0;"><strong>Message :</strong></p>
-          <p style="margin:0;white-space:pre-line;color:#666;">${data.message}</p>
-        </div>
-        <p style="font-size:11px;color:#666;text-align:center;">Date : ${data.receivedAt}</p>
-      </div>`;
-    return this.getBaseTemplate('Nouveau Message Contact', content, 'Équipe');
-  }
-
-  /**
-   * Confirmation utilisateur - expéditeur = email officiel
-   */
-  buildContactConfirmationHtml(data: {
-    firstName: string;
-    lastName: string;
-    message: string;
-    id: string;
-    receivedAt: string;
-  }): string {
-    const content = `
+    return `
       <div style="margin:25px 0;line-height:1.8;">
-        <p>Nous avons bien reçu votre message et nous vous en remercions sincèrement.</p>
-        <p>Notre équipe va l'examiner et vous répondra dans les plus brefs délais.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-          <p style="margin:0;"><span style="font-weight:600;color:#374151;">Délai de réponse :</span> 48 heures ouvrables maximum</p>
+        <p>Nouveau message de contact reçu :</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0ea5e9;margin:25px 0;">
+          <h3 style="margin-top:0;color:#0ea5e9;">Informations du contact</h3>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Nom :</span> ${contact.firstName} ${contact.lastName}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Email :</span> ${contact.email}</div>
+          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(contact.createdAt).toLocaleDateString('fr-FR')}</div>
         </div>
-        <div style="background:#f0f9ff;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid #0284c7;">
-          <h4 style="margin-top:0;color:#0284c7;">Votre message :</h4>
-          <div style="white-space:pre-line;line-height:1.7;">${data.message}</div>
+        <div style="background:#f8fafc;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid #7c3aed;">
+          <h4 style="margin-top:0;color:#7c3aed;">Message</h4>
+          <div style="font-style:italic;color:#374151;">${contact.message}</div>
         </div>
-        <p style="font-size:12px;color:#6b7280;text-align:center;">Date : ${data.receivedAt}</p>
+        <div style="text-align:center;margin-top:30px;">
+          <a href="${this.frontendUrl}/admin/contacts" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir le message</a>
+        </div>
       </div>`;
-    return this.getBaseTemplate(
-      'Message Reçu avec Succès',
-      content,
-      data.firstName || 'Cher client',
-    );
   }
 
-  /**
-   * Réponse admin à l'utilisateur
-   */
-  buildContactReplyHtml(data: {
-    firstName: string;
-    lastName: string;
-    message: string;
-    adminResponse: string;
-    id: string;
-    respondedAt: string;
-  }): string {
-    const content = `
-      <div style="margin:20px 0;line-height:1.5;">
-        <p>Nous avons bien reçu votre message et nous vous remercions.</p>
-        <div style="border-left:4px solid #64748b;margin:15px 0;padding-left:15px;">
-          <p style="margin:0 0 5px 0;"><strong>Votre message :</strong></p>
-          <p style="margin:0;white-space:pre-line;color:#666;">${data.message}</p>
+  generateContactReplyContent(
+    contact: {
+      firstName: string;
+      lastName: string;
+    },
+    response: string,
+  ): string {
+    return `
+      <div style="margin:25px 0;line-height:1.8;">
+        <p>Bonjour <strong>${contact.firstName} ${contact.lastName}</strong>,</p>
+        <p>Nous avons une réponse pour votre message.</p>
+        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0ea5e9;margin:25px 0;">
+          <h3 style="margin-top:0;color:#0ea5e9;">Notre réponse</h3>
+          <div style="background:#f8fafc;padding:15px;border-radius:6px;color:#374151;">
+            ${response}
+          </div>
         </div>
-        <div style="border-left:4px solid #0284c7;margin:15px 0;padding-left:15px;">
-          <p style="margin:0 0 5px 0;"><strong>Notre réponse :</strong></p>
-          <p style="margin:0;white-space:pre-line;">${data.adminResponse}</p>
-        </div>
-        <p style="font-size:11px;color:#666;text-align:center;">Réponse du ${data.respondedAt}</p>
+        <p>N'hésitez pas à nous contacter si vous avez d'autres questions.</p>
+        <p style="margin-top:30px;">Cordialement,<br><strong>Paname Consulting</strong></p>
       </div>`;
-    return this.getBaseTemplate(
-      'Réponse à Votre Message',
-      content,
-      data.firstName || 'Cher client',
-    );
+  }
+
+  // ==================== SEND METHODS USING GENERATORS ====================
+
+  async sendProcedureCreatedEmail(
+    email: string,
+    firstName: string,
+    procedure: {
+      id: string;
+      destination: string;
+      filiere: string;
+      statut: string;
+    },
+  ): Promise<boolean> {
+    const content = this.generateProcedureCreatedContent({
+      id: procedure.id,
+      prenom: firstName,
+      destination: procedure.destination,
+      filiere: procedure.filiere,
+      statut: procedure.statut,
+    });
+    const result = await this.sendEmail({
+      to: email,
+      subject: 'Votre procédure a été créée - Paname Consulting',
+      html: this.getBaseTemplate('Procédure Créée', content, firstName),
+    });
+    return result.success;
   }
 
   async sendProcedureStatusUpdatedEmail(
     email: string,
     firstName: string,
-    html: string,
+    procedure: { id: string; destination: string; statut: string },
   ): Promise<boolean> {
+    const content = this.generateProcedureStatusUpdatedContent({
+      id: procedure.id,
+      prenom: firstName,
+      destination: procedure.destination,
+      statut: procedure.statut,
+    });
     const result = await this.sendEmail({
       to: email,
       subject: 'Mise à jour de votre procédure - Paname Consulting',
-      html: this.getBaseTemplate('Mise à jour Procédure', html, firstName),
+      html: this.getBaseTemplate('Mise à jour Procédure', content, firstName),
     });
     return result.success;
   }
@@ -277,69 +565,55 @@ export class MailService {
   async sendProcedureDeletedEmail(
     email: string,
     firstName: string,
-    html: string,
+    procedure: { id: string; destination: string },
+    reason: string,
   ): Promise<boolean> {
+    const content = this.generateProcedureDeletedContent(
+      {
+        id: procedure.id,
+        prenom: firstName,
+        destination: procedure.destination,
+      },
+      reason,
+    );
     const result = await this.sendEmail({
       to: email,
       subject: 'Suppression de votre procédure - Paname Consulting',
-      html: this.getBaseTemplate('Procédure Supprimée', html, firstName),
+      html: this.getBaseTemplate('Procédure Supprimée', content, firstName),
     });
     return result.success;
   }
 
-  // ==================== CONTACTS ====================
-
-  async sendContactNotificationEmail(
-    email: string,
-    _firstName: string,
-    html: string,
-    subject: string,
-  ): Promise<boolean> {
-    const result = await this.sendEmail({
-      to: email,
-      subject,
-      html: this.getBaseTemplate('Nouveau Message Contact', html, 'Équipe'),
-    });
-    return result.success;
-  }
-
-  async sendContactConfirmationEmail(
+  async sendRendezvousConfirmationEmail(
     email: string,
     firstName: string,
-    html: string,
+    rendezvous: {
+      id: string;
+      date: Date;
+      time: string;
+      destination?: string;
+      destinationAutre?: string;
+    },
   ): Promise<boolean> {
+    const content = this.generateRendezvousConfirmationContent(rendezvous);
     const result = await this.sendEmail({
       to: email,
-      subject: 'Confirmation de réception de votre message - Paname Consulting',
-      html: this.getBaseTemplate('Message Reçu', html, firstName),
+      subject: 'Confirmation de votre rendez-vous - Paname Consulting',
+      html: this.getBaseTemplate('Rendez-vous Confirmé', content, firstName),
     });
     return result.success;
   }
-
-  async sendContactReplyEmail(
-    email: string,
-    firstName: string,
-    html: string,
-  ): Promise<boolean> {
-    const result = await this.sendEmail({
-      to: email,
-      subject: 'Réponse à Votre Message - Paname Consulting',
-      html: this.getBaseTemplate('Réponse à Votre Message', html, firstName),
-    });
-    return result.success;
-  }
-
-  // ==================== RENDEZ-VOUS ====================
 
   async sendRendezvousReminderEmail(
     email: string,
     firstName: string,
-    html: string,
+    rendezvous: { date: Date; time: string },
   ): Promise<boolean> {
+    const content = this.generateRendezvousReminderContent(rendezvous);
     const result = await this.sendEmail({
       to: email,
       subject: 'Rappel de Rendez-vous - Paname Consulting',
-      html: this.getBaseTemplate('Rappel de Rendez-vous', html, firstName),
+      html: this.getBaseTemplate('Rappel de Rendez-vous', content, firstName),
     });
     return result.success;
   }
@@ -347,396 +621,75 @@ export class MailService {
   async sendRendezvousCancelledEmail(
     email: string,
     firstName: string,
-    html: string,
+    rendezvous: { id: string; date: Date; time: string },
+    cancelledBy: string,
   ): Promise<boolean> {
+    const content = this.generateRendezvousCancelledContent(
+      rendezvous as unknown as Rendezvous,
+      cancelledBy,
+    );
     const result = await this.sendEmail({
       to: email,
       subject: 'Rendez-vous Annulé - Paname Consulting',
-      html: this.getBaseTemplate('Rendez-vous Annulé', html, firstName),
+      html: this.getBaseTemplate('Rendez-vous Annulé', content, firstName),
     });
     return result.success;
   }
 
-  async sendProcedureCreatedEmail(
+  async sendAutoCancelEmail(
     email: string,
     firstName: string,
-    html: string,
+    rendezvous: { date: Date; time: string },
   ): Promise<boolean> {
+    const content = this.generateAutoCancelContent(rendezvous);
     const result = await this.sendEmail({
       to: email,
-      subject: 'Votre procédure a été créée - Paname Consulting',
-      html: this.getBaseTemplate('Procédure Créée', html, firstName),
+      subject: 'Rendez-vous Annulé - Paname Consulting',
+      html: this.getBaseTemplate('Rendez-vous Annulé', content, firstName),
     });
     return result.success;
   }
 
-  async sendConfirmation(rendezvous: RendezvousEntity): Promise<boolean> {
-    const dateFormatted = new Date(rendezvous.date).toLocaleDateString(
-      'fr-FR',
-      {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      },
-    );
-
-    const content = `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Votre rendez-vous a été confirmé avec succès.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0ea5e9;margin:25px 0;">
-          <h3 style="margin-top:0;color:#0ea5e9;">Détails du rendez-vous</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${dateFormatted}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure :</span> ${rendezvous.time}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Lieu :</span> ${this.appName} - Kalaban Coura</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Statut :</span> <span style="color:#10b981;font-weight:600;">Confirmé</span></div>
-        </div>
-        <p>Nous vous attendons avec impatience.</p>
-      </div>`;
-
-    const result = await this.sendEmail({
-      to: rendezvous.email,
-      subject: 'Confirmation de votre rendez-vous - Paname Consulting',
-      html: this.getBaseTemplate(
-        'Rendez-vous Confirmé',
-        content,
-        rendezvous.firstName,
-      ),
-    });
-    return result.success;
-  }
-
-  async sendReminder(rendezvous: RendezvousEntity): Promise<boolean> {
-    const content = `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Rappel : Vous avez un rendez-vous aujourd'hui.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-          <h3 style="margin-top:0;color:#0284c7;">Votre rendez-vous aujourd'hui</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure :</span> ${rendezvous.time}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Lieu :</span> ${this.appName} - Kalaban Coura</div>
-        </div>
-        <p>Nous sommes impatients de vous rencontrer.</p>
-      </div>`;
-
-    const result = await this.sendEmail({
-      to: rendezvous.email,
-      subject: "Rappel - Rendez-vous aujourd'hui - Paname Consulting",
-      html: this.getBaseTemplate(
-        'Rappel de Rendez-vous',
-        content,
-        rendezvous.firstName,
-      ),
-    });
-    return result.success;
-  }
-
-  async sendNextDayReminder(rendezvous: RendezvousEntity): Promise<boolean> {
-    const content = `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Rappel : Vous avez un rendez-vous demain.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-          <h3 style="margin-top:0;color:#0284c7;">Rendez-vous de demain</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure :</span> ${rendezvous.time}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Lieu :</span> ${this.appName} - Kalaban Coura</div>
-        </div>
-        <p>Pensez à préparer vos documents.</p>
-      </div>`;
-
-    const result = await this.sendEmail({
-      to: rendezvous.email,
-      subject: 'Rappel - Rendez-vous demain - Paname Consulting',
-      html: this.getBaseTemplate(
-        'Rappel de Rendez-vous',
-        content,
-        rendezvous.firstName,
-      ),
-    });
-    return result.success;
-  }
-
-  async sendTwoHourReminder(rendezvous: RendezvousEntity): Promise<boolean> {
-    const content = `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p><strong>RAPPELEZ-VOUS : Votre rendez-vous dans 2 heures !</strong></p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-          <h3 style="margin-top:0;color:#0284c7;">Rendez-vous imminent</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure :</span> ${rendezvous.time}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Lieu :</span> ${this.appName} - Kalaban Coura</div>
-        </div>
-        <p>Nous vous attendons dans 2 heures !</p>
-      </div>`;
-
-    const result = await this.sendEmail({
-      to: rendezvous.email,
-      subject: 'RAPPEL - Rendez-vous dans 2h - Paname Consulting',
-      html: this.getBaseTemplate(
-        'Rappel Urgent',
-        content,
-        rendezvous.firstName,
-      ),
-    });
-    return result.success;
-  }
-
-  async sendStatusUpdate(rendezvous: RendezvousEntity): Promise<boolean> {
-    let content = '';
-    let subject = '';
-    let header = 'Mise à jour de Rendez-vous';
-
-    switch (rendezvous.status) {
-      case RendezvousStatus.CONFIRMED:
-        subject = 'Rendez-vous Confirmé - Paname Consulting';
-        content = `
-          <div style="margin:25px 0;line-height:1.8;">
-            <p>Votre rendez-vous a été confirmé.</p>
-            <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-              <h3 style="margin-top:0;color:#0284c7;">Rendez-vous confirmé</h3>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure :</span> ${rendezvous.time}</div>
-            </div>
-          </div>`;
-        break;
-
-      case RendezvousStatus.CANCELLED: {
-        subject = 'Rendez-vous Annulé - Paname Consulting';
-        header = 'Rendez-vous Annulé';
-        const cancelledBy =
-          rendezvous.cancelledBy === CancelledBy.ADMIN
-            ? 'par notre équipe'
-            : 'à votre demande';
-        content = `
-          <div style="margin:25px 0;line-height:1.8;">
-            <p>Votre rendez-vous a été annulé ${cancelledBy}.</p>
-            <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-              <h3 style="margin-top:0;color:#0284c7;">Rendez-vous annulé</h3>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date prévue :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure prévue :</span> ${rendezvous.time}</div>
-              ${
-                rendezvous.cancellationReason
-                  ? `<div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Raison :</span> ${rendezvous.cancellationReason}</div>`
-                  : ''
-              }
-            </div>
-            <div style="text-align:center;margin-top:30px;">
-              <a href="${this.frontendUrl}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Reprogrammer un rendez-vous</a>
-            </div>
-          </div>`;
-        break;
-      }
-
-      case RendezvousStatus.COMPLETED:
-        header = 'Rendez-vous Terminé';
-        if (rendezvous.avisAdmin === AdminOpinion.FAVORABLE) {
-          subject = 'Rendez-vous Terminé - Avis Favorable - Paname Consulting';
-          content = `
-            <div style="margin:25px 0;line-height:1.8;">
-              <p>Votre rendez-vous s'est déroulé avec succès.</p>
-              <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-                <h3 style="margin-top:0;color:#0284c7;">Avis favorable</h3>
-                <p style="margin:0;">Votre dossier a reçu un avis favorable. Votre procédure d'admission a été lancée.</p>
-              </div>
-              <p>Félicitations pour cette première étape réussie.</p>
-            </div>`;
-        } else if (rendezvous.avisAdmin === AdminOpinion.UNFAVORABLE) {
-          subject = 'Rendez-vous Terminé - Paname Consulting';
-          content = `
-            <div style="margin:25px 0;line-height:1.8;">
-              <p>Votre rendez-vous est maintenant terminé.</p>
-              <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-                <h3 style="margin-top:0;color:#0284c7;">Compte rendu</h3>
-                <p style="margin:0;">Votre dossier n'a pas reçu un avis favorable pour le programme envisagé.</p>
-              </div>
-              <p>Notre équipe reste à votre disposition pour étudier d'autres alternatives.</p>
-            </div>`;
-        }
-        break;
-
-      case RendezvousStatus.PENDING:
-        subject = 'Statut Modifié - En Attente - Paname Consulting';
-        header = 'Rendez-vous en Attente';
-        content = `
-          <div style="margin:25px 0;line-height:1.8;">
-            <p>Votre demande de rendez-vous est en attente de confirmation.</p>
-            <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-              <h3 style="margin-top:0;color:#0284c7;">En attente de confirmation</h3>
-              <p style="margin:0;">Nous traiterons votre demande dans les meilleurs délais.</p>
-            </div>
-          </div>`;
-        break;
-    }
-
-    if (!content || !subject) return false;
-
-    const result = await this.sendEmail({
-      to: rendezvous.email,
-      subject,
-      html: this.getBaseTemplate(header, content, rendezvous.firstName),
-    });
-    return result.success;
-  }
-
-  // ==================== PROCÉDURES ====================
-
-  async sendProcedureUpdate(procedure: ProcedureEntity): Promise<boolean> {
-    const completedSteps =
-      procedure.steps?.filter((s) => s.statut === StepStatus.COMPLETED)
-        .length || 0;
-    const totalSteps = procedure.steps?.length || 0;
-    const progress =
-      totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
-    const currentStep = procedure.steps?.find(
-      (s) => s.statut === StepStatus.IN_PROGRESS,
-    );
-
-    let content = '';
-    let header = 'Mise à jour de Procédure';
-    let subject = 'Mise à jour de votre procédure - Paname Consulting';
-
-    if (procedure.statut === ProcedureStatus.COMPLETED) {
-      subject = 'Procédure Terminée - Paname Consulting';
-      header = 'Procédure Finalisée';
-      content = `
-        <div style="margin:25px 0;line-height:1.8;">
-          <p>Votre procédure d'admission est maintenant terminée avec succès.</p>
-          <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-            <h3 style="margin-top:0;color:#0284c7;">Procédure finalisée</h3>
-            <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Statut :</span> <span style="color:#0284c7;font-weight:600;">${procedure.statut}</span></div>
-            <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Destination :</span> ${procedure.destination}</div>
-            <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Filière :</span> ${procedure.filiere}</div>
-          </div>
-          <p>Félicitations ! Vous avez franchi toutes les étapes nécessaires.</p>
-        </div>`;
-    } else if (procedure.statut === ProcedureStatus.REJECTED) {
-      subject = 'Procédure Rejetée - Paname Consulting';
-      header = 'Procédure Rejetée';
-      content = `
-        <div style="margin:25px 0;line-height:1.8;">
-          <p>Votre procédure d'admission a été rejetée.</p>
-          <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-            <h3 style="margin-top:0;color:#0284c7;">Décision</h3>
-            <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Statut :</span> <span style="color:#0284c7;font-weight:600;">${procedure.statut}</span></div>
-            <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Destination :</span> ${procedure.destination}</div>
-            ${
-              procedure.raisonRejet
-                ? `<div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Raison :</span> ${procedure.raisonRejet}</div>`
-                : ''
-            }
-          </div>
-          <p>Notre équipe reste à votre disposition pour discuter des alternatives.</p>
-        </div>`;
-    } else if (currentStep) {
-      content = `
-        <div style="margin:25px 0;line-height:1.8;">
-          <p>Votre procédure d'admission avance.</p>
-          <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-            <h3 style="margin-top:0;color:#0284c7;">Avancement</h3>
-            <div style="margin-bottom:10px;">
-              <span style="font-weight:600;color:#374151;">Progression :</span>
-              <div style="background:#e0f2fe;height:8px;border-radius:4px;margin:6px 0;overflow:hidden;">
-                <div style="background:linear-gradient(90deg,#0284c7,#0ea5e9);height:100%;width:${progress}%;"></div>
-              </div>
-              <span style="font-weight:600;color:#0284c7;">${progress}%</span>
-            </div>
-            <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Étape en cours :</span> ${currentStep.nom}</div>
-            <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Statut :</span> ${procedure.statut}</div>
-            <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Destination :</span> ${procedure.destination}</div>
-          </div>
-          <p>Notre équipe travaille activement sur votre dossier.</p>
-        </div>`;
-    }
-
-    if (!content) return false;
-
-    const result = await this.sendEmail({
-      to: procedure.email,
-      subject,
-      html: this.getBaseTemplate(header, content, procedure.prenom),
-    });
-    return result.success;
-  }
-
-  async sendProcedureCreation(
-    procedure: ProcedureEntity,
-    rendezvous: RendezvousEntity,
+  async sendRendezvousCompletedEmail(
+    email: string,
+    firstName: string,
+    rendezvous: Rendezvous,
+    isFavorable: boolean,
   ): Promise<boolean> {
-    const content = `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Suite à l'avis favorable de votre rendez-vous, votre procédure d'admission a été lancée.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-          <h3 style="margin-top:0;color:#0284c7;">Votre procédure est lancée</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Destination :</span> ${procedure.destination}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Filière :</span> ${procedure.filiere}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date du rendez-vous :</span> ${new Date(rendezvous.date).toLocaleDateString('fr-FR')}</div>
-        </div>
-        <p>Notre équipe va désormais vous accompagner pas à pas.</p>
-      </div>`;
-
+    const content = this.generateRendezvousCompletedContent(
+      rendezvous,
+      isFavorable,
+    );
     const result = await this.sendEmail({
-      to: procedure.email,
-      subject: 'Votre procédure est lancée - Paname Consulting',
-      html: this.getBaseTemplate('Procédure Créée', content, procedure.prenom),
+      to: email,
+      subject: 'Rendez-vous Terminé - Paname Consulting',
+      html: this.getBaseTemplate('Rendez-vous Terminé', content, firstName),
     });
     return result.success;
   }
 
-  async sendCancellationNotification(
-    procedure: ProcedureEntity,
+  async sendProfileUpdatedEmail(
+    email: string,
+    firstName: string,
   ): Promise<boolean> {
-    const content = `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Votre procédure d'admission a été annulée.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-          <h3 style="margin-top:0;color:#0284c7;">Annulation</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Destination :</span> ${procedure.destination}</div>
-          ${
-            procedure.deletionReason
-              ? `<div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Raison :</span> ${procedure.deletionReason}</div>`
-              : ''
-          }
-        </div>
-        <p>Notre équipe reste à votre disposition pour toute question.</p>
-      </div>`;
-
+    const content = this.generateProfileUpdatedContent({ firstName, email });
     const result = await this.sendEmail({
-      to: procedure.email,
-      subject: 'Annulation de votre procédure - Paname Consulting',
-      html: this.getBaseTemplate(
-        'Procédure Annulée',
-        content,
-        procedure.prenom,
-      ),
+      to: email,
+      subject: 'Votre profil a été mis à jour - Paname Consulting',
+      html: this.getBaseTemplate('Profil Mis à Jour', content, firstName),
     });
     return result.success;
   }
-
-  // ==================== SYSTÈME ====================
 
   async sendPasswordReset(
     email: string,
-    resetUrl: string,
+    token: string,
     firstName: string = '',
   ): Promise<boolean> {
-    const content = `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Vous avez demandé à réinitialiser votre mot de passe. Cliquez sur le bouton ci-dessous pour procéder :</p>
-        <div style="text-align:center;margin:30px 0;">
-          <a href="${resetUrl}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Réinitialiser mon mot de passe</a>
-        </div>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-          <p style="margin:0;color:#374151;font-size:14px;"><strong>Informations importantes :</strong></p>
-          <ul style="margin:10px 0 0 0;padding-left:20px;font-size:14px;">
-            <li>Ce lien est valable pendant <strong>1 heure</strong></li>
-            <li>Ne partagez jamais ce lien avec personne</li>
-            <li>Si vous n'avez pas fait cette demande, ignorez cet email</li>
-          </ul>
-        </div>
-        <p style="color:#6b7280;font-size:14px;text-align:center;">
-          Si le bouton ne fonctionne pas, copiez-collez ce lien :<br>
-          <code style="background:#f0f9ff;padding:5px 10px;border-radius:4px;font-size:12px;word-break:break-all;">${resetUrl}</code>
-        </p>
-      </div>`;
-
+    const content = this.generateForgotPasswordContent(
+      { firstName, email },
+      token,
+    );
     const result = await this.sendEmail({
       to: email,
       subject: `Réinitialisation de votre mot de passe - ${this.appName}`,
@@ -750,27 +703,67 @@ export class MailService {
   }
 
   async sendWelcomeEmail(email: string, firstName: string): Promise<boolean> {
-    const content = `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Nous sommes ravis de vous accueillir dans la communauté <strong>${this.appName}</strong> !</p>
-        <div style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe);padding:30px;border-radius:8px;margin:25px 0;text-align:center;border:1px solid #bae6fd;">
-          <p style="margin:0 0 15px 0;font-size:18px;font-weight:600;color:#0284c7;">Votre compte a été créé avec succès</p>
-          <p style="margin:0;font-size:15px;">Vous pouvez maintenant accéder à toutes les fonctionnalités de votre espace personnel.</p>
-        </div>
-        <div style="margin:30px 0;line-height:2;">
-          <div style="margin-bottom:10px;"><strong>Prendre rendez-vous</strong> avec nos conseillers experts</div>
-          <div style="margin-bottom:10px;"><strong>Suivre votre procédure</strong> étape par étape</div>
-          <div style="margin-bottom:10px;"><strong>Recevoir des notifications</strong> sur l'avancement de votre dossier</div>
-        </div>
-        <div style="text-align:center;margin:30px 0;">
-          <a href="${this.frontendUrl}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Accéder à mon espace personnel</a>
-        </div>
-      </div>`;
-
+    const content = this.generateWelcomeContent({ firstName, email });
     const result = await this.sendEmail({
       to: email,
       subject: `Bienvenue chez ${this.appName}`,
       html: this.getBaseTemplate('Bienvenue !', content, firstName),
+    });
+    return result.success;
+  }
+
+  async sendContactConfirmationEmail(
+    email: string,
+    firstName: string,
+    lastName: string,
+    message: string,
+  ): Promise<boolean> {
+    const content = this.generateContactConfirmationContent({
+      firstName,
+      lastName,
+      message,
+    });
+    const result = await this.sendEmail({
+      to: email,
+      subject: 'Confirmation de réception de votre message - Paname Consulting',
+      html: this.getBaseTemplate('Message Reçu', content, firstName),
+    });
+    return result.success;
+  }
+
+  async sendContactNotificationEmail(
+    email: string,
+    contact: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      message: string;
+      createdAt: Date;
+    },
+  ): Promise<boolean> {
+    const content = this.generateContactNotificationContent(contact);
+    const result = await this.sendEmail({
+      to: email,
+      subject: 'Nouveau message de contact - Paname Consulting',
+      html: this.getBaseTemplate('Nouveau Message Contact', content, 'Équipe'),
+    });
+    return result.success;
+  }
+
+  async sendContactReplyEmail(
+    email: string,
+    firstName: string,
+    lastName: string,
+    response: string,
+  ): Promise<boolean> {
+    const content = this.generateContactReplyContent(
+      { firstName, lastName },
+      response,
+    );
+    const result = await this.sendEmail({
+      to: email,
+      subject: 'Réponse à Votre Message - Paname Consulting',
+      html: this.getBaseTemplate('Réponse à Votre Message', content, firstName),
     });
     return result.success;
   }

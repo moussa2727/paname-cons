@@ -9,7 +9,6 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { randomUUID } from 'crypto';
 import { AuditAction, UserRole, RevocationReason } from '@prisma/client';
 
 import { UsersService } from '../users/users.service';
@@ -21,6 +20,7 @@ import { AuditService } from '../common/logger/audit.service';
 import { CurrentUser } from '../interfaces/current-user.interface';
 import { RegisterDto } from './dto';
 import { AuthConstants } from '../common/constants/auth.constants';
+import { MailService } from '../mail/mail.service';
 
 interface LoginResponse {
   access_token: string;
@@ -66,6 +66,7 @@ export class AuthService {
     private readonly resetTokenRepository: ResetTokenRepository,
     private readonly queueService: QueueService,
     private readonly auditService: AuditService,
+    private readonly mailService: MailService,
   ) {}
 
   private isAdminEmail(email: string): boolean {
@@ -197,17 +198,18 @@ export class AuthService {
       }
     }
 
+    const hashedPassword = await bcrypt.hash(
+      registerDto.password,
+      parseInt(this.configService.get<string>('BCRYPT_ROUNDS') ?? '12', 10),
+    );
+
     const userRole = this.isAdminEmail(registerDto.email)
       ? UserRole.ADMIN
       : UserRole.USER;
 
-    /**
-     * ✅ Le hashage est délégué à UsersService.createWithHashedPassword()
-     * AuthService ne hache plus lui-même — point unique de hashage dans UsersService.
-     */
-    const user = await this.usersService.createWithHashedPassword({
+    const user = await this.usersService.create({
       email: registerDto.email,
-      password: registerDto.password,
+      password: hashedPassword,
       firstName: registerDto.firstName,
       lastName: registerDto.lastName,
       role: userRole,
@@ -225,12 +227,8 @@ export class AuthService {
       isRememberMe: false,
     });
 
-    await this.queueService.addEmailJob({
-      to: user.email,
-      subject: 'Bienvenue chez Paname Consulting',
-      html: this.generateWelcomeContent(user),
-      priority: 'high',
-    });
+    // Use MailService instead of QueueService for welcome email
+    await this.mailService.sendWelcomeEmail(user.email, user.firstName);
 
     await this.auditService.logUserAction(user.id, AuditAction.CREATE, {
       email: user.email,
@@ -252,10 +250,6 @@ export class AuthService {
     };
   }
 
-  /**
-   * isRememberMe est hérité du tokenDoc en base — jamais depuis le body.
-   * Le client ne peut pas upgrader une session false → true après login.
-   */
   async refreshToken(
     userId: string,
     refreshToken: string,
@@ -373,7 +367,6 @@ export class AuthService {
     this.logger.log('Forgot password request');
     const user = await this.usersService.findByEmail(email);
 
-    // Réponse générique — ne jamais révéler si l'email existe
     if (!user) {
       return {
         message: 'Email de réinitialisation envoyé si le compte existe',
@@ -384,15 +377,15 @@ export class AuthService {
 
     const resetToken = await this.resetTokenRepository.create({
       userId: user.id,
-      expiresIn: 2 * 60 * 60 * 1000, // 2 heures
+      expiresIn: 2 * 60 * 60 * 1000,
     });
 
-    await this.queueService.addEmailJob({
-      to: user.email,
-      subject: 'Réinitialisation de votre mot de passe',
-      html: this.generateForgotPasswordContent(user, resetToken.token),
-      priority: 'high',
-    });
+    // Use MailService instead of QueueService for password reset
+    await this.mailService.sendPasswordReset(
+      user.email,
+      resetToken.token,
+      user.firstName,
+    );
 
     await this.auditService.logUserAction(user.id, AuditAction.UPDATE, {
       email: user.email,
@@ -411,7 +404,6 @@ export class AuthService {
       throw new BadRequestException('Token invalide ou expiré');
     }
 
-    // ✅ Délégué à UsersService.updatePassword() — hashage centralisé
     await this.usersService.updatePassword(resetToken.userId, newPassword);
     await this.resetTokenRepository.markAsUsed(resetToken.id);
 
@@ -432,7 +424,6 @@ export class AuthService {
     newPassword: string,
   ) {
     this.logger.log('Change password attempt');
-
     const user = await this.usersRepository.findByIdWithPassword(userId);
     if (!user) {
       this.logger.warn('Change password failed: user not found');
@@ -445,26 +436,18 @@ export class AuthService {
       throw new BadRequestException('Ancien mot de passe incorrect');
     }
 
-    /**
-     * ✅ FIX : on délègue à UsersService.updatePassword() qui hache le mot de passe
-     * avant de le passer au repository.
-     * Avant : usersRepository.updatePassword(userId, newPassword) → mot de passe en CLAIR en base.
-     */
-    await this.usersService.updatePassword(userId, newPassword);
+    await this.usersRepository.updatePassword(userId, newPassword);
+
+    await this.auditService.logUserAction(userId, AuditAction.UPDATE, {
+      action: 'PASSWORD_CHANGED',
+    });
 
     return { message: 'Mot de passe changé avec succès' };
   }
 
-  // ==================== PRIVÉ ====================
-
-  /**
-   * Génère une paire access_token / refresh_token.
-   *
-   * ✅ FIX DUPLICATE KEY : chaque token contient un `jti` (JWT ID) UUID v4 unique.
-   * Sans jti, deux appels dans la même seconde produisaient le même JWT
-   * (même payload + même iat) → violation de contrainte unique en base.
-   */
   private async generateTokens(userId: string, email: string, role: string) {
+    const payload = { sub: userId, email, role };
+
     const jwtSecret = this.configService.get<string>('JWT_SECRET');
     const jwtRefreshSecret =
       this.configService.get<string>('JWT_REFRESH_SECRET');
@@ -475,73 +458,16 @@ export class AuthService {
     }
 
     const [access_token, refresh_token] = await Promise.all([
-      this.jwtService.signAsync(
-        { sub: userId, email, role, jti: randomUUID() },
-        {
-          secret: jwtSecret,
-          expiresIn: AuthConstants.ACCESS_TOKEN_EXPIRATION,
-        },
-      ),
-      this.jwtService.signAsync(
-        { sub: userId, email, role, jti: randomUUID() },
-        {
-          secret: jwtRefreshSecret,
-          expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
-        },
-      ),
+      this.jwtService.signAsync(payload, {
+        secret: jwtSecret,
+        expiresIn: AuthConstants.ACCESS_TOKEN_EXPIRATION,
+      }),
+      this.jwtService.signAsync(payload, {
+        secret: jwtRefreshSecret,
+        expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
+      }),
     ]);
 
     return { access_token, refresh_token };
-  }
-
-  private generateForgotPasswordContent(
-    user: { firstName: string; email: string },
-    token: string,
-  ): string {
-    const resetLink = `${this.configService.get<string>('FRONTEND_URL')}/reinitialiser-mot-de-passe?token=${token}`;
-
-    return `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Bonjour <strong>${user.firstName}</strong>,</p>
-        <p>Nous avons reçu une demande de réinitialisation de votre mot de passe.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-          <h3 style="margin-top:0;color:#0284c7;">Instructions de réinitialisation</h3>
-          <p style="margin:0;">Cliquez sur le bouton ci-dessous pour définir un nouveau mot de passe :</p>
-          <div style="text-align:center;margin:20px 0;">
-            <a href="${resetLink}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Réinitialiser mon mot de passe</a>
-          </div>
-          <p style="margin:10px 0 0 0;font-size:12px;color:#666;">Ou copiez-collez ce lien : <br>${resetLink}</p>
-        </div>
-        <div style="background:#fef3c7;padding:20px;border-radius:8px;border-left:4px solid #f59e0b;margin:25px 0;">
-          <h4 style="margin-top:0;color:#d97706;">⚠️ Important</h4>
-          <ul style="margin:10px 0;padding-left:20px;color:#666;">
-            <li>Ce lien expire dans <strong>2 heures</strong></li>
-            <li>Si vous n'avez pas demandé cette réinitialisation, ignorez cet email</li>
-            <li>Ne partagez jamais ce lien avec personne</li>
-          </ul>
-        </div>
-        <p>Si vous avez des questions, n'hésitez pas à nous contacter.</p>
-        <p style="margin-top:30px;">Cordialement,<br><strong>Paname Consulting</strong></p>
-      </div>`;
-  }
-
-  private generateWelcomeContent(user: {
-    firstName: string;
-    email: string;
-  }): string {
-    return `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Bienvenue <strong>${user.firstName}</strong> !</p>
-        <p>Nous sommes ravis de vous accueillir au sein de Paname Consulting.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-          <h3 style="margin-top:0;color:#0284c7;">Votre compte a été créé</h3>
-          <p style="margin:0;">Vous pouvez maintenant accéder à votre espace personnel et commencer votre parcours avec nous.</p>
-        </div>
-        <div style="text-align:center;margin:30px 0;">
-          <a href="${this.configService.get<string>('FRONTEND_URL')}/login" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Me connecter</a>
-        </div>
-        <p>N'hésitez pas à nous contacter si vous avez des questions.</p>
-        <p style="margin-top:30px;">Cordialement,<br><strong>L'équipe Paname Consulting</strong></p>
-      </div>`;
   }
 }

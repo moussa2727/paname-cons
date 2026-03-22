@@ -3,7 +3,6 @@ import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
-import { DestinationEnum } from '@prisma/client';
 
 @Injectable()
 export class RendezvousReminderCron {
@@ -34,25 +33,10 @@ export class RendezvousReminderCron {
       this.logger.log(`${rendezvous.length} rappels à envoyer`);
 
       for (const rdv of rendezvous) {
-        const html = `
-          <div style="margin:25px 0;line-height:1.8;">
-            <p>Rappel : Vous avez un rendez-vous aujourd'hui.</p>
-            <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-              <h3 style="margin-top:0;color:#0284c7;">Votre rendez-vous</h3>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rdv.date).toLocaleDateString('fr-FR')}</div>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure :</span> ${rdv.time}</div>
-              <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Lieu :</span> ${rdv.destination === DestinationEnum.AUTRE ? rdv.destinationAutre || 'Autre' : rdv.destination}</div>
-            </div>
-            <p>Nous sommes impatients de vous rencontrer.</p>
-            <div style="text-align:center;margin-top:30px;">
-              <a href="${this.configService.get<string>('FRONTEND_URL')}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon rendez-vous</a>
-            </div>
-          </div>`;
-
         await this.mailService.sendRendezvousReminderEmail(
           rdv.email,
           rdv.firstName,
-          html,
+          { date: new Date(rdv.date), time: rdv.time },
         );
       }
 
@@ -96,25 +80,10 @@ export class RendezvousReminderCron {
       // Envoyer les rappels pour chaque rendez-vous
       for (const rdv of rendezvous) {
         try {
-          const html = `
-            <div style="margin:25px 0;line-height:1.8;">
-              <p>Rappel : Vous avez un rendez-vous demain.</p>
-              <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0284c7;margin:25px 0;">
-                <h3 style="margin-top:0;color:#0284c7;">Votre rendez-vous</h3>
-                <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(rdv.date).toLocaleDateString('fr-FR')}</div>
-                <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Heure :</span> ${rdv.time}</div>
-                <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Lieu :</span> ${rdv.destination === DestinationEnum.AUTRE ? rdv.destinationAutre || 'Autre' : rdv.destination}</div>
-              </div>
-              <p>Nous sommes impatients de vous rencontrer.</p>
-              <div style="text-align:center;margin-top:30px;">
-                <a href="${this.configService.get<string>('FRONTEND_URL')}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon rendez-vous</a>
-              </div>
-            </div>`;
-
           await this.mailService.sendRendezvousReminderEmail(
             rdv.email,
             rdv.firstName,
-            html,
+            { date: new Date(rdv.date), time: rdv.time },
           );
 
           this.logger.log('Rappel envoyé');

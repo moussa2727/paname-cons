@@ -1,69 +1,121 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { LoggerSanitizer } from '../common/utils/logger-sanitizer.util';
 
+export interface EmailOptions {
+  to: string | string[];
+  subject: string;
+  html: string;
+  from?: string;
+  fromName?: string;
+  replyTo?: string;
+  cc?: string | string[];
+  bcc?: string | string[];
+  attachments?: nodemailer.SendMailOptions['attachments'];
+}
+
+/**
+ * Point de connexion SMTP unique.
+ * Tous les envois d'emails passent par cette classe.
+ * MailService et tout autre service injectent EmailConfig pour envoyer.
+ */
 @Injectable()
-export class EmailConfig {
+export class EmailConfig implements OnModuleInit {
   private transporter: nodemailer.Transporter;
-  private readonly fromEmail: string;
-  private readonly fromName: string = 'Paname Consulting';
-  private readonly logger = new Logger('EmailConfig');
+  readonly fromEmail: string;
+  readonly fromName: string = 'Paname Consulting';
+  private readonly logger = new Logger(EmailConfig.name);
 
   constructor(private configService: ConfigService) {
     const emailUser = this.configService.get<string>('EMAIL_USER');
     const emailPass = this.configService.get<string>('EMAIL_PASS');
 
     if (!emailUser || !emailPass) {
-      this.logger.warn('EMAIL_USER ou EMAIL_PASS non configuré');
+      this.logger.warn(
+        'EMAIL_USER ou EMAIL_PASS non configuré — les emails ne seront pas envoyés',
+      );
     }
 
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // STARTTLS sur le port 587
       auth: {
-        user: emailUser || process.env.EMAIL_USER,
-        pass: emailPass || process.env.EMAIL_PASS,
+        user: emailUser,
+        pass: emailPass,
       },
-      tls: {
-        rejectUnauthorized: false,
-      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     });
 
     this.fromEmail = emailUser || '';
   }
 
-  async sendEmail(options: {
-    to: string | string[];
-    subject: string;
-    html: string;
-    from?: string;
-    fromName?: string;
-  }): Promise<{ success: boolean; error?: string }> {
-    if (!this.transporter) {
-      return { success: false, error: 'Service GMAIL non configuré' };
+  // ==================== INIT ====================
+
+  async onModuleInit() {
+    try {
+      await this.transporter.verify();
+      this.logger.log('✅ Gmail SMTP connecté avec succès');
+    } catch (error) {
+      this.logger.error(
+        `❌ Gmail SMTP échec de connexion: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  // ==================== ENVOI ====================
+
+  async sendEmail(
+    options: EmailOptions,
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!this.fromEmail) {
+      this.logger.error("EMAIL_USER manquant — impossible d'envoyer");
+      return { success: false, error: 'EMAIL_USER non configuré' };
     }
 
     try {
       const fromEmail = options.from || this.fromEmail;
       const fromName = options.fromName || this.fromName;
+      const recipients = Array.isArray(options.to) ? options.to : [options.to];
 
       await this.transporter.sendMail({
         from: `${fromName} <${fromEmail}>`,
-        to: Array.isArray(options.to) ? options.to : [options.to],
+        to: recipients,
         subject: options.subject,
         html: options.html,
+        replyTo: options.replyTo,
+        cc: options.cc
+          ? Array.isArray(options.cc)
+            ? options.cc
+            : [options.cc]
+          : undefined,
+        bcc: options.bcc
+          ? Array.isArray(options.bcc)
+            ? options.bcc
+            : [options.bcc]
+          : undefined,
+        attachments: options.attachments || [],
       });
 
       const recipientInfo = Array.isArray(options.to)
-        ? `${options.to.length} destinataires`
+        ? `${options.to.length} destinataire(s)`
         : `1 destinataire (${LoggerSanitizer.maskEmail(options.to)})`;
-      this.logger.log(`Email envoyé avec succès vers ${recipientInfo}`);
+      this.logger.log(
+        ` Email envoyé — sujet: "${options.subject}" — vers: ${recipientInfo}`,
+      );
       return { success: true };
     } catch (error) {
-      this.logger.error(`Échec d'envoi d'email: ${(error as Error).message}`);
+      this.logger.error(
+        `Échec envoi — sujet: "${options.subject}" — erreur: ${(error as Error).message}`,
+      );
       return { success: false, error: (error as Error).message };
     }
   }
+
+  // ==================== UTILITAIRES ====================
 
   async testConnection(): Promise<{ success: boolean; message: string }> {
     try {
@@ -77,10 +129,10 @@ export class EmailConfig {
     }
   }
 
-  getStatus() {
+  getStatus(): { available: boolean; message: string } {
     return {
-      available: !!this.transporter,
-      message: this.transporter
+      available: !!this.fromEmail,
+      message: this.fromEmail
         ? 'Service GMAIL configuré et prêt'
         : 'Service GMAIL non configuré',
     };
