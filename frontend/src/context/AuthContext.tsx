@@ -125,6 +125,75 @@ function deleteRememberMeCookie(): void {
 }
 
 // ─────────────────────────────────────────────────────────────
+// § 2b — LOCALSTORAGE FALLBACK (mobile / Safari ITP)
+//
+//  Sur iOS Safari en navigation privée, les cookies SameSite=None
+//  sont bloqués même avec credentials: "include". Le fallback
+//  localStorage permet de :
+//    • Survivre aux rechargements de page sans session perdue
+//    • Détecter une session potentielle quand remember_me cookie
+//      est absent (iOS, WebView, certains navigateurs mobiles)
+//
+//  Clés utilisées :
+//    - "auth_session"        → "1" si session active (miroir remember_me)
+//    - "auth_refresh_token"  → valeur du refresh_token pour le fallback body
+//    - "auth_remember_me"    → "true"/"false" (durée souhaitée)
+//
+//  Sécurité : le refresh_token en localStorage est moins sécurisé
+//  qu'un cookie httpOnly. C'est un compromis acceptable sur mobile
+//  où les cookies tiers sont bloqués — le token est inutilisable
+//  sans le secret JWT du backend.
+// ─────────────────────────────────────────────────────────────
+
+const LS_SESSION_KEY = "auth_session";
+const LS_REFRESH_TOKEN_KEY = "auth_refresh_token";
+const LS_REMEMBER_ME_KEY = "auth_remember_me";
+
+function lsSetSession(rememberMe: boolean): void {
+  try {
+    localStorage.setItem(LS_SESSION_KEY, "1");
+    localStorage.setItem(LS_REMEMBER_ME_KEY, String(rememberMe));
+  } catch {
+    // localStorage indisponible (mode privé strict) — non bloquant
+  }
+}
+
+function lsGetSession(): boolean {
+  try {
+    return localStorage.getItem(LS_SESSION_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function lsClearSession(): void {
+  try {
+    localStorage.removeItem(LS_SESSION_KEY);
+    localStorage.removeItem(LS_REFRESH_TOKEN_KEY);
+    localStorage.removeItem(LS_REMEMBER_ME_KEY);
+  } catch {
+    // Non bloquant
+  }
+}
+
+function lsSetRefreshToken(token: string): void {
+  try {
+    localStorage.setItem(LS_REFRESH_TOKEN_KEY, token);
+  } catch {
+    // Non bloquant
+  }
+}
+
+function lsGetRefreshToken(): string | null {
+  try {
+    return localStorage.getItem(LS_REFRESH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+
+// ─────────────────────────────────────────────────────────────
 // § 3 — MAPPERS  DTO → AppUser
 // ─────────────────────────────────────────────────────────────
 
@@ -258,7 +327,11 @@ export async function apiFetch(
       // refresh_token dans le body = fallback si le cookie httpOnly
       // n'est pas transmis (dev HTTP, Safari ITP)
       body: JSON.stringify(
-        _refreshTokenValue ? { refresh_token: _refreshTokenValue } : {},
+        _refreshTokenValue
+          ? { refresh_token: _refreshTokenValue }
+          : lsGetRefreshToken()
+            ? { refresh_token: lsGetRefreshToken() }
+            : {},
       ),
     });
 
@@ -273,6 +346,7 @@ export async function apiFetch(
       const newToken = refreshBody?.data?.refresh_token;
       if (newToken) {
         _refreshTokenValue = newToken;
+        lsSetRefreshToken(newToken);
       }
     } catch {
       // Non bloquant — le cookie httpOnly reste la source principale
@@ -394,6 +468,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         if (newToken) {
           refreshTokenRef.current = newToken;
           _refreshTokenValue = newToken;
+          lsSetRefreshToken(newToken);
         }
       } catch {
         // Non bloquant
@@ -409,9 +484,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       flushRefreshQueue(false);
       refreshTokenRef.current = null;
       _refreshTokenValue = null;
-      // Le refresh a échoué définitivement → session morte côté backend.
-      // On supprime remember_me pour que checkAuth ne retente plus
-      // le backend inutilement au prochain chargement de page.
+      // Nettoyer localStorage — session définitivement morte
+      lsClearSession();
       deleteRememberMeCookie();
       setUser(null);
       throw err;
@@ -467,12 +541,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     let cancelled = false;
 
     const checkAuth = async (): Promise<void> => {
-      const hasPotentialSession = getRememberMeCookie();
+      const hasCookieSession = getRememberMeCookie();
+      const hasLsSession = lsGetSession();
 
-      if (!hasPotentialSession) {
+      // Sur mobile (iOS Safari, WebView), le cookie remember_me peut être
+      // bloqué. On accepte localStorage comme signal de session alternative.
+      if (!hasCookieSession && !hasLsSession) {
         setUser(null);
         setIsLoading(false);
         return;
+      }
+
+      // Si on a un refresh_token en localStorage mais pas en mémoire,
+      // on le restaure pour que apiFetch puisse l'utiliser en fallback.
+      if (!_refreshTokenValue) {
+        const lsToken = lsGetRefreshToken();
+        if (lsToken) {
+          _refreshTokenValue = lsToken;
+        }
       }
 
       try {
@@ -485,9 +571,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         if (!response.ok) {
           // 401 après tentative de refresh = session définitivement
-          // expirée — on nettoie le cookie frontend
+          // expirée — on nettoie le cookie et le localStorage
           setUser(null);
           deleteRememberMeCookie();
+          lsClearSession();
           return;
         }
 
@@ -500,6 +587,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         if (!cancelled) {
           setUser(null);
           deleteRememberMeCookie();
+          lsClearSession();
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -543,6 +631,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (dto.refresh_token) {
         refreshTokenRef.current = dto.refresh_token;
         _refreshTokenValue = dto.refresh_token;
+        // Fallback localStorage pour mobile (iOS Safari, cookies bloqués)
+        lsSetRefreshToken(dto.refresh_token);
       }
 
       // Cookie remember_me (non-httpOnly, lisible en JS/TS)
@@ -563,6 +653,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           ? REMEMBER_ME_MAX_AGE_S // 14 jours (REMEMBER_ME_EXPIRATION_MS)
           : SESSION_NORMAL_MAX_AGE_S, //  7 jours (REFRESH_TOKEN_EXPIRATION_MS)
       );
+      // Miroir localStorage pour mobile
+      lsSetSession(effectiveRememberMe);
 
       setUser(mapLoginUserToAppUser(dto.user));
 
@@ -635,6 +727,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       clearRefreshTimer();
       refreshTokenRef.current = null;
       _refreshTokenValue = null;
+      // Nettoyer le localStorage mobile
+      lsClearSession();
       setUser(null);
       toast.success("Déconnexion réussie");
     }
