@@ -161,7 +161,7 @@ export class MailService {
         </div>
         <p>Notre équipe va désormais vous accompagner pas à pas dans votre projet d'études.</p>
         <div style="text-align:center;margin-top:30px;">
-          <a href="${this.frontendUrl}/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Suivre ma procédure</a>
+          <a href="${this.frontendUrl}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Suivre ma procédure</a>
         </div>
       </div>`;
   }
@@ -183,7 +183,7 @@ export class MailService {
         </div>
         <p>Suivez votre dossier depuis votre espace personnel.</p>
         <div style="text-align:center;margin-top:30px;">
-          <a href="${this.frontendUrl}/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir ma procédure</a>
+          <a href="${this.frontendUrl}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir ma procédure</a>
         </div>
       </div>`;
   }
@@ -207,7 +207,7 @@ export class MailService {
         </div>
         <p>Nous restons à votre disposition pour toute question ou pour créer une nouvelle procédure.</p>
         <div style="text-align:center;margin-top:30px;">
-          <a href="${this.frontendUrl}/contact" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Nous contacter</a>
+          <a href="${this.frontendUrl}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Nous contacter</a>
         </div>
       </div>`;
   }
@@ -228,7 +228,7 @@ export class MailService {
         </div>
         <p>Merci de votre confiance. Notre équipe reste à votre disposition.</p>
         <div style="text-align:center;margin-top:30px;">
-          <a href="${this.frontendUrl}/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#10b981,#059669);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon espace</a>
+          <a href="${this.frontendUrl}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#10b981,#059669);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon espace</a>
         </div>
       </div>`;
   }
@@ -247,7 +247,7 @@ export class MailService {
         </div>
         <p>Nous restons à votre disposition pour prendre un nouveau rendez-vous.</p>
         <div style="text-align:center;margin-top:30px;">
-          <a href="${this.frontendUrl}/rendezvous" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Prendre un nouveau rendez-vous</a>
+          <a href="${this.frontendUrl}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Prendre un nouveau rendez-vous</a>
         </div>
       </div>`;
   }
@@ -270,7 +270,7 @@ export class MailService {
         </div>
         <p>Nous sommes impatients de vous rencontrer à notre bureau.</p>
         <div style="text-align:center;margin-top:30px;">
-          <a href="${this.frontendUrl}/dashboard" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon rendez-vous</a>
+          <a href="${this.frontendUrl}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir mon rendez-vous</a>
         </div>
       </div>`;
   }
@@ -439,7 +439,7 @@ export class MailService {
           <p style="margin:0;">Vous pouvez maintenant accéder à votre espace personnel et commencer votre parcours avec nous.</p>
         </div>
         <div style="text-align:center;margin:30px 0;">
-          <a href="${this.frontendUrl}/login" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Me connecter</a>
+          <a href="${this.frontendUrl}/connexion" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0284c7,#0ea5e9);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Me connecter</a>
         </div>
         <p>N'hésitez pas à nous contacter si vous avez des questions.</p>
         <p style="margin-top:30px;">Cordialement,<br><strong>L'équipe Paname Consulting</strong></p>
@@ -489,7 +489,7 @@ export class MailService {
           <div style="font-style:italic;color:#374151;">${contact.message}</div>
         </div>
         <div style="text-align:center;margin-top:30px;">
-          <a href="${this.frontendUrl}/admin/contacts" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir le message</a>
+          <a href="${this.frontendUrl}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir le message</a>
         </div>
       </div>`;
   }

@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { RendezvousStatus } from '@prisma/client';
@@ -12,7 +11,6 @@ export class RendezvousCleanupCron {
   constructor(
     private prisma: PrismaService,
     private mailService: MailService,
-    private configService: ConfigService,
   ) {}
 
   /**

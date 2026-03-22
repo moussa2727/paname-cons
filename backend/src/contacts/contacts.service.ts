@@ -104,7 +104,7 @@ export class ContactsService {
       await this.emailQueue.add('send-email', {
         to: contact.email,
         subject: 'Confirmation de réception de votre message',
-        html: this.generateContactConfirmationContent({
+        html: this.mailService.generateContactConfirmationContent({
           firstName: contact.firstName || '',
           lastName: contact.lastName || '',
           message: contact.message,
@@ -116,7 +116,7 @@ export class ContactsService {
       await this.emailQueue.add('send-email', {
         to: this.configService.get<string>('EMAIL_USER'),
         subject: `Nouveau message de contact: ${contact.firstName} ${contact.lastName}`,
-        html: this.generateContactNotificationContent({
+        html: this.mailService.generateContactNotificationContent({
           firstName: contact.firstName || '',
           lastName: contact.lastName || '',
           email: contact.email,
@@ -182,7 +182,7 @@ export class ContactsService {
     await this.emailQueue.add('send-email', {
       to: contact.email,
       subject: 'Réponse à votre message de contact',
-      html: this.generateContactReplyContent(
+      html: this.mailService.generateContactReplyContent(
         {
           firstName: contact.firstName || '',
           lastName: contact.lastName || '',
@@ -241,7 +241,7 @@ export class ContactsService {
    */
   async remove(
     id: string,
-    currentUser: CurrentUserType,
+    _currentUser: CurrentUserType,
     permanent = false,
   ): Promise<void> {
     // Pour la suppression définitive, on doit chercher même les messages supprimés
@@ -428,81 +428,5 @@ export class ContactsService {
       updatedAt: contact.updatedAt,
       userId: null,
     };
-  }
-
-  private maskEmail(email: string): string {
-    const [username, domain] = email.split('@');
-    if (!domain) return email;
-    return `${username.charAt(0)}***@${domain}`;
-  }
-
-  // ==================== UTILITAIRES ====================
-
-  private generateContactConfirmationContent(contact: {
-    firstName: string;
-    lastName: string;
-    message: string;
-  }): string {
-    return `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Bonjour <strong>${contact.firstName} ${contact.lastName}</strong>,</p>
-        <p>Nous avons bien reçu votre message et vous en remercions. Nous vous répondrons dans les plus brefs délais.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #10b981;margin:25px 0;">
-          <h3 style="margin-top:0;color:#10b981;">Votre message</h3>
-          <div style="background:#f8fafc;padding:15px;border-radius:6px;font-style:italic;color:#374151;">
-            ${contact.message}
-          </div>
-        </div>
-        <p>N'hésitez pas à nous contacter si vous avez d'autres questions.</p>
-        <p style="margin-top:30px;">Cordialement,<br><strong>Paname Consulting</strong></p>
-      </div>`;
-  }
-
-  private generateContactNotificationContent(contact: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    message: string;
-    createdAt: Date;
-  }): string {
-    return `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Nouveau message de contact reçu :</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0ea5e9;margin:25px 0;">
-          <h3 style="margin-top:0;color:#0ea5e9;">Informations du contact</h3>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Nom :</span> ${contact.firstName} ${contact.lastName}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Email :</span> ${contact.email}</div>
-          <div style="margin-bottom:10px;"><span style="font-weight:600;color:#374151;">Date :</span> ${new Date(contact.createdAt).toLocaleDateString('fr-FR')}</div>
-        </div>
-        <div style="background:#f8fafc;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid #7c3aed;">
-          <h4 style="margin-top:0;color:#7c3aed;">Message</h4>
-          <div style="font-style:italic;color:#374151;">${contact.message}</div>
-        </div>
-        <div style="text-align:center;margin-top:30px;">
-          <a href="https://panameconsulting.com/admin/contacts" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px;">Voir le message</a>
-        </div>
-      </div>`;
-  }
-
-  private generateContactReplyContent(
-    contact: {
-      firstName: string;
-      lastName: string;
-    },
-    response: string,
-  ): string {
-    return `
-      <div style="margin:25px 0;line-height:1.8;">
-        <p>Bonjour <strong>${contact.firstName} ${contact.lastName}</strong>,</p>
-        <p>Nous avons une réponse pour votre message.</p>
-        <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0ea5e9;margin:25px 0;">
-          <h3 style="margin-top:0;color:#0ea5e9;">Notre réponse</h3>
-          <div style="background:#f8fafc;padding:15px;border-radius:6px;color:#374151;">
-            ${response}
-          </div>
-        </div>
-        <p>N'hésitez pas à nous contacter si vous avez d'autres questions.</p>
-        <p style="margin-top:30px;">Cordialement,<br><strong>Paname Consulting</strong></p>
-      </div>`;
   }
 }
