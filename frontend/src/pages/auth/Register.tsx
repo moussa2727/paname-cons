@@ -170,7 +170,7 @@ const Register: React.FC = () => {
 
       <div className="flex items-center justify-center p-4 min-h-screen">
         <div className="w-full max-w-md">
-          <div className="bg-white rounded-xl shadow-xl overflow-hidden">
+          <div className="bg-white rounded shadow-xl overflow-hidden">
             <div className="bg-linear-to-r from-sky-500 to-sky-600 p-6 text-center">
               <div className="flex items-center justify-center space-x-3">
                 <div className="bg-white p-2 rounded-full">
