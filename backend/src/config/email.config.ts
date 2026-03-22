@@ -38,12 +38,15 @@ export class EmailConfig implements OnModuleInit {
     }
 
     this.transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // STARTTLS sur le port 587
+      service: 'gmail',
       auth: {
-        user: emailUser,
-        pass: emailPass,
+        type: 'LOGIN',
+        user: this.configService.get<string>('EMAIL_USER'),
+        pass: this.configService.get<string>('EMAIL_PASSm'),
+      },
+      tls: {
+        ciphers: 'SSLv3',
+        rejectUnauthorized: false,
       },
       connectionTimeout: 10000,
       greetingTimeout: 10000,
@@ -58,10 +61,10 @@ export class EmailConfig implements OnModuleInit {
   async onModuleInit() {
     try {
       await this.transporter.verify();
-      this.logger.log('✅ Gmail SMTP connecté avec succès');
+      this.logger.log('Gmail SMTP connecté avec succès');
     } catch (error) {
       this.logger.error(
-        `❌ Gmail SMTP échec de connexion: ${(error as Error).message}`,
+        `Gmail SMTP échec de connexion: ${(error as Error).message}`,
       );
     }
   }
@@ -109,7 +112,7 @@ export class EmailConfig implements OnModuleInit {
       return { success: true };
     } catch (error) {
       this.logger.error(
-        `❌ Échec envoi — sujet: "${options.subject}" — erreur: ${(error as Error).message}`,
+        `Échec envoi — sujet: "${options.subject}" — erreur: ${(error as Error).message}`,
       );
       return { success: false, error: (error as Error).message };
     }

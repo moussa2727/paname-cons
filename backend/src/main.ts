@@ -88,6 +88,22 @@ async function bootstrap() {
 
   app.use(cookieParser(configService.get('COOKIE_SECRET')));
 
+  // Vérifier les variables d'environnement SMTP
+  const emailUser = process.env.EMAIL_USER;
+  const emailPass = process.env.EMAIL_PASS;
+
+  if (!emailUser || !emailPass) {
+    logger.warn(
+      " Variables SMTP non configurées. Le service d'email ne fonctionnera pas.",
+    );
+    logger.warn(
+      '   Définissez EMAIL_USER et EMAIL_PASS dans votre fichier .env',
+    );
+  } else {
+    logger.log(
+      `SMTP configuré pour: ${emailUser.substring(0, 3)}...@${emailUser.split('@')[1]}`,
+    );
+  }
   // ==================== PRÉFIXE GLOBAL ====================
   app.setGlobalPrefix('api', {
     exclude: [

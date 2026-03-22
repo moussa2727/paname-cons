@@ -41,9 +41,9 @@ import { AppController } from './app.controller';
   imports: [
     // ==================== CONFIGURATION ====================
     ConfigModule.forRoot({
-      isGlobal: true,
       load: [configuration],
-      envFilePath: ['.env', `.env.${process.env.NODE_ENV || 'development'}`],
+      isGlobal: true,
+      envFilePath: '.env',
     }),
 
     // ==================== RATE LIMITING ====================
