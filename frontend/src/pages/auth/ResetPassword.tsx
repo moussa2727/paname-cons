@@ -4,16 +4,16 @@ import { Eye, EyeOff, Lock, CheckCircle, XCircle } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Helmet } from "react-helmet-async";
 
-// Move PasswordRequirement outside of the component to fix the ESLint error
+// Composant extrait du corps pour éviter la re-création à chaque rendu
 const PasswordRequirement: React.FC<{ met: boolean; text: string }> = ({
   met,
   text,
 }) => (
   <div className="flex items-center gap-2 text-sm">
     {met ? (
-      <CheckCircle className="w-4 h-4 text-green-500" />
+      <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
     ) : (
-      <XCircle className="w-4 h-4 text-gray-400" />
+      <XCircle className="w-4 h-4 text-gray-400 shrink-0" />
     )}
     <span className={met ? "text-green-600" : "text-gray-500"}>{text}</span>
   </div>
@@ -37,21 +37,25 @@ const ResetPassword: React.FC = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  // Calculate password strength on the fly instead of using state
-  const calculatePasswordStrength = (password: string) => ({
-    hasMinLength: password.length >= 8,
-    hasUpperCase: /[A-Z]/.test(password),
-    hasLowerCase: /[a-z]/.test(password),
-    hasNumber: /[0-9]/.test(password),
-  });
-
-  const passwordStrength = calculatePasswordStrength(formData.newPassword);
+  /**
+   * Calcul en direct des critères de validation.
+   * ✅ Aligné sur la regex backend (UpdateUserDto / CreateUserDto) :
+   *    majuscule + minuscule + chiffre + caractère spécial (@$!%*?&)
+   */
+  const passwordStrength = {
+    hasMinLength: formData.newPassword.length >= 8,
+    hasUpperCase: /[A-Z]/.test(formData.newPassword),
+    hasLowerCase: /[a-z]/.test(formData.newPassword),
+    hasNumber: /\d/.test(formData.newPassword),
+    hasSpecialChar: /[@$!%*?&]/.test(formData.newPassword),
+  };
 
   const isPasswordValid =
     passwordStrength.hasMinLength &&
     passwordStrength.hasUpperCase &&
     passwordStrength.hasLowerCase &&
-    passwordStrength.hasNumber;
+    passwordStrength.hasNumber &&
+    passwordStrength.hasSpecialChar;
 
   const canSubmit =
     isPasswordValid &&
@@ -60,10 +64,7 @@ const ResetPassword: React.FC = () => {
     !isLoading;
 
   const togglePasswordVisibility = (field: keyof typeof showPassword) => {
-    setShowPassword((prev) => ({
-      ...prev,
-      [field]: !prev[field],
-    }));
+    setShowPassword((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,7 +76,6 @@ const ResetPassword: React.FC = () => {
       setError("Token invalide ou manquant");
       return;
     }
-
     if (!canSubmit) {
       setError("Veuillez vérifier les critères du mot de passe");
       return;
@@ -84,7 +84,6 @@ const ResetPassword: React.FC = () => {
     try {
       await resetPassword(token, formData.newPassword);
       setSuccess(true);
-
       setTimeout(
         () =>
           navigate("/connexion", {
@@ -93,18 +92,17 @@ const ResetPassword: React.FC = () => {
         3000,
       );
     } catch (err: unknown) {
-      const error = err as {
+      const e = err as {
         response?: { data?: { message?: string } };
         message?: string;
       };
-      const message =
-        error.response?.data?.message ||
-        error.message ||
-        "Erreur lors de la réinitialisation";
-      setError(message);
-
+      setError(
+        e.response?.data?.message ??
+          e.message ??
+          "Erreur lors de la réinitialisation",
+      );
       if (import.meta.env.DEV) {
-        console.error("Erreur réinitialisation:", err);
+        console.error("[ResetPassword] handleSubmit error:", err);
       }
     }
   };
@@ -144,17 +142,19 @@ const ResetPassword: React.FC = () => {
                     Mot de passe réinitialisé avec succès !
                   </p>
                   <p className="text-sm text-green-600 mt-1">
-                    Redirection vers la connexion...
+                    Redirection vers la connexion…
                   </p>
                 </div>
               </div>
-            ) : error && !token ? (
+            ) : !token ? (
               <div className="text-center py-8">
                 <XCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   Lien invalide
                 </h3>
-                <p className="text-gray-600 mb-4">{error}</p>
+                <p className="text-gray-600 mb-4">
+                  Token invalide ou manquant. Veuillez demander un nouveau lien.
+                </p>
                 <button
                   onClick={() => navigate("/mot-de-passe-oublie")}
                   className="text-sky-600 hover:text-sky-700 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 rounded-lg px-4 py-2"
@@ -171,6 +171,7 @@ const ResetPassword: React.FC = () => {
                   </div>
                 )}
 
+                {/* Nouveau mot de passe */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Nouveau mot de passe
@@ -190,12 +191,16 @@ const ResetPassword: React.FC = () => {
                       required
                       minLength={8}
                       disabled={isLoading}
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
                       onClick={() => togglePasswordVisibility("newPassword")}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-sky-600 focus:outline-none"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-sky-600 focus:outline-none"
                       disabled={isLoading}
+                      aria-label={
+                        showPassword.newPassword ? "Cacher" : "Afficher"
+                      }
                     >
                       {showPassword.newPassword ? (
                         <EyeOff className="w-5 h-5" />
@@ -226,10 +231,15 @@ const ResetPassword: React.FC = () => {
                         met={passwordStrength.hasNumber}
                         text="Au moins un chiffre"
                       />
+                      <PasswordRequirement
+                        met={passwordStrength.hasSpecialChar}
+                        text="Au moins un caractère spécial (@$!%*?&)"
+                      />
                     </div>
                   )}
                 </div>
 
+                {/* Confirmer mot de passe */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Confirmer le mot de passe
@@ -254,14 +264,18 @@ const ResetPassword: React.FC = () => {
                       required
                       minLength={8}
                       disabled={isLoading}
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
                       onClick={() =>
                         togglePasswordVisibility("confirmPassword")
                       }
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-sky-600 focus:outline-none"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-sky-600 focus:outline-none"
                       disabled={isLoading}
+                      aria-label={
+                        showPassword.confirmPassword ? "Cacher" : "Afficher"
+                      }
                     >
                       {showPassword.confirmPassword ? (
                         <EyeOff className="w-5 h-5" />
@@ -273,7 +287,7 @@ const ResetPassword: React.FC = () => {
                   {formData.confirmPassword &&
                     formData.newPassword !== formData.confirmPassword && (
                       <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
-                        <XCircle className="w-4 h-4" />
+                        <XCircle className="w-4 h-4 shrink-0" />
                         Les mots de passe ne correspondent pas
                       </p>
                     )}
@@ -303,14 +317,14 @@ const ResetPassword: React.FC = () => {
                           r="10"
                           stroke="currentColor"
                           strokeWidth="4"
-                        ></circle>
+                        />
                         <path
                           className="opacity-75"
                           fill="currentColor"
                           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
+                        />
                       </svg>
-                      Réinitialisation...
+                      Réinitialisation…
                     </span>
                   ) : (
                     "Réinitialiser le mot de passe"

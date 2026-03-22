@@ -25,23 +25,30 @@ const Register: React.FC = () => {
 
   // Redirection si déjà authentifié
   if (isAuthenticated && user) {
-    // Redirection selon le rôle
-    const defaultRedirectPath =
-      user.role === "ADMIN" ? "/gestionnaire/statistiques" : "/user/mon-profil";
-    return <Navigate to={defaultRedirectPath} replace />;
+    return (
+      <Navigate
+        to={
+          user.role === "ADMIN"
+            ? "/gestionnaire/statistiques"
+            : "/user/mon-profil"
+        }
+        replace
+      />
+    );
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
 
     if (name === "telephone") {
-      let cleanedValue = value.replace(/\s/g, "");
-      if (cleanedValue.startsWith("+")) {
-        cleanedValue = "+" + cleanedValue.substring(1).replace(/[^\d]/g, "");
+      // Conserver le + initial, nettoyer le reste
+      let cleaned = value.replace(/\s/g, "");
+      if (cleaned.startsWith("+")) {
+        cleaned = "+" + cleaned.substring(1).replace(/[^\d]/g, "");
       } else {
-        cleanedValue = cleanedValue.replace(/[^\d]/g, "");
+        cleaned = cleaned.replace(/[^\d]/g, "");
       }
-      setFormData((prev) => ({ ...prev, [name]: cleanedValue }));
+      setFormData((prev) => ({ ...prev, [name]: cleaned }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
@@ -53,7 +60,7 @@ const Register: React.FC = () => {
       setLocalError("Le prénom est requis");
       return false;
     }
-    if (formData.firstName.length < 2) {
+    if (formData.firstName.trim().length < 2) {
       setLocalError("Le prénom doit contenir au moins 2 caractères");
       return false;
     }
@@ -61,7 +68,7 @@ const Register: React.FC = () => {
       setLocalError("Le nom est requis");
       return false;
     }
-    if (formData.lastName.length < 2) {
+    if (formData.lastName.trim().length < 2) {
       setLocalError("Le nom doit contenir au moins 2 caractères");
       return false;
     }
@@ -95,10 +102,16 @@ const Register: React.FC = () => {
       return false;
     }
 
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+    /**
+     * ✅ Regex alignée sur le backend (CreateUserDto) :
+     * majuscule + minuscule + chiffre + caractère spécial (@$!%*?&)
+     * Sans le caractère spécial, le backend renvoie une 400.
+     */
+    const passwordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(formData.password)) {
       setLocalError(
-        "Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre",
+        "Le mot de passe doit contenir au moins une majuscule, une minuscule, un chiffre et un caractère spécial (@$!%*?&)",
       );
       return false;
     }
@@ -133,11 +146,12 @@ const Register: React.FC = () => {
         telephone: formData.telephone.trim(),
         password: formData.password,
       });
-
-      // Rediriger vers la page de connexion
       navigate("/connexion");
     } catch (err) {
-      console.error("Erreur d'inscription:", err);
+      // AuthContext.register gère déjà le toast d'erreur
+      if (import.meta.env.DEV) {
+        console.error("[Register] handleSubmit error:", err);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -149,11 +163,11 @@ const Register: React.FC = () => {
     <>
       <Helmet>
         <title>Inscription - Paname Consulting</title>
-        <meta http-equiv="X-UA-Compatible" content="IE=7" />
         <meta name="description" content="Inscrivez-vous à Paname Consulting" />
         <meta name="robots" content="noindex, nofollow" />
         <meta name="googlebot" content="noindex, nofollow" />
       </Helmet>
+
       <div className="flex items-center justify-center p-4 min-h-screen">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-xl shadow-xl overflow-hidden">
@@ -172,6 +186,7 @@ const Register: React.FC = () => {
 
             <div className="p-6">
               <form className="space-y-4" onSubmit={handleSubmit}>
+                {/* Prénom / Nom */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -218,6 +233,7 @@ const Register: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Email */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Email *
@@ -240,6 +256,7 @@ const Register: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Téléphone */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Téléphone *
@@ -254,17 +271,19 @@ const Register: React.FC = () => {
                       value={formData.telephone}
                       onChange={handleChange}
                       className="pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:outline-none focus:border-sky-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
-                      placeholder="+33123456789"
+                      placeholder="+33612345678"
                       required
                       disabled={isButtonDisabled}
                       autoComplete="tel"
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Format: +33123456789 (minimum 8 chiffres)
+                    Tous formats acceptés : +33612345678, 0612345678,
+                    +1800555019
                   </p>
                 </div>
 
+                {/* Mot de passe */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Mot de passe *
@@ -288,7 +307,7 @@ const Register: React.FC = () => {
                     <button
                       type="button"
                       className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                      onClick={() => setShowPassword(!showPassword)}
+                      onClick={() => setShowPassword((v) => !v)}
                       disabled={isButtonDisabled}
                       aria-label={
                         showPassword
@@ -304,10 +323,12 @@ const Register: React.FC = () => {
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    8 caractères min, avec majuscule, minuscule et chiffre
+                    8 caractères min · majuscule · minuscule · chiffre ·
+                    caractère spécial (@$!%*?&)
                   </p>
                 </div>
 
+                {/* Confirmer mot de passe */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Confirmer le mot de passe *
@@ -331,9 +352,7 @@ const Register: React.FC = () => {
                     <button
                       type="button"
                       className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
+                      onClick={() => setShowConfirmPassword((v) => !v)}
                       disabled={isButtonDisabled}
                       aria-label={
                         showConfirmPassword
@@ -350,6 +369,7 @@ const Register: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Erreur */}
                 {localError && (
                   <div className="p-3 text-red-600 text-sm bg-red-50 rounded-md border border-red-200 animate-fadeIn">
                     <div className="flex items-center">
@@ -359,6 +379,7 @@ const Register: React.FC = () => {
                   </div>
                 )}
 
+                {/* Bouton */}
                 <button
                   type="submit"
                   disabled={isButtonDisabled}

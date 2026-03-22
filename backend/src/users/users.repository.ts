@@ -60,32 +60,9 @@ export class UsersRepository {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    console.log('[UsersRepository.findByEmail] Recherche email:', {
-      searchEmail: email,
+    return this.prisma.user.findUnique({
+      where: { email },
     });
-
-    const result = await this.prisma.user.findFirst({
-      where: {
-        email,
-        isDeleted: false,
-        isActive: true, // <-- IMPORTANT : Ignorer les utilisateurs désactivés
-      },
-    });
-
-    console.log('[UsersRepository.findByEmail] Résultat:', {
-      found: !!result,
-      resultUser: result
-        ? {
-            id: result.id,
-            email: result.email,
-            telephone: result.telephone,
-            isActive: result.isActive,
-            isDeleted: result.isDeleted,
-          }
-        : null,
-    });
-
-    return result;
   }
 
   async findByEmailWithPassword(email: string): Promise<User | null> {
@@ -98,52 +75,12 @@ export class UsersRepository {
   }
 
   async findByPhone(telephone: string): Promise<User | null> {
-    // Normalisation IDENTIQUE au service users pour éviter les conflits
-    const normalizePhone = (phone: string): string => {
-      if (!phone) return '';
-
-      // Normalisation IDENTIQUE au service et frontend : supprimer espaces, points, tirets
-      let cleaned = phone.replace(/[\s.-]/g, '');
-
-      // Si le numéro commence par 0 (format français), ajouter +33
-      if (cleaned.startsWith('0') && cleaned.length >= 9) {
-        cleaned = '+33' + cleaned.substring(1);
-      }
-      // Si le numéro n'a pas de + et commence par un autre chiffre, ajouter +
-      else if (!cleaned.startsWith('+') && cleaned.length > 0) {
-        cleaned = '+' + cleaned;
-      }
-
-      return cleaned;
-    };
-
-    const normalizedPhone = normalizePhone(telephone);
-
-    // Logging pour diagnostiquer les conflits
-    const searchVariations = [
-      normalizedPhone,
-      telephone,
-      normalizedPhone.startsWith('+') ? normalizedPhone.substring(1) : null,
-    ].filter((term) => term !== null);
-
-    console.log('[UsersRepository.findByPhone] Recherche téléphone:', {
-      inputPhone: telephone,
-      normalizedPhone,
-      searchVariations,
-    });
-
-    // Rechercher avec toutes les variations
-    const users = await this.prisma.user.findMany({
+    return this.prisma.user.findFirst({
       where: {
-        telephone: { in: searchVariations },
+        telephone,
         isDeleted: false,
-        isActive: true, // <-- IMPORTANT : Ignorer les utilisateurs désactivés
       },
-      take: 1,
     });
-
-    const result = users.length > 0 ? users[0] : null;
-    return result;
   }
 
   async update(id: string, data: Prisma.UserUpdateInput): Promise<User> {
@@ -192,7 +129,6 @@ export class UsersRepository {
   }
 
   async decrementLoginCount(id: string): Promise<void> {
-    // Récupérer l'utilisateur actuel pour vérifier le loginCount
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: { loginCount: true },
@@ -202,14 +138,11 @@ export class UsersRepository {
       throw new Error(`Utilisateur avec l'ID ${id} non trouvé`);
     }
 
-    // Ne pas décrémenter si le compteur est déjà à 0
     if (user.loginCount > 0) {
       await this.prisma.user.update({
         where: { id },
         data: {
-          loginCount: {
-            decrement: 1,
-          },
+          loginCount: { decrement: 1 },
         },
       });
     }
@@ -244,7 +177,24 @@ export class UsersRepository {
     });
   }
 
+  /**
+   * Sauvegarde un hash bcrypt en base.
+   *
+   * ⚠️  CONTRAT : ne reçoit QUE des hashs bcrypt (préfixe $2a$ ou $2b$).
+   * Le hashage doit être fait en amont dans UsersService.updatePassword()
+   * ou AuthService.register(). Ne jamais appeler cette méthode avec un mot
+   * de passe en clair — la garde ci-dessous lèvera une erreur explicite.
+   */
   async updatePassword(id: string, hashedPassword: string): Promise<void> {
+    if (
+      !hashedPassword.startsWith('$2a$') &&
+      !hashedPassword.startsWith('$2b$')
+    ) {
+      throw new Error(
+        "[UsersRepository.updatePassword] Reçu un mot de passe en clair au lieu d'un hash bcrypt. " +
+          "Hashez le mot de passe dans UsersService avant d'appeler cette méthode.",
+      );
+    }
     await this.prisma.user.update({
       where: { id },
       data: {
@@ -300,34 +250,12 @@ export class UsersRepository {
   }
 
   async search(query: string, limit: number = 10): Promise<User[]> {
-    // Normalisation IDENTIQUE au service pour la recherche de téléphone
-    const normalizePhone = (phone: string): string => {
-      if (!phone) return '';
-
-      // Normalisation IDENTIQUE au service et frontend : supprimer espaces, points, tirets
-      let cleaned = phone.replace(/[\s.-]/g, '');
-
-      // Si le numéro commence par 0 (format français), ajouter +33
-      if (cleaned.startsWith('0') && cleaned.length >= 9) {
-        cleaned = '+33' + cleaned.substring(1);
-      }
-      // Si le numéro n'a pas de + et commence par un autre chiffre, ajouter +
-      else if (!cleaned.startsWith('+') && cleaned.length > 0) {
-        cleaned = '+' + cleaned;
-      }
-
-      return cleaned;
-    };
-
-    const normalizedQuery = normalizePhone(query);
-
     return this.prisma.user.findMany({
       where: {
         OR: [
           { email: { contains: query, mode: 'insensitive' } },
           { firstName: { contains: query, mode: 'insensitive' } },
           { lastName: { contains: query, mode: 'insensitive' } },
-          { telephone: { contains: normalizedQuery } },
           { telephone: { contains: query } },
         ],
         isDeleted: false,

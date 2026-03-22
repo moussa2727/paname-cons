@@ -12,38 +12,17 @@ import {
   Phone,
 } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
-import type { UpdateProfileParams } from "../../../types/user.types";
 import { toast } from "react-hot-toast";
 
-// Fonction de normalisation du téléphone (identique au backend)
-const normalizePhoneNumber = (phone: string): string => {
-  if (!phone) return "";
+// ─────────────────────────────────────────────────────────────
+// Helpers téléphone (affichage uniquement — non envoyé au backend)
+// ─────────────────────────────────────────────────────────────
 
-  // Normalisation IDENTIQUE au backend : supprimer espaces, points, tirets
-  let cleaned = phone.replace(/[\s.-]/g, "");
-
-  // Si le numéro commence par 0 (format français), ajouter +33
-  if (cleaned.startsWith("0") && cleaned.length >= 9) {
-    cleaned = "+33" + cleaned.substring(1);
-  }
-  // Si le numéro n'a pas de + et commence par un autre chiffre, ajouter +
-  else if (!cleaned.startsWith("+") && cleaned.length > 0) {
-    cleaned = "+" + cleaned;
-  }
-
-  return cleaned;
-};
-
-// Fonction de formatage automatique du téléphone pendant la saisie
 const formatPhoneNumber = (phone: string): string => {
   if (!phone) return "";
-
-  // Supprimer tous les caractères non numériques sauf le +
   const cleaned = phone.replace(/[^\d+]/g, "");
 
-  // Si le numéro commence par 0 et a 9 chiffres, formater en français
-  if (cleaned.startsWith("0") && cleaned.length >= 9) {
-    // Formater progressivement : 06 → 06 1 → 06 12 → 06 12 3 → etc.
+  if (cleaned.startsWith("0") && cleaned.length >= 2) {
     if (cleaned.length === 2) return cleaned;
     if (cleaned.length === 3)
       return `${cleaned.slice(0, 2)} ${cleaned.slice(2)}`;
@@ -60,50 +39,57 @@ const formatPhoneNumber = (phone: string): string => {
     return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4, 6)} ${cleaned.slice(6, 8)} ${cleaned.slice(8)}`;
   }
 
-  // Si le numéro commence par +33 et a 11 chiffres, formater en international
   if (cleaned.startsWith("+33") && cleaned.length >= 4) {
-    const frenchNumber = cleaned.substring(3);
-    if (frenchNumber.length === 1) return cleaned;
-    if (frenchNumber.length === 2)
-      return `${cleaned.slice(0, 3)} ${frenchNumber}`;
-    if (frenchNumber.length === 3)
-      return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)}`;
-    if (frenchNumber.length === 4)
-      return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2)}`;
-    if (frenchNumber.length === 5)
-      return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)}`;
-    if (frenchNumber.length === 6)
-      return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)} ${frenchNumber.slice(4)}`;
-    if (frenchNumber.length === 7)
-      return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)} ${frenchNumber.slice(4, 6)}`;
-    if (frenchNumber.length === 8)
-      return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)} ${frenchNumber.slice(4, 6)} ${frenchNumber.slice(6)}`;
-    return `${cleaned.slice(0, 3)} ${frenchNumber.slice(0, 2)} ${frenchNumber.slice(2, 4)} ${frenchNumber.slice(4, 6)} ${frenchNumber.slice(6, 8)} ${frenchNumber.slice(8)}`;
+    const n = cleaned.substring(3);
+    if (n.length <= 1) return cleaned;
+    if (n.length === 2) return `${cleaned.slice(0, 3)} ${n}`;
+    if (n.length === 3) return `${cleaned.slice(0, 3)} ${n.slice(0, 2)}`;
+    if (n.length === 4)
+      return `${cleaned.slice(0, 3)} ${n.slice(0, 2)} ${n.slice(2)}`;
+    if (n.length === 5)
+      return `${cleaned.slice(0, 3)} ${n.slice(0, 2)} ${n.slice(2, 4)}`;
+    if (n.length === 6)
+      return `${cleaned.slice(0, 3)} ${n.slice(0, 2)} ${n.slice(2, 4)} ${n.slice(4)}`;
+    if (n.length === 7)
+      return `${cleaned.slice(0, 3)} ${n.slice(0, 2)} ${n.slice(2, 4)} ${n.slice(4, 6)}`;
+    if (n.length === 8)
+      return `${cleaned.slice(0, 3)} ${n.slice(0, 2)} ${n.slice(2, 4)} ${n.slice(4, 6)} ${n.slice(6)}`;
+    return `${cleaned.slice(0, 3)} ${n.slice(0, 2)} ${n.slice(2, 4)} ${n.slice(4, 6)} ${n.slice(6, 8)} ${n.slice(8)}`;
   }
 
-  // Sinon, retourner tel quel (pour les saisies en cours)
   return phone;
 };
 
-// Fonction de validation du téléphone (mondial - tous formats)
-const validatePhoneNumber = (phone: string): boolean => {
-  if (!phone) return true; // Vide est autorisé
-  // Accepte TOUS les formats mondiaux avec plus de caractères possibles
-  const globalPhoneRegex = /^(\+?[0-9][\d\s\-.()]{7,25})$/;
-  return globalPhoneRegex.test(phone);
-};
+// ─────────────────────────────────────────────────────────────
+// Type du formulaire
+//
+// ❌ email absent  — readOnly, jamais envoyé au backend
+// ❌ telephone absent — l'admin ne peut pas modifier son téléphone
+// ✅ firstName, lastName, password uniquement (UpdateProfileDto backend)
+// ─────────────────────────────────────────────────────────────
 
 interface ProfileForm {
   firstName: string;
   lastName: string;
-  email: string;
-  telephone: string;
-  password?: string;
+  password: string;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Composant
+// ─────────────────────────────────────────────────────────────
+
 const Profil = () => {
-  const { user: profile, isLoading, updateAdminProfile } = useAuth();
+  /**
+   * updateAdminProfile : PATCH /admin/profile
+   * Envoie uniquement firstName, lastName, password.
+   * Défini dans AuthContext et AuthContextType.
+   */
+  const { user: profile, updateAdminProfile } = useAuth();
 
   const [isEditing, setIsEditing] = useState(false);
+  // isSaving est un état LOCAL — isLoading du context est réservé
+  // au checkAuth initial et ne reflète pas l'état d'un PATCH.
+  const [isSaving, setIsSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
 
@@ -111,11 +97,9 @@ const Profil = () => {
     (): ProfileForm => ({
       firstName: profile?.firstName ?? "",
       lastName: profile?.lastName ?? "",
-      email: profile?.email ?? "",
-      telephone: profile?.telephone ?? "",
-      password: "", // Champ vide par défaut
+      password: "",
     }),
-    [profile?.firstName, profile?.lastName, profile?.email, profile?.telephone],
+    [profile?.firstName, profile?.lastName],
   );
 
   const [formData, setFormData] = useState<ProfileForm>(initialForm);
@@ -128,30 +112,63 @@ const Profil = () => {
     setFormData(initialForm);
     setIsEditing(true);
   };
+
   const handleCancel = () => {
     setFormData(initialForm);
     setIsEditing(false);
+    setShowPassword(false);
   };
 
   const handleSave = async () => {
     if (!profile) return;
 
-    // Valider le téléphone avant l'envoi
-    if (formData.telephone && !validatePhoneNumber(formData.telephone)) {
-      toast.error(
-        "Format de téléphone invalide. Accepté: tous formats internationaux (+33 6 12 34 56 78, 06 12 34 56 78, +223 7 49 72 438, (0)1 23 45 67 89, etc.)",
-      );
+    // Validation minimale côté client
+    if (formData.firstName.trim().length < 2) {
+      toast.error("Le prénom doit contenir au moins 2 caractères");
+      return;
+    }
+    if (formData.lastName.trim().length < 2) {
+      toast.error("Le nom doit contenir au moins 2 caractères");
+      return;
+    }
+    if (formData.password && formData.password.length < 8) {
+      toast.error("Le mot de passe doit contenir au moins 8 caractères");
       return;
     }
 
-    const params: UpdateProfileParams = {
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      telephone: normalizePhoneNumber(formData.telephone),
-    };
+    // Construire le payload — n'envoyer que les champs modifiés
+    // et ne jamais inclure email ni telephone (protégés backend)
+    const params: { firstName?: string; lastName?: string; password?: string } =
+      {};
 
-    await updateAdminProfile(params);
-    setIsEditing(false);
+    if (formData.firstName.trim() !== profile.firstName) {
+      params.firstName = formData.firstName.trim();
+    }
+    if (formData.lastName.trim() !== profile.lastName) {
+      params.lastName = formData.lastName.trim();
+    }
+    // Le mot de passe est toujours envoyé s'il est renseigné
+    if (formData.password) {
+      params.password = formData.password;
+    }
+
+    // Rien à mettre à jour
+    if (Object.keys(params).length === 0) {
+      toast("Aucune modification détectée", { icon: "ℹ️" });
+      setIsEditing(false);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await updateAdminProfile(params);
+      setIsEditing(false);
+      setShowPassword(false);
+    } catch {
+      // Le toast d'erreur est géré dans AuthContext.updateAdminProfile
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const initials =
@@ -159,7 +176,6 @@ const Profil = () => {
   const roleLabel =
     profile?.role === "ADMIN" ? "Administrateur" : "Utilisateur";
   const userIsAdmin = profile?.role === "ADMIN";
-  const isSaving = isLoading;
 
   return (
     <>
@@ -172,6 +188,7 @@ const Profil = () => {
         <meta name="robots" content="noindex, nofollow" />
         <meta name="googlebot" content="noindex, nofollow" />
       </Helmet>
+
       <div className="min-h-screen p-4 sm:p-6 font-sans">
         {/* Header */}
         <div className="max-w-3xl mx-auto mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -183,6 +200,7 @@ const Profil = () => {
               Gérez vos informations personnelles
             </p>
           </div>
+
           <div className="flex gap-2 self-end sm:self-auto">
             {isEditing ? (
               <>
@@ -330,44 +348,16 @@ const Profil = () => {
                 )}
               </div>
 
-              {/* Téléphone */}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-                  Téléphone
-                </label>
-                {isEditing ? (
-                  <input
-                    type="tel"
-                    value={formData.telephone}
-                    onChange={(e) => {
-                      const formattedPhone = formatPhoneNumber(e.target.value);
-                      setFormData((p) => ({ ...p, telephone: formattedPhone }));
-                    }}
-                    placeholder="+33 6 00 00 00 00"
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900 focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 transition-all"
-                  />
-                ) : (
-                  <div className="flex items-center gap-2.5 py-2 border-b border-slate-100">
-                    <Phone size={15} className="text-slate-300 shrink-0" />
-                    <span className="text-sm text-slate-800 font-medium">
-                      {profile?.telephone || (
-                        <span className="text-slate-300">Non renseigné</span>
-                      )}
-                    </span>
-                  </div>
-                )}
-              </div>
-
               {/* Mot de passe */}
               <div className="sm:col-span-2">
                 <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-                  Mot de passe (optionnel)
+                  Mot de passe{isEditing && " (optionnel)"}
                 </label>
                 {isEditing ? (
                   <div className="relative">
                     <input
                       type={showPassword ? "text" : "password"}
-                      value={formData.password || ""}
+                      value={formData.password}
                       onChange={(e) =>
                         setFormData((p) => ({ ...p, password: e.target.value }))
                       }
@@ -376,8 +366,8 @@ const Profil = () => {
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -390,31 +380,56 @@ const Profil = () => {
                     </span>
                   </div>
                 )}
-                <p className="text-xs text-slate-400 mt-1">
-                  Laisser vide pour ne pas modifier le mot de passe
-                </p>
+                {isEditing && (
+                  <p className="text-xs text-slate-400 mt-1">
+                    Laisser vide pour ne pas modifier le mot de passe
+                  </p>
+                )}
               </div>
 
-              {/* Email */}
-              <div>
+              {/* Email — toujours readOnly, jamais modifiable par l'admin */}
+              <div className="sm:col-span-2">
                 <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
-                  Adresse email
+                  Adresse email{" "}
+                  <span className="normal-case font-normal text-slate-300">
+                    (non modifiable)
+                  </span>
                 </label>
                 <div className="relative">
                   <input
                     type={showEmail ? "email" : "password"}
-                    value={profile?.email || ""}
+                    value={profile?.email ?? ""}
                     readOnly
-                    className="w-full px-3 py-2.5 pr-10 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900 focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 transition-all"
+                    className="w-full px-3 py-2.5 pr-10 border border-slate-100 rounded-xl text-sm bg-slate-50 text-slate-500 cursor-not-allowed select-none"
                   />
                   <button
                     type="button"
-                    onClick={() => setShowEmail(!showEmail)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    onClick={() => setShowEmail((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                     title={showEmail ? "Masquer l'email" : "Afficher l'email"}
                   >
                     {showEmail ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
+                </div>
+              </div>
+
+              {/* Téléphone — affiché en lecture seule, jamais modifiable par l'admin */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Téléphone{" "}
+                  <span className="normal-case font-normal text-slate-300">
+                    (non modifiable)
+                  </span>
+                </label>
+                <div className="flex items-center gap-2.5 py-2 border-b border-slate-100">
+                  <Phone size={15} className="text-slate-300 shrink-0" />
+                  <span className="text-sm text-slate-500 font-medium">
+                    {profile?.telephone ? (
+                      formatPhoneNumber(profile.telephone)
+                    ) : (
+                      <span className="text-slate-300">Non renseigné</span>
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
@@ -424,4 +439,5 @@ const Profil = () => {
     </>
   );
 };
+
 export default Profil;

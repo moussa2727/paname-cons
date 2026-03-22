@@ -11,7 +11,7 @@
 // ============================================================
 
 import { useState, useCallback } from "react";
-import { toast } from "react-toastify";
+import { toast } from "react-hot-toast";
 import {
   updateAdminProfile,
   createUser,
@@ -28,7 +28,7 @@ import type {
   AppUserStatistics,
   GetUsersParams,
   CreateUserParams,
-  UpdateProfileParams,
+  UpdateAdminProfileParams,
   UpdateUserParams,
   UpdateUserStatusParams,
 } from "../types/user.types";
@@ -67,7 +67,7 @@ export interface UseUserReturn {
 
   // ── Actions utilisateur ───────────────────────────────────
   /** PATCH /admin/profile — sans email */
-  patchAdminProfile(params: UpdateProfileParams): Promise<AppUser | null>;
+  patchAdminProfile(params: UpdateAdminProfileParams): Promise<AppUser | null>;
 
   // ── Actions admin ─────────────────────────────────────────
   /** GET /admin/users/all */
@@ -135,7 +135,7 @@ export function useUser(): UseUserReturn {
   // PATCH /admin/profile  (sans email)
   // ─────────────────────────────────────────────────────────
   const patchAdminProfile = useCallback(
-    async (params: UpdateProfileParams): Promise<AppUser | null> => {
+    async (params: UpdateAdminProfileParams): Promise<AppUser | null> => {
       startLoading("updateProfile");
       try {
         const updated = await updateAdminProfile(params);

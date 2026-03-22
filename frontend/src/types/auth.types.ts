@@ -130,7 +130,6 @@ export interface AppUser {
   logoutCount: number;
   createdAt: string;
   updatedAt: string;
-  password?: string; // Optionnel pour la mise à jour
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -158,7 +157,23 @@ export interface AuthContextType {
   forgotPassword(email: string): Promise<void>;
   resetPassword(token: string, newPassword: string): Promise<void>;
   changePassword(oldPassword: string, newPassword: string): Promise<void>;
-  updateUser(patch: Partial<AppUser>): Promise<void>;
-  updateAdminProfile(patch: Partial<AppUser>): Promise<void>;
+  updateUser(patch: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    telephone?: string;
+    password?: string;
+  }): Promise<void>;
+  /**
+   * PATCH /admin/profile
+   * Champs autorisés : firstName, lastName, password uniquement.
+   * Email et téléphone protégés — jamais envoyés au backend.
+   */
+  updateAdminProfile(params: {
+    firstName?: string;
+    lastName?: string;
+    password?: string;
+  }): Promise<void>;
   refreshUserProfile(): Promise<void>;
+  getActiveSessions(): Promise<number>;
 }

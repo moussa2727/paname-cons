@@ -22,12 +22,26 @@ import {
   AlertCircle,
   Crown,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
 import { useUser } from "../../../hooks/useUser";
 import type {
   CreateUserParams,
   UpdateUserParams,
 } from "../../../types/user.types";
 import type { AppUser } from "../../../types/user.types";
+
+// ─────────────────────────────────────────────────────────────
+// Constantes
+// ─────────────────────────────────────────────────────────────
+
+const LIMIT = 10;
+
+/**
+ * Regex alignée sur CreateUserDto backend :
+ * majuscule + minuscule + chiffre + caractère spécial (@$!%*?&)
+ */
+const PASSWORD_REGEX =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
 // ─────────────────────────────────────────────────────────────
 // Types locaux — formulaires uniquement
@@ -57,7 +71,7 @@ const EMPTY_CREATE: CreateForm = {
 };
 
 // ─────────────────────────────────────────────────────────────
-// Sous-composant : badge rôle
+// Sous-composants : badges
 // ─────────────────────────────────────────────────────────────
 
 const RoleBadge = ({ role }: { role: "USER" | "ADMIN" }) =>
@@ -71,10 +85,6 @@ const RoleBadge = ({ role }: { role: "USER" | "ADMIN" }) =>
     </span>
   );
 
-// ─────────────────────────────────────────────────────────────
-// Sous-composant : badge statut
-// ─────────────────────────────────────────────────────────────
-
 const StatusBadge = ({ isActive }: { isActive: boolean }) =>
   isActive ? (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200">
@@ -87,7 +97,7 @@ const StatusBadge = ({ isActive }: { isActive: boolean }) =>
   );
 
 // ─────────────────────────────────────────────────────────────
-// Sous-composant : initiales avatar
+// Sous-composant : avatar initiales
 // ─────────────────────────────────────────────────────────────
 
 const Avatar = ({ user }: { user: AppUser }) => {
@@ -184,6 +194,7 @@ const CreateModal = ({
     key: keyof CreateForm,
     type = "text",
     placeholder = "",
+    hint?: string,
   ) => (
     <div>
       <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">
@@ -194,8 +205,10 @@ const CreateModal = ({
         value={form[key]}
         onChange={(e) => onChange({ ...form, [key]: e.target.value })}
         placeholder={placeholder}
+        autoComplete={type === "password" ? "new-password" : undefined}
         className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900 focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 transition-all"
       />
+      {hint && <p className="text-[10px] text-slate-400 mt-1">{hint}</p>}
     </div>
   );
 
@@ -214,12 +227,18 @@ const CreateModal = ({
           </button>
         </div>
         <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {field("Prénom", "firstName")}
-          {field("Nom", "lastName")}
+          {field("Prénom", "firstName", "text", "Jean")}
+          {field("Nom", "lastName", "text", "Dupont")}
           {field("Email", "email", "email", "jean@example.com")}
           {field("Téléphone", "telephone", "tel", "+33 6 00 00 00 00")}
           <div className="sm:col-span-2">
-            {field("Mot de passe", "password", "password")}
+            {field(
+              "Mot de passe",
+              "password",
+              "password",
+              "••••••••",
+              "8 car. min · majuscule · minuscule · chiffre · caractère spécial (@$!%*?&)",
+            )}
           </div>
         </div>
         <div className="flex gap-3 px-6 pb-6">
@@ -330,8 +349,6 @@ const EditModal = ({
 // Composant principal
 // ─────────────────────────────────────────────────────────────
 
-const LIMIT = 10;
-
 const Utilisateurs = () => {
   const {
     userList,
@@ -344,19 +361,6 @@ const Utilisateurs = () => {
     updateUserStatus,
     removeUser,
   } = useUser();
-
-  // ── Logs de débogage ───────────────────────────────────────
-  console.log("[Utilisateurs] Render state:", {
-    userList,
-    loading,
-    userListExists: !!userList,
-    userListItems: userList?.items?.length ?? 0,
-    userListTotal: userList?.total ?? 0,
-    loadingList: loading.list,
-    loadingCreate: loading.create,
-    loadingUpdate: loading.update,
-    loadingDelete: loading.delete,
-  });
 
   // ── State UI ───────────────────────────────────────────────
   const [search, setSearch] = useState("");
@@ -372,7 +376,7 @@ const Utilisateurs = () => {
   });
   const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
 
-  // ── Chargement de la liste ─────────────────────────────────
+  // ── Chargement ─────────────────────────────────────────────
   const load = useCallback(
     (p: number) => fetchUsers({ page: p, limit: LIMIT }),
     [fetchUsers],
@@ -382,14 +386,19 @@ const Utilisateurs = () => {
     load(page);
   }, [page, load]);
 
-  // Charger les statistiques au montage
   useEffect(() => {
     if (!statistics) {
       fetchStatistics();
     }
   }, [statistics, fetchStatistics]);
 
-  // ── Filtrage local par recherche (sur les items chargés) ───
+  // ── Recherche — reset page à 1 quand la query change ──────
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+
+  // ── Filtrage local (sur les items de la page courante) ─────
   const filtered = (userList?.items ?? []).filter((u) => {
     const q = search.toLowerCase();
     return (
@@ -400,39 +409,60 @@ const Utilisateurs = () => {
     );
   });
 
-  console.log("[Utilisateurs] Filtered results:", {
-    search,
-    totalItems: userList?.items?.length ?? 0,
-    filteredCount: filtered.length,
-    items: filtered.map((u) => ({
-      name: `${u.firstName} ${u.lastName}`,
-    })),
-  });
+  // ── Validation création ────────────────────────────────────
+  const validateCreate = (): boolean => {
+    const { firstName, lastName, email, password, telephone } = createForm;
 
-  // ── Handlers création ──────────────────────────────────────
+    if (!firstName.trim() || firstName.trim().length < 2) {
+      toast.error("Le prénom doit contenir au moins 2 caractères");
+      return false;
+    }
+    if (!lastName.trim() || lastName.trim().length < 2) {
+      toast.error("Le nom doit contenir au moins 2 caractères");
+      return false;
+    }
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Email invalide");
+      return false;
+    }
+    if (!telephone.trim()) {
+      toast.error("Le téléphone est requis");
+      return false;
+    }
+    if (!password) {
+      toast.error("Le mot de passe est requis");
+      return false;
+    }
+    if (!PASSWORD_REGEX.test(password)) {
+      toast.error(
+        "Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial (@$!%*?&)",
+      );
+      return false;
+    }
+    return true;
+  };
+
+  // ── Handler création ───────────────────────────────────────
   const handleCreate = async () => {
-    console.log(
-      "[Utilisateurs] Creating user with params:",
-      createForm.firstName,
-    );
+    if (!validateCreate()) return;
+
     const params: CreateUserParams = {
-      firstName: createForm.firstName,
-      lastName: createForm.lastName,
-      email: createForm.email,
+      firstName: createForm.firstName.trim(),
+      lastName: createForm.lastName.trim(),
+      email: createForm.email.trim().toLowerCase(),
       password: createForm.password,
-      telephone: createForm.telephone,
+      telephone: createForm.telephone.trim(),
     };
+
     const result = await createNewUser(params);
-    console.log("[Utilisateurs] Create result:", result?.firstName);
     if (result) {
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE);
     }
   };
 
-  // ── Handlers édition ──────────────────────────────────────
+  // ── Handler édition ────────────────────────────────────────
   const openEdit = (user: AppUser) => {
-    console.log("[Utilisateurs] Opening edit for user:", user.isActive);
     setEditTarget(user);
     setEditForm({
       firstName: user.firstName,
@@ -444,42 +474,53 @@ const Utilisateurs = () => {
 
   const handleEdit = async () => {
     if (!editTarget) return;
-    const params: UpdateUserParams = {
-      firstName: editForm.firstName,
-      lastName: editForm.lastName,
-      email: editForm.email,
-      telephone: editForm.telephone,
-    };
+
+    // Diff : n'envoyer que les champs modifiés
+    const params: UpdateUserParams = {};
+    if (editForm.firstName.trim() !== editTarget.firstName) {
+      params.firstName = editForm.firstName.trim();
+    }
+    if (editForm.lastName.trim() !== editTarget.lastName) {
+      params.lastName = editForm.lastName.trim();
+    }
+    if (editForm.email.trim() !== editTarget.email) {
+      params.email = editForm.email.trim().toLowerCase();
+    }
+    if (editForm.telephone.trim() !== editTarget.telephone) {
+      params.telephone = editForm.telephone.trim();
+    }
+
+    if (Object.keys(params).length === 0) {
+      toast("Aucune modification détectée", { icon: "ℹ️" });
+      setEditTarget(null);
+      return;
+    }
+
     const result = await patchUser(editTarget.id, params);
     if (result) setEditTarget(null);
   };
 
+  // ── Handler toggle statut ─────────────────────────────────
   const handleToggleStatus = async (user: AppUser) => {
-    // Vérifier si c'est le compte admin principal
+    // ✅ toast.error au lieu de alert() — non bloquant, dans le flux UI
     if (user.role === "ADMIN" && user.isActive) {
-      // Vérifier si c'est l'admin principal (premier admin ou email admin)
-      // Pour l'instant, on empêche la désactivation de tous les admins actifs
-      alert("Impossible de désactiver un compte administrateur");
+      toast.error("Impossible de désactiver un compte administrateur");
       return;
     }
-
-    const params = { isActive: !user.isActive };
-    await updateUserStatus(user.id, params);
+    await updateUserStatus(user.id, { isActive: !user.isActive });
   };
 
-  // ── Handlers suppression ───────────────────────────────────
+  // ── Handler suppression ────────────────────────────────────
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    console.log("[Utilisateurs] Deleting user:", deleteTarget.id);
     const ok = await removeUser(deleteTarget.id);
-    console.log("[Utilisateurs] Delete result:", ok);
     if (ok) setDeleteTarget(null);
   };
 
   // ── Pagination ─────────────────────────────────────────────
   const totalPages = userList?.totalPages ?? 1;
 
-  // ── Rendu ─────────────────────────────────────────────────
+  // ── Rendu ──────────────────────────────────────────────────
   return (
     <>
       <Helmet>
@@ -491,6 +532,7 @@ const Utilisateurs = () => {
         <meta name="robots" content="noindex, nofollow" />
         <meta name="googlebot" content="noindex, nofollow" />
       </Helmet>
+
       <div className="min-h-screen p-4 sm:p-6 font-sans">
         {/* Modales */}
         {showCreate && (
@@ -541,8 +583,7 @@ const Utilisateurs = () => {
                   <span className="font-semibold text-slate-700">
                     {userList.total}
                   </span>{" "}
-                  utilisateur
-                  {userList.total !== 1 ? "s" : ""} au total
+                  utilisateur{userList.total !== 1 ? "s" : ""} au total
                 </>
               ) : (
                 "Gestion des comptes"
@@ -558,16 +599,15 @@ const Utilisateurs = () => {
           </button>
         </div>
 
-        {/* ── Cartes Statistiques ─────────────────────────────────── */}
+        {/* ── Statistiques ────────────────────────────────────── */}
         {statistics && (
           <div className="max-w-6xl mx-auto mb-6 sm:mb-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-              {/* Carte Total Utilisateurs */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-2">
                   <Users className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500" />
                   <span className="text-xl sm:text-2xl font-bold text-gray-900">
-                    {statistics.totalUsers || 0}
+                    {statistics.totalUsers}
                   </span>
                 </div>
                 <p className="text-gray-600 text-xs sm:text-sm">
@@ -575,16 +615,15 @@ const Utilisateurs = () => {
                 </p>
                 <div className="mt-2 flex items-center text-xs text-gray-500">
                   <TrendingUp className="w-3 h-3 mr-1" />
-                  Actifs: {statistics.activeUsers || 0}
+                  Actifs : {statistics.activeUsers}
                 </div>
               </div>
 
-              {/* Carte Utilisateurs Actifs */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-2">
                   <UserCheck className="w-6 h-6 sm:w-8 sm:h-8 text-green-500" />
                   <span className="text-xl sm:text-2xl font-bold text-gray-900">
-                    {statistics.activeUsers || 0}
+                    {statistics.activeUsers}
                   </span>
                 </div>
                 <p className="text-gray-600 text-xs sm:text-sm">
@@ -601,12 +640,11 @@ const Utilisateurs = () => {
                 </div>
               </div>
 
-              {/* Carte Utilisateurs Inactifs */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-2">
                   <UserX className="w-6 h-6 sm:w-8 sm:h-8 text-amber-500" />
                   <span className="text-xl sm:text-2xl font-bold text-gray-900">
-                    {statistics.inactiveUsers || 0}
+                    {statistics.inactiveUsers}
                   </span>
                 </div>
                 <p className="text-gray-600 text-xs sm:text-sm">
@@ -624,12 +662,11 @@ const Utilisateurs = () => {
                 </div>
               </div>
 
-              {/* Carte Administrateurs */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-2">
                   <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-purple-500" />
                   <span className="text-xl sm:text-2xl font-bold text-gray-900">
-                    {statistics.adminUsers || 0}
+                    {statistics.adminUsers}
                   </span>
                 </div>
                 <p className="text-gray-600 text-xs sm:text-sm">
@@ -660,12 +697,12 @@ const Utilisateurs = () => {
               type="text"
               placeholder="Rechercher par nom, email, téléphone…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-all shadow-sm"
             />
             {search && (
               <button
-                onClick={() => setSearch("")}
+                onClick={() => handleSearchChange("")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
                 <X size={13} />
@@ -687,7 +724,6 @@ const Utilisateurs = () => {
 
         {/* ── Tableau ─────────────────────────────────────────── */}
         <div className="max-w-6xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          {/* Spinner état chargement */}
           {loading.list && !userList && (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <div className="w-8 h-8 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
@@ -697,7 +733,6 @@ const Utilisateurs = () => {
             </div>
           )}
 
-          {/* Liste vide */}
           {!loading.list && filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 gap-2">
               <Users size={32} className="text-slate-200" />
@@ -709,9 +744,9 @@ const Utilisateurs = () => {
             </div>
           )}
 
-          {/* Tableau desktop */}
           {filtered.length > 0 && (
             <>
+              {/* Tableau desktop */}
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -740,7 +775,6 @@ const Utilisateurs = () => {
                         key={user.id}
                         className="hover:bg-sky-50/40 transition-colors group"
                       >
-                        {/* Utilisateur */}
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
                             <Avatar user={user} />
@@ -755,7 +789,6 @@ const Utilisateurs = () => {
                           </div>
                         </td>
 
-                        {/* Contact */}
                         <td className="px-4 py-3.5 hidden md:table-cell">
                           <div className="flex flex-col gap-1">
                             <span className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -773,17 +806,14 @@ const Utilisateurs = () => {
                           </div>
                         </td>
 
-                        {/* Rôle */}
                         <td className="px-4 py-3.5">
                           <RoleBadge role={user.role} />
                         </td>
 
-                        {/* Statut */}
                         <td className="px-4 py-3.5">
                           <StatusBadge isActive={user.isActive} />
                         </td>
 
-                        {/* Connexions */}
                         <td className="px-4 py-3.5 hidden lg:table-cell">
                           <span className="text-sm font-semibold text-slate-700">
                             {user.loginCount}
@@ -793,7 +823,6 @@ const Utilisateurs = () => {
                           </span>
                         </td>
 
-                        {/* Actions */}
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
@@ -863,13 +892,6 @@ const Utilisateurs = () => {
                                   ? "text-slate-400 hover:text-amber-500 hover:bg-amber-50"
                                   : "text-slate-400 hover:text-emerald-500 hover:bg-emerald-50"
                             }`}
-                            title={
-                              user.role === "ADMIN" && user.isActive
-                                ? "Impossible de désactiver un admin"
-                                : user.isActive
-                                  ? "Désactiver"
-                                  : "Activer"
-                            }
                           >
                             {user.isActive ? (
                               <Shield size={13} />
@@ -922,7 +944,6 @@ const Utilisateurs = () => {
                   <ChevronLeft size={14} />
                 </button>
 
-                {/* Numéros de pages */}
                 {Array.from({ length: totalPages }, (_, i) => i + 1)
                   .filter(
                     (p) =>

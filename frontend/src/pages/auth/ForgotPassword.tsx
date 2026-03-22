@@ -16,8 +16,8 @@ const ForgotPassword: React.FC = () => {
 
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setLocalError("");
+    setIsSubmitting(true);
 
     if (!resetEmail) {
       setLocalError("Veuillez entrer votre email");
@@ -25,7 +25,6 @@ const ForgotPassword: React.FC = () => {
       return;
     }
 
-    // Validation simple de l'email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(resetEmail)) {
       setLocalError("Format d'email invalide");
@@ -34,11 +33,22 @@ const ForgotPassword: React.FC = () => {
     }
 
     try {
-      await forgotPassword(resetEmail);
+      await forgotPassword(resetEmail.trim().toLowerCase());
+      // Le backend répond toujours 200 même si l'email n'existe pas
+      // (sécurité : on ne révèle pas si l'email est enregistré)
       setIsEmailSent(true);
       setResetEmail("");
     } catch (err) {
-      console.error("Erreur de réinitialisation:", err);
+      // AuthContext.forgotPassword gère le toast d'erreur
+      // On affiche aussi dans l'UI pour les erreurs réseau
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Erreur lors de l'envoi. Veuillez réessayer.";
+      setLocalError(message);
+      if (import.meta.env.DEV) {
+        console.error("[ForgotPassword] handlePasswordReset error:", err);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -57,6 +67,7 @@ const ForgotPassword: React.FC = () => {
         <meta name="robots" content="noindex, nofollow" />
         <meta name="googlebot" content="noindex, nofollow" />
       </Helmet>
+
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
@@ -79,7 +90,7 @@ const ForgotPassword: React.FC = () => {
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <p className="text-green-700">
                       Si votre email est enregistré, vous recevrez un lien de
-                      réinitialisation.
+                      réinitialisation dans quelques minutes.
                     </p>
                   </div>
                   <button
@@ -125,6 +136,7 @@ const ForgotPassword: React.FC = () => {
                         placeholder="votre@email.com"
                         required
                         disabled={isButtonDisabled}
+                        autoComplete="email"
                       />
                     </div>
                   </div>

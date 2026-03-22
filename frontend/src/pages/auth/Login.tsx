@@ -3,7 +3,6 @@ import { FiMail, FiAlertCircle } from "react-icons/fi";
 import { Lock as FiLock, Eye as FiEye, EyeOff as FiEyeOff } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import toast from "react-hot-toast";
 import { Helmet } from "react-helmet-async";
 
 const Login: React.FC = () => {
@@ -18,132 +17,89 @@ const Login: React.FC = () => {
 
   const { login, isLoading, isAuthenticated, user } = useAuth();
 
-  // Utiliser useRef pour éviter les boucles
   const redirectProcessed = useRef(false);
-  const authCheckProcessed = useRef(false);
+  const messageShown = useRef(false);
 
-  const getCookie = (name: string): string | null => {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) {
-      const cookieValue = parts.pop()?.split(";").shift();
-      return cookieValue || null;
-    }
-    return null;
-  };
-
-  const clearRedirectCookie = () => {
-    const cookieString =
-      "redirect_after_login=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
-    document.cookie = import.meta.env.PROD
-      ? cookieString + "; secure; sameSite=none"
-      : cookieString + "; sameSite=none";
-  };
-
+  // ── Message depuis une redirection précédente (une seule fois) ──
   useEffect(() => {
-    if (!isAuthenticated || !user || redirectProcessed.current) {
-      return;
-    }
-
-    const handleRedirect = () => {
-      try {
-        // Lire le cookie de redirection
-        const redirectPath = getCookie("redirect_after_login");
-
-        if (redirectPath) {
-          // Décoder le chemin
-          const decodedPath = decodeURIComponent(redirectPath);
-
-          // Supprimer le cookie
-          clearRedirectCookie();
-
-          // Marquer comme traité avant la navigation
-          redirectProcessed.current = true;
-
-          // Naviguer vers le chemin sauvegardé
-          navigate(decodedPath, { replace: true });
-        } else {
-          // Pas de cookie, redirection par défaut selon le rôle
-          const defaultRedirectPath =
-            user.role === "ADMIN"
-              ? "/gestionnaire/statistiques"
-              : "/user/mon-profil";
-
-          redirectProcessed.current = true;
-          navigate(defaultRedirectPath, { replace: true });
-        }
-      } catch (error) {
-        console.error("Login - Erreur lors de la redirection:", error);
-        // En cas d'erreur, rediriger vers la page d'accueil
-        redirectProcessed.current = true;
-        navigate("/", { replace: true });
-      }
-    };
-
-    handleRedirect();
-  }, [isAuthenticated, user, navigate]);
-
-  // ✅ Message de succès depuis la redirection (une seule fois)
-  useEffect(() => {
-    if (location.state?.message && !authCheckProcessed.current) {
-      toast.success(location.state.message);
-      // Nettoyer le state sans déclencher de re-rendu inutile
-      authCheckProcessed.current = true;
+    if (location.state?.message && !messageShown.current) {
+      messageShown.current = true;
+      // On importe toast ici pour éviter le double import inutilisé plus bas
+      import("react-hot-toast").then(({ default: toast }) => {
+        toast.success(location.state.message as string);
+      });
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location, navigate]);
 
-  // Redirection conditionnelle en début de rendu
-  if (isAuthenticated && user && !redirectProcessed.current) {
-    // Ne pas rediriger ici, laisser le useEffect le faire
-    return null;
-  }
+  // ── Redirection après authentification ──────────────────────────
+  useEffect(() => {
+    if (!isAuthenticated || !user || redirectProcessed.current) return;
 
-  // ✅ Redirection immédiate si déjà authentifié (mais pas en train de traiter)
-  if (isAuthenticated && user && redirectProcessed.current) {
-    return null; // Le useEffect a déjà géré la redirection
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Éviter les soumissions multiples
-    if (isSubmitting || isLoading) {
-      return;
-    }
-
-    setLocalError("");
-    setIsSubmitting(true);
-
-    // Validations
-    if (!email || !password) {
-      setLocalError("Veuillez remplir tous les champs");
-      setIsSubmitting(false);
-      return;
-    }
-
-    if (password.length < 8) {
-      setLocalError("Le mot de passe doit contenir au moins 8 caractères");
-      setIsSubmitting(false);
-      return;
-    }
+    redirectProcessed.current = true;
 
     try {
-      // Appel à la méthode login du contexte
-      await login(email.trim().toLowerCase(), password, rememberMe);
+      const value = `; ${document.cookie}`;
+      const parts = value.split("; redirect_after_login=");
+      const redirectPath =
+        parts.length === 2
+          ? decodeURIComponent(parts.pop()?.split(";").shift() ?? "")
+          : "";
 
-      // Ne pas naviguer ici - la redirection sera gérée par le useEffect
-    } catch (err) {
-      // Extraire et afficher le message d'erreur
-      let errorMessage = "Erreur de connexion";
-      if (err instanceof Error) {
-        errorMessage = err.message;
-      } else if (typeof err === "object" && err !== null) {
-        errorMessage = (err as Error).message || JSON.stringify(err);
+      if (redirectPath) {
+        // Supprimer le cookie
+        document.cookie =
+          "redirect_after_login=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/" +
+          (import.meta.env.PROD
+            ? "; secure; sameSite=none"
+            : "; sameSite=none");
+        navigate(redirectPath, { replace: true });
+      } else {
+        navigate(
+          user.role === "ADMIN"
+            ? "/gestionnaire/statistiques"
+            : "/user/mon-profil",
+          { replace: true },
+        );
       }
+    } catch {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
 
-      setLocalError(errorMessage);
-      toast.error(errorMessage);
+  // ── Masquer le formulaire si déjà authentifié ───────────────────
+  if (isAuthenticated && user) return null;
+
+  // ── Soumission ──────────────────────────────────────────────────
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting || isLoading) return;
+
+    setLocalError("");
+
+    if (!email || !password) {
+      setLocalError("Veuillez remplir tous les champs");
+      return;
+    }
+    if (password.length < 8) {
+      setLocalError("Le mot de passe doit contenir au moins 8 caractères");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // AuthContext.login gère déjà le toast de succès et d'erreur
+      await login(email.trim().toLowerCase(), password, rememberMe);
+      // La redirection est gérée par le useEffect ci-dessus
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Erreur de connexion";
+      // ✅ On affiche l'erreur uniquement dans l'UI, pas de toast ici
+      // (AuthContext.login a déjà appelé toast.error)
+      setLocalError(message);
+      if (import.meta.env.DEV) {
+        console.error("[Login] handleSubmit error:", err);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -162,6 +118,7 @@ const Login: React.FC = () => {
         <meta name="robots" content="noindex, nofollow" />
         <meta name="googlebot" content="noindex, nofollow" />
       </Helmet>
+
       <div className="flex items-center justify-center p-4 min-h-screen">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-xl shadow-xl overflow-hidden">
@@ -180,8 +137,8 @@ const Login: React.FC = () => {
 
             <div className="p-6">
               <form className="space-y-4" onSubmit={handleSubmit}>
-                {/* Champ caché pour le remplissage automatique */}
-                <div className="sr-only">
+                {/* Champ caché pour le remplissage automatique du navigateur */}
+                <div className="sr-only" aria-hidden="true">
                   <input
                     type="text"
                     name="username"
@@ -192,6 +149,7 @@ const Login: React.FC = () => {
                   />
                 </div>
 
+                {/* Email */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Email *
@@ -216,6 +174,7 @@ const Login: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Mot de passe */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Mot de passe *
@@ -241,7 +200,7 @@ const Login: React.FC = () => {
                     <button
                       type="button"
                       className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                      onClick={() => setShowPassword(!showPassword)}
+                      onClick={() => setShowPassword((v) => !v)}
                       disabled={isButtonDisabled}
                       aria-label={
                         showPassword
@@ -258,6 +217,7 @@ const Login: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Erreur locale */}
                 {localError && (
                   <div className="p-3 text-red-600 text-sm bg-red-50 rounded-md border border-red-200 animate-fadeIn">
                     <div className="flex items-center">
@@ -267,8 +227,9 @@ const Login: React.FC = () => {
                   </div>
                 )}
 
-                <div className="text-right items-center flex justify-between">
-                  <label className="flex items-center gap-2">
+                {/* Se souvenir / Mot de passe oublié */}
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={rememberMe}
@@ -287,6 +248,7 @@ const Login: React.FC = () => {
                   </Link>
                 </div>
 
+                {/* Bouton */}
                 <button
                   type="submit"
                   disabled={isButtonDisabled}

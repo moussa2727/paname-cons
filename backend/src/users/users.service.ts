@@ -3,20 +3,20 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
-import { User, UserRole } from '@prisma/client';
+import { User, UserRole, AuditAction, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
-import { UpdateUserDto, UpdateProfileDto } from './dto/update-user.dto';
-import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { UpdateProfileDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { UsersRepository } from './users.repository';
 import { QueueService } from '../queue/queue.service';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../common/logger/audit.service';
-import { AuditAction, Prisma } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -28,15 +28,30 @@ export class UsersService {
     private readonly prisma: PrismaService,
   ) {}
 
-  // Add this method to UsersService
+  // ==================== HASHAGE (point unique) ====================
+
+  /**
+   * Seule méthode de hashage de l'application.
+   * Appelée par createWithHashedPassword(), update(), updateAdminProfile(), updatePassword().
+   */
+  private async hashPassword(plainPassword: string): Promise<string> {
+    const rounds = parseInt(
+      this.configService.get<string>('BCRYPT_ROUNDS') ?? '12',
+      10,
+    );
+    return bcrypt.hash(plainPassword, rounds);
+  }
+
+  // ==================== MAPPING ====================
+
   public toResponseDto(user: User): UserResponseDto {
-    const responseDto = {
+    return {
       id: user.id,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
       fullName: `${user.firstName} ${user.lastName}`,
-      telephone: user.telephone, // ← Le téléphone est bien inclus
+      telephone: user.telephone,
       role: user.role,
       isActive: user.isActive,
       canLogin:
@@ -52,13 +67,28 @@ export class UsersService {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
-
-    return responseDto;
   }
+
+  // ==================== CRÉATION ====================
 
   async create(data: Prisma.UserCreateInput): Promise<User> {
     return this.usersRepository.create(data);
   }
+
+  /**
+   * Crée un utilisateur en hashant son mot de passe ici.
+   * Appelé par AuthService.register() et UsersController (création admin).
+   * Le mot de passe brut arrive depuis le DTO — le hash est produit dans cette méthode.
+   */
+  async createWithHashedPassword(
+    data: Omit<Prisma.UserCreateInput, 'password'> & { password: string },
+  ): Promise<User> {
+    const hashedPassword = await this.hashPassword(data.password);
+    return this.usersRepository.create({ ...data, password: hashedPassword });
+  }
+
+  // ==================== LECTURE ====================
+
   async findAll(
     page: number = 1,
     limit: number = 10,
@@ -73,7 +103,6 @@ export class UsersService {
       this.usersRepository.findAll({ skip, take: limit }),
       this.usersRepository.count(),
     ]);
-
     return {
       data: users.map((user) => this.toResponseDto(user)),
       total,
@@ -91,10 +120,8 @@ export class UsersService {
     recentlyCreated: number;
     recentlyActive: number;
   }> {
-    // Implémentation des statistiques
     const allUsers = await this.usersRepository.findAll({ take: 1000 });
     const totalUsers = allUsers.length;
-
     const activeUsers = allUsers.filter((u) => u.isActive).length;
     const inactiveUsers = allUsers.filter((u) => !u.isActive).length;
     const adminUsers = allUsers.filter((u) => u.role === UserRole.ADMIN).length;
@@ -129,146 +156,78 @@ export class UsersService {
     return this.usersRepository.findByEmail(email);
   }
 
-  async findByIdWithPassword(
-    userId: string,
-    hashedPassword: string,
-  ): Promise<void> {
-    await this.usersRepository.updatePassword(userId, hashedPassword);
-  }
-
   async findByTelephone(telephone: string): Promise<User | null> {
     return this.usersRepository.findByPhone(telephone);
   }
 
-  // Dans users.service.ts - Amélioration de la méthode update
+  // ==================== MISE À JOUR ====================
+
+  /**
+   * Met à jour le profil d'un utilisateur avec rôle USER.
+   *
+   * ✅ Champs autorisés : firstName, lastName, email, telephone, password.
+   * ❌ Interdit aux ADMIN — ils doivent utiliser updateAdminProfile().
+   *
+   * @param id         ID de l'utilisateur à mettre à jour
+   * @param dto        Données envoyées par le client (UpdateUserDto)
+   * @param callerRole Rôle de l'utilisateur effectuant la requête
+   */
   async update(
     id: string,
-    updateUserDto: UpdateUserDto | AdminUpdateUserDto | UpdateProfileDto,
+    dto: UpdateUserDto,
+    callerRole: UserRole,
   ): Promise<UserResponseDto> {
-    // Vérifier si l'utilisateur existe
+    // Un ADMIN ne passe jamais par ici — il a sa propre route/méthode
+    if (callerRole === UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'Un administrateur doit utiliser PATCH /admin/profile. ' +
+          "L'email et le téléphone d'un administrateur ne peuvent pas être modifiés.",
+      );
+    }
+
     const existingUser = await this.usersRepository.findById(id);
     if (!existingUser) {
       throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
     }
 
-    // Vérifier les conflits d'email
-    if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
-      console.log('[UsersService.update] Vérification conflit email:', {
-        newEmail: updateUserDto.email,
-        existingEmail: existingUser.email,
-        userId: existingUser.id,
-      });
-      const emailConflict = await this.usersRepository.findByEmail(
-        updateUserDto.email,
-      );
+    // Conflit email
+    if (dto.email && dto.email !== existingUser.email) {
+      const emailConflict = await this.usersRepository.findByEmail(dto.email);
       if (emailConflict && emailConflict.id !== existingUser.id) {
-        console.log('[UsersService.update] Conflit email détecté:', {
-          conflictingUserId: emailConflict.id,
-          conflictingEmail: emailConflict.email,
-        });
         throw new ConflictException(
           'Un utilisateur avec cet email existe déjà',
         );
       }
     }
 
-    // Vérifier les conflits de téléphone avec normalisation UNIFIÉE
-    if (
-      updateUserDto.telephone &&
-      updateUserDto.telephone !== existingUser.telephone
-    ) {
-      // Utiliser la fonction de normalisation UNIFIÉE
-      const normalizePhone = (phone: string): string => {
-        if (!phone) return '';
-
-        // Normalisation IDENTIQUE au frontend : supprimer espaces, points, tirets
-        let cleaned = phone.replace(/[\s.-]/g, '');
-
-        // Si le numéro commence par 0 (format français), ajouter +33
-        if (cleaned.startsWith('0') && cleaned.length >= 9) {
-          cleaned = '+33' + cleaned.substring(1);
-        }
-        // Si le numéro n'a pas de + et commence par un autre chiffre, ajouter +
-        else if (!cleaned.startsWith('+') && cleaned.length > 0) {
-          cleaned = '+' + cleaned;
-        }
-
-        return cleaned;
-      };
-
-      const normalizedNewPhone = normalizePhone(updateUserDto.telephone);
-      const normalizedExistingPhone = existingUser.telephone
-        ? normalizePhone(existingUser.telephone)
-        : '';
-
-      console.log('[UsersService.update] Vérification conflit téléphone:', {
-        newPhone: updateUserDto.telephone,
-        existingPhone: existingUser.telephone,
-        normalizedNewPhone,
-        normalizedExistingPhone,
-        userId: existingUser.id,
-      });
-
-      // Si le numéro normalisé est différent, vérifier les conflits
-      if (normalizedNewPhone !== normalizedExistingPhone) {
-        // Vérifier si ce numéro existe déjà pour un autre utilisateur
-        const phoneConflict = await this.usersRepository.findByPhone(
-          updateUserDto.telephone,
+    // Conflit téléphone
+    if (dto.telephone && dto.telephone !== existingUser.telephone) {
+      const phoneConflict = await this.usersRepository.findByPhone(
+        dto.telephone,
+      );
+      if (phoneConflict && phoneConflict.id !== existingUser.id) {
+        throw new ConflictException(
+          'Un utilisateur avec ce numéro de téléphone existe déjà',
         );
-        if (phoneConflict && phoneConflict.id !== existingUser.id) {
-          console.log('[UsersService.update] Conflit téléphone détecté:', {
-            conflictingUserId: phoneConflict.id,
-            conflictingPhone: phoneConflict.telephone,
-            newPhone: updateUserDto.telephone,
-          });
-          throw new ConflictException(
-            'Un utilisateur avec ce numéro de téléphone existe déjà',
-          );
-        }
       }
     }
 
-    // EMPÊCHER LA MODIFICATION DE L'EMAIL ADMIN
-    const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
-    if (
-      existingUser.email === adminEmail &&
-      updateUserDto.email &&
-      updateUserDto.email !== adminEmail
-    ) {
-      throw new ForbiddenException(
-        "L'email du compte administrateur principal ne peut pas être modifié",
-      );
+    // Hashage centralisé — le repository ne reçoit jamais de mot de passe brut
+    const updateData: UpdateUserDto = { ...dto };
+    if (dto.password) {
+      updateData.password = await this.hashPassword(dto.password);
     }
-
-    // Préparer les données de mise à jour
-    const updateData: Record<string, any> = { ...updateUserDto };
-
-    // Hasher le mot de passe si fourni
-    if (updateUserDto.password) {
-      updateData.password = await bcrypt.hash(
-        updateUserDto.password,
-        parseInt(this.configService.get<string>('BCRYPT_ROUNDS') || '12'),
-      );
-    }
-
-    // Nettoyer les champs undefined pour ne pas écraser avec des valeurs vides
-    Object.keys(updateData).forEach((key) => {
-      if (updateData[key] === undefined) {
-        delete updateData[key];
-      }
-    });
 
     const updatedUser = await this.usersRepository.update(id, updateData);
 
-    // Si l'email a été changé, synchroniser les rendez-vous
-    if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
+    // Synchroniser l'email dans les rendez-vous si changé
+    if (dto.email && dto.email !== existingUser.email) {
       await this.prisma.rendezvous.updateMany({
         where: { userId: id },
-        data: { email: updateUserDto.email },
+        data: { email: dto.email },
       });
     }
 
-    // Envoyer un email de notification de mise à jour
     await this.queueService.addEmailJob({
       to: updatedUser.email,
       subject: 'Votre profil a été mis à jour',
@@ -276,68 +235,61 @@ export class UsersService {
       priority: 'normal',
     });
 
-    // Logger l'audit
     await this.auditService.logUserAction(id, AuditAction.UPDATE, {
       email: updatedUser.email,
-      updatedFields: Object.keys(updateData),
     });
 
     return this.toResponseDto(updatedUser);
   }
 
-  // Méthode spécifique pour le profil admin (utilisé par /admin/profile)
+  /**
+   * Met à jour le profil d'un utilisateur avec rôle ADMIN.
+   *
+   * ✅ Champs autorisés : firstName, lastName, password.
+   * ❌ Email et téléphone : définitivement protégés, jamais modifiables.
+   *
+   * La vérification est double :
+   *  1. Le DTO UpdateProfileDto ne contient pas les champs email/telephone (niveau typage)
+   *  2. Une vérification défensive au runtime rejette toute tentative de contournement
+   */
   async updateAdminProfile(
     id: string,
-    updateProfileDto: UpdateProfileDto,
+    dto: UpdateProfileDto,
   ): Promise<UserResponseDto> {
-    // Convertir UpdateProfileDto vers UpdateUserDto
-    const updateUserDto: UpdateUserDto = {
-      firstName: updateProfileDto.firstName,
-      lastName: updateProfileDto.lastName,
-      telephone: updateProfileDto.telephone,
-    };
-
-    // Vérifier si l'utilisateur existe
     const existingUser = await this.usersRepository.findById(id);
     if (!existingUser) {
       throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
     }
 
-    // Vérifier les conflits de téléphone (même logique que update normal)
-    if (
-      updateUserDto.telephone &&
-      updateUserDto.telephone !== existingUser.telephone
-    ) {
-      // Normaliser le téléphone (supprimer espaces, points, tirets)
-      const normalizedPhone = updateUserDto.telephone.replace(/[\s.-]/g, '');
-      const normalizedExistingPhone =
-        existingUser.telephone?.replace(/[\s.-]/g, '') || '';
-
-      // Si le numéro normalisé est différent, vérifier les conflits
-      if (normalizedPhone !== normalizedExistingPhone) {
-        // Utiliser la méthode existante qui fait déjà la recherche flexible
-        const phoneConflict =
-          await this.usersRepository.findByPhone(normalizedPhone);
-        if (phoneConflict && phoneConflict.id !== existingUser.id) {
-          throw new ConflictException(
-            'Un utilisateur avec ce numéro de téléphone existe déjà',
-          );
-        }
-      }
+    // Vérification défensive runtime : rejette si email ou telephone glissent
+    // malgré tout dans le payload (ex: contournement de validation côté transport)
+    const rawDto = dto as Record<string, unknown>;
+    if (rawDto['email'] !== undefined || rawDto['telephone'] !== undefined) {
+      throw new BadRequestException(
+        'Un administrateur ne peut pas modifier son email ou son téléphone.',
+      );
     }
 
-    // Hasher le mot de passe si fourni
-    const updateData = { ...updateUserDto };
-    if (updateUserDto.password) {
-      updateData.password = await bcrypt.hash(
-        updateUserDto.password,
-        parseInt(this.configService.get<string>('BCRYPT_ROUNDS') || '12'),
-      );
+    // Construire explicitement l'objet de mise à jour avec les seuls champs autorisés —
+    // on n'utilise pas spread pour éviter qu'un champ inattendu passe en base.
+    const updateData: {
+      firstName?: string;
+      lastName?: string;
+      password?: string;
+    } = {};
+
+    if (dto.firstName !== undefined) {
+      updateData.firstName = dto.firstName;
+    }
+    if (dto.lastName !== undefined) {
+      updateData.lastName = dto.lastName;
+    }
+    if (dto.password) {
+      updateData.password = await this.hashPassword(dto.password);
     }
 
     const updatedUser = await this.usersRepository.update(id, updateData);
 
-    // Envoyer un email de notification de mise à jour
     await this.queueService.addEmailJob({
       to: updatedUser.email,
       subject: 'Votre profil a été mis à jour',
@@ -345,63 +297,51 @@ export class UsersService {
       priority: 'normal',
     });
 
-    // Logger l'audit
     await this.auditService.logUserAction(id, AuditAction.UPDATE, {
       email: updatedUser.email,
+      action: 'ADMIN_PROFILE_UPDATED',
     });
 
     return this.toResponseDto(updatedUser);
   }
 
+  /**
+   * Met à jour le mot de passe d'un utilisateur.
+   *
+   * ✅ Point unique de hashage pour les changements de mot de passe.
+   *    Appelé par : AuthService.resetPassword(), AuthService.changePassword().
+   *    `newPassword` est toujours un mot de passe BRUT — hashé ici avant le repository.
+   */
   async updatePassword(userId: string, newPassword: string): Promise<void> {
-    const hashedPassword = await bcrypt.hash(
-      newPassword,
-      parseInt(this.configService.get<string>('BCRYPT_ROUNDS') || '12'),
-    );
+    const hashedPassword = await this.hashPassword(newPassword);
+    await this.usersRepository.updatePassword(userId, hashedPassword);
 
-    await this.usersRepository.update(userId, { password: hashedPassword });
-
-    // Logger l'audit
     await this.auditService.logUserAction(userId, AuditAction.UPDATE, {
       action: 'PASSWORD_CHANGED',
     });
   }
 
+  // ==================== SUPPRESSION ====================
+
   async remove(id: string, currentUserRole: UserRole): Promise<void> {
-    // Vérifier si l'utilisateur existe
     const user = await this.usersRepository.findById(id);
     if (!user) {
       throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
     }
 
-    // Seul un admin peut supprimer un utilisateur
     if (currentUserRole !== UserRole.ADMIN) {
       throw new ForbiddenException(
         'Seul un administrateur peut supprimer un utilisateur',
       );
     }
 
-    // Nettoyer les refresh tokens associés à l'utilisateur avant la suppression
-    await this.prisma.refreshToken.deleteMany({
-      where: { userId: id },
-    });
-
-    // Nettoyer les autres relations si nécessaire
-    await this.prisma.session.deleteMany({
-      where: { userId: id },
-    });
-
-    await this.prisma.resetToken.deleteMany({
-      where: { userId: id },
-    });
-
-    await this.prisma.revokedToken.deleteMany({
-      where: { userId: id },
-    });
+    await this.prisma.refreshToken.deleteMany({ where: { userId: id } });
+    await this.prisma.session.deleteMany({ where: { userId: id } });
+    await this.prisma.resetToken.deleteMany({ where: { userId: id } });
+    await this.prisma.revokedToken.deleteMany({ where: { userId: id } });
 
     await this.usersRepository.softDelete(id);
 
-    // Logger l'audit
     await this.auditService.logUserAction(id, AuditAction.DELETE, {
       email: user.email,
     });
@@ -416,7 +356,6 @@ export class UsersService {
       throw new NotFoundException('Utilisateur non trouvé');
     }
 
-    // Interdire de désactiver le compte admin principal
     const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
     if (updateStatusDto.isActive === false && user.email === adminEmail) {
       throw new ForbiddenException(
@@ -424,7 +363,6 @@ export class UsersService {
       );
     }
 
-    // Interdire de désactiver son propre compte
     if (updateStatusDto.isActive === false && user.isDeleted) {
       throw new ForbiddenException(
         'Impossible de désactiver un compte supprimé',
@@ -438,7 +376,6 @@ export class UsersService {
         : null,
     });
 
-    // Logger l'audit
     await this.auditService.logUserAction(id, AuditAction.UPDATE, {
       email: updatedUser.email,
       action: updateStatusDto.isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED',
@@ -448,7 +385,7 @@ export class UsersService {
     return this.toResponseDto(updatedUser);
   }
 
-  // ==================== UTILITAIRES ====================
+  // ==================== UTILITAIRES PRIVÉS ====================
 
   private generateProfileUpdatedContent(user: {
     firstName: string;

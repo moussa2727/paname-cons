@@ -9,6 +9,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import { AuditAction, UserRole, RevocationReason } from '@prisma/client';
 
 import { UsersService } from '../users/users.service';
@@ -25,7 +26,7 @@ interface LoginResponse {
   access_token: string;
   refresh_token: string;
   token_type: 'Bearer';
-  expires_in: 900; // TOUJOURS 900 — durée access token en secondes
+  expires_in: 900;
   remember_me: boolean;
   user: {
     id: string;
@@ -49,7 +50,7 @@ interface LoginResponse {
 interface RefreshTokenResponse {
   access_token: string;
   refresh_token: string;
-  isRememberMe: boolean; // retourné pour que le controller calcule le bon maxAge cookie
+  isRememberMe: boolean;
 }
 
 @Injectable()
@@ -115,7 +116,6 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user.id, user.email, user.role);
 
-    // La durée BDD varie selon rememberMe — le JWT expire toujours en 7d
     const expiresAt = new Date(
       Date.now() +
         (rememberMe
@@ -157,7 +157,7 @@ export class AuthService {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
       token_type: 'Bearer',
-      expires_in: 900, // TOUJOURS 900 — jamais conditionnel
+      expires_in: 900,
       remember_me: rememberMe,
       user: {
         id: updatedUser.id,
@@ -197,18 +197,17 @@ export class AuthService {
       }
     }
 
-    const hashedPassword = await bcrypt.hash(
-      registerDto.password,
-      parseInt(this.configService.get<string>('BCRYPT_ROUNDS') ?? '12', 10),
-    );
-
     const userRole = this.isAdminEmail(registerDto.email)
       ? UserRole.ADMIN
       : UserRole.USER;
 
-    const user = await this.usersService.create({
+    /**
+     * ✅ Le hashage est délégué à UsersService.createWithHashedPassword()
+     * AuthService ne hache plus lui-même — point unique de hashage dans UsersService.
+     */
+    const user = await this.usersService.createWithHashedPassword({
       email: registerDto.email,
-      password: hashedPassword,
+      password: registerDto.password,
       firstName: registerDto.firstName,
       lastName: registerDto.lastName,
       role: userRole,
@@ -217,7 +216,6 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user.id, user.email, user.role);
 
-    // Register : pas de remember_me, session standard 7 jours
     await this.refreshTokenRepository.create({
       userId: user.id,
       token: tokens.refresh_token,
@@ -255,9 +253,8 @@ export class AuthService {
   }
 
   /**
-   * isRememberMe est hérité du tokenDoc en base — jamais depuis le body de la requête.
+   * isRememberMe est hérité du tokenDoc en base — jamais depuis le body.
    * Le client ne peut pas upgrader une session false → true après login.
-   * isRememberMe est retourné pour que le controller pose le bon maxAge sur le cookie.
    */
   async refreshToken(
     userId: string,
@@ -276,8 +273,6 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token invalide ou expiré');
     }
 
-    // Charger l'utilisateur pour générer les tokens — ne pas accéder à tokenDoc.user
-    // car findByToken n'inclut pas la relation (pas de select { include: { user: true } })
     const user = await this.usersService.findById(userId);
     if (!user) {
       this.logger.warn('Token refresh failed: user not found');
@@ -286,7 +281,6 @@ export class AuthService {
 
     const tokens = await this.generateTokens(userId, user.email, user.role);
 
-    // isRememberMe hérité de la base — jamais depuis le body de la requête
     const isRememberMe = tokenDoc.isRememberMe;
     const expiresAt = new Date(
       Date.now() +
@@ -304,7 +298,7 @@ export class AuthService {
       userId,
       token: tokens.refresh_token,
       expiresAt,
-      isRememberMe, // hérité
+      isRememberMe,
       ipAddress: tokenDoc.ipAddress ?? undefined,
       userAgent: tokenDoc.userAgent ?? undefined,
     });
@@ -388,7 +382,6 @@ export class AuthService {
 
     await this.resetTokenRepository.invalidateAllForUser(user.id);
 
-    // Le token est généré et sauvegardé par le repository — on récupère la valeur retournée
     const resetToken = await this.resetTokenRepository.create({
       userId: user.id,
       expiresIn: 2 * 60 * 60 * 1000, // 2 heures
@@ -418,7 +411,7 @@ export class AuthService {
       throw new BadRequestException('Token invalide ou expiré');
     }
 
-    // updatePassword hache lui-même — on passe le mot de passe brut
+    // ✅ Délégué à UsersService.updatePassword() — hashage centralisé
     await this.usersService.updatePassword(resetToken.userId, newPassword);
     await this.resetTokenRepository.markAsUsed(resetToken.id);
 
@@ -439,6 +432,7 @@ export class AuthService {
     newPassword: string,
   ) {
     this.logger.log('Change password attempt');
+
     const user = await this.usersRepository.findByIdWithPassword(userId);
     if (!user) {
       this.logger.warn('Change password failed: user not found');
@@ -451,24 +445,26 @@ export class AuthService {
       throw new BadRequestException('Ancien mot de passe incorrect');
     }
 
-    // updatePassword hache lui-même — on passe le mot de passe brut
-    await this.usersRepository.updatePassword(userId, newPassword);
-
-    await this.auditService.logUserAction(userId, AuditAction.UPDATE, {
-      action: 'PASSWORD_CHANGED',
-    });
+    /**
+     * ✅ FIX : on délègue à UsersService.updatePassword() qui hache le mot de passe
+     * avant de le passer au repository.
+     * Avant : usersRepository.updatePassword(userId, newPassword) → mot de passe en CLAIR en base.
+     */
+    await this.usersService.updatePassword(userId, newPassword);
 
     return { message: 'Mot de passe changé avec succès' };
   }
 
+  // ==================== PRIVÉ ====================
+
   /**
-   * Les durées JWT sont fixes (15m access / 7d refresh) quelle que soit la valeur de isRememberMe.
-   * La durée BDD varie selon isRememberMe — le JWT est une couche de sécurité
-   * supplémentaire indépendante de la politique de session.
+   * Génère une paire access_token / refresh_token.
+   *
+   * ✅ FIX DUPLICATE KEY : chaque token contient un `jti` (JWT ID) UUID v4 unique.
+   * Sans jti, deux appels dans la même seconde produisaient le même JWT
+   * (même payload + même iat) → violation de contrainte unique en base.
    */
   private async generateTokens(userId: string, email: string, role: string) {
-    const payload = { sub: userId, email, role };
-
     const jwtSecret = this.configService.get<string>('JWT_SECRET');
     const jwtRefreshSecret =
       this.configService.get<string>('JWT_REFRESH_SECRET');
@@ -479,26 +475,27 @@ export class AuthService {
     }
 
     const [access_token, refresh_token] = await Promise.all([
-      this.jwtService.signAsync(payload, {
-        secret: jwtSecret,
-        expiresIn: AuthConstants.ACCESS_TOKEN_EXPIRATION,
-      }),
-      this.jwtService.signAsync(payload, {
-        secret: jwtRefreshSecret,
-        expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
-      }),
+      this.jwtService.signAsync(
+        { sub: userId, email, role, jti: randomUUID() },
+        {
+          secret: jwtSecret,
+          expiresIn: AuthConstants.ACCESS_TOKEN_EXPIRATION,
+        },
+      ),
+      this.jwtService.signAsync(
+        { sub: userId, email, role, jti: randomUUID() },
+        {
+          secret: jwtRefreshSecret,
+          expiresIn: AuthConstants.REFRESH_TOKEN_EXPIRATION,
+        },
+      ),
     ]);
 
     return { access_token, refresh_token };
   }
 
-  // ==================== UTILITAIRES ====================
-
   private generateForgotPasswordContent(
-    user: {
-      firstName: string;
-      email: string;
-    },
+    user: { firstName: string; email: string },
     token: string,
   ): string {
     const resetLink = `${this.configService.get<string>('FRONTEND_URL')}/reinitialiser-mot-de-passe?token=${token}`;

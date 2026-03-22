@@ -40,13 +40,15 @@ export class CreateUserDto {
   password: string;
 
   @ApiProperty({
-    example: '+33 6 12 34 56 78',
-    description: 'Téléphone (espaces, points et tirets acceptés)',
+    example: '+33612345678',
+    description:
+      'Téléphone (format international ou local — ex: +33612345678, 0612345678, +1-800-555-0199)',
   })
   @IsString({ message: 'Le téléphone doit être une chaîne de caractères' })
-  @Matches(/^\+?[1-9][\d\s.-]{8,14}$/, {
-    message: 'Format de téléphone invalide',
-  })
   @IsNotEmpty({ message: 'Le téléphone est requis' })
+  @Matches(/^\+?[\d\s.\-()]{7,20}$/, {
+    message:
+      'Format de téléphone invalide. Exemples valides : +33612345678, 0612345678, +1-800-555-0199',
+  })
   telephone: string;
 }

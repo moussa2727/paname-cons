@@ -100,13 +100,13 @@ export interface BackendDTO_UpdateUserBody {
 }
 
 /**
- * Corps PATCH /admin/profile — correspond à AdminUpdateUserDto backend
- * L'email est VOLONTAIREMENT absent (protégé côté backend).
+ * Corps PATCH /admin/profile — correspond à UpdateProfileDto backend.
+ * Email ET téléphone sont VOLONTAIREMENT absents : un admin ne peut
+ * modifier que son prénom, son nom et son mot de passe.
  */
 export interface BackendDTO_AdminUpdateProfileBody {
   firstName?: string;
   lastName?: string;
-  telephone?: string;
   password?: string;
 }
 
@@ -173,8 +173,8 @@ export interface CreateUserParams {
 }
 
 /**
- * Données pour mettre à jour son propre profil (utilisateur standard).
- * Correspond à UpdateProfileDto backend - TOUS les champs y compris email et password.
+ * Données pour mettre à jour son propre profil (utilisateur).
+ * L'email est autorisé ici (UpdateUserDto backend l'accepte).
  */
 export interface UpdateProfileParams {
   firstName?: string;
@@ -186,12 +186,11 @@ export interface UpdateProfileParams {
 
 /**
  * Données pour mettre à jour le profil admin.
- * Pas d'email (AdminUpdateUserDto backend ne l'expose pas).
+ * Email et téléphone absents — UpdateProfileDto backend ne les expose pas.
  */
 export interface UpdateAdminProfileParams {
   firstName?: string;
   lastName?: string;
-  telephone?: string;
   password?: string;
 }
 

@@ -18,10 +18,10 @@ import {
 import { UsersService } from './users.service';
 import {
   CreateUserDto,
+  UpdateUserDto,
   UpdateUserStatusDto,
   UserResponseDto,
   UpdateProfileDto,
-  AdminUpdateUserDto,
 } from './dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -37,7 +37,7 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
-@Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requêtes par minute
+@Throttle({ default: { limit: 30, ttl: 60000 } })
 @ApiTags('users')
 @Controller('')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -45,7 +45,10 @@ import { Throttle } from '@nestjs/throttler';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  // ==================== ADMIN ====================
+
   @Post('admin/users/create')
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Créer un nouvel utilisateur (Admin seulement)' })
   @ApiResponse({
     status: 201,
@@ -54,9 +57,9 @@ export class UsersController {
   })
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({ status: 403, description: 'Non autorisé' })
-  @Roles(UserRole.ADMIN)
   async create(@Body() createUserDto: CreateUserDto): Promise<UserResponseDto> {
-    const user = await this.usersService.create(createUserDto);
+    const user =
+      await this.usersService.createWithHashedPassword(createUserDto);
     return this.usersService.toResponseDto(user);
   }
 
@@ -71,59 +74,6 @@ export class UsersController {
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
   ) {
     return this.usersService.findAll(page, limit);
-  }
-
-  @Get('user/profile')
-  async getProfile(
-    @CurrentUser() user: { id: string; role: UserRole },
-  ): Promise<UserResponseDto> {
-    const foundUser = await this.usersService.findById(user.id);
-
-    if (!foundUser) {
-      throw new NotFoundException('Utilisateur non trouvé');
-    }
-
-    const responseDto = this.usersService.toResponseDto(foundUser);
-
-    return responseDto;
-  }
-
-  @Patch('admin/profile')
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({
-    summary:
-      'Mettre à jour son propre profil (Admin uniquement - email protégé)',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Profil admin mis à jour',
-    type: UserResponseDto,
-  })
-  @ApiResponse({ status: 400, description: 'Données invalides' })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
-  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
-  async updateAdminProfile(
-    @CurrentUser() user: { id: string; role: UserRole },
-    @Body() updateProfileDto: UpdateProfileDto,
-  ): Promise<UserResponseDto> {
-    // L'admin peut uniquement modifier son propre profil (sans email)
-    return this.usersService.updateAdminProfile(user.id, updateProfileDto);
-  }
-
-  @Patch('user/profile')
-  @ApiOperation({ summary: 'Mettre à jour son propre profil' })
-  @ApiResponse({
-    status: 200,
-    description: 'Profil mis à jour',
-    type: UserResponseDto,
-  })
-  @ApiResponse({ status: 400, description: 'Données invalides' })
-  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
-  async updateProfile(
-    @CurrentUser() user: { id: string; role: UserRole },
-    @Body() updateProfileDto: UpdateProfileDto,
-  ): Promise<UserResponseDto> {
-    return this.usersService.update(user.id, updateProfileDto);
   }
 
   @Get('admin/users/statistics')
@@ -144,6 +94,15 @@ export class UsersController {
 
   @Get('admin/user/:id')
   @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Récupérer un utilisateur par ID (Admin seulement)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Utilisateur trouvé',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
   async findOne(@Param('id') id: string): Promise<UserResponseDto> {
     const user = await this.usersService.findById(id);
     if (!user) {
@@ -152,19 +111,62 @@ export class UsersController {
     return this.usersService.toResponseDto(user);
   }
 
+  /**
+   * PATCH /admin/profile
+   * Mise à jour du profil de l'admin connecté.
+   * ✅ Autorisé  : firstName, lastName, password
+   * ❌ Interdit  : email, telephone (protégés au niveau DTO et service)
+   */
+  @Patch('admin/profile')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary:
+      'Mettre à jour son propre profil admin (firstName, lastName, password uniquement — email protégé)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Profil admin mis à jour',
+    type: UserResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Tentative de modification de l'email ou du téléphone",
+  })
+  @ApiResponse({ status: 403, description: 'Accès refusé' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
+  async updateAdminProfile(
+    @CurrentUser() user: { id: string; role: UserRole },
+    @Body() updateProfileDto: UpdateProfileDto,
+  ): Promise<UserResponseDto> {
+    return this.usersService.updateAdminProfile(user.id, updateProfileDto);
+  }
+
   @Patch('admin/user/:id')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Mettre à jour un utilisateur (Admin)' })
+  @ApiOperation({ summary: 'Mettre à jour un utilisateur (Admin seulement)' })
   @ApiResponse({
     status: 200,
     description: 'Utilisateur mis à jour',
     type: UserResponseDto,
   })
+  @ApiResponse({ status: 400, description: 'Données invalides' })
+  @ApiResponse({ status: 403, description: 'Non autorisé' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
   async updateUser(
     @Param('id') id: string,
-    @Body() updateUserDto: AdminUpdateUserDto, // Utiliser AdminUpdateUserDto pour l'admin
+    @Body() updateUserDto: UpdateUserDto,
+    @CurrentUser() caller: { id: string; role: UserRole },
   ): Promise<UserResponseDto> {
-    return this.usersService.update(id, updateUserDto);
+    // Un admin qui modifie un autre utilisateur passe UpdateUserDto complet
+    // mais on lui interdit de modifier son propre profil via cette route
+    if (id === caller.id) {
+      throw new ForbiddenException(
+        'Utilisez PATCH /admin/profile pour modifier votre propre profil.',
+      );
+    }
+    // L'admin modifie un USER — on passe UserRole.USER comme callerRole
+    // pour autoriser tous les champs (email inclus) sur le compte cible
+    return this.usersService.update(id, updateUserDto, UserRole.USER);
   }
 
   @Patch('admin/user/:id/status')
@@ -196,12 +198,60 @@ export class UsersController {
     @Param('id') id: string,
     @CurrentUser() user: { id: string; role: UserRole },
   ): Promise<void> {
-    // Empêcher l'admin de supprimer son propre compte
     if (id === user.id) {
       throw new ForbiddenException(
         'Vous ne pouvez pas supprimer votre propre compte',
       );
     }
     await this.usersService.remove(id, user.role);
+  }
+
+  // ==================== USER ====================
+
+  @Get('user/profile')
+  @ApiOperation({ summary: 'Récupérer son propre profil' })
+  @ApiResponse({
+    status: 200,
+    description: 'Profil récupéré',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
+  async getProfile(
+    @CurrentUser() user: { id: string; role: UserRole },
+  ): Promise<UserResponseDto> {
+    const foundUser = await this.usersService.findById(user.id);
+    if (!foundUser) {
+      throw new NotFoundException('Utilisateur non trouvé');
+    }
+    return this.usersService.toResponseDto(foundUser);
+  }
+
+  /**
+   * PATCH /user/profile
+   * Mise à jour du profil de l'utilisateur connecté (rôle USER).
+   * ✅ Autorisé  : firstName, lastName, email, telephone, password
+   *
+   * Un ADMIN qui tenterait d'appeler cette route recevra une 403 —
+   * la vérification est faite dans UsersService.update() via callerRole.
+   */
+  @Patch('user/profile')
+  @ApiOperation({
+    summary:
+      'Mettre à jour son propre profil (USER : tous les champs — ADMIN : interdit, utiliser /admin/profile)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Profil mis à jour',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Données invalides' })
+  @ApiResponse({ status: 403, description: 'Interdit aux admins' })
+  @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
+  async updateProfile(
+    @CurrentUser() user: { id: string; role: UserRole },
+    @Body() updateUserDto: UpdateUserDto,
+  ): Promise<UserResponseDto> {
+    // On passe le rôle réel du caller — le service refusera si c'est ADMIN
+    return this.usersService.update(user.id, updateUserDto, user.role);
   }
 }

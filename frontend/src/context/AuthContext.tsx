@@ -12,21 +12,13 @@
  *
  * Cookie frontend : remember_me uniquement (non-httpOnly),
  * géré via document.cookie (API JS native, pas de lib tierce).
- * C'est un signal OPTIONNEL indiquant qu'une session a déjà
- * été ouverte sur ce navigateur.
+ * C'est le SEUL signal lisible en JS/TS indiquant qu'une
+ * session a déjà été ouverte sur ce navigateur.
  *
- * checkAuth NE conditionne PLUS sur remember_me :
- *   → on tente toujours GET /user/profile au montage.
- *   → apiFetch gère le retry 401 → refresh → replay en interne.
- *   → si le refresh échoue, session morte → setUser(null).
- *   → remember_me est supprimé uniquement quand la session est
- *     définitivement morte côté backend (refresh échoué).
- *
- * Raison du changement : sur mobile (Safari ITP, WebView,
- * mode privé), remember_me peut être absent même si une
- * session valide existe côté backend (cookie httpOnly intact).
- * Bloquer checkAuth sur remember_me causait une déconnexion
- * silencieuse à chaque refresh de page sur mobile.
+ * checkAuth utilise remember_me comme garde préalable :
+ *   • remember_me présent  → session potentielle → requête réseau
+ *   • remember_me absent   → jamais connecté sur ce navigateur
+ *                            → setUser(null) immédiat, zéro requête
  *
  * Durées alignées sur auth.constants.ts (backend) :
  *   • access_token          : 15 min  (ACCESS_TOKEN_EXPIRATION_MS)
@@ -79,8 +71,6 @@ import type {
   BackendDTO_ResetPasswordData,
   BackendDTO_ChangePasswordData,
 } from "../types/auth.types";
-import type { UpdateProfileParams } from "../types/user.types";
-import { updateUserProfile } from "../services/users.service";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
@@ -107,11 +97,6 @@ const ACCESS_TOKEN_EXPIRES_IN_S = 15 * 60; // 15 min (= expires_in backend)
 //  IMPORTANT : access_token et refresh_token sont httpOnly →
 //  JAMAIS présents dans document.cookie côté JS/TS.
 //  Ne jamais écrire de condition basée sur leur présence.
-//
-//  FIX MOBILE : remember_me est un signal OPTIONNEL. checkAuth
-//  ne bloque plus dessus. Sur Safari/iOS/WebView, ce cookie
-//  peut être absent alors que le refresh_token httpOnly est
-//  encore valide.
 // ─────────────────────────────────────────────────────────────
 
 function getRememberMeCookie(): boolean {
@@ -125,29 +110,18 @@ function getRememberMeCookie(): boolean {
 }
 
 function setRememberMeCookie(value: boolean, maxAgeSeconds: number): void {
-  // sameSite=none + Secure pour correspondre aux cookies httpOnly du backend
-  const isProduction = import.meta.env.PROD;
+  // sameSite=None + Secure pour correspondre aux cookies httpOnly du backend
   document.cookie =
     `${encodeURIComponent("remember_me")}=${encodeURIComponent(String(value))}` +
     `; path=/` +
     `; max-age=${maxAgeSeconds}` +
-    `; sameSite=none` +
-    (isProduction ? `; Secure` : ``);
+    `; SameSite=None` +
+    `; Secure`;
 }
 
 function deleteRememberMeCookie(): void {
-  // FIX : les attributs sameSite=none et Secure doivent correspondre
-  // exactement à ceux utilisés lors de la pose du cookie.
-  // Sans eux, certains navigateurs (Safari mobile, Chrome Android)
-  // ne reconnaissent pas le cookie à supprimer et l'ignorent silencieusement,
-  // laissant un cookie "zombie" qui bloque la logique de checkAuth.
-  const isProduction = import.meta.env.PROD;
   document.cookie =
-    `${encodeURIComponent("remember_me")}=` +
-    `; path=/` +
-    `; max-age=0` +
-    `; sameSite=none` +
-    (isProduction ? `; Secure` : ``);
+    `${encodeURIComponent("remember_me")}=` + `; path=/` + `; max-age=0`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -226,32 +200,6 @@ let _refreshQueue: Array<(success: boolean) => void> = [];
 // Valeur du refresh_token reçu dans le body (fallback cookie httpOnly bloqué)
 let _refreshTokenValue: string | null = null;
 
-// CRITICAL FOR MOBILE: Helper pour localStorage fallback
-function getLocalStorageToken(): {
-  access_token: string | null;
-  refresh_token: string | null;
-} {
-  const accessExpiresAt = localStorage.getItem("access_token_expires_at");
-  const refreshExpiresAt = localStorage.getItem("refresh_token_expires_at");
-  const now = Date.now();
-
-  // Vérifier les expirations
-  if (accessExpiresAt && now > parseInt(accessExpiresAt)) {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("access_token_expires_at");
-  }
-
-  if (refreshExpiresAt && now > parseInt(refreshExpiresAt)) {
-    localStorage.removeItem("refresh_token");
-    localStorage.removeItem("refresh_token_expires_at");
-  }
-
-  return {
-    access_token: localStorage.getItem("access_token"),
-    refresh_token: localStorage.getItem("refresh_token"),
-  };
-}
-
 export function _setRefreshTokenValue(token: string | null): void {
   _refreshTokenValue = token;
 }
@@ -278,16 +226,6 @@ export async function apiFetch(
     },
   };
 
-  // CRITICAL FOR MOBILE: Add Authorization header from localStorage fallback
-  const localStorageTokens = getLocalStorageToken();
-  if (localStorageTokens.access_token) {
-    const headers = new Headers(options.headers);
-    if (!headers.has("Authorization")) {
-      headers.set("Authorization", `Bearer ${localStorageTokens.access_token}`);
-    }
-    options.headers = headers;
-  }
-
   const response = await fetch(input, options);
 
   // Pas un 401 → retour direct, rien à faire
@@ -313,9 +251,6 @@ export async function apiFetch(
   _isRefreshing = true;
 
   try {
-    // CRITICAL FOR MOBILE: Get localStorage tokens for fallback
-    const localStorageTokens = getLocalStorageToken();
-
     const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
       method: "POST",
       credentials: "include", // envoie le cookie httpOnly refresh_token
@@ -323,12 +258,7 @@ export async function apiFetch(
       // refresh_token dans le body = fallback si le cookie httpOnly
       // n'est pas transmis (dev HTTP, Safari ITP)
       body: JSON.stringify(
-        _refreshTokenValue || localStorageTokens.refresh_token
-          ? {
-              refresh_token:
-                _refreshTokenValue || localStorageTokens.refresh_token,
-            }
-          : {},
+        _refreshTokenValue ? { refresh_token: _refreshTokenValue } : {},
       ),
     });
 
@@ -439,19 +369,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     _isRefreshing = true;
 
     try {
-      // CRITICAL FOR MOBILE: Get localStorage tokens for fallback
-      const localStorageTokens = getLocalStorageToken();
-
       const response = await fetch(`${API_URL}/auth/refresh`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          refreshTokenRef.current || localStorageTokens.refresh_token
-            ? {
-                refresh_token:
-                  refreshTokenRef.current || localStorageTokens.refresh_token,
-              }
+          refreshTokenRef.current
+            ? { refresh_token: refreshTokenRef.current }
             : {},
         ),
       });
@@ -470,21 +394,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         if (newToken) {
           refreshTokenRef.current = newToken;
           _refreshTokenValue = newToken;
-
-          // CRITICAL FOR MOBILE: Update localStorage with new tokens
-          // Note: access_token sera mis à jour via les cookies httpOnly,
-          // mais on le récupère aussi pour localStorage fallback
-          localStorage.setItem("refresh_token", newToken);
-
-          // Mettre à jour l'expiration du refresh_token (14 ou 7 jours selon remember_me)
-          const rememberMe = getRememberMeCookie();
-          const refreshExpiresIn = rememberMe
-            ? 14 * 24 * 60 * 60
-            : 7 * 24 * 60 * 60;
-          localStorage.setItem(
-            "refresh_token_expires_at",
-            String(Date.now() + refreshExpiresIn * 1000),
-          );
         }
       } catch {
         // Non bloquant
@@ -500,15 +409,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       flushRefreshQueue(false);
       refreshTokenRef.current = null;
       _refreshTokenValue = null;
-
-      // CRITICAL FOR MOBILE: Clear localStorage fallback
-      localStorage.removeItem("refresh_token");
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("access_token_expires_at");
-      localStorage.removeItem("refresh_token_expires_at");
-
       // Le refresh a échoué définitivement → session morte côté backend.
-      // On supprime remember_me pour éviter des requêtes inutiles ultérieures.
+      // On supprime remember_me pour que checkAuth ne retente plus
+      // le backend inutilement au prochain chargement de page.
       deleteRememberMeCookie();
       setUser(null);
       throw err;
@@ -538,22 +441,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // ── checkAuth (mount) ─────────────────────────────────────
   //
-  //  FIX MOBILE : on ne conditionne PLUS sur remember_me.
+  //  Garde préalable sur remember_me (seul cookie lisible en
+  //  JS/TS) avant toute requête réseau :
   //
-  //  Ancien comportement (cassé sur mobile) :
-  //    • remember_me absent → setUser(null) immédiat, zéro requête.
-  //    • Problème : sur Safari iOS / WebView / mode privé, remember_me
-  //      peut être absent même si le cookie httpOnly refresh_token
-  //      est encore valide → déconnexion silencieuse à chaque refresh.
+  //  • remember_me absent → aucune session connue sur ce
+  //    navigateur → setUser(null) + setIsLoading(false)
+  //    immédiat, zéro requête réseau.
   //
-  //  Nouveau comportement :
-  //    • On tente TOUJOURS GET /user/profile au montage.
-  //    • apiFetch gère le retry 401 → refresh → replay en interne.
-  //    • 200 : session valide → setUser().
-  //    • 401 après refresh échoué : session morte → setUser(null)
-  //      + deleteRememberMeCookie().
-  //    • Coût : une requête réseau supplémentaire sur les navigateurs
-  //      sans session active — négligeable face à la fiabilité gagnée.
+  //  • remember_me présent → session potentielle détectée →
+  //    on interroge le backend :
+  //
+  //      1. GET /user/profile (credentials: "include")
+  //           → 200 : session valide, setUser()
+  //           → 401 : apiFetch tente le refresh auto
+  //                   (cookie httpOnly refresh_token envoyé
+  //                    par le navigateur)
+  //                → refresh ok  : rejoue /user/profile, setUser()
+  //                → refresh ko  : session expirée, setUser(null),
+  //                                on supprime remember_me
   //
   //  Les cookies httpOnly (access_token, refresh_token) sont
   //  illisibles en JS/TS — on ne conditionne JAMAIS sur eux.
@@ -562,8 +467,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     let cancelled = false;
 
     const checkAuth = async (): Promise<void> => {
-      // FIX : guard remember_me supprimé — voir commentaire ci-dessus.
-      // On tente toujours le profil ; apiFetch gère le 401 → refresh.
+      const hasPotentialSession = getRememberMeCookie();
+
+      if (!hasPotentialSession) {
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
       try {
         // apiFetch gère le retry 401 → refresh → replay en interne
         const response = await apiFetch(`${API_URL}/user/profile`, {
@@ -628,6 +539,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const dto = body.data;
 
+      // Stocker le refresh_token en mémoire pour le fallback apiFetch
+      if (dto.refresh_token) {
+        refreshTokenRef.current = dto.refresh_token;
+        _refreshTokenValue = dto.refresh_token;
+      }
+
       // Cookie remember_me (non-httpOnly, lisible en JS/TS)
       // Durées alignées sur REMEMBER_ME_EXPIRATION_MS /
       // REFRESH_TOKEN_EXPIRATION_MS du backend (auth.constants.ts).
@@ -639,32 +556,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const effectiveRememberMe = existingRememberMe
         ? dto.remember_me || true // session existante → on garde au moins true
         : dto.remember_me; // pas encore posé → valeur du login
-
-      // Stocker le refresh_token en mémoire pour le fallback apiFetch
-      if (dto.refresh_token) {
-        refreshTokenRef.current = dto.refresh_token;
-        _refreshTokenValue = dto.refresh_token;
-
-        // CRITICAL FOR MOBILE: Store tokens in localStorage
-        // Pour Safari ITP et WebView qui bloquent les cookies httpOnly
-        localStorage.setItem("refresh_token", dto.refresh_token);
-        localStorage.setItem("access_token", dto.access_token);
-
-        // Set expiration times
-        const expiresIn = dto.expires_in || 900; // 15 minutes
-        localStorage.setItem(
-          "access_token_expires_at",
-          String(Date.now() + expiresIn * 1000),
-        );
-
-        const refreshExpiresIn = effectiveRememberMe
-          ? 14 * 24 * 60 * 60
-          : 7 * 24 * 60 * 60;
-        localStorage.setItem(
-          "refresh_token_expires_at",
-          String(Date.now() + refreshExpiresIn * 1000),
-        );
-      }
 
       setRememberMeCookie(
         effectiveRememberMe,
@@ -744,13 +635,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       clearRefreshTimer();
       refreshTokenRef.current = null;
       _refreshTokenValue = null;
-
-      // CRITICAL FOR MOBILE: Clear localStorage fallback
-      localStorage.removeItem("refresh_token");
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("access_token_expires_at");
-      localStorage.removeItem("refresh_token_expires_at");
-
       setUser(null);
       toast.success("Déconnexion réussie");
     }
@@ -885,97 +769,94 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   // ── updateUser ────────────────────────────────────────────
-  const updateUser = async (patch: Partial<AppUser>): Promise<void> => {
+  //
+  // Seuls les champs modifiables par un USER sont acceptés.
+  // On n'envoie jamais id, role, loginCount, createdAt, etc.
+  // qui sont des champs lecture seule côté backend.
+  const updateUser = async (patch: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    telephone?: string;
+    password?: string;
+  }): Promise<void> => {
     try {
-      // Créer un patch avec tous les champs autorisés par UpdateProfileDto
-      const profilePatch: UpdateProfileParams = {};
-
-      // Ajouter tous les champs autorisés pour UpdateProfileDto
-      if (patch.firstName) profilePatch.firstName = patch.firstName;
-      if (patch.lastName) profilePatch.lastName = patch.lastName;
-      if (patch.email) profilePatch.email = patch.email;
-      if (patch.telephone) profilePatch.telephone = patch.telephone;
-      if (patch.password) profilePatch.password = patch.password;
-
-      const updatedUser = await updateUserProfile(profilePatch);
-      setUser(updatedUser);
-      toast.success("Profil mis à jour avec succès");
-    } catch (error) {
-      let message = "Erreur lors de la mise à jour du profil";
-
-      if (error instanceof Error) {
-        // Gérer les erreurs spécifiques du backend
-        if (
-          error.message.includes("Un utilisateur avec cet email existe déjà")
-        ) {
-          message = "Cet email est déjà utilisé par un autre utilisateur";
-        } else if (
-          error.message.includes(
-            "Un utilisateur avec ce numéro de téléphone existe déjà",
-          )
-        ) {
-          message =
-            "Ce numéro de téléphone est déjà utilisé par un autre utilisateur";
-        } else if (
-          error.message.includes(
-            "L'email du compte administrateur principal ne peut pas être modifié",
-          )
-        ) {
-          message = "L'email administrateur principal ne peut pas être modifié";
-        } else {
-          message = error.message;
-        }
-      }
-
-      toast.error(message);
-      throw error;
-    }
-  };
-
-  // ── updateAdminProfile ─────────────────────────────────────
-  //  Met à jour le profil admin (endpoint /admin/profile)
-  //  N'accepte pas l'email pour des raisons de sécurité
-  const updateAdminProfile = async (patch: Partial<AppUser>): Promise<void> => {
-    try {
-      // Créer un patch sans email ni password pour correspondre à UpdateProfileDto
-      // Type sécurisé correspondant à UpdateProfileDto
-      type AdminPatch = {
-        firstName?: string;
-        lastName?: string;
-        telephone?: string;
-      };
-
-      const adminPatch: AdminPatch = {};
-
-      // Ajouter uniquement les champs autorisés pour UpdateProfileDto
-      if (patch.firstName) adminPatch.firstName = patch.firstName;
-      if (patch.lastName) adminPatch.lastName = patch.lastName;
-      if (patch.telephone) adminPatch.telephone = patch.telephone;
-
-      const response = await apiFetch(`${API_URL}/admin/profile`, {
+      const response = await apiFetch(`${API_URL}/user/profile`, {
         method: "PATCH",
-        body: JSON.stringify(adminPatch),
+        body: JSON.stringify(patch),
       });
 
       const body: BackendDTO_ApiResponse<BackendDTO_ProfileData> =
         await response.json();
 
       if (!response.ok) {
-        const msg = body.message || "Erreur mise à jour du profil admin";
+        const msg = body.message || "Erreur mise à jour du profil";
         toast.error(msg);
         throw new Error(msg);
       }
 
       setUser(mapProfileToAppUser(body.data));
-      toast.success("Profil admin mis à jour avec succès");
+      toast.success("Profil mis à jour avec succès");
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : "Erreur lors de la mise à jour du profil admin";
+          : "Erreur lors de la mise à jour du profil";
       toast.error(message);
       throw error;
     }
+  };
+
+  // ── updateAdminProfile ────────────────────────────────────
+  //
+  // PATCH /admin/profile
+  // Champs autorisés : firstName, lastName, password.
+  // Email et téléphone sont volontairement absents — protégés
+  // au niveau DTO et service côté backend.
+  // Met à jour le state user après succès via refreshUserProfile.
+  const updateAdminProfile = async (params: {
+    firstName?: string;
+    lastName?: string;
+    password?: string;
+  }): Promise<void> => {
+    // Construire le body avec uniquement les champs non vides
+    const body: Record<string, string> = {};
+    if (params.firstName !== undefined) body.firstName = params.firstName;
+    if (params.lastName !== undefined) body.lastName = params.lastName;
+    if (params.password) body.password = params.password;
+
+    try {
+      const response = await apiFetch(`${API_URL}/admin/profile`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+
+      const responseBody: BackendDTO_ApiResponse<BackendDTO_ProfileData> =
+        await response.json();
+
+      if (!response.ok) {
+        const msg = responseBody.message || "Erreur mise à jour profil admin";
+        toast.error(msg);
+        throw new Error(msg);
+      }
+
+      setUser(mapProfileToAppUser(responseBody.data));
+      toast.success("Profil mis à jour avec succès");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la mise à jour du profil";
+      toast.error(message);
+      throw error;
+    }
+  };
+
+  // ── getActiveSessions ─────────────────────────────────────
+  // La route /auth/sessions/active n'existe pas dans le backend.
+  // On retourne 0 sans appel réseau pour ne pas générer de 404.
+  const getActiveSessions = async (): Promise<number> => {
+    return 0;
   };
 
   // ─────────────────────────────────────────────────────────
@@ -995,6 +876,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     updateUser,
     updateAdminProfile,
     refreshUserProfile,
+    getActiveSessions,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
