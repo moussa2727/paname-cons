@@ -43,9 +43,6 @@ export class EmailConfig implements OnApplicationBootstrap {
     this.transporter = nodemailer.createTransport({
       service: 'gmail',
       family: 4,
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
       auth: {
         type: 'LOGIN',
         user:
