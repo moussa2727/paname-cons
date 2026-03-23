@@ -108,15 +108,9 @@ async function bootstrap() {
   app.setGlobalPrefix('api', {
     exclude: [
       '/api',
-      '/uploads',
       '/uploads/',
-      '/uploads/destinations',
       '/uploads/destinations/',
-      '/uploads/profiles',
       '/uploads/profiles/',
-      '/version',
-      '/debug/headers',
-      '/health',
     ],
   });
 

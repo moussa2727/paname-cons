@@ -33,6 +33,7 @@
     "@bull-board/ui": "^6.20.6",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/bull": "^11.0.4",
+    "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.1.17",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.1.17",

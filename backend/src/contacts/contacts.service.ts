@@ -15,7 +15,7 @@ import { Contact, Prisma } from '@prisma/client';
 import { MailService } from '../mail/mail.service';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
-import bull from 'bull';
+import { Queue } from 'bull';
 import { CurrentUser as CurrentUserType } from '../interfaces/current-user.interface';
 
 @Injectable()
@@ -25,7 +25,7 @@ export class ContactsService {
   constructor(
     private contactsRepository: ContactsRepository,
     private mailService: MailService,
-    @InjectQueue('email') private emailQueue: bull.Queue,
+    @InjectQueue('email') private emailQueue: Queue,
     private configService: ConfigService,
   ) {}
 

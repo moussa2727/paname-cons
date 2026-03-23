@@ -15,6 +15,41 @@ export interface EmailOptions {
   attachments?: nodemailer.SendMailOptions['attachments'];
 }
 
+// ==================== CONFIGURATION CENTRALISÉE EMAIL ====================
+
+export const EMAIL_CONFIG = {
+  // Timeouts SMTP (millisecondes)
+  SMTP: {
+    CONNECTION_TIMEOUT: 60000, // 60s pour établir la connexion
+    GREETING_TIMEOUT: 60000, // 60s pour le handshake SMTP
+    SOCKET_TIMEOUT: 60000, // 60s pour les opérations socket
+  },
+
+  // Timeouts de traitement (millisecondes)
+  PROCESSING: {
+    SEND_TIMEOUT: 120000, // 120s pour l'envoi d'un email
+    VERIFICATION_DELAY: 15000, // 15s avant vérification au démarrage
+  },
+
+  // Configuration BullMQ
+  QUEUE: {
+    ATTEMPTS: 3,
+    BACKOFF_DELAY: 5000, // 5s entre tentatives
+    STALLED_INTERVAL: 30000, // 30s pour vérifier les jobs bloqués
+    MAX_STALLED_COUNT: 1,
+    REMOVE_ON_COMPLETE: 100,
+    REMOVE_ON_FAIL: 500,
+  },
+
+  // Ports et protocoles
+  SMTP_CONFIG: {
+    HOST: 'smtp.gmail.com',
+    PORT: 587,
+    SECURE: false,
+    FAMILY: 4, // Forcer IPv4
+  },
+};
+
 /**
  * Point de connexion SMTP unique.
  * Tous les envois d'emails passent par cette classe.
@@ -39,13 +74,13 @@ export class EmailConfig implements OnApplicationBootstrap {
       );
     }
 
-    // Configuration SMTP correcte
+    // Configuration SMTP centralisée
     this.transporter = nodemailer.createTransport({
       service: 'gmail',
-      family: 4,
-      host: 'smtp.gmail.com',
-      port: '587',
-      secure: 'false',
+      family: EMAIL_CONFIG.SMTP_CONFIG.FAMILY,
+      host: EMAIL_CONFIG.SMTP_CONFIG.HOST,
+      port: EMAIL_CONFIG.SMTP_CONFIG.PORT,
+      secure: EMAIL_CONFIG.SMTP_CONFIG.SECURE,
       auth: {
         type: 'LOGIN',
         user:
@@ -55,9 +90,9 @@ export class EmailConfig implements OnApplicationBootstrap {
           process.env.EMAIL_PASS ||
           this.configService.get<string>('EMAIL_PASS'),
       },
-      connectionTimeout: 60000,
-      greetingTimeout: 60000,
-      socketTimeout: 60000,
+      connectionTimeout: EMAIL_CONFIG.SMTP.CONNECTION_TIMEOUT,
+      greetingTimeout: EMAIL_CONFIG.SMTP.GREETING_TIMEOUT,
+      socketTimeout: EMAIL_CONFIG.SMTP.SOCKET_TIMEOUT,
     } as nodemailer.TransportOptions);
 
     this.fromEmail = emailUser || '';
@@ -66,10 +101,10 @@ export class EmailConfig implements OnApplicationBootstrap {
   // ==================== INIT ====================
 
   onApplicationBootstrap() {
-    //  Vérification asynchrone après démarrage complet du serveur
+    // Vérification asynchrone après démarrage complet du serveur
     setTimeout(() => {
       void this.verifyConnection();
-    }, 15000); // Délai de tentative après démarrage
+    }, EMAIL_CONFIG.PROCESSING.VERIFICATION_DELAY);
   }
 
   private async verifyConnection() {

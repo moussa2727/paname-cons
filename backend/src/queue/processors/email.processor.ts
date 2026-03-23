@@ -1,11 +1,11 @@
-import { Processor, Process } from '@nestjs/bull';
-import type { Job } from 'bull';
 import { Logger } from '@nestjs/common';
+import { Processor, InjectQueue, Process } from '@nestjs/bull';
+import { Job } from 'bull';
 import { MailService } from '../../mail/mail.service';
-import { EmailJobData } from '../../interfaces/queue.interface';
+import { EMAIL_CONFIG } from '../../config/email.config';
 import { LoggerSanitizer } from '../../common/utils/logger-sanitizer.util';
-import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { EmailJobData } from '../../interfaces/queue.interface';
 
 @Processor('email')
 export class EmailProcessor {
@@ -26,11 +26,16 @@ export class EmailProcessor {
     this.logger.log(`Traitement email pour domaine ${domain}`);
 
     try {
-      // Augmenter le timeout à 120 secondes pour les connexions lentes
+      // Timeout centralisé depuis EMAIL_CONFIG
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(
-          () => reject(new Error('Timeout email après 120 secondes')),
-          120000,
+          () =>
+            reject(
+              new Error(
+                `Timeout email après ${EMAIL_CONFIG.PROCESSING.SEND_TIMEOUT / 1000} secondes`,
+              ),
+            ),
+          EMAIL_CONFIG.PROCESSING.SEND_TIMEOUT,
         );
       });
 
@@ -55,8 +60,7 @@ export class EmailProcessor {
       if (!result.success) {
         throw new Error(result.error || 'Échec envoi email');
       }
-
-      this.logger.log(`Email envoyé avec succès à ${toEmail}`);
+      this.logger.log(`Email envoyé avec succès à ${domain}`);
 
       return {
         success: true,
@@ -65,11 +69,7 @@ export class EmailProcessor {
       };
     } catch (error) {
       const errorMessage = (error as Error).message;
-      this.logger.error(
-        `Erreur envoi email à ${toEmail}`,
-        errorMessage,
-        (error as Error).stack,
-      );
+      this.logger.error(`Erreur envoi email à ${toEmail}`, errorMessage);
 
       // Gérer les erreurs de connexion spécifiques
       if (
@@ -78,17 +78,17 @@ export class EmailProcessor {
         errorMessage.includes('ECONNREFUSED')
       ) {
         this.logger.error(
-          `Problème de connexion SMTP pour ${toEmail} - tentative ${job.attemptsMade + 1}/${job.opts.attempts || 3}`,
+          `Problème de connexion SMTP pour ${domain} - tentative ${job.attemptsMade + 1}/${job.opts.attempts || 3}`,
         );
         // Ne pas marquer comme échec définitif trop rapidement
         if (job.attemptsMade < (job.opts.attempts || 3) - 1) {
-          throw error; // Retenter automatiquement
+          throw error; // Laisser BullMQ réessayer
         }
       }
 
       if (job.attemptsMade >= (job.opts.attempts || 3) - 1) {
         this.logger.error(
-          `Échec définitif d'envoi d'email à ${toEmail} après ${job.attemptsMade + 1} tentatives`,
+          `Échec définitif d'envoi d'email à ${domain} après ${job.attemptsMade + 1} tentatives`,
         );
       }
 
@@ -102,14 +102,14 @@ export class EmailProcessor {
 
     this.logger.log('Traitement de emails en bulk');
 
-    const results: {
+    const results: Array<{
       success: boolean;
       to: string | string[];
       error?: string;
-    }[] = [];
+    }> = [];
+
     for (const email of emails) {
       try {
-        // Normaliser les types pour correspondre à EmailOptions
         await this.mailService.sendEmail({
           to: email.to,
           from: email.from,
@@ -117,29 +117,21 @@ export class EmailProcessor {
           subject: email.subject,
           html: email.html,
           attachments: email.attachments,
-          cc: email.cc
-            ? Array.isArray(email.cc)
-              ? email.cc
-              : [email.cc]
-            : undefined,
-          bcc: email.bcc
-            ? Array.isArray(email.bcc)
-              ? email.bcc
-              : [email.bcc]
-            : undefined,
+          cc: email.cc,
+          bcc: email.bcc,
           replyTo: email.replyTo,
         });
         results.push({
           success: true,
           to: Array.isArray(email.to)
-            ? email.to.map((e) => LoggerSanitizer.maskEmail(e))
+            ? email.to.map((e: string) => LoggerSanitizer.maskEmail(e))
             : LoggerSanitizer.maskEmail(email.to),
         });
       } catch (error) {
         results.push({
           success: false,
           to: Array.isArray(email.to)
-            ? email.to.map((e) => LoggerSanitizer.maskEmail(e))
+            ? email.to.map((e: string) => LoggerSanitizer.maskEmail(e))
             : LoggerSanitizer.maskEmail(email.to),
           error: (error as Error).message,
         });
@@ -172,10 +164,7 @@ export class EmailProcessor {
         }
       }
     } catch (error) {
-      this.logger.error(
-        'Erreur lors du nettoyage des jobs',
-        (error as Error).message,
-      );
+      this.logger.error('Erreur lors du nettoyage des jobs', error);
     }
   }
 }
