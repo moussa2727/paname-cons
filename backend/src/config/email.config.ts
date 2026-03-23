@@ -28,6 +28,8 @@ export class EmailConfig implements OnModuleInit {
   private readonly logger = new Logger(EmailConfig.name);
 
   constructor(private configService: ConfigService) {
+    this.logger = new Logger(EmailConfig.name);
+
     const emailUser = this.configService.get<string>('EMAIL_USER');
     const emailPass = this.configService.get<string>('EMAIL_PASS');
 
@@ -37,15 +39,15 @@ export class EmailConfig implements OnModuleInit {
       );
     }
 
+    // ✅ Configuration SMTP correcte
     this.transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
         type: 'LOGIN',
-        user: this.configService.get<string>('EMAIL_USER'),
-        pass: this.configService.get<string>('EMAIL_PASS'),
+        user: emailUser,
+        pass: emailPass,
       },
       tls: {
-        ciphers: 'SSLv3',
         rejectUnauthorized: false,
       },
       connectionTimeout: 10000,
