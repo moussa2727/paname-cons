@@ -20,21 +20,21 @@ export interface EmailOptions {
 export const EMAIL_CONFIG = {
   // Timeouts SMTP (millisecondes)
   SMTP: {
-    CONNECTION_TIMEOUT: 60000, // 60s pour établir la connexion
-    GREETING_TIMEOUT: 60000, // 60s pour le handshake SMTP
-    SOCKET_TIMEOUT: 60000, // 60s pour les opérations socket
+    CONNECTION_TIMEOUT: 120000, // 120s pour établir la connexion
+    GREETING_TIMEOUT: 120000, // 120s pour le handshake SMTP
+    SOCKET_TIMEOUT: 120000, // 120s pour les opérations socket
   },
 
   // Timeouts de traitement (millisecondes)
   PROCESSING: {
-    SEND_TIMEOUT: 120000, // 120s pour l'envoi d'un email
+    SEND_TIMEOUT: 180000, // 180s pour l'envoi d'un email
     VERIFICATION_DELAY: 15000, // 15s avant vérification au démarrage
   },
 
   // Configuration BullMQ
   QUEUE: {
-    ATTEMPTS: 3,
-    BACKOFF_DELAY: 5000, // 5s entre tentatives
+    ATTEMPTS: 5, // Augmenté à 5 tentatives
+    BACKOFF_DELAY: 10000, // 10s entre tentatives
     STALLED_INTERVAL: 30000, // 30s pour vérifier les jobs bloqués
     MAX_STALLED_COUNT: 1,
     REMOVE_ON_COMPLETE: 100,
@@ -74,7 +74,7 @@ export class EmailConfig implements OnApplicationBootstrap {
       );
     }
 
-    // Configuration SMTP centralisée
+    // Configuration SMTP centralisée avec options de retry
     this.transporter = nodemailer.createTransport({
       service: 'gmail',
       family: EMAIL_CONFIG.SMTP_CONFIG.FAMILY,
@@ -93,6 +93,12 @@ export class EmailConfig implements OnApplicationBootstrap {
       connectionTimeout: EMAIL_CONFIG.SMTP.CONNECTION_TIMEOUT,
       greetingTimeout: EMAIL_CONFIG.SMTP.GREETING_TIMEOUT,
       socketTimeout: EMAIL_CONFIG.SMTP.SOCKET_TIMEOUT,
+      tls: {
+        rejectUnauthorized: false, // Pour les connexions Gmail
+      },
+      pool: true, // Activer le pool de connexions
+      maxConnections: 5, // Limiter les connexions simultanées
+      maxMessages: 100, // Messages par connexion
     } as nodemailer.TransportOptions);
 
     this.fromEmail = emailUser || '';
