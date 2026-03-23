@@ -15,12 +15,21 @@ export interface EmailOptions {
   attachments?: nodemailer.SendMailOptions['attachments'];
 }
 
+export interface Status {
+  available: boolean;
+  message: string;
+  host: string;
+  port: number;
+  secure: boolean;
+  fromEmail: string;
+}
+
 // ==================== CONFIGURATION CENTRALISÉE EMAIL ====================
 
 export const EMAIL_CONFIG = {
   // Timeouts SMTP (millisecondes)
   SMTP: {
-    CONNECTION_TIMEOUT: 120000, // 120s pour établir la connexion
+    CONNECTION_TIMEOUT: 30000,
     GREETING_TIMEOUT: 120000, // 120s pour le handshake SMTP
     SOCKET_TIMEOUT: 120000, // 120s pour les opérations socket
   },
@@ -43,8 +52,9 @@ export const EMAIL_CONFIG = {
 
   // Ports et protocoles
   SMTP_CONFIG: {
+    service: 'gmail',
     HOST: 'smtp.gmail.com',
-    PORT: 587,
+    PORT: parseInt(process.env.EMAIL_PORT || '587'),
     SECURE: false,
     FAMILY: 4, // Forcer IPv4
   },
@@ -65,8 +75,10 @@ export class EmailConfig implements OnApplicationBootstrap {
   constructor(private configService: ConfigService) {
     this.logger = new Logger(EmailConfig.name);
 
-    const emailUser = this.configService.get<string>('EMAIL_USER');
-    const emailPass = this.configService.get<string>('EMAIL_PASS');
+    const emailUser =
+      process.env.EMAIL_USER || this.configService.get<string>('EMAIL_USER');
+    const emailPass =
+      process.env.EMAIL_PASS || this.configService.get<string>('EMAIL_PASS');
 
     if (!emailUser || !emailPass) {
       this.logger.warn(
@@ -76,19 +88,15 @@ export class EmailConfig implements OnApplicationBootstrap {
 
     // Configuration SMTP centralisée avec options de retry
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
+      service: EMAIL_CONFIG.SMTP_CONFIG.service,
       family: EMAIL_CONFIG.SMTP_CONFIG.FAMILY,
       host: EMAIL_CONFIG.SMTP_CONFIG.HOST,
       port: EMAIL_CONFIG.SMTP_CONFIG.PORT,
       secure: EMAIL_CONFIG.SMTP_CONFIG.SECURE,
       auth: {
         type: 'LOGIN',
-        user:
-          process.env.EMAIL_USER ||
-          this.configService.get<string>('EMAIL_USER'),
-        pass:
-          process.env.EMAIL_PASS ||
-          this.configService.get<string>('EMAIL_PASS'),
+        user: emailUser,
+        pass: emailPass,
       },
       connectionTimeout: EMAIL_CONFIG.SMTP.CONNECTION_TIMEOUT,
       greetingTimeout: EMAIL_CONFIG.SMTP.GREETING_TIMEOUT,
@@ -175,24 +183,54 @@ export class EmailConfig implements OnApplicationBootstrap {
 
   // ==================== UTILITAIRES ====================
 
+  isServiceAvailable(): boolean {
+    const emailUser =
+      process.env.EMAIL_USER || this.configService.get<string>('EMAIL_USER');
+    const emailPass =
+      process.env.EMAIL_PASS || this.configService.get<string>('EMAIL_PASS');
+
+    if (!emailUser || !emailPass) {
+      return false;
+    }
+    return true;
+  }
+
+  getStatus(): Status {
+    const emailUser =
+      process.env.EMAIL_USER || this.configService.get<string>('EMAIL_USER');
+
+    return {
+      available: this.isServiceAvailable(),
+      message: this.isServiceAvailable()
+        ? 'Service disponible'
+        : 'Service non configuré',
+      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.EMAIL_PORT || '587'),
+      secure: process.env.EMAIL_PORT === '465',
+      fromEmail: emailUser || 'Non configuré',
+    };
+  }
+
   async testConnection(): Promise<{ success: boolean; message: string }> {
     try {
+      const isAvailable = this.isServiceAvailable();
+      if (!isAvailable) {
+        return {
+          success: false,
+          message: 'Service non configuré (EMAIL_USER ou EMAIL_PASS manquant)',
+        };
+      }
+
       await this.transporter.verify();
-      return { success: true, message: 'Connexion GMAIL réussie' };
+      return {
+        success: true,
+        message: 'Connexion SMTP réussie',
+      };
     } catch (error) {
       return {
         success: false,
-        message: `Échec de connexion: ${(error as Error).message}`,
+        message: `Erreur de connexion SMTP: ${(error as Error).message}`,
       };
     }
-  }
-
-  getStatus(): { available: boolean; message: string } {
-    return {
-      available: !!this.fromEmail,
-      message: this.fromEmail
-        ? 'Service GMAIL configuré et prêt'
-        : 'Service GMAIL non configuré',
-    };
   }
 }
