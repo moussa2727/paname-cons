@@ -2,10 +2,12 @@ import { Logger } from '@nestjs/common';
 import { Processor, InjectQueue, Process } from '@nestjs/bull';
 import { Job } from 'bull';
 import { MailService } from '../../mail/mail.service';
-import { EMAIL_CONFIG } from '../../config/email.config';
 import { LoggerSanitizer } from '../../common/utils/logger-sanitizer.util';
 import { Queue } from 'bull';
 import { EmailJobData } from '../../interfaces/queue.interface';
+
+// Timeout d'envoi d'email en millisecondes (3 minutes)
+const EMAIL_SEND_TIMEOUT = 180000;
 
 @Processor('email')
 export class EmailProcessor {
@@ -26,16 +28,16 @@ export class EmailProcessor {
     this.logger.log(`Traitement email pour domaine ${domain}`);
 
     try {
-      // Timeout centralisé depuis EMAIL_CONFIG
+      // Timeout pour l'envoi d'email
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(
           () =>
             reject(
               new Error(
-                `Timeout email après ${EMAIL_CONFIG.PROCESSING.SEND_TIMEOUT / 1000} secondes`,
+                `Timeout email après ${EMAIL_SEND_TIMEOUT / 1000} secondes`,
               ),
             ),
-          EMAIL_CONFIG.PROCESSING.SEND_TIMEOUT,
+          EMAIL_SEND_TIMEOUT,
         );
       });
 
