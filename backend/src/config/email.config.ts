@@ -69,7 +69,7 @@ export class EmailConfig implements OnApplicationBootstrap {
     //  Vérification asynchrone après démarrage complet du serveur
     setTimeout(() => {
       void this.verifyConnection();
-    }, 1000); // Délai de 1s après démarrage
+    }, 5000); // Délai de 1s après démarrage
   }
 
   private async verifyConnection() {
