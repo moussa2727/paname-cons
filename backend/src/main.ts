@@ -4,23 +4,6 @@ import {
   promises as dnsPromises,
   LookupAddress,
 } from 'dns';
-setDefaultResultOrder('ipv4first');
-
-void dnsPromises
-  .lookup('smtp.gmail.com', { all: true })
-  .then((addresses: LookupAddress[]) => {
-    const ipv4Only = addresses.filter((a) => a.family === 4);
-    if (ipv4Only.length === 0) {
-      console.warn('[DNS] Aucune adresse IPv4 trouvee pour smtp.gmail.com');
-    } else {
-      console.log(
-        `[DNS] IPv4 force -- ${ipv4Only.map((a) => a.address).join(', ')}`,
-      );
-    }
-  })
-  .catch(() => {
-    console.warn('[DNS] Verification IPv4 non bloquante echouee');
-  });
 
 import { NestFactory } from '@nestjs/core';
 
@@ -63,6 +46,24 @@ async function bootstrap() {
   if (httpAdapter?.set) {
     httpAdapter.set('trust proxy', 1);
   }
+
+  setDefaultResultOrder('ipv4first');
+
+  void dnsPromises
+    .lookup('smtp.gmail.com', { all: true })
+    .then((addresses: LookupAddress[]) => {
+      const ipv4Only = addresses.filter((a) => a.family === 4);
+      if (ipv4Only.length === 0) {
+        console.warn('[DNS] Aucune adresse IPv4 trouvee pour smtp.gmail.com');
+      } else {
+        console.log(
+          `[DNS] IPv4 force -- ${ipv4Only.map((a) => a.address).join(', ')}`,
+        );
+      }
+    })
+    .catch(() => {
+      console.warn('[DNS] Verification IPv4 non bloquante echouee');
+    });
   app.use(
     helmet.default({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
