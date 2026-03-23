@@ -3,7 +3,7 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Installer openssl pour Prisma (nécessaire pour certaines bases de données)
+# Installer openssl pour Prisma avec PostgreSQL
 RUN apk add --no-cache openssl
 
 COPY package.json pnpm-lock.yaml* ./
@@ -14,7 +14,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 # Générer le client Prisma
-RUN npx prisma generate
+RUN pnpm prisma generate
 
 # Build de l'application
 RUN pnpm build
@@ -35,8 +35,9 @@ ENV CLOUDINARY_URL=${CLOUDINARY_URL}
 ENV DATABASE_URL=${DATABASE_URL}
 ENV PORT=10000
 
-# Installer openssl pour Prisma en production
-RUN apk add --no-cache openssl
+# Installer openssl pour PostgreSQL et Prisma
+# Installer postgresql-client pour les commandes PostgreSQL (optionnel)
+RUN apk add --no-cache openssl postgresql-client
 
 WORKDIR /app
 
@@ -50,7 +51,7 @@ RUN pnpm install --prod --frozen-lockfile
 # Copier le build
 COPY --from=builder /app/dist ./dist
 
-# Copier les fichiers Prisma (schéma et client généré)
+# Copier les fichiers Prisma
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
@@ -63,6 +64,6 @@ USER node
 
 EXPOSE 10000
 
-# Commande de démarrage avec génération du client Prisma (optionnel)
-# Si vous avez des migrations à exécuter au démarrage
+# Commande de démarrage avec génération du client Prisma
+# Les migrations doivent être exécutées manuellement ou via CI/CD
 CMD ["pnpm prisma generate && node dist/src/main.js"]
