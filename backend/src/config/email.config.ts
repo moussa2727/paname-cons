@@ -43,6 +43,9 @@ export class EmailConfig implements OnApplicationBootstrap {
     this.transporter = nodemailer.createTransport({
       service: 'gmail',
       family: 4,
+      host: 'smtp.gmail.com',
+      port: '587',
+      secure: 'false',
       auth: {
         type: 'LOGIN',
         user:
@@ -66,7 +69,7 @@ export class EmailConfig implements OnApplicationBootstrap {
     //  Vérification asynchrone après démarrage complet du serveur
     setTimeout(() => {
       void this.verifyConnection();
-    }, 5000); // Délai de 1s après démarrage
+    }, 15000); // Délai de tentative après démarrage
   }
 
   private async verifyConnection() {

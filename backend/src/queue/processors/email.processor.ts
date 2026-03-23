@@ -21,7 +21,9 @@ export class EmailProcessor {
     const { data } = job;
 
     const toEmail = Array.isArray(data.to) ? data.to.join(', ') : data.to;
-    this.logger.log(`Traitement email pour ${toEmail}`);
+    // mail caché dans les logs
+    const domain = toEmail.split('@')[1];
+    this.logger.log(`Traitement email pour domaine ${domain}`);
 
     try {
       // Augmenter le timeout à 120 secondes pour les connexions lentes
