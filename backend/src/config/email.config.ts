@@ -39,7 +39,7 @@ export class EmailConfig implements OnModuleInit {
       );
     }
 
-    // ✅ Configuration SMTP correcte
+    // Configuration SMTP correcte
     this.transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       service: 'gmail',
