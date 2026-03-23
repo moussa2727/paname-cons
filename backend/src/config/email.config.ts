@@ -44,9 +44,8 @@ export class EmailConfig implements OnModuleInit {
       service: 'gmail',
       family: 4,
       host: 'smtp.gmail.com',
-      secure: true,
-      port: 456,
       auth: {
+        type: 'LOGIN',
         user:
           process.env.EMAIL_USER ||
           this.configService.get<string>('EMAIL_USER'),
@@ -54,12 +53,6 @@ export class EmailConfig implements OnModuleInit {
           process.env.EMAIL_PASS ||
           this.configService.get<string>('EMAIL_PASS'),
       },
-      tls: {
-        rejectUnauthorized: false,
-      },
-      connectionTimeout: 12000,
-      greetingTimeout: 12000,
-      socketTimeout: 12000,
     } as nodemailer.TransportOptions);
 
     this.fromEmail = emailUser || '';
