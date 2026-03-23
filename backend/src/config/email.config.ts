@@ -37,7 +37,7 @@ export const EMAIL_CONFIG = {
   // Timeouts de traitement (millisecondes)
   PROCESSING: {
     SEND_TIMEOUT: 180000, // 180s pour l'envoi d'un email
-    VERIFICATION_DELAY: 60000, // 15s avant vérification au démarrage
+    VERIFICATION_DELAY: 25000, // 25s avant vérification au démarrage
   },
 
   // Configuration BullMQ
