@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { LoggerSanitizer } from '../common/utils/logger-sanitizer.util';
@@ -21,7 +21,7 @@ export interface EmailOptions {
  * MailService et tout autre service injectent EmailConfig pour envoyer.
  */
 @Injectable()
-export class EmailConfig implements OnModuleInit {
+export class EmailConfig implements OnApplicationBootstrap {
   private transporter: nodemailer.Transporter;
   readonly fromEmail: string;
   readonly fromName: string = 'Paname Consulting';
@@ -44,6 +44,8 @@ export class EmailConfig implements OnModuleInit {
       service: 'gmail',
       family: 4,
       host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
       auth: {
         type: 'LOGIN',
         user:
@@ -53,6 +55,9 @@ export class EmailConfig implements OnModuleInit {
           process.env.EMAIL_PASS ||
           this.configService.get<string>('EMAIL_PASS'),
       },
+      connectionTimeout: 60000,
+      greetingTimeout: 60000,
+      socketTimeout: 60000,
     } as nodemailer.TransportOptions);
 
     this.fromEmail = emailUser || '';
@@ -60,13 +65,20 @@ export class EmailConfig implements OnModuleInit {
 
   // ==================== INIT ====================
 
-  async onModuleInit() {
+  onApplicationBootstrap() {
+    //  Vérification asynchrone après démarrage complet du serveur
+    setTimeout(() => {
+      void this.verifyConnection();
+    }, 1000); // Délai de 1s après démarrage
+  }
+
+  private async verifyConnection() {
     try {
       await this.transporter.verify();
-      this.logger.log('Gmail SMTP connecté avec succès');
+      this.logger.log(' Gmail SMTP connecté avec succès');
     } catch (error) {
       this.logger.error(
-        `Gmail SMTP échec de connexion: ${(error as Error).message}`,
+        ` Gmail SMTP échec de connexion: ${(error as Error).message}`,
       );
     }
   }
