@@ -1,5 +1,5 @@
 # ============ BUILD ============
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -21,10 +21,23 @@ RUN pnpm build
 
 
 # ============ PRODUCTION ============
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 
 ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
+ENV PORT=10000
+
+# Utiliser ARG pour les variables d'environnement (mais pas ENV pour les secrets)
+ARG EMAIL_USER
+ARG EMAIL_PASS
+ARG REDIS_URL
+ARG JWT_SECRET
+ARG JWT_EXPIRES_IN
+ARG COOKIE_SECRET
+ARG CLOUDINARY_URL
+ARG DATABASE_URL
+
+# Passer les ARG en ENV
 ENV EMAIL_USER=${EMAIL_USER}
 ENV EMAIL_PASS=${EMAIL_PASS}
 ENV REDIS_URL=${REDIS_URL}
@@ -33,11 +46,9 @@ ENV JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
 ENV COOKIE_SECRET=${COOKIE_SECRET}
 ENV CLOUDINARY_URL=${CLOUDINARY_URL}
 ENV DATABASE_URL=${DATABASE_URL}
-ENV PORT=10000
 
 # Installer openssl pour PostgreSQL et Prisma
-# Installer postgresql-client pour les commandes PostgreSQL (optionnel)
-RUN apk add --no-cache openssl postgresql-client
+RUN apk add --no-cache openssl
 
 WORKDIR /app
 
@@ -51,7 +62,7 @@ RUN pnpm install --prod --frozen-lockfile
 # Copier le build
 COPY --from=builder /app/dist ./dist
 
-# Copier les fichiers Prisma
+# Copier les fichiers Prisma (déjà générés)
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
@@ -64,6 +75,5 @@ USER node
 
 EXPOSE 10000
 
-# Commande de démarrage avec génération du client Prisma
-# Les migrations doivent être exécutées manuellement ou via CI/CD
-CMD ["pnpm prisma generate && node dist/src/main.js"]
+# Commande simple - Prisma est déjà généré dans le build
+CMD ["node", "dist/src/main.js"]
