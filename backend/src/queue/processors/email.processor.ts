@@ -71,7 +71,7 @@ export class EmailProcessor {
       };
     } catch (error) {
       const errorMessage = (error as Error).message;
-      this.logger.error(`Erreur envoi email à ${toEmail}`, errorMessage);
+      this.logger.error(`Erreur d'envoi d'email à ${domain}`, errorMessage);
 
       // Gérer les erreurs de connexion spécifiques
       if (
