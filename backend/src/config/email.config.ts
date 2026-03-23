@@ -44,8 +44,12 @@ export class EmailConfig implements OnModuleInit {
       service: 'gmail',
       auth: {
         type: 'LOGIN',
-        user: emailUser,
-        pass: emailPass,
+        user:
+          process.env.EMAIL_USER ||
+          this.configService.get<string>('EMAIL_USER'),
+        pass:
+          process.env.EMAIL_USER ||
+          this.configService.get<string>('EMAIL_PASS'),
       },
       tls: {
         rejectUnauthorized: false,
