@@ -1,4 +1,4 @@
-import { Module, ValidationPipe } from '@nestjs/common';
+import { Module, ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bull';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -37,6 +37,31 @@ import configuration from './config/configuration';
 import { APP_GUARD, APP_PIPE, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { AppController } from './app.controller';
 
+// ==================== VALIDATION GLOBALE EMAIL ====================
+
+const EmailEnvValidatorProvider = {
+  provide: 'EMAIL_ENV_VALIDATOR',
+  inject: [ConfigService],
+  useFactory: (config: ConfigService): void => {
+    const logger = new Logger('EmailEnvValidator');
+    const user = config.get<string>('EMAIL_USER');
+    const pass = config.get<string>('EMAIL_PASS');
+
+    if (!user || !pass) {
+      logger.error(
+        ' EMAIL_USER ou EMAIL_PASS manquant — les emails ne fonctionneront pas',
+      );
+      logger.error(
+        '   → Définissez EMAIL_USER et EMAIL_PASS dans votre fichier .env',
+      );
+    } else {
+      logger.log(
+        ` SMTP configuré — ${user.substring(0, 3)}***@${user.split('@')[1]}`,
+      );
+    }
+  },
+};
+
 @Module({
   imports: [
     // ==================== CONFIGURATION ====================
@@ -44,6 +69,10 @@ import { AppController } from './app.controller';
       load: [configuration],
       isGlobal: true,
       envFilePath: '.env',
+      validationOptions: {
+        allowUnknown: true,
+        abortEarly: false,
+      },
     }),
 
     // ==================== RATE LIMITING ====================
@@ -70,7 +99,6 @@ import { AppController } from './app.controller';
       useFactory: (config: ConfigService) => {
         const redisConfig = config.get<RedisConfig>('redis');
         if (!redisConfig.enabled) {
-          // Return minimal config when Redis is disabled
           return {
             redis: undefined,
             disableProcessManagement: true,
@@ -115,6 +143,9 @@ import { AppController } from './app.controller';
   controllers: [AppController],
 
   providers: [
+    // ==================== VALIDATION EMAIL AU BOOT ====================
+    EmailEnvValidatorProvider,
+
     // ==================== GUARDS GLOBAUX (ordre important) ====================
     {
       provide: APP_GUARD,
@@ -160,4 +191,6 @@ import { AppController } from './app.controller';
 
   exports: [ConfigModule],
 })
-export class AppModule {}
+export class AppModule {
+  // exporting appmodule
+}
