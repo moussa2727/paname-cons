@@ -54,9 +54,9 @@ export class EmailConfig implements OnModuleInit {
       tls: {
         rejectUnauthorized: false,
       },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
+      connectionTimeout: 25000,
+      greetingTimeout: 20000,
+      socketTimeout: 25000,
     });
 
     this.fromEmail = emailUser || '';
