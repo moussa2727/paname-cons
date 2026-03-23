@@ -29,7 +29,7 @@ export interface Status {
 export const EMAIL_CONFIG = {
   // Timeouts SMTP (millisecondes)
   SMTP: {
-    CONNECTION_TIMEOUT: 30000,
+    CONNECTION_TIMEOUT: 120000,
     GREETING_TIMEOUT: 120000, // 120s pour le handshake SMTP
     SOCKET_TIMEOUT: 120000, // 120s pour les opérations socket
   },
@@ -37,7 +37,7 @@ export const EMAIL_CONFIG = {
   // Timeouts de traitement (millisecondes)
   PROCESSING: {
     SEND_TIMEOUT: 180000, // 180s pour l'envoi d'un email
-    VERIFICATION_DELAY: 15000, // 15s avant vérification au démarrage
+    VERIFICATION_DELAY: 60000, // 15s avant vérification au démarrage
   },
 
   // Configuration BullMQ
