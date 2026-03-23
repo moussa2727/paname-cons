@@ -11,27 +11,32 @@ const execAsync = promisify(exec);
 @Injectable()
 export class DatabaseBackupCron {
   private readonly logger = new Logger(DatabaseBackupCron.name);
-  private readonly backupPath = '/app/backend/backups';
+  private readonly backupPath: string;
 
   constructor(private configService: ConfigService) {
-    // Créer le dossier backups s'il n'existe pas
+    this.backupPath = '/data/backups';
+
+    this.createBackupDirectory();
+  }
+
+  private createBackupDirectory() {
     if (!fs.existsSync(this.backupPath)) {
       fs.mkdirSync(this.backupPath, { recursive: true });
+      this.logger.log(`Dossier backups créé: ${this.backupPath}`);
     }
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async backupDatabase() {
-    this.logger.log('💾 Début de la sauvegarde de la base de données...');
+    this.logger.log(`💾 Début de la sauvegarde de la base de données...`);
+    this.logger.log(`Chemin de sauvegarde: ${this.backupPath}`);
 
     try {
       const date = new Date();
       const filename = `backup-${date.toISOString().split('T')[0]}.sql`;
       const filepath = path.join(this.backupPath, filename);
 
-      // Récupérer l'URL de la base de données
       const dbUrl = this.configService.get<string>('DATABASE_URL');
-
       if (!dbUrl) {
         throw new Error('DATABASE_URL non configuré');
       }
@@ -46,37 +51,47 @@ export class DatabaseBackupCron {
 
       const [, user, password, host, port, database] = matches;
 
-      // Commande pg_dump adaptée pour l'environnement Docker/Linux
+      // Commande pg_dump
       const command = `PGPASSWORD="${password}" pg_dump -U ${user} -h ${host} -p ${port} ${database} > ${filepath}`;
 
-      // Logger sans exposer le mot de passe
-      this.logger.log(`Exécution de la sauvegarde`);
-      await execAsync(command);
+      this.logger.log(`Exécution de la sauvegarde vers ${filepath}`);
+      await execAsync(command, { timeout: 300000 });
 
-      this.logger.log(`Sauvegarde réussie: ${filename}`);
+      this.logger.log(
+        `✅ Sauvegarde réussie: ${filename} (${fs.statSync(filepath).size} bytes)`,
+      );
 
-      // Nettoyer les vieilles sauvegardes (garder 7 jours)
       this.cleanupOldBackups();
     } catch (error) {
       this.logger.error(`Erreur sauvegarde: ${(error as Error).message}`);
+      this.logger.error(`Stack: ${(error as Error).stack}`);
     }
   }
 
   private cleanupOldBackups() {
     try {
+      if (!fs.existsSync(this.backupPath)) {
+        this.logger.warn(`Dossier backups n'existe pas: ${this.backupPath}`);
+        return;
+      }
+
       const files = fs.readdirSync(this.backupPath);
       const now = Date.now();
       const sevenDays = 7 * 24 * 60 * 60 * 1000;
+      let deletedCount = 0;
 
       for (const file of files) {
         const filepath = path.join(this.backupPath, file);
         const stats = fs.statSync(filepath);
 
-        // Supprimer les fichiers plus vieux que 7 jours
         if (now - stats.mtimeMs > sevenDays) {
           fs.unlinkSync(filepath);
+          deletedCount++;
           this.logger.log(`Ancien backup supprimé: ${file}`);
         }
+      }
+      if (deletedCount > 0) {
+        this.logger.log(`${deletedCount} anciens backups supprimés`);
       }
     } catch (error) {
       this.logger.error(
