@@ -41,11 +41,11 @@ export class EmailConfig implements OnModuleInit {
 
     // Configuration SMTP correcte
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
       port: 587,
       secure: false,
+      family: 4,
       auth: {
-        type: 'LOGIN',
         user:
           process.env.EMAIL_USER ||
           this.configService.get<string>('EMAIL_USER'),
@@ -55,12 +55,11 @@ export class EmailConfig implements OnModuleInit {
       },
       tls: {
         rejectUnauthorized: false,
-        ciphers: 'SSLv3',
       },
       connectionTimeout: 60000,
       greetingTimeout: 60000,
       socketTimeout: 60000,
-    });
+    } as nodemailer.TransportOptions);
 
     this.fromEmail = emailUser || '';
   }
