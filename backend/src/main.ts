@@ -1,3 +1,5 @@
+// forcing ipv4
+import { setDefaultResultOrder } from 'dns';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
@@ -17,6 +19,7 @@ const corsOrigins =
         'https://panameconsulting.vercel.app',
       ]
     : ['http://localhost:5173', 'http://localhost:10000'];
+setDefaultResultOrder('ipv4first');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {

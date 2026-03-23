@@ -21,6 +21,7 @@ export interface EmailOptions {
   bcc?: string | string[];
   attachments?: nodemailer.SendMailOptions['attachments'];
   priority?: 'high' | 'normal' | 'low';
+  family?: 4;
 }
 
 export interface Status {
