@@ -1,6 +1,20 @@
 // forcing ipv4
-import { setDefaultResultOrder } from 'dns';
+import { setDefaultResultOrder, promises as dnsPromises } from 'dns';
 setDefaultResultOrder('ipv4first');
+// Verify the setting was applied
+const verifyIPv4 = async (): Promise<void> => {
+  try {
+    const addresses = await dnsPromises.lookup('smtp.gmail.com', { all: true });
+    const hasIPv4 = addresses.some((addr) => addr.family === 4);
+    if (!hasIPv4) {
+      console.error('[DNS] Warning: No IPv4 address found for smtp.gmail.com');
+    }
+  } catch {
+    // Non-blocking — app continues even if verification fails
+  }
+};
+
+void verifyIPv4();
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
