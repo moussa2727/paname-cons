@@ -42,7 +42,7 @@ export class EmailConfig implements OnModuleInit {
       auth: {
         type: 'LOGIN',
         user: this.configService.get<string>('EMAIL_USER'),
-        pass: this.configService.get<string>('EMAIL_PASSm'),
+        pass: this.configService.get<string>('EMAIL_PASS'),
       },
       tls: {
         ciphers: 'SSLv3',
