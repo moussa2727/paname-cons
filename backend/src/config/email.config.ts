@@ -41,7 +41,10 @@ export class EmailConfig implements OnModuleInit {
 
     // ✅ Configuration SMTP correcte
     this.transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
       service: 'gmail',
+      port: 587,
+      secure: false,
       auth: {
         type: 'LOGIN',
         user:
@@ -53,6 +56,7 @@ export class EmailConfig implements OnModuleInit {
       },
       tls: {
         rejectUnauthorized: false,
+        ciphers: 'SSLv3',
       },
       connectionTimeout: 25000,
       greetingTimeout: 20000,
