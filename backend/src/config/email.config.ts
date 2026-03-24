@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import * as SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { LoggerSanitizer } from '../common/utils/logger-sanitizer.util';
+import { promises as dnsPromises } from 'dns';
 
 export interface EmailOptions {
   to: string | string[];
@@ -77,6 +78,28 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     );
   }
 
+  private async getIPv4Addresses(hostname: string): Promise<string[]> {
+    try {
+      const addresses = await dnsPromises.lookup(hostname, { all: true });
+      const ipv4Addresses = addresses
+        .filter((addr) => addr.family === 4)
+        .map((addr) => addr.address);
+
+      if (ipv4Addresses.length > 0) {
+        this.logger.log(
+          `IPv4 résolus pour ${hostname}: ${ipv4Addresses.join(', ')}`,
+        );
+        return ipv4Addresses;
+      } else {
+        this.logger.warn(`Aucune adresse IPv4 trouvée pour ${hostname}`);
+        return [];
+      }
+    } catch (error) {
+      this.logger.error(`Erreur résolution DNS pour ${hostname}: ${error}`);
+      return [];
+    }
+  }
+
   private async initialize(): Promise<void> {
     const emailUser = this.getEmailUser();
     const emailPass = this.getEmailPass();
@@ -89,61 +112,81 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     try {
       this.logger.log(`Tentative connexion SMTP pour: ${emailUser}`);
 
-      // Try multiple configurations in order of preference
-      const configs = [
-        // Config 1: Explicit SMTP with STARTTLS (preferred)
-        {
-          host: 'smtp.gmail.com',
-          port: 587,
-          secure: false,
-          requireTLS: true,
-          auth: { type: 'Login', user: emailUser, pass: emailPass },
-          connectionTimeout: 30000,
-          greetingTimeout: 15000,
-          socketTimeout: 30000,
-          debug: true,
-          logger: true,
-          tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' },
-          ...({ family: 4 } as Record<string, unknown>),
-        },
-        // Config 2: SSL on port 465
-        {
-          host: 'smtp.gmail.com',
-          port: 465,
-          secure: true,
-          auth: { type: 'Login', user: emailUser, pass: emailPass },
-          connectionTimeout: 30000,
-          greetingTimeout: 15000,
-          socketTimeout: 30000,
-          debug: true,
-          logger: true,
-          tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' },
-          ...({ family: 4 } as Record<string, unknown>),
-        },
-        // Config 3: Gmail service (fallback)
-        {
-          service: 'gmail',
-          auth: { type: 'Login', user: emailUser, pass: emailPass },
-          connectionTimeout: 30000,
-          greetingTimeout: 15000,
-          socketTimeout: 30000,
-          debug: true,
-          logger: true,
-          tls: { rejectUnauthorized: false },
-          ...({ family: 4 } as Record<string, unknown>),
-        },
-      ] as SMTPTransport.Options[];
+      // Get IPv4 addresses for Gmail SMTP
+      const ipv4Addresses = await this.getIPv4Addresses('smtp.gmail.com');
+
+      if (ipv4Addresses.length === 0) {
+        this.logger.error(
+          'Impossible de résoudre les adresses IPv4 pour smtp.gmail.com',
+        );
+        return;
+      }
+
+      const configs = ipv4Addresses.flatMap(
+        (ip) =>
+          [
+            // Config 1: Explicit SMTP with STARTTLS on port 587 (preferred)
+            {
+              host: ip,
+              port: 587,
+              secure: false,
+              requireTLS: true,
+              auth: { type: 'Login', user: emailUser, pass: emailPass },
+              connectionTimeout: 30000,
+              greetingTimeout: 15000,
+              socketTimeout: 30000,
+              debug: true,
+              logger: true,
+              tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' },
+            },
+            // Config 2: SSL on port 465
+            {
+              host: ip,
+              port: 465,
+              secure: true,
+              auth: { type: 'Login', user: emailUser, pass: emailPass },
+              connectionTimeout: 30000,
+              greetingTimeout: 15000,
+              socketTimeout: 30000,
+              debug: true,
+              logger: true,
+              tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' },
+            },
+          ] as SMTPTransport.Options[],
+      );
+
+      // Add fallback Gmail service config
+      configs.push({
+        service: 'gmail',
+        auth: { type: 'Login', user: emailUser, pass: emailPass },
+        connectionTimeout: 30000,
+        greetingTimeout: 15000,
+        socketTimeout: 30000,
+        debug: true,
+        logger: true,
+        tls: { rejectUnauthorized: false },
+      } as SMTPTransport.Options);
 
       let lastError: Error | null = null;
 
       for (let i = 0; i < configs.length; i++) {
         try {
-          this.logger.log(`Tentative configuration ${i + 1}/${configs.length}`);
-          this.transporter = nodemailer.createTransport(configs[i]);
+          const config = configs[i];
+          const configName =
+            'host' in config
+              ? `${config.host}:${config.port}`
+              : 'gmail service';
+          this.logger.log(
+            `Tentative configuration ${i + 1}/${configs.length} (${configName})`,
+          );
+
+          this.transporter = nodemailer.createTransport(config);
 
           await this.transporter.verify();
           this.isAvailable = true;
-          this.logger.log(`Service SMTP Gmail opérationnel (config ${i + 1})`);
+          this.logger.log(
+            `Service SMTP Gmail opérationnel (config ${i + 1} - ${configName})`,
+          );
           return;
         } catch (error) {
           lastError =
@@ -172,7 +215,7 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
         this.logger.error('Solutions possibles:');
         this.logger.error('1. Vérifiez votre connexion internet');
         this.logger.error(
-          "2. Vérifiez que le port 587 n'est pas bloqué par votre firewall",
+          '2. Vérifiez que les ports 587/465 ne sont pas bloqués par votre firewall',
         );
         this.logger.error(
           '3. Vérifiez que vous utilisez un mot de passe application Gmail',
