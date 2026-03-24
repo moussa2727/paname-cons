@@ -149,8 +149,6 @@ const Procedures = () => {
 
   // Debug pour voir les statistiques
   console.log("Statistics:", statistics);
-  console.log("Is Admin:", isAdmin);
-  console.log("Loading Stats:", loadingStats);
 
   // ─── Données pour les filtres (depuis les stats du backend) ────────────
   const destinations = useMemo(() => {
@@ -678,13 +676,25 @@ const Procedures = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {loading ? (
+                {!loading && !error && procedures.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-12 text-center">
-                      <Loader loading={true} size="md" />
+                      <div className="text-gray-500">
+                        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Search className="w-6 h-6 text-gray-400" />
+                        </div>
+                        <p className="text-lg font-medium mb-2">
+                          Aucune procédure trouvée
+                        </p>
+                        <p className="text-sm">
+                          {hasActiveFilters
+                            ? "Essayez de modifier vos filtres de recherche"
+                            : "Aucune procédure n'a encore été créée"}
+                        </p>
+                      </div>
                     </td>
                   </tr>
-                ) : error ? (
+                ) : loading ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-12 text-center">
                       <div className="text-red-500">

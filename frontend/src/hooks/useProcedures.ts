@@ -169,10 +169,14 @@ export function useProcedures(
 
   // ── Helpers ───────────────────────────────────────────────────────
   const setLoad = useCallback(
-    (k: keyof ProcedureLoadingState, v: boolean) =>
-      setLoading((prev: ProcedureLoadingState) => ({ ...prev, [k]: v })),
+    (k: keyof ProcedureLoadingState, v: boolean) => {
+      console.log(`🔍 setLoad called: ${k} = ${v}`);
+      setLoading((prev: ProcedureLoadingState) => ({ ...prev, [k]: v }));
+    },
     [],
   );
+
+  // Debug pour suivre les changements de loading
 
   const syncPagination = useCallback((res: PaginatedProcedureResponseDto) => {
     if (!res) return;
@@ -191,6 +195,7 @@ export function useProcedures(
   // ─────────────────────────────────────────────────────────────────────────
   const loadProcedures = useCallback(
     async (override?: ProcedureQueryDto) => {
+      console.log("🔍 loadProcedures called with:", override);
       if (loadingRef.current) return;
       loadingRef.current = true;
       setLoad("list", true);
@@ -198,9 +203,11 @@ export function useProcedures(
 
       try {
         const merged = { ...query, ...override };
+        console.log("🔍 Merged query:", merged);
         const res = await ProceduresService.findAll(merged);
 
         if (!res || !Array.isArray(res.data)) {
+          console.log("🔍 No data or not array");
           setProcedures([]);
           syncPagination({
             data: [],
@@ -217,6 +224,7 @@ export function useProcedures(
         setProcedures(res.data);
         syncPagination(res);
       } catch (err: unknown) {
+        console.log("🔍 Error in loadProcedures:", err);
         setError(
           err instanceof Error ? err.message : "Erreur lors du chargement",
         );
