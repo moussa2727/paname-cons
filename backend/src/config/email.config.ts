@@ -86,15 +86,20 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     }
 
     try {
+      this.logger.log(`Tentative connexion SMTP pour: ${emailUser}`);
+
       this.transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
+          type: 'Login',
           user: emailUser,
           pass: emailPass,
         },
-        connectionTimeout: 10000,
-        greetingTimeout: 5000,
-        socketTimeout: 15000,
+        connectionTimeout: 30000,
+        greetingTimeout: 15000,
+        socketTimeout: 30000,
+        debug: true,
+        logger: true,
       });
 
       await this.transporter.verify();
@@ -104,6 +109,17 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       const errorMessage =
         error instanceof Error ? error.message : 'Erreur inconnue';
       this.logger.error(`Échec initialisation SMTP: ${errorMessage}`);
+
+      if (error instanceof Error && error.message.includes('timeout')) {
+        this.logger.error('Solutions possibles:');
+        this.logger.error('1. Vérifiez votre connexion internet');
+        this.logger.error(
+          "2. Vérifiez que le port 587 n'est pas bloqué par votre firewall",
+        );
+        this.logger.error(
+          '3. Vérifiez que vous utilisez un mot de passe application Gmail',
+        );
+      }
     }
   }
 
