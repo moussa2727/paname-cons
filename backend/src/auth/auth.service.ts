@@ -1,3 +1,4 @@
+// src/auth/auth.service.ts
 import {
   Injectable,
   Logger,
@@ -19,8 +20,8 @@ import { QueueService } from '../queue/queue.service';
 import { AuditService } from '../common/logger/audit.service';
 import { CurrentUser } from '../interfaces/current-user.interface';
 import { RegisterDto } from './dto';
-import { AuthConstants } from '../common/constants/auth.constants';
 import { MailService } from '../mail/mail.service';
+import { AuthConstants } from '../common/constants/auth.constants';
 
 interface LoginResponse {
   access_token: string;
@@ -227,7 +228,7 @@ export class AuthService {
       isRememberMe: false,
     });
 
-    // Use MailService instead of QueueService for welcome email
+    // Email welcome via MailService
     await this.mailService.sendWelcomeEmail(user.email, user.firstName);
 
     await this.auditService.logUserAction(user.id, AuditAction.CREATE, {
@@ -377,14 +378,16 @@ export class AuthService {
 
     const resetToken = await this.resetTokenRepository.create({
       userId: user.id,
-      expiresIn: 2 * 60 * 60 * 1000,
+      expiresIn: 2 * 60 * 60 * 1000, // 2 heures
     });
 
-    // Use MailService instead of QueueService for password reset
-    await this.mailService.sendPasswordReset(
+    const resetLink = `${this.configService.get<string>('FRONTEND_URL')}/reinitialiser-mot-de-passe?token=${resetToken.token}`;
+
+    // Send reset password email via MailService
+    await this.mailService.sendResetPasswordEmail(
       user.email,
-      resetToken.token,
       user.firstName,
+      resetLink,
     );
 
     await this.auditService.logUserAction(user.id, AuditAction.UPDATE, {
@@ -410,9 +413,7 @@ export class AuthService {
     await this.auditService.logUserAction(
       resetToken.userId,
       AuditAction.UPDATE,
-      {
-        action: 'PASSWORD_RESET',
-      },
+      { action: 'PASSWORD_RESET' },
     );
 
     return { message: 'Mot de passe réinitialisé avec succès' };
@@ -437,6 +438,9 @@ export class AuthService {
     }
 
     await this.usersRepository.updatePassword(userId, newPassword);
+
+    // Send password changed email via MailService
+    await this.mailService.sendPasswordChangedEmail(user.email, user.firstName);
 
     await this.auditService.logUserAction(userId, AuditAction.UPDATE, {
       action: 'PASSWORD_CHANGED',

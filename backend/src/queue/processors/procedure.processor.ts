@@ -37,8 +37,12 @@ export class ProcedureProcessor {
             procedure.prenom,
             {
               id: procedure.id,
-              destination: procedure.destination,
-              filiere: procedure.filiere,
+              destination:
+                procedure.destination ||
+                procedure.destinationAutre ||
+                'indéfinie',
+              filiere:
+                procedure.filiere || procedure.filiereAutre || 'indéfinie',
               statut: procedure.statut,
             },
           );
@@ -50,9 +54,16 @@ export class ProcedureProcessor {
             procedure.prenom,
             {
               id: procedure.id,
-              destination: procedure.destination,
-              statut: data.newStatus || procedure.statut,
+              destination:
+                procedure.destination ||
+                procedure.destinationAutre ||
+                'indéfinie',
+              filiere:
+                procedure.filiere || procedure.filiereAutre || 'indéfinie',
+              statut: procedure.statut,
             },
+            data.newStatus || procedure.statut,
+            procedure.statut,
           );
           break;
 
@@ -61,10 +72,12 @@ export class ProcedureProcessor {
             procedure.email,
             procedure.prenom,
             {
-              id: procedure.id,
-              destination: procedure.destination,
+              destination:
+                procedure.destination ||
+                procedure.destinationAutre ||
+                'indéfinie',
             },
-            data.newStatus || 'Procédure supprimée',
+            'Procédure supprimée',
           );
           this.logger.log('Procédure supprimée');
           break;

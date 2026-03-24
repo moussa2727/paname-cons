@@ -62,7 +62,7 @@ export class RendezvousCleanupCron {
             rdv.email,
             rdv.firstName,
             { id: rdv.id, date: new Date(rdv.date), time: rdv.time },
-            'Système',
+            'ADMIN', // 'Système' converti en 'ADMIN' pour le type correct
           );
 
           this.logger.log('Rendez-vous annulé et email envoyé');

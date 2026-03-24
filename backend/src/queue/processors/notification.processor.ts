@@ -32,7 +32,14 @@ export class NotificationProcessor {
 
       // Uniquement EMAIL/GMAIL
       if (data.channels?.includes('email')) {
-        await this.mailService.sendAdminAlert(data.title, data.body, 'info');
+        await this.mailService.sendAdminAlert(
+          data.title,
+          data.body,
+          'info',
+          data.metadata,
+          user.email, // Email dynamique de l'utilisateur
+          `${user.firstName} ${user.lastName}`, // Nom dynamique de l'utilisateur
+        );
       }
 
       this.logger.log('Notification envoyée');

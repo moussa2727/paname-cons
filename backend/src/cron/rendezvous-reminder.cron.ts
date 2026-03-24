@@ -34,7 +34,11 @@ export class RendezvousReminderCron {
         await this.mailService.sendRendezvousReminderEmail(
           rdv.email,
           rdv.firstName,
-          { date: new Date(rdv.date), time: rdv.time },
+          {
+            id: rdv.id,
+            date: new Date(rdv.date),
+            time: rdv.time,
+          },
         );
       }
 
@@ -81,7 +85,11 @@ export class RendezvousReminderCron {
           await this.mailService.sendRendezvousReminderEmail(
             rdv.email,
             rdv.firstName,
-            { date: new Date(rdv.date), time: rdv.time },
+            {
+              id: rdv.id,
+              date: new Date(rdv.date),
+              time: rdv.time,
+            },
           );
 
           this.logger.log('Rappel envoyé');

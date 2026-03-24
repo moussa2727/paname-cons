@@ -58,8 +58,7 @@ export class UsersController {
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({ status: 403, description: 'Non autorisé' })
   async create(@Body() createUserDto: CreateUserDto): Promise<UserResponseDto> {
-    const user =
-      await this.usersService.createWithHashedPassword(createUserDto);
+    const user = await this.usersService.create(createUserDto);
     return this.usersService.toResponseDto(user);
   }
 
@@ -164,9 +163,9 @@ export class UsersController {
         'Utilisez PATCH /admin/profile pour modifier votre propre profil.',
       );
     }
-    // L'admin modifie un USER — on passe UserRole.USER comme callerRole
+    // L'admin modifie un USER — on passe les données sans rôle supplémentaire
     // pour autoriser tous les champs (email inclus) sur le compte cible
-    return this.usersService.update(id, updateUserDto, UserRole.USER);
+    return this.usersService.update(id, updateUserDto);
   }
 
   @Patch('admin/user/:id/status')
@@ -252,6 +251,6 @@ export class UsersController {
     @Body() updateUserDto: UpdateUserDto,
   ): Promise<UserResponseDto> {
     // On passe le rôle réel du caller — le service refusera si c'est ADMIN
-    return this.usersService.update(user.id, updateUserDto, user.role);
+    return this.usersService.update(user.id, updateUserDto);
   }
 }

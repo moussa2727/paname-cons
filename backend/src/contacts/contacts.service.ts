@@ -1,3 +1,4 @@
+// src/contacts/contacts.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -12,11 +13,10 @@ import {
   ContactQueryDto,
 } from './dto';
 import { Contact, Prisma } from '@prisma/client';
-import { MailService } from '../mail/mail.service';
 import { ConfigService } from '@nestjs/config';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { QueueService } from '../queue/queue.service';
 import { CurrentUser as CurrentUserType } from '../interfaces/current-user.interface';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class ContactsService {
@@ -24,16 +24,11 @@ export class ContactsService {
 
   constructor(
     private contactsRepository: ContactsRepository,
-    private mailService: MailService,
-    @InjectQueue('email') private emailQueue: Queue,
+    private queueService: QueueService,
     private configService: ConfigService,
+    private mailService: MailService,
   ) {}
 
-  /**
-   * Créer un nouveau message de contact (public)
-   * FROM: l'utilisateur qui envoie le message (dynamique)
-   * TO: admin (EMAIL_USER)
-   */
   async create(
     createContactDto: CreateContactDto,
   ): Promise<ContactResponseDto> {
@@ -100,33 +95,27 @@ export class ContactsService {
         isRead: false,
       });
 
-      // Envoyer un email de confirmation à l'utilisateur
-      await this.emailQueue.add('send-email', {
-        to: contact.email,
-        subject: 'Confirmation de réception de votre message',
-        html: this.mailService.generateContactConfirmationContent({
-          firstName: contact.firstName || '',
-          lastName: contact.lastName || '',
-          message: contact.message,
-        }),
-        priority: 'normal',
-      });
+      // Confirmation à l'utilisateur via MailService
+      await this.mailService.sendContactConfirmationEmail(
+        contact.email,
+        contact.firstName || '',
+        contact.lastName || '',
+        contact.message,
+      );
 
-      // Envoyer une notification à l'admin
-      await this.emailQueue.add('send-email', {
-        to: this.configService.get<string>('EMAIL_USER'),
-        subject: `Nouveau message de contact: ${contact.firstName} ${contact.lastName}`,
-        html: this.mailService.generateContactNotificationContent({
+      // Notification à l'admin via MailService
+      await this.mailService.sendContactNotificationEmail(
+        this.configService.get<string>('EMAIL_USER') || '',
+        {
           firstName: contact.firstName || '',
           lastName: contact.lastName || '',
           email: contact.email,
           message: contact.message,
           createdAt: contact.createdAt,
-        }),
-        priority: 'high',
-      });
+        },
+      );
 
-      this.logger.log(`Message de contact créé`);
+      this.logger.log('Message de contact créé');
 
       return this.toResponseDto(contact);
     } catch (error: unknown) {
@@ -138,7 +127,9 @@ export class ContactsService {
         });
       }
 
-      this.logger.error(`Erreur lors de la création du contact`);
+      if (error instanceof BadRequestException) throw error;
+
+      this.logger.error('Erreur lors de la création du contact');
 
       throw new BadRequestException({
         message: 'Erreur lors de la création du message de contact',
@@ -152,9 +143,6 @@ export class ContactsService {
     }
   }
 
-  /**
-   * Répondre à un message de contact (Admin seulement)
-   */
   async respond(
     id: string,
     respondContactDto: RespondContactDto,
@@ -162,7 +150,7 @@ export class ContactsService {
     const contact = await this.contactsRepository.findById(id);
 
     if (!contact) {
-      this.logger.warn(`Tentative de réponse à un contact inexistant`);
+      this.logger.warn('Tentative de réponse à un contact inexistant');
       throw new NotFoundException('Message de contact non trouvé');
     }
 
@@ -176,46 +164,35 @@ export class ContactsService {
       isRead: true,
     });
 
-    const updatedContactDto = this.toResponseDto(updatedContact);
+    // Send reply email via MailService
+    await this.mailService.sendContactReplyEmail(
+      contact.email,
+      contact.firstName || '',
+      contact.lastName || '',
+      respondContactDto.response,
+    );
 
-    // Envoyer un email de réponse à l'utilisateur
-    await this.emailQueue.add('send-email', {
-      to: contact.email,
-      subject: 'Réponse à votre message de contact',
-      html: this.mailService.generateContactReplyContent(
-        {
-          firstName: contact.firstName || '',
-          lastName: contact.lastName || '',
-        },
-        respondContactDto.response,
-      ),
-      priority: 'normal',
-    });
+    this.logger.log('Réponse envoyée pour le contact');
 
-    this.logger.log(`Réponse envoyée pour le contact`);
-
-    return updatedContactDto;
+    return this.toResponseDto(updatedContact);
   }
 
-  /**
-   * Marquer un message comme lu (Admin seulement)
-   */
   async markAsRead(id: string, isRead: boolean): Promise<ContactResponseDto> {
     const contact = await this.contactsRepository.findById(id, true);
 
     if (!contact) {
-      this.logger.warn(`Tentative de marquage d'un contact inexistant`);
+      this.logger.warn("Tentative de marquage d'un contact inexistant");
       throw new NotFoundException('Message de contact non trouvé');
     }
 
-    // Soft delete permissif - autoriser la modification même si supprimé
     if (contact.deletedAt) {
       const updatedContact = await this.contactsRepository.update(id, {
         isRead,
       });
       this.logger.log(`Message marqué comme ${isRead ? 'lu' : 'non lu'}`);
-      const responseDto = this.toResponseDto(updatedContact);
-      return responseDto as ContactResponseDto & { warning?: string };
+      return this.toResponseDto(updatedContact) as ContactResponseDto & {
+        warning?: string;
+      };
     }
 
     const updatedContact = await this.contactsRepository.update(id, { isRead });
@@ -225,45 +202,32 @@ export class ContactsService {
     return this.toResponseDto(updatedContact);
   }
 
-  /**
-   * Marquer tous les messages comme lus (Admin seulement)
-   */
   async markAllAsRead(): Promise<{ count: number }> {
     const count = await this.contactsRepository.markAllAsRead();
-
-    this.logger.log(`Tous les messages marqués comme lus`);
-
+    this.logger.log('Tous les messages marqués comme lus');
     return { count };
   }
 
-  /**
-   * Supprimer un message de contact (Admin seulement)
-   */
   async remove(
     id: string,
-    _currentUser: CurrentUserType,
+    currentUser: CurrentUserType,
     permanent = false,
   ): Promise<void> {
-    // Pour la suppression définitive, on doit chercher même les messages supprimés
     const contact = await this.contactsRepository.findById(id, true);
 
     if (!contact) {
-      this.logger.warn(`Tentative de suppression d'un contact inexistant`);
       throw new NotFoundException('Message de contact non trouvé');
     }
 
     if (permanent) {
       await this.contactsRepository.hardDelete(id);
-      this.logger.log(`Message de contact supprimé`);
     } else {
       await this.contactsRepository.softDelete(id);
-      this.logger.log(`Message de contact supprimé`);
     }
+
+    this.logger.log(`Contact supprimé (permanent: ${permanent})`);
   }
 
-  /**
-   * Obtenir tous les messages (Admin seulement)
-   */
   async findAll(query: ContactQueryDto): Promise<{
     data: ContactResponseDto[];
     total: number;
@@ -295,7 +259,6 @@ export class ContactsService {
       where.adminResponse = isReplied ? { not: null } : null;
     }
 
-    // Gestion du filtre showDeleted
     if (!showDeleted) {
       where.deletedAt = null;
     }
@@ -337,23 +300,17 @@ export class ContactsService {
     };
   }
 
-  /**
-   * Obtenir un message par son ID (Admin seulement)
-   */
   async findById(id: string): Promise<ContactResponseDto> {
     const contact = await this.contactsRepository.findById(id);
 
     if (!contact) {
-      this.logger.warn(`Tentative d'accès à un contact inexistant`);
+      this.logger.warn("Tentative d'accès à un contact inexistant");
       throw new NotFoundException('Message de contact non trouvé');
     }
 
     return this.toResponseDto(contact);
   }
 
-  /**
-   * Statistiques des messages (Admin seulement)
-   */
   async getStatistics(): Promise<{
     total: number;
     unread: number;
@@ -400,9 +357,6 @@ export class ContactsService {
     };
   }
 
-  /**
-   * Nombre de messages non lus (Admin seulement)
-   */
   async getUnreadCount(): Promise<{ count: number }> {
     const unreadContacts = await this.contactsRepository.findUnread();
     return { count: unreadContacts.length };
@@ -418,7 +372,7 @@ export class ContactsService {
       fullName:
         `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
         'Anonyme',
-      email: contact.email, // ← Email en clair pour les admins
+      email: contact.email,
       message: contact.message,
       isRead: contact.isRead,
       adminResponse: contact.adminResponse,

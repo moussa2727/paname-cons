@@ -7,7 +7,6 @@ import {
   ProcedureJobData,
 } from '../interfaces/queue.interface';
 
-// Interfaces pour le typage des statistiques
 export interface QueueJobStats {
   id: string | number;
   name?: string;
@@ -21,7 +20,7 @@ export interface QueueJobStats {
 
 export interface QueueStatistics {
   name: string;
-  counts: any; // Bull JobCounts - gardé as any pour compatibilité
+  counts: any;
   waiting: number;
   active: number;
   completed: number;
@@ -32,8 +31,6 @@ export interface QueueStatistics {
 @Injectable()
 export class QueueService {
   private readonly logger = new Logger(QueueService.name);
-  private readonly sentEmails = new Map<string, number>(); // Cache des emails envoyés
-  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
   constructor(
     @InjectQueue('email') private emailQueue: Queue,
@@ -41,33 +38,24 @@ export class QueueService {
     @InjectQueue('procedure') private procedureQueue: Queue,
     @InjectQueue('backup') private backupQueue: Queue,
     @InjectQueue('report') private reportQueue: Queue,
+    @InjectQueue('rendezvous') private rendezvousQueue: Queue,
   ) {}
 
   // ==================== EMAIL QUEUE ====================
 
   async addEmailJob(data: EmailJobData, delay?: number): Promise<string> {
     try {
-      // Vérifier l'unicité avec le cache
-      const emailKey = this.generateEmailKey(data);
-      if (this.hasBeenSentRecently(emailKey)) {
-        this.logger.log('Envoi des rappels de rendez-vous récemment, ignoré');
-        return 'already-sent';
-      }
-
-      // Créer un ID unique basé sur le contenu pour éviter les doublons
+      // Déduplication via jobId stable stocké dans Redis — survit aux redémarrages
+      // et fonctionne en multi-instance contrairement au Map en mémoire
       const jobId = this.generateEmailJobId(data);
 
-      // Vérifier si un job similaire existe déjà dans la queue
-      const existingJobs = await this.emailQueue.getJobs(['waiting', 'active']);
-      const duplicateJob = existingJobs.find(
-        (job: Job<EmailJobData>) =>
-          job.id === jobId ||
-          (job.data.to === data.to && job.data.subject === data.subject),
-      );
-
-      if (duplicateJob) {
-        this.logger.log('Email job déjà existant, ignoré');
-        return duplicateJob.id.toString();
+      const existing = await this.emailQueue.getJob(jobId);
+      if (existing) {
+        const state = await existing.getState();
+        if (state === 'waiting' || state === 'active') {
+          this.logger.log('Email job déjà en queue, ignoré');
+          return existing.id.toString();
+        }
       }
 
       const job = await this.emailQueue.add('send-email', data, {
@@ -76,12 +64,11 @@ export class QueueService {
         priority:
           data.priority === 'high' ? 1 : data.priority === 'normal' ? 2 : 3,
         attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
         removeOnComplete: 100,
         removeOnFail: 50,
       });
 
-      // Marquer comme envoyé dans le cache
-      this.markAsSent(emailKey);
       this.logger.log('Email job ajouté');
       return job.id.toString();
     } catch (error: unknown) {
@@ -90,18 +77,14 @@ export class QueueService {
     }
   }
 
-  /**
-   * Force l'envoi d'un email (contourne l'unicité)
-   */
   async forceAddEmailJob(data: EmailJobData, delay?: number): Promise<string> {
     try {
-      const jobId = this.generateEmailJobId(data);
       const job = await this.emailQueue.add('send-email', data, {
-        jobId,
         delay,
         priority:
           data.priority === 'high' ? 1 : data.priority === 'normal' ? 2 : 3,
         attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
         removeOnComplete: 100,
         removeOnFail: 50,
       });
@@ -115,53 +98,12 @@ export class QueueService {
   }
 
   private generateEmailJobId(data: EmailJobData): string {
-    // Générer un ID unique basé sur le contenu pour éviter les doublons
     const to = Array.isArray(data.to) ? data.to.join(',') : data.to;
-    const content = `${to}-${data.subject}-${Date.now()}`;
-    return `email-${content.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 50)}`;
-  }
-
-  /**
-   * Vérifie si un email a déjà été envoyé récemment
-   */
-  private hasBeenSentRecently(emailKey: string): boolean {
-    const lastSent = this.sentEmails.get(emailKey);
-    if (!lastSent) return false;
-
-    return Date.now() - lastSent < this.CACHE_DURATION;
-  }
-
-  /**
-   * Marque un email comme envoyé
-   */
-  private markAsSent(emailKey: string): void {
-    this.sentEmails.set(emailKey, Date.now());
-
-    // Nettoyer le cache périodiquement
-    this.cleanupCache();
-  }
-
-  /**
-   * Génère une clé unique pour un email
-   */
-  private generateEmailKey(data: EmailJobData): string {
-    const to = Array.isArray(data.to) ? data.to.join(',') : data.to;
-    return `${to}-${data.subject}`.toLowerCase();
-  }
-
-  /**
-   * Nettoie le cache des anciennes entrées
-   */
-  private cleanupCache(): void {
-    if (this.sentEmails.size > 1000) {
-      // Nettoyer si trop d'entrées
-      const cutoff = Date.now() - this.CACHE_DURATION;
-      for (const [key, timestamp] of this.sentEmails.entries()) {
-        if (timestamp < cutoff) {
-          this.sentEmails.delete(key);
-        }
-      }
-    }
+    // Clé stable basée sur destinataire + sujet + heure arrondie à la minute
+    // Évite les doublons sur retry rapide sans bloquer les envois légitimes
+    const minuteSlot = Math.floor(Date.now() / 60_000);
+    const raw = `${to}-${data.subject}-${minuteSlot}`;
+    return `email-${raw.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 128)}`;
   }
 
   async addBulkEmailJobs(jobs: EmailJobData[]): Promise<void> {
@@ -171,11 +113,12 @@ export class QueueService {
       opts: {
         priority: job.priority === 'high' ? 1 : 2,
         attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
       },
     }));
 
     await this.emailQueue.addBulk(bulkJobs);
-    this.logger.log(`${jobs.length} rappels à envoyer`);
+    this.logger.log(`${jobs.length} emails bulk ajoutés`);
   }
 
   // ==================== NOTIFICATION QUEUE ====================
@@ -183,6 +126,7 @@ export class QueueService {
   async addNotificationJob(data: NotificationJobData): Promise<string> {
     const job = await this.notificationQueue.add('send-notification', data, {
       attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
     });
 
     this.logger.log('Notification job ajouté');
@@ -198,6 +142,7 @@ export class QueueService {
     const job = await this.procedureQueue.add('process-procedure', data, {
       delay,
       attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
     });
 
     this.logger.log('Procedure job ajouté');
@@ -211,12 +156,9 @@ export class QueueService {
       'run-backup',
       { type },
       {
-        delay: 1000 * 60 * 60, // 1 heure
+        delay: 1000 * 60 * 60,
         attempts: 5,
-        backoff: {
-          type: 'exponential',
-          delay: 60000, // 1 minute
-        },
+        backoff: { type: 'exponential', delay: 60000 },
       },
     );
 
@@ -236,6 +178,7 @@ export class QueueService {
       },
       {
         attempts: 2,
+        backoff: { type: 'exponential', delay: 5000 },
       },
     );
 
@@ -253,6 +196,7 @@ export class QueueService {
       'procedure',
       'backup',
       'report',
+      'rendezvous',
     ];
 
     for (const queueName of queueNames) {
@@ -291,12 +235,19 @@ export class QueueService {
         queue.getFailed(),
       ]);
 
-      // Transformer les jobs Bull en QueueJobStats
       const transformJob = (job: Job<any>): QueueJobStats => {
         let progressValue: number | undefined;
         try {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          const progress = job.progress();
+          const progress = job.progress() as unknown;
+          progressValue =
+            typeof progress === 'number'
+              ? progress
+              : typeof progress === 'object' &&
+                  progress !== null &&
+                  'value' in progress &&
+                  typeof (progress as { value?: unknown }).value === 'number'
+                ? (progress as { value: number }).value
+                : undefined;
           progressValue = typeof progress === 'number' ? progress : undefined;
         } catch {
           progressValue = undefined;
@@ -361,7 +312,6 @@ export class QueueService {
     const state = await jobData.getState();
     const progress = jobData.progress() as number;
 
-    // Vérifier que jobData.data est bien un objet avant de l'assigner
     let jobDataRecord: Record<string, unknown>;
     if (typeof jobData.data === 'object' && jobData.data !== null) {
       jobDataRecord = jobData.data;
@@ -384,13 +334,13 @@ export class QueueService {
   async pauseQueue(queueName: string): Promise<void> {
     const queue = this.getQueue(queueName);
     await queue.pause();
-    this.logger.log('Nettoyage des anciens rappels');
+    this.logger.log(`Queue ${queueName} mise en pause`);
   }
 
   async resumeQueue(queueName: string): Promise<void> {
     const queue = this.getQueue(queueName);
     await queue.resume();
-    this.logger.log('Queue résolue');
+    this.logger.log(`Queue ${queueName} reprise`);
   }
 
   async cleanQueue(
@@ -405,13 +355,14 @@ export class QueueService {
   }
 
   private getQueue(name: string): Queue {
-    const queues = {
+    const queues: Record<string, Queue> = {
       email: this.emailQueue,
       notification: this.notificationQueue,
       procedure: this.procedureQueue,
       backup: this.backupQueue,
       report: this.reportQueue,
+      rendezvous: this.rendezvousQueue,
     };
-    return queues[name as keyof typeof queues];
+    return queues[name];
   }
 }

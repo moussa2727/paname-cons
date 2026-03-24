@@ -1,3 +1,4 @@
+// src/rendezvous/rendezvous.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -1029,6 +1030,8 @@ export class RendezvousService {
         id: cancelled.id,
         date: new Date(cancelled.date),
         time: cancelled.time,
+        destination: cancelled.destination,
+        destinationAutre: cancelled.destinationAutre,
       },
       currentUser.role === UserRole.ADMIN ? 'ADMIN' : 'USER',
     );
@@ -1065,11 +1068,15 @@ export class RendezvousService {
     });
 
     // Send completion email using MailService
-    await this.mailService.sendRendezvousCompletedEmail(
+    await this.mailService.sendProcedureCreatedEmail(
       updatedRendezvous.email,
       updatedRendezvous.firstName,
-      updatedRendezvous,
-      updateRendezvousDto.avisAdmin === AdminOpinion.FAVORABLE,
+      {
+        id: updatedRendezvous.id,
+        destination: updatedRendezvous.destination,
+        filiere: updatedRendezvous.filiere,
+        statut: ProcedureStatus.PENDING,
+      },
     );
 
     if (updateRendezvousDto.avisAdmin === AdminOpinion.FAVORABLE) {

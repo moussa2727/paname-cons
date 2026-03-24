@@ -39,7 +39,7 @@ export class UpdateUserDto extends PartialType(
  * les modifier via cette route, ni au niveau DTO ni au niveau service.
  */
 export class UpdateProfileDto extends PartialType(
-  PickType(CreateUserDto, ['firstName', 'lastName'] as const),
+  PickType(CreateUserDto, ['firstName', 'lastName', 'telephone'] as const),
 ) {
   @ApiPropertyOptional({
     example: 'NewPassword123!',
@@ -58,4 +58,14 @@ export class UpdateProfileDto extends PartialType(
     },
   )
   password?: string;
+
+  @ApiPropertyOptional({
+    example: '+2250707070707',
+    description: 'Numéro de téléphone',
+  })
+  @IsOptional()
+  @IsString({
+    message: 'Le numéro de téléphone doit être une chaîne de caractères',
+  })
+  telephone?: string;
 }

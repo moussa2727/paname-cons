@@ -1,3 +1,4 @@
+// src/procedures/procedures.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -131,13 +132,17 @@ export class ProceduresService {
     // S'assurer que toutes les étapes requises sont présentes
     await this.ensureRequiredSteps(procedure.id);
 
-    // Envoyer un email de confirmation via queue
-    await this.queueService.addEmailJob({
-      to: procedure.email,
-      subject: 'Confirmation de procédure - Paname Consulting',
-      html: this.mailService.generateProcedureCreatedContent(procedure),
-      priority: 'high',
-    });
+    // Envoyer un email de confirmation
+    await this.mailService.sendProcedureCreatedEmail(
+      procedure.email,
+      procedure.prenom,
+      {
+        id: procedure.id,
+        destination: procedure.destination,
+        filiere: procedure.filiere,
+        statut: procedure.statut,
+      },
+    );
 
     // Récupérer la procédure complète avec ses relations
     const procedureWithRelations = await this.proceduresRepository.findById(
@@ -431,8 +436,8 @@ export class ProceduresService {
       const otherSteps =
         procedure.steps?.filter((s) => s.nom !== StepName.DEMANDE_ADMISSION) ||
         [];
-      for (const step of otherSteps) {
-        await this.proceduresRepository.updateStep(step.id, {
+      for (const otherStep of otherSteps) {
+        await this.proceduresRepository.updateStep(otherStep.id, {
           statut: StepStatus.REJECTED,
           raisonRefus: updateStepDto.raisonRefus,
           dateCompletion: new Date(),
@@ -474,14 +479,18 @@ export class ProceduresService {
 
     // Envoyer une notification si le statut a changé
     if (updatedProcedure.statut !== procedure.statut) {
-      await this.queueService.addEmailJob({
-        to: updatedProcedure.email,
-        subject: 'Mise à jour de votre procédure - Paname Consulting',
-        html: this.mailService.generateProcedureStatusUpdatedContent(
-          updatedProcedure,
-        ),
-        priority: 'normal',
-      });
+      await this.mailService.sendProcedureStatusUpdatedEmail(
+        updatedProcedure.email,
+        updatedProcedure.prenom,
+        {
+          id: updatedProcedure.id,
+          destination: updatedProcedure.destination,
+          filiere: updatedProcedure.filiere,
+          statut: updatedProcedure.statut,
+        },
+        procedure.statut,
+        updatedProcedure.statut,
+      );
     }
 
     this.logger.log(`Étape ${stepName} mise à jour pour procédure ${id}`);
@@ -625,12 +634,14 @@ export class ProceduresService {
     });
 
     // Notifier l'utilisateur
-    await this.queueService.addEmailJob({
-      to: procedure.email,
-      subject: 'Suppression de votre procédure - Paname Consulting',
-      html: this.mailService.generateProcedureDeletedContent(procedure, reason),
-      priority: 'high',
-    });
+    await this.mailService.sendProcedureDeletedEmail(
+      procedure.email,
+      procedure.prenom,
+      {
+        destination: procedure.destination,
+      },
+      reason,
+    );
 
     this.logger.log(`Procédure ${id} supprimée (soft delete)`);
   }
@@ -708,20 +719,15 @@ export class ProceduresService {
       );
     }
 
-    // Notifier l'administrateur
-    await this.queueService.addEmailJob({
-      to: process.env.EMAIL_USER,
-      subject: 'Annulation de procédure - Paname Consulting',
-      html: this.mailService.generateProcedureDeletedContent(
-        {
-          id: procedureWithRelations.id,
-          prenom: procedureWithRelations.user?.firstName || 'Utilisateur',
-          destination: procedureWithRelations.destination || 'Non spécifiée',
-        },
-        reason,
-      ),
-      priority: 'normal',
-    });
+    // Notifier l'utilisateur
+    await this.mailService.sendProcedureCancelledEmail(
+      procedure.email,
+      procedure.prenom,
+      {
+        destination: procedure.destination,
+      },
+      reason,
+    );
 
     return this.toResponseDto(procedureWithRelations);
   }
@@ -908,6 +914,9 @@ export class ProceduresService {
       createdAt: procedure.createdAt,
       updatedAt: procedure.updatedAt,
       userId: procedure.userId,
+      cancelledAt: procedure.cancelledAt,
+      cancelledReason: procedure.cancelledReason,
+      cancelledBy: procedure.cancelledBy,
       steps: stepsWithVirtuals,
       progress: this.calculateProgress(procedure.steps),
       completedSteps,

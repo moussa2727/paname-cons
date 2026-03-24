@@ -97,7 +97,9 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
 
       this.gmail = google.gmail({ version: 'v1', auth: oauth2Client });
       this.isAvailable = true;
-      this.logger.log(`Service Gmail API opérationnel (${emailUser})`);
+      this.logger.log(
+        `Service Gmail API opérationnel (${LoggerSanitizer.maskEmail(emailUser)})`,
+      );
     } catch (error) {
       const msg = (error as Error).message;
       this.logger.error(`Échec initialisation Gmail API: ${msg}`);

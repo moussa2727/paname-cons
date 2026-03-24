@@ -1,10 +1,9 @@
 import { Processor, Process } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bull';
 import { MailService } from '../../mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ConfigService } from '@nestjs/config';
 import { CancelledBy } from '@prisma/client';
+import { Job } from 'bull';
 
 interface RendezvousJobData {
   action: 'create' | 'cancel' | 'reminder' | 'auto_cancel';
@@ -24,7 +23,6 @@ export class RendezvousProcessor {
   constructor(
     private readonly mailService: MailService,
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
   ) {}
 
   @Process('create-rendezvous')
@@ -92,7 +90,9 @@ export class RendezvousProcessor {
             date: new Date(rendezvous.date),
             time: rendezvous.time,
           },
-          data.details?.cancelledBy ?? 'USER',
+          (data.details?.cancelledBy === 'SYSTEM'
+            ? 'ADMIN'
+            : data.details?.cancelledBy) ?? 'USER',
         );
       }
 
@@ -128,6 +128,7 @@ export class RendezvousProcessor {
           {
             date: new Date(rendezvous.date),
             time: rendezvous.time,
+            id: rendezvous.id,
           },
         );
       }
@@ -176,10 +177,16 @@ export class RendezvousProcessor {
             },
           });
 
-          await this.mailService.sendAutoCancelEmail(rdv.email, rdv.firstName, {
-            date: new Date(rdv.date),
-            time: rdv.time,
-          });
+          await this.mailService.sendRendezvousCancelledEmail(
+            rdv.email,
+            rdv.firstName,
+            {
+              date: new Date(rdv.date),
+              time: rdv.time,
+              id: rdv.id,
+            },
+            'ADMIN',
+          );
 
           cancelledCount++;
           this.logger.log('Rendez-vous annulé');

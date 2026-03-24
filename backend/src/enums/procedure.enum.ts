@@ -1,4 +1,3 @@
-// src/enums/procedure.enum.ts
 export enum StepStatus {
   PENDING = 'PENDING',
   IN_PROGRESS = 'IN_PROGRESS',

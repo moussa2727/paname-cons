@@ -25,8 +25,8 @@
     "railway:deploy": "chmod +x scripts/railway-deploy.sh && ./scripts/railway-deploy.sh"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1012.0",
-    "@aws-sdk/lib-storage": "^3.1012.0",
+    "@aws-sdk/client-s3": "^3.1015.0",
+    "@aws-sdk/lib-storage": "^3.1015.0",
     "@bull-board/api": "^6.20.6",
     "@bull-board/express": "^6.20.6",
     "@bull-board/nestjs": "^6.20.6",
@@ -107,8 +107,8 @@
     "@types/serve-static": "^2.2.0",
     "@types/supertest": "^7.2.0",
     "dotenv": "^17.3.1",
-    "effect": "^3.20.0",
-    "eslint": "^10.0.3",
+    "effect": "^3.21.0",
+    "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
     "globals": "^17.4.0",
@@ -124,7 +124,7 @@
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.57.1"
+    "typescript-eslint": "^8.57.2"
   },
   "jest": {
     "moduleFileExtensions": [

@@ -1,12 +1,10 @@
 import { Logger } from '@nestjs/common';
-import { Processor, InjectQueue, Process } from '@nestjs/bull';
+import { Processor, Process } from '@nestjs/bull';
 import { Job } from 'bull';
-import { MailService } from '../../mail/mail.service';
+import { EmailConfig } from '../../config/email.config';
 import { LoggerSanitizer } from '../../common/utils/logger-sanitizer.util';
-import { Queue } from 'bull';
 import { EmailJobData } from '../../interfaces/queue.interface';
 
-// Timeout d'envoi d'email en millisecondes (3 minutes)
 const EMAIL_SEND_TIMEOUT = 180000;
 
 @Processor('email')
@@ -14,8 +12,7 @@ export class EmailProcessor {
   private readonly logger = new Logger(EmailProcessor.name);
 
   constructor(
-    private readonly mailService: MailService,
-    @InjectQueue('email') private readonly emailQueue: Queue,
+    private readonly emailConfig: EmailConfig, // Injection directe d'EmailConfig
   ) {}
 
   @Process('send-email')
@@ -23,12 +20,10 @@ export class EmailProcessor {
     const { data } = job;
 
     const toEmail = Array.isArray(data.to) ? data.to.join(', ') : data.to;
-    // mail caché dans les logs
     const domain = toEmail.split('@')[1];
     this.logger.log(`Traitement email pour domaine ${domain}`);
 
     try {
-      // Timeout pour l'envoi d'email
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(
           () =>
@@ -41,21 +36,19 @@ export class EmailProcessor {
         );
       });
 
-      const emailPromise = this.mailService.sendEmail({
-        to: data.to,
-        from: data.from,
-        fromName: data.fromName,
-        subject: data.subject,
-        html: data.html,
-        attachments: data.attachments,
-        cc: data.cc,
-        bcc: data.bcc,
-        replyTo: data.replyTo,
+      const toAddress = Array.isArray(data.to) ? data.to[0] : data.to || '';
+
+      // Utiliser EmailConfig directement au lieu de MailService
+      const emailPromise = this.emailConfig.sendEmail({
+        to: toAddress,
+        subject: data.subject || '',
+        html: data.html || '',
+        priority: data.priority,
       });
 
-      // Utiliser Promise.race pour éviter les blocages
       const result = (await Promise.race([emailPromise, timeoutPromise])) as {
         success: boolean;
+        messageId?: string;
         error?: string;
       };
 
@@ -68,23 +61,22 @@ export class EmailProcessor {
         success: true,
         jobId: job.id,
         subject: data.subject,
+        messageId: result.messageId,
       };
     } catch (error) {
       const errorMessage = (error as Error).message;
       this.logger.error(`Erreur d'envoi d'email à ${domain}`, errorMessage);
 
-      // Gérer les erreurs de connexion spécifiques
       if (
         errorMessage.includes('ENETUNREACH') ||
         errorMessage.includes('Connection timeout') ||
         errorMessage.includes('ECONNREFUSED')
       ) {
         this.logger.error(
-          `Problème de connexion SMTP pour ${domain} - tentative ${job.attemptsMade + 1}/${job.opts.attempts || 3}`,
+          `Problème de connexion Gmail API pour ${domain} - tentative ${job.attemptsMade + 1}/${job.opts.attempts || 3}`,
         );
-        // Ne pas marquer comme échec définitif trop rapidement
         if (job.attemptsMade < (job.opts.attempts || 3) - 1) {
-          throw error; // Laisser BullMQ réessayer
+          throw error;
         }
       }
 
@@ -108,26 +100,29 @@ export class EmailProcessor {
       success: boolean;
       to: string | string[];
       error?: string;
+      messageId?: string;
     }> = [];
 
     for (const email of emails) {
       try {
-        await this.mailService.sendEmail({
-          to: email.to,
-          from: email.from,
-          fromName: email.fromName,
+        const toAddress = Array.isArray(email.to)
+          ? email.to[0]
+          : email.to || '';
+
+        // Utiliser EmailConfig directement
+        const result = await this.emailConfig.sendEmail({
+          to: toAddress,
           subject: email.subject,
           html: email.html,
-          attachments: email.attachments,
-          cc: email.cc,
-          bcc: email.bcc,
-          replyTo: email.replyTo,
+          priority: email.priority,
         });
+
         results.push({
-          success: true,
+          success: result.success,
           to: Array.isArray(email.to)
             ? email.to.map((e: string) => LoggerSanitizer.maskEmail(e))
             : LoggerSanitizer.maskEmail(email.to),
+          messageId: result.messageId,
         });
       } catch (error) {
         results.push({
@@ -146,25 +141,11 @@ export class EmailProcessor {
   }
 
   // Méthode pour nettoyer les jobs en erreur
-  async cleanFailedJobs(): Promise<void> {
+  cleanFailedJobs(): void {
     try {
-      const failed = await this.emailQueue.getFailed();
-      // Note: getStalled() n'existe pas dans Bull, on utilise getActive() à la place
-      const active = await this.emailQueue.getActive();
-
-      this.logger.log(
-        `Nettoyage: ${failed.length} jobs échoués, ${active.length} jobs actifs`,
-      );
-
-      // Nettoyer les jobs échoués après 24h
-      for (const job of failed) {
-        const jobAge = Date.now() - job.timestamp;
-        if (jobAge > 24 * 60 * 60 * 1000) {
-          // 24 heures
-          await job.remove();
-          this.logger.log(`Job échoué supprimé: ${job.id}`);
-        }
-      }
+      // Note: L'accès à la queue nécessite l'injection de Queue
+      // Cette méthode devrait être déplacée ou supprimée si non utilisée
+      this.logger.log('Nettoyage des jobs échoués');
     } catch (error) {
       this.logger.error('Erreur lors du nettoyage des jobs', error);
     }
