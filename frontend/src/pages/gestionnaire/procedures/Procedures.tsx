@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import React from "react";
@@ -91,7 +91,7 @@ const StatCard: React.FC<StatCardProps> = ({
   sub,
   accent = "sky",
 }) => (
-  <div className="bg-white rounded-2xl border border-slate-100 p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow">
+  <div className="bg-white rounded border border-slate-100 p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow">
     <div className="flex items-start justify-between gap-2">
       <div>
         <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">
@@ -104,7 +104,7 @@ const StatCard: React.FC<StatCardProps> = ({
         </p>
         {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
       </div>
-      <div className={`p-2 rounded-xl bg-${accent}-50 text-${accent}-500`}>
+      <div className={`p-2 rounded bg-${accent}-50 text-${accent}-500`}>
         {icon}
       </div>
     </div>
@@ -117,7 +117,7 @@ const StatusBadge: React.FC<{ status: ProcedureStatus }> = ({ status }) => {
   const cfg = STATUS_CONFIG[status];
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.bg} ${cfg.color}`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${cfg.bg} ${cfg.color}`}
     >
       {cfg.icon}
       {cfg.label}
@@ -129,9 +129,9 @@ const StatusBadge: React.FC<{ status: ProcedureStatus }> = ({ status }) => {
 
 const ProgressBar: React.FC<{ value: number }> = ({ value }) => (
   <div className="flex items-center gap-2">
-    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+    <div className="flex-1 h-1.5 bg-slate-100 rounded overflow-hidden">
       <div
-        className="h-full bg-sky-500 rounded-full transition-all"
+        className="h-full bg-sky-500 rounded transition-all"
         style={{ width: `${value}%` }}
       />
     </div>
@@ -165,9 +165,9 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onCancel}
       />
-      <div className="relative bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative bg-white rounded shadow-2xl p-6 max-w-sm w-full animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center gap-3 mb-3">
-          <div className="p-2 bg-red-50 rounded-xl">
+          <div className="p-2 bg-red-50 rounded">
             <Trash2 size={20} className="text-red-500" />
           </div>
           <h3 className="font-semibold text-slate-800 text-base">{title}</h3>
@@ -176,14 +176,14 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 py-2 px-4 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
+            className="flex-1 py-2 px-4 rounded border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
           >
             Annuler
           </button>
           <button
             onClick={onConfirm}
             disabled={loading}
-            className="flex-1 py-2 px-4 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-60"
+            className="flex-1 py-2 px-4 rounded bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-60"
           >
             {loading ? "Suppression…" : "Supprimer"}
           </button>
@@ -260,21 +260,21 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({
           <button
             onClick={() => onView(procedure.id)}
             title="Voir les détails"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-100 transition-colors"
+            className="p-1.5 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-100 transition-colors"
           >
             <Eye size={15} />
           </button>
           <button
             onClick={() => onEdit(procedure.id)}
             title="Modifier"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-100 transition-colors"
+            className="p-1.5 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-100 transition-colors"
           >
             <Pencil size={15} />
           </button>
           <button
             onClick={() => onDelete(procedure.id)}
             title="Supprimer"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+            className="p-1.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
           >
             <Trash2 size={15} />
           </button>
@@ -299,7 +299,7 @@ const ProcedureCard: React.FC<ProcedureRowProps> = ({
   });
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+    <div className="bg-white rounded border border-slate-100 p-4 shadow-sm">
       <div className="flex items-start justify-between mb-3">
         <div>
           <p className="font-semibold text-slate-800 text-sm">
@@ -327,19 +327,19 @@ const ProcedureCard: React.FC<ProcedureRowProps> = ({
       <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
         <button
           onClick={() => onView(procedure.id)}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-sky-50 text-sky-600 text-xs font-medium hover:bg-sky-100 transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded bg-sky-50 text-sky-600 text-xs font-medium hover:bg-sky-100 transition-colors"
         >
           <Eye size={13} /> Voir
         </button>
         <button
           onClick={() => onEdit(procedure.id)}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-sky-50 text-sky-600 text-xs font-medium hover:bg-sky-100 transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded bg-sky-50 text-sky-600 text-xs font-medium hover:bg-sky-100 transition-colors"
         >
           <Pencil size={13} /> Modifier
         </button>
         <button
           onClick={() => onDelete(procedure.id)}
-          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 text-red-500 text-xs font-medium hover:bg-red-100 transition-colors"
+          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded bg-red-50 text-red-500 text-xs font-medium hover:bg-red-100 transition-colors"
         >
           <Trash2 size={13} />
         </button>
@@ -482,6 +482,18 @@ export default function Procedures() {
 
   // ─────────────────────────────────────────────────────────────────────────
 
+  // Debug pour vérifier les données
+  useEffect(() => {
+    console.log("🔍 Procedures state:", {
+      procedures,
+      loading,
+      error,
+      pagination,
+      statistics,
+      query,
+    });
+  }, [procedures, loading, error, pagination, statistics, query]);
+
   if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -505,22 +517,20 @@ export default function Procedures() {
         <meta name="googlebot" content="noindex, nofollow" />
       </Helmet>
 
-      <div className="min-h-screen bg-slate-50 pb-16">
+      <div className="min-h-screen pb-16">
         {/* ── Header ── */}
         <div className="bg-white border-b border-slate-100 sticky top-0 z-30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex items-center justify-between h-14 sm:h-16">
               <div className="flex items-center gap-3">
-                <div className="p-1.5 bg-sky-600 rounded-lg">
+                <div className="p-1.5 bg-sky-600 rounded">
                   <BarChart3 size={16} className="text-white" />
                 </div>
                 <div>
                   <h1 className="text-sm sm:text-base font-bold text-slate-800 leading-none">
                     Procédures
                   </h1>
-                  <p className="text-xs text-slate-400 hidden sm:block">
-                    Paname Consulting — Admin
-                  </p>
+                  
                 </div>
               </div>
 
@@ -590,7 +600,7 @@ export default function Procedures() {
           )}
 
           {/* ── Toolbar ── */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 sm:p-4">
+          <div className="bg-white rounded border border-slate-100 shadow-sm p-3 sm:p-4">
             <div className="flex flex-col sm:flex-row gap-3">
               {/* Search */}
               <div className="relative flex-1">
@@ -604,7 +614,7 @@ export default function Procedures() {
                   value={localSearch}
                   onChange={(e) => setLocalSearch(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleApplyFilters()}
-                  className="w-full pl-8 pr-3 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent placeholder:text-slate-300"
+                  className="w-full pl-8 pr-3 py-2 text-sm rounded border border-slate-200 focus:outline-none focus:ring-none focus:border-sky-400 placeholder:text-slate-300"
                 />
               </div>
 
@@ -615,7 +625,7 @@ export default function Procedures() {
                   onChange={(e) =>
                     setLocalStatus(e.target.value as ProcedureStatus | "")
                   }
-                  className="flex-1 sm:flex-none text-sm rounded-xl border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white text-slate-600"
+                  className="flex-1 sm:flex-none text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:ring-none focus:border-sky-400 bg-white text-slate-600"
                 >
                   <option value="">Tous les statuts</option>
                   {Object.entries(STATUS_CONFIG).map(([k, v]) => (
@@ -628,7 +638,7 @@ export default function Procedures() {
                 {/* More filters */}
                 <button
                   onClick={() => setShowFilters((v) => !v)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded border text-sm font-medium transition-colors ${
                     showFilters
                       ? "bg-sky-600 text-white border-sky-600"
                       : "border-slate-200 text-slate-600 hover:border-sky-300 hover:text-sky-600"
@@ -640,7 +650,7 @@ export default function Procedures() {
 
                 <button
                   onClick={handleApplyFilters}
-                  className="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-xl hover:bg-sky-700 transition-colors"
+                  className="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded hover:bg-sky-700 transition-colors"
                 >
                   <span className="hidden sm:inline">Appliquer</span>
                   <Search size={14} className="sm:hidden" />
@@ -661,7 +671,7 @@ export default function Procedures() {
                       onChange={(e) =>
                         setQuery({ sortBy: e.target.value, page: 1 })
                       }
-                      className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white"
+                      className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:ring-none focus:border-sky-400 bg-white"
                     >
                       <option value="createdAt">Date de création</option>
                       <option value="updatedAt">Dernière maj</option>
@@ -681,7 +691,7 @@ export default function Procedures() {
                           page: 1,
                         })
                       }
-                      className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white"
+                      className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:ring-none focus:border-sky-400 bg-white"
                     >
                       <option value="desc">Décroissant</option>
                       <option value="asc">Croissant</option>
@@ -694,7 +704,7 @@ export default function Procedures() {
                     <select
                       value={query.limit ?? 10}
                       onChange={(e) => setLimit(Number(e.target.value))}
-                      className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white"
+                      className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:ring-none focus:border-sky-400 bg-white"
                     >
                       {[10, 25, 50].map((n) => (
                         <option key={n} value={n}>
@@ -718,14 +728,14 @@ export default function Procedures() {
 
           {/* ── Error ── */}
           {error && (
-            <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-600">
+            <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded p-4 text-sm text-red-600">
               <AlertCircle size={16} className="shrink-0" />
               {error}
             </div>
           )}
 
           {/* ── Table desktop / Cards mobile ── */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded border border-slate-100 shadow-sm overflow-hidden">
             {/* Header info */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
               <p className="text-xs text-slate-500">
@@ -753,7 +763,7 @@ export default function Procedures() {
                 {[...Array(5)].map((_, i) => (
                   <div
                     key={i}
-                    className="h-12 bg-slate-100 rounded-xl animate-pulse"
+                    className="h-12 bg-slate-100 rounded animate-pulse"
                   />
                 ))}
               </div>
@@ -826,7 +836,7 @@ export default function Procedures() {
                 <button
                   onClick={() => setPage(pagination.page - 1)}
                   disabled={!pagination.hasPrevious || loading.list}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-600 hover:border-sky-300 hover:text-sky-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-200 text-xs text-slate-600 hover:border-sky-300 hover:text-sky-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <ChevronLeft size={13} /> Préc.
                 </button>
@@ -852,7 +862,7 @@ export default function Procedures() {
                       <button
                         key={page}
                         onClick={() => setPage(page)}
-                        className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${
+                        className={`w-7 h-7 rounded text-xs font-medium transition-colors ${
                           page === pagination.page
                             ? "bg-sky-600 text-white"
                             : "text-slate-500 hover:bg-sky-50 hover:text-sky-600"
@@ -866,7 +876,7 @@ export default function Procedures() {
                 <button
                   onClick={() => setPage(pagination.page + 1)}
                   disabled={!pagination.hasNext || loading.list}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-600 hover:border-sky-300 hover:text-sky-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-200 text-xs text-slate-600 hover:border-sky-300 hover:text-sky-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Suiv. <ChevronRight size={13} />
                 </button>
@@ -880,7 +890,7 @@ export default function Procedures() {
               statistics.topFilieres?.length > 0) && (
               <div className="grid sm:grid-cols-2 gap-4">
                 {statistics.topDestinations?.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+                  <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
                     <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                       <Globe size={12} className="text-sky-500" />
                       Top destinations
@@ -894,7 +904,7 @@ export default function Procedures() {
                           <span className="text-sm text-slate-600 truncate max-w-[70%]">
                             {d.destination}
                           </span>
-                          <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full">
+                          <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
                             {d.count}
                           </span>
                         </div>
@@ -904,7 +914,7 @@ export default function Procedures() {
                 )}
 
                 {statistics.topFilieres?.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+                  <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
                     <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                       <BookOpen size={12} className="text-sky-500" />
                       Top filières
@@ -918,7 +928,7 @@ export default function Procedures() {
                           <span className="text-sm text-slate-600 truncate max-w-[70%]">
                             {f.filiere}
                           </span>
-                          <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full">
+                          <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
                             {f.count}
                           </span>
                         </div>
