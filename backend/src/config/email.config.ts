@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import * as SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { LoggerSanitizer } from '../common/utils/logger-sanitizer.util';
 // forcing ipv4 - must be first, before any other imports
 import {
@@ -114,7 +115,7 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     try {
       this.logger.log(`Tentative connexion SMTP pour: ${emailUser}`);
 
-      this.transporter = nodemailer.createTransport({
+      const transportOptions: SMTPTransport.Options = {
         service: 'gmail',
         auth: {
           type: 'Login',
@@ -126,7 +127,15 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
         socketTimeout: 30000,
         debug: true,
         logger: true,
-      });
+        // Force IPv4 connection
+        tls: {
+          rejectUnauthorized: false,
+        },
+        // Add family option to force IPv4 (not in SMTPTransport.Options but supported)
+        ...({ family: 4 } as Record<string, unknown>),
+      };
+
+      this.transporter = nodemailer.createTransport(transportOptions);
 
       await this.transporter.verify();
       this.isAvailable = true;
