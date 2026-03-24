@@ -167,7 +167,7 @@ export function useProcedures(
   const loadingRef = useRef(false);
   const isFirstRender = useRef(true);
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────
   const setLoad = useCallback(
     (k: keyof ProcedureLoadingState, v: boolean) =>
       setLoading((prev: ProcedureLoadingState) => ({ ...prev, [k]: v })),
@@ -666,7 +666,9 @@ export function useProcedures(
       isFirstRender.current = false;
       return;
     }
-    loadProcedures();
+    // Utiliser la référence actuelle pour éviter la boucle
+    const currentLoadProcedures = loadProcedures;
+    currentLoadProcedures();
   }, [
     query.page,
     query.limit,
@@ -681,7 +683,7 @@ export function useProcedures(
     query.destination,
     query.filiere,
     query.email,
-    loadProcedures,
+    // Pas de dépendance à loadProcedures pour éviter la boucle
   ]);
 
   // Rafraîchissement périodique des procédures en retard
