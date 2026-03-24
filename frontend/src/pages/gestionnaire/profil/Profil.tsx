@@ -162,6 +162,7 @@ const Profil = () => {
     setIsSaving(true);
     try {
       await updateAdminProfile(params);
+      toast.success("Profil mis à jour avec succès");
       setIsEditing(false);
       setShowPassword(false);
     } catch {
