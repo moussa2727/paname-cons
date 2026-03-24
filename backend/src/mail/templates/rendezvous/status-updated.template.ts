@@ -1,21 +1,14 @@
 import { baseTemplate } from '../shared/base.template';
-import { RendezvousStatus } from '@prisma/client';
+import { formatTimeSlot, statusLabels } from './time-slot.utils';
 
 export interface RendezvousStatusUpdatedTemplateData {
   firstName: string;
   date: string;
   time: string;
-  oldStatus: RendezvousStatus;
-  newStatus: RendezvousStatus;
+  oldStatus: string;
+  newStatus: string;
   rendezvousUrl: string;
 }
-
-const statusLabels: Record<RendezvousStatus, string> = {
-  PENDING: 'en attente',
-  CONFIRMED: 'confirmé',
-  COMPLETED: 'terminé',
-  CANCELLED: 'annulé',
-};
 
 export const rendezvousStatusUpdatedTemplate = (
   data: RendezvousStatusUpdatedTemplateData,
@@ -23,7 +16,7 @@ export const rendezvousStatusUpdatedTemplate = (
   const content = `
     <p>Bonjour <strong>${data.firstName}</strong>,</p>
     <div style="margin:25px 0;line-height:1.8;">
-      <p>Le statut de votre rendez-vous du ${data.date} à ${data.time} a été mis à jour.</p>
+      <p>Le statut de votre rendez-vous du ${data.date} à ${formatTimeSlot(data.time)} a été mis à jour.</p>
       <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0ea5e9;margin:25px 0;">
         <p><strong>Ancien statut :</strong> ${statusLabels[data.oldStatus]}</p>
         <p><strong>Nouveau statut :</strong> ${statusLabels[data.newStatus]}</p>

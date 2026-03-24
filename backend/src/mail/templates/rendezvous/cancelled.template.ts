@@ -1,4 +1,5 @@
 import { baseTemplate } from '../shared/base.template';
+import { formatTimeSlot, cancelledByLabels } from './time-slot.utils';
 
 export interface RendezvousCancelledTemplateData {
   firstName: string;
@@ -11,15 +12,12 @@ export interface RendezvousCancelledTemplateData {
 export const rendezvousCancelledTemplate = (
   data: RendezvousCancelledTemplateData,
 ): string => {
-  const cancelledByText =
-    data.cancelledBy === 'USER'
-      ? 'vous avez annulé'
-      : 'a été annulé par un administrateur';
+  const cancelledByText = cancelledByLabels[data.cancelledBy];
 
   const content = `
     <p>Bonjour <strong>${data.firstName}</strong>,</p>
     <div style="margin:25px 0;line-height:1.8;">
-      <p>Votre rendez-vous du ${data.date} à ${data.time} ${cancelledByText}.</p>
+      <p>Votre rendez-vous du ${data.date} à ${formatTimeSlot(data.time)} ${cancelledByText}.</p>
       <div style="background:#fef2f2;padding:25px;border-radius:8px;border-left:4px solid #ef4444;margin:25px 0;">
         <p style="margin:0;">Si vous souhaitez prendre un nouveau rendez-vous, connectez-vous à votre espace.</p>
       </div>

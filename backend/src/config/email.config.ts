@@ -108,12 +108,24 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   private sanitizeSubject(subject: string): string {
-    // Remplacer les caractères non alphanumériques par des espaces
-    // Garder les accents, les espaces, et les caractères de ponctuation de base
+    // Remplacer les caractères problématiques mais garder les accents
     return subject
       .replace(/[^\w\sàâäéèêëïîôöùûüÿçÀÂÄÉÈÊËÏÎÔÖÙÛÜŸÇ.,!?'-]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  private encodeSubject(subject: string): string {
+    // Encoder le sujet avec MIME si contient des caractères non-ASCII
+    const sanitized = this.sanitizeSubject(subject);
+
+    // Vérifier si le sujet contient des caractères non-ASCII
+    if (/[\u0080-\uFFFF]/.test(sanitized)) {
+      // Encodage MIME pour les caractères accentués
+      return `=?UTF-8?B?${Buffer.from(sanitized, 'utf8').toString('base64')}?=`;
+    }
+
+    return sanitized;
   }
 
   private buildRawEmail(options: EmailOptions): string {
@@ -134,16 +146,17 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     const lines: string[] = [
       `From: ${fromName} <${fromEmail}>`,
       `To: ${to}`,
-      `Subject: ${this.sanitizeSubject(options.subject)}`,
+      `Subject: ${this.encodeSubject(options.subject)}`,
       `MIME-Version: 1.0`,
       `Content-Type: text/html; charset=UTF-8`,
+      `Content-Transfer-Encoding: base64`,
     ];
 
     if (cc) lines.push(`Cc: ${cc}`);
     if (bcc) lines.push(`Bcc: ${bcc}`);
     if (options.replyTo) lines.push(`Reply-To: ${options.replyTo}`);
 
-    lines.push('', options.html);
+    lines.push('', Buffer.from(options.html, 'utf8').toString('base64'));
 
     const raw = lines.join('\r\n');
     return Buffer.from(raw)
