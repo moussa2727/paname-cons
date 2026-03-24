@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { google } from 'googleapis';
 import { LoggerSanitizer } from '../common/utils/logger-sanitizer.util';
 
@@ -64,16 +65,14 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   private getEnv(key: string): string {
-    return (
-      process.env[key] || this.configService.get<string>(key) || ''
-    );
+    return process.env[key] || this.configService.get<string>(key) || '';
   }
 
   private async initialize(): Promise<void> {
-    const clientId     = this.getEnv('GMAIL_CLIENT_ID');
+    const clientId = this.getEnv('GMAIL_CLIENT_ID');
     const clientSecret = this.getEnv('GMAIL_CLIENT_SECRET');
     const refreshToken = this.getEnv('GMAIL_REFRESH_TOKEN');
-    const emailUser    = this.getEnv('EMAIL_USER');
+    const emailUser = this.getEnv('EMAIL_USER');
 
     if (!clientId || !clientSecret || !refreshToken || !emailUser) {
       this.logger.error(
@@ -91,7 +90,14 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
 
       oauth2Client.setCredentials({ refresh_token: refreshToken });
 
-      this.transporter = nodemailer.createTransport({
+      const { token } = await oauth2Client.getAccessToken();
+
+      if (!token) {
+        this.logger.error('Impossible de récupérer un access token OAuth2');
+        return;
+      }
+
+      const transportOptions: SMTPTransport.Options = {
         service: 'gmail',
         auth: {
           type: 'OAuth2',
@@ -99,12 +105,11 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
           clientId,
           clientSecret,
           refreshToken,
-          accessToken: async () => {
-            const { token } = await oauth2Client.getAccessToken();
-            return token || '';
-          },
+          accessToken: token,
         },
-      } as any);
+      };
+
+      this.transporter = nodemailer.createTransport(transportOptions);
 
       await this.transporter.verify();
       this.isAvailable = true;
@@ -129,7 +134,7 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
 
     try {
       const fromEmail = options.from || this.fromEmail;
-      const fromName  = options.fromName || this.fromName;
+      const fromName = options.fromName || this.fromName;
       const recipients = Array.isArray(options.to) ? options.to : [options.to];
 
       const mailOptions: nodemailer.SendMailOptions = {
@@ -140,10 +145,14 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
         text: options.text || this.htmlToText(options.html),
         replyTo: options.replyTo,
         cc: options.cc
-          ? Array.isArray(options.cc) ? options.cc : [options.cc]
+          ? Array.isArray(options.cc)
+            ? options.cc
+            : [options.cc]
           : undefined,
         bcc: options.bcc
-          ? Array.isArray(options.bcc) ? options.bcc : [options.bcc]
+          ? Array.isArray(options.bcc)
+            ? options.bcc
+            : [options.bcc]
           : undefined,
         attachments: options.attachments || [],
       };
