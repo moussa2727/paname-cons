@@ -29,7 +29,6 @@ import {
 } from "lucide-react";
 import { ProceduresService } from "../../../services/procedures.service";
 import type { JSX } from "react/jsx-runtime";
-
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
 const STATUS_OPTIONS: { value: ProcedureStatus | "ALL"; label: string }[] = [
@@ -131,9 +130,9 @@ const Procedures = () => {
     remove, // DELETE /admin/procedures/:id/delete
     setQuery, // Met à jour les query params
     resetFilters, // Réinitialise tous les filtres
-    refresh, // GET /admin/procedures/all + statistics
     setPage, // Change la page
     setLimit, // Change la limite par page
+    refresh, // Recharge les données
   } = useProcedures({
     autoLoad: true,
     shouldLoadStatistics: isAdmin,
