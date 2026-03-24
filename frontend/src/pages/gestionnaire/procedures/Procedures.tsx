@@ -351,7 +351,7 @@ const ProcedureCard: React.FC<ProcedureRowProps> = ({
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
 
 export default function Procedures() {
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showFilters, setShowFilters] = useState(false);
   const [showStats, setShowStats] = useState(true);
@@ -491,19 +491,10 @@ export default function Procedures() {
       pagination,
       statistics,
       query,
+      user,
+      isAdmin,
     });
-  }, [procedures, loading, error, pagination, statistics, query]);
-
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center p-8">
-          <AlertCircle className="mx-auto text-red-400 mb-3" size={40} />
-          <p className="text-slate-600 font-medium">Accès non autorisé</p>
-        </div>
-      </div>
-    );
-  }
+  }, [procedures, loading, error, pagination, statistics, query, user, isAdmin]);
 
   return (
     <>
@@ -551,7 +542,7 @@ export default function Procedures() {
                 <div className="relative group">
                   <button
                     disabled={exporting}
-                    className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 text-white text-xs font-medium hover:bg-sky-700 transition-colors disabled:opacity-60"
+                    className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded bg-sky-600 text-white text-xs font-medium hover:bg-sky-700 transition-colors disabled:opacity-60"
                   >
                     <Download size={13} />
                     {exporting ? "Export…" : "Exporter"}
