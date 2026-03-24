@@ -8,7 +8,7 @@ CREATE TYPE "StepStatus" AS ENUM ('En attente', 'En cours', 'Terminé', 'Rejeté
 CREATE TYPE "StepName" AS ENUM ('DEMANDE ADMISSION', 'ENTRETIEN MOTIVATION', 'DEMANDE VISA', 'PREPARATIF VOYAGE');
 
 -- CreateEnum
-CREATE TYPE "ProcedureStatus" AS ENUM ('En cours', 'Terminée', 'Refusée', 'Annulée');
+CREATE TYPE "ProcedureStatus" AS ENUM ('En attente', 'En cours', 'Terminée', 'Refusée', 'Annulée');
 
 -- CreateEnum
 CREATE TYPE "RendezvousStatus" AS ENUM ('En attente', 'Confirmé', 'Terminé', 'Annulé');
@@ -17,10 +17,10 @@ CREATE TYPE "RendezvousStatus" AS ENUM ('En attente', 'Confirmé', 'Terminé', '
 CREATE TYPE "AdminOpinion" AS ENUM ('Favorable', 'Défavorable');
 
 -- CreateEnum
-CREATE TYPE "EducationLevel" AS ENUM ('Bac', 'Bac+1', 'Bac+2', 'Licence', 'Master I', 'Master II', 'Doctorat');
+CREATE TYPE "EducationLevel" AS ENUM ('Bac', 'Bac+1', 'Bac+2', 'Licence', 'Master I', 'Master II', 'Doctorat', 'Autre');
 
 -- CreateEnum
-CREATE TYPE "TimeSlot" AS ENUM ('09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30');
+CREATE TYPE "TimeSlot" AS ENUM ('09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30');
 
 -- CreateEnum
 CREATE TYPE "DestinationEnum" AS ENUM ('Russie', 'Chypre', 'Chine', 'Maroc', 'Algérie', 'Turquie', 'France', 'Autre');
@@ -183,8 +183,12 @@ CREATE TABLE "procedures" (
     "filiere" TEXT NOT NULL,
     "filiereAutre" TEXT,
     "niveauEtude" TEXT NOT NULL,
+    "niveauEtudeAutre" TEXT,
     "statut" "ProcedureStatus" NOT NULL DEFAULT 'En cours',
     "raisonRejet" TEXT,
+    "cancelledAt" TIMESTAMP(3),
+    "cancelledReason" TEXT,
+    "cancelledBy" TEXT,
     "isDeleted" BOOLEAN NOT NULL DEFAULT false,
     "deletedAt" TIMESTAMP(3),
     "deletionReason" TEXT,
@@ -253,11 +257,12 @@ CREATE TABLE "rendezvous" (
     "lastName" VARCHAR(50) NOT NULL,
     "email" VARCHAR(100) NOT NULL,
     "telephone" VARCHAR(20) NOT NULL,
-    "destination" "DestinationEnum" NOT NULL,
-    "destinationAutre" TEXT,
-    "niveauEtude" "EducationLevel" NOT NULL,
-    "filiere" "Filiere" NOT NULL,
-    "filiereAutre" TEXT,
+    "destination" VARCHAR(100) NOT NULL,
+    "destinationAutre" VARCHAR(100),
+    "niveauEtude" VARCHAR(100) NOT NULL,
+    "niveauEtudeAutre" VARCHAR(100),
+    "filiere" VARCHAR(100) NOT NULL,
+    "filiereAutre" VARCHAR(100),
     "date" TEXT NOT NULL,
     "time" "TimeSlot" NOT NULL,
     "status" "RendezvousStatus" NOT NULL DEFAULT 'Confirmé',
@@ -546,9 +551,6 @@ CREATE INDEX "rendezvous_date_status_time_idx" ON "rendezvous"("date", "status",
 
 -- CreateIndex
 CREATE INDEX "rendezvous_created_at_idx" ON "rendezvous"("created_at");
-
--- CreateIndex
-CREATE UNIQUE INDEX "rendezvous_date_time_key" ON "rendezvous"("date", "time");
 
 -- CreateIndex
 CREATE INDEX "rendezvous_reminders_rendezvousId_idx" ON "rendezvous_reminders"("rendezvousId");
