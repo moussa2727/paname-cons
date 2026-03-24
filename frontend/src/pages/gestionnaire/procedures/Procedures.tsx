@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { ProceduresService } from "../../../services/procedures.service";
 import type { JSX } from "react/jsx-runtime";
+
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
 const STATUS_OPTIONS: { value: ProcedureStatus | "ALL"; label: string }[] = [
