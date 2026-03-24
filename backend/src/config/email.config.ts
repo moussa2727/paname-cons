@@ -6,9 +6,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
-import * as SMTPTransport from 'nodemailer/lib/smtp-transport';
+import { google } from 'googleapis';
 import { LoggerSanitizer } from '../common/utils/logger-sanitizer.util';
-import { promises as dnsPromises } from 'dns';
 
 export interface EmailOptions {
   to: string | string[];
@@ -50,8 +49,10 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
   private emailSentTimestamps: Date[] = [];
 
   constructor(private configService: ConfigService) {
-    const emailUser = this.getEmailUser();
-    this.fromEmail = emailUser || '';
+    this.fromEmail =
+      process.env.EMAIL_USER ||
+      this.configService.get<string>('EMAIL_USER') ||
+      '';
   }
 
   async onApplicationBootstrap() {
@@ -62,165 +63,56 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     this.close();
   }
 
-  private getEmailUser(): string {
+  private getEnv(key: string): string {
     return (
-      process.env.EMAIL_USER ||
-      this.configService.get<string>('EMAIL_USER') ||
-      ''
+      process.env[key] || this.configService.get<string>(key) || ''
     );
-  }
-
-  private getEmailPass(): string {
-    return (
-      process.env.EMAIL_PASS ||
-      this.configService.get<string>('EMAIL_PASS') ||
-      ''
-    );
-  }
-
-  private async getIPv4Addresses(hostname: string): Promise<string[]> {
-    try {
-      const addresses = await dnsPromises.lookup(hostname, { all: true });
-      const ipv4Addresses = addresses
-        .filter((addr) => addr.family === 4)
-        .map((addr) => addr.address);
-
-      if (ipv4Addresses.length > 0) {
-        this.logger.log(
-          `IPv4 résolus pour ${hostname}: ${ipv4Addresses.join(', ')}`,
-        );
-        return ipv4Addresses;
-      } else {
-        this.logger.warn(`Aucune adresse IPv4 trouvée pour ${hostname}`);
-        return [];
-      }
-    } catch (error) {
-      this.logger.error(`Erreur résolution DNS pour ${hostname}: ${error}`);
-      return [];
-    }
   }
 
   private async initialize(): Promise<void> {
-    const emailUser = this.getEmailUser();
-    const emailPass = this.getEmailPass();
+    const clientId     = this.getEnv('GMAIL_CLIENT_ID');
+    const clientSecret = this.getEnv('GMAIL_CLIENT_SECRET');
+    const refreshToken = this.getEnv('GMAIL_REFRESH_TOKEN');
+    const emailUser    = this.getEnv('EMAIL_USER');
 
-    if (!emailUser || !emailPass) {
-      this.logger.error('EMAIL_USER ou EMAIL_PASS manquant');
+    if (!clientId || !clientSecret || !refreshToken || !emailUser) {
+      this.logger.error(
+        'Variables OAuth2 manquantes : GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, EMAIL_USER',
+      );
       return;
     }
 
     try {
-      this.logger.log(`Tentative connexion SMTP pour: ${emailUser}`);
-
-      // Get IPv4 addresses for Gmail SMTP
-      const ipv4Addresses = await this.getIPv4Addresses('smtp.gmail.com');
-
-      if (ipv4Addresses.length === 0) {
-        this.logger.error(
-          'Impossible de résoudre les adresses IPv4 pour smtp.gmail.com',
-        );
-        return;
-      }
-
-      const configs = ipv4Addresses.flatMap(
-        (ip) =>
-          [
-            // Config 1: Explicit SMTP with STARTTLS on port 587 (preferred)
-            {
-              host: ip,
-              port: 587,
-              secure: false,
-              requireTLS: true,
-              auth: { type: 'Login', user: emailUser, pass: emailPass },
-              connectionTimeout: 30000,
-              greetingTimeout: 15000,
-              socketTimeout: 30000,
-              debug: true,
-              logger: true,
-              tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' },
-            },
-            // Config 2: SSL on port 465
-            {
-              host: ip,
-              port: 465,
-              secure: true,
-              auth: { type: 'Login', user: emailUser, pass: emailPass },
-              connectionTimeout: 30000,
-              greetingTimeout: 15000,
-              socketTimeout: 30000,
-              debug: true,
-              logger: true,
-              tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' },
-            },
-          ] as SMTPTransport.Options[],
+      const oauth2Client = new google.auth.OAuth2(
+        clientId,
+        clientSecret,
+        'https://developers.google.com/oauthplayground',
       );
 
-      // Add fallback Gmail service config
-      configs.push({
+      oauth2Client.setCredentials({ refresh_token: refreshToken });
+
+      this.transporter = nodemailer.createTransport({
         service: 'gmail',
-        auth: { type: 'Login', user: emailUser, pass: emailPass },
-        connectionTimeout: 30000,
-        greetingTimeout: 15000,
-        socketTimeout: 30000,
-        debug: true,
-        logger: true,
-        tls: { rejectUnauthorized: false },
-      } as SMTPTransport.Options);
+        auth: {
+          type: 'OAuth2',
+          user: emailUser,
+          clientId,
+          clientSecret,
+          refreshToken,
+          accessToken: async () => {
+            const { token } = await oauth2Client.getAccessToken();
+            return token || '';
+          },
+        },
+      } as any);
 
-      let lastError: Error | null = null;
-
-      for (let i = 0; i < configs.length; i++) {
-        try {
-          const config = configs[i];
-          const configName =
-            'host' in config
-              ? `${config.host}:${config.port}`
-              : 'gmail service';
-          this.logger.log(
-            `Tentative configuration ${i + 1}/${configs.length} (${configName})`,
-          );
-
-          this.transporter = nodemailer.createTransport(config);
-
-          await this.transporter.verify();
-          this.isAvailable = true;
-          this.logger.log(
-            `Service SMTP Gmail opérationnel (config ${i + 1} - ${configName})`,
-          );
-          return;
-        } catch (error) {
-          lastError =
-            error instanceof Error ? error : new Error('Erreur inconnue');
-          this.logger.warn(
-            `Échec configuration ${i + 1}: ${lastError.message}`,
-          );
-
-          // Close connection if it was established
-          try {
-            this.transporter?.close();
-          } catch {
-            // Ignore close errors
-          }
-        }
-      }
-
-      // All configs failed
-      throw lastError || new Error('Toutes les configurations SMTP ont échoué');
+      await this.transporter.verify();
+      this.isAvailable = true;
+      this.logger.log(`Service Gmail OAuth2 opérationnel (${emailUser})`);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Erreur inconnue';
-      this.logger.error(`Échec initialisation SMTP: ${errorMessage}`);
-
-      if (error instanceof Error && error.message.includes('timeout')) {
-        this.logger.error('Solutions possibles:');
-        this.logger.error('1. Vérifiez votre connexion internet');
-        this.logger.error(
-          '2. Vérifiez que les ports 587/465 ne sont pas bloqués par votre firewall',
-        );
-        this.logger.error(
-          '3. Vérifiez que vous utilisez un mot de passe application Gmail',
-        );
-      }
+      const msg = (error as Error).message;
+      this.logger.error(`Échec initialisation OAuth2 Gmail: ${msg}`);
+      this.isAvailable = false;
     }
   }
 
@@ -232,12 +124,12 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     }
 
     if (!this.isAvailable) {
-      return { success: false, error: 'Service SMTP indisponible' };
+      return { success: false, error: 'Service Gmail OAuth2 indisponible' };
     }
 
     try {
       const fromEmail = options.from || this.fromEmail;
-      const fromName = options.fromName || this.fromName;
+      const fromName  = options.fromName || this.fromName;
       const recipients = Array.isArray(options.to) ? options.to : [options.to];
 
       const mailOptions: nodemailer.SendMailOptions = {
@@ -248,14 +140,10 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
         text: options.text || this.htmlToText(options.html),
         replyTo: options.replyTo,
         cc: options.cc
-          ? Array.isArray(options.cc)
-            ? options.cc
-            : [options.cc]
+          ? Array.isArray(options.cc) ? options.cc : [options.cc]
           : undefined,
         bcc: options.bcc
-          ? Array.isArray(options.bcc)
-            ? options.bcc
-            : [options.bcc]
+          ? Array.isArray(options.bcc) ? options.bcc : [options.bcc]
           : undefined,
         attachments: options.attachments || [],
       };
@@ -272,18 +160,11 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
 
       this.logger.log(`Email envoyé avec succès vers ${recipientInfo}`);
 
-      return {
-        success: true,
-        messageId: info.messageId,
-      };
+      return { success: true, messageId: info.messageId };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Erreur inconnue';
-      this.logger.error(`Échec envoi email: ${errorMessage}`);
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      const msg = (error as Error).message;
+      this.logger.error(`Échec envoi email: ${msg}`);
+      return { success: false, error: msg };
     }
   }
 
@@ -305,22 +186,19 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   isServiceAvailable(): boolean {
-    const emailUser = this.getEmailUser();
-    const emailPass = this.getEmailPass();
-    return !!(emailUser && emailPass);
+    return this.isAvailable;
   }
 
   getStatus(): Status {
-    const emailUser = this.getEmailUser();
     return {
-      available: this.isServiceAvailable(),
+      available: this.isAvailable,
       message: this.isAvailable
-        ? 'Service disponible'
+        ? 'Service Gmail OAuth2 disponible'
         : 'Service non configuré',
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      fromEmail: emailUser || 'Non configuré',
+      host: 'gmail OAuth2',
+      port: 443,
+      secure: true,
+      fromEmail: this.fromEmail || 'Non configuré',
     };
   }
 
@@ -329,33 +207,15 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       if (!this.isAvailable) {
         await this.initialize();
       }
-
       if (this.transporter) {
         await this.transporter.verify();
       }
-
-      return {
-        success: true,
-        message: 'Connexion SMTP réussie',
-      };
+      return { success: true, message: 'Connexion Gmail OAuth2 réussie' };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Erreur inconnue';
       return {
         success: false,
-        message: `Échec de connexion: ${errorMessage}`,
+        message: `Échec de connexion: ${(error as Error).message}`,
       };
-    }
-  }
-
-  close(): void {
-    if (this.transporter) {
-      try {
-        this.transporter.close();
-        this.logger.log('Connexions SMTP fermées');
-      } catch (error) {
-        this.logger.warn(`Erreur fermeture SMTP: ${(error as Error).message}`);
-      }
     }
   }
 
@@ -363,16 +223,26 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     try {
       if (this.transporter) {
         await this.transporter.verify();
-        this.logger.log('Connexion SMTP vérifiée avec succès');
+        this.logger.log('Connexion Gmail OAuth2 vérifiée avec succès');
         return true;
       }
     } catch (error) {
       this.logger.error(
-        `Échec de vérification SMTP: ${(error as Error).message}`,
+        `Échec vérification OAuth2: ${(error as Error).message}`,
       );
-      return false;
     }
     return false;
+  }
+
+  close(): void {
+    if (this.transporter) {
+      try {
+        this.transporter.close();
+        this.logger.log('Connexion Gmail OAuth2 fermée');
+      } catch (error) {
+        this.logger.warn(`Erreur fermeture: ${(error as Error).message}`);
+      }
+    }
   }
 
   getFromEmail(): string {
@@ -388,8 +258,8 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
 
     return {
       totalToday: todayCount,
-      limit: 100,
-      available: Math.max(0, 100 - todayCount),
+      limit: 500,
+      available: Math.max(0, 500 - todayCount),
       isAvailable: this.isAvailable,
     };
   }

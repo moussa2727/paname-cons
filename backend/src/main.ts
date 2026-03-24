@@ -60,7 +60,7 @@ async function bootstrap() {
             'validator.swagger.io',
             'res.cloudinary.com',
           ],
-          connectSrc: [`'self'`],
+          connectSrc: [`'self'`, 'gmail', 'stmp.gmail.com'],
           frameSrc: [`'self'`, `https://www.google.com`],
         },
       },
