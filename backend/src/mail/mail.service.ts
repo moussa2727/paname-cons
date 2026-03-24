@@ -220,7 +220,7 @@ export class MailService {
 
     await this.sendEmail({
       to,
-      subject: 'Rappel : Votre rendez-vous approche - Paname Consulting',
+      subject: 'Rappel - Votre rendez-vous approche - Paname Consulting',
       html,
       priority: 'normal',
     });
@@ -395,7 +395,7 @@ export class MailService {
       to,
       from: contact.email, // Email dynamique de l'expéditeur
       fromName: `${contact.firstName} ${contact.lastName}`,
-      subject: `Nouveau message de contact : ${contact.firstName} ${contact.lastName}`,
+      subject: 'Nouveau message de contact',
       html,
       priority: 'high',
     });

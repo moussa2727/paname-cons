@@ -107,6 +107,15 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     }
   }
 
+  private sanitizeSubject(subject: string): string {
+    // Remplacer les caractères non alphanumériques par des espaces
+    // Garder les accents, les espaces, et les caractères de ponctuation de base
+    return subject
+      .replace(/[^\w\sàâäéèêëïîôöùûüÿçÀÂÄÉÈÊËÏÎÔÖÙÛÜŸÇ.,!?'-]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   private buildRawEmail(options: EmailOptions): string {
     const fromEmail = options.from || this.fromEmail;
     const fromName = options.fromName || this.fromName;
@@ -125,7 +134,7 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     const lines: string[] = [
       `From: ${fromName} <${fromEmail}>`,
       `To: ${to}`,
-      `Subject: ${options.subject}`,
+      `Subject: ${this.sanitizeSubject(options.subject)}`,
       `MIME-Version: 1.0`,
       `Content-Type: text/html; charset=UTF-8`,
     ];
