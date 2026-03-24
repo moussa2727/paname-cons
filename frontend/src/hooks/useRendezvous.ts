@@ -661,9 +661,7 @@ export const useRendezvous = (
   }, [
     refreshInterval,
     isAdmin,
-    refreshTodayRendezvous,
-    loadStatistics,
-    statistics,
+    // Retirer les fonctions et objets instables
   ]);
 
   return {

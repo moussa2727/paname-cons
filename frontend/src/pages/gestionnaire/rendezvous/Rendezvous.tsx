@@ -225,7 +225,7 @@ const RendezvousAdmin = () => {
     goToPage,
   } = useRendezvous({
     autoLoad: true,
-    refreshInterval: 30000,
+    refreshInterval: 120000, // 2 minutes au lieu de 30 secondes
   });
 
   const { destinations = [], loading: loadingDestinations } = useDestinations();
@@ -297,7 +297,7 @@ const RendezvousAdmin = () => {
     if (isAdmin) {
       loadStatistics();
     }
-  }, [isAdmin, loadStatistics]); // ✅ Retirer loadStatistics pour éviter boucle
+  }, [isAdmin]); // ✅ Retirer loadStatistics pour éviter boucle
 
   // Debounce recherche
   useEffect(() => {
@@ -313,7 +313,7 @@ const RendezvousAdmin = () => {
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
     };
-  }, [searchTerm, filters, setFilters]); // Ajout de filters et setFilters
+  }, [searchTerm]); // ✅ Retirer filters et setFilters pour éviter boucle
 
   // Panels
   const loadTodayPanel = useCallback(async () => {
@@ -358,7 +358,7 @@ const RendezvousAdmin = () => {
     } else if (activeTab === "upcoming") {
       loadUpcomingPanel();
     }
-  }, [activeTab, loadTodayPanel, loadUpcomingPanel]);
+  }, [activeTab]); // ✅ Retirer les fonctions pour éviter boucle
 
   // Filtre rapide par date
   const handleDateQuickFilter = useCallback(
