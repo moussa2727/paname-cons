@@ -438,13 +438,17 @@ export const useRendezvous = (
     if (!isAdmin) return;
 
     const today = new Date().toISOString().split("T")[0];
-    const todayRdv = await getRendezvousByDate(today);
-
-    setRendezvous((prev) => [
-      ...prev.filter((r) => r.date !== today),
-      ...todayRdv,
-    ]);
-  }, [isAdmin, getRendezvousByDate]);
+    try {
+      const todayRdv = await rendezvousService.getRendezvousByDate(today);
+      
+      setRendezvous((prev) => [
+        ...prev.filter((r) => r.date !== today),
+        ...todayRdv,
+      ]);
+    } catch (error) {
+      console.error("Erreur lors du rafraîchissement des rendez-vous du jour:", error);
+    }
+  }, [isAdmin]);
 
   const getUpcomingRendezvous = useCallback(
     async (limit = 10): Promise<RendezvousResponseDto[]> => {
@@ -644,9 +648,7 @@ export const useRendezvous = (
     autoLoad,
     isAuthenticated,
     isAdmin,
-    loadAvailableDates,
-    loadRendezvous,
-    loadStatistics,
+    // Retirer les fonctions instables pour éviter la boucle
   ]);
 
   useEffect(() => {
@@ -654,7 +656,7 @@ export const useRendezvous = (
 
     const intervalId = setInterval(() => {
       refreshTodayRendezvous();
-      if (statistics) loadStatistics();
+      loadStatistics(); // Toujours charger les stats même si statistics est null
     }, refreshInterval);
 
     return () => clearInterval(intervalId);
