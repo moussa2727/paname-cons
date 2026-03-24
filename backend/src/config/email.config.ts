@@ -5,9 +5,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import SMTPTransport from 'nodemailer/lib/smtp-transport';
-import { google } from 'googleapis';
+import { google, gmail_v1 } from 'googleapis';
 import { LoggerSanitizer } from '../common/utils/logger-sanitizer.util';
 
 export interface EmailOptions {
@@ -20,7 +18,6 @@ export interface EmailOptions {
   replyTo?: string;
   cc?: string | string[];
   bcc?: string | string[];
-  attachments?: nodemailer.SendMailOptions['attachments'];
   priority?: 'high' | 'normal' | 'low';
 }
 
@@ -42,7 +39,7 @@ export interface EmailStats {
 
 @Injectable()
 export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
-  private transporter!: nodemailer.Transporter;
+  private gmail!: gmail_v1.Gmail;
   private readonly logger = new Logger(EmailConfig.name);
   private isAvailable: boolean = false;
   readonly fromEmail: string;
@@ -90,6 +87,7 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
 
       oauth2Client.setCredentials({ refresh_token: refreshToken });
 
+      // Vérification via HTTPS (pas SMTP) — jamais bloqué sur Railway
       const { token } = await oauth2Client.getAccessToken();
 
       if (!token) {
@@ -97,28 +95,51 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
         return;
       }
 
-      const transportOptions: SMTPTransport.Options = {
-        service: 'gmail',
-        auth: {
-          type: 'OAuth2',
-          user: emailUser,
-          clientId,
-          clientSecret,
-          refreshToken,
-          accessToken: token,
-        },
-      };
-
-      this.transporter = nodemailer.createTransport(transportOptions);
-
-      await this.transporter.verify();
+      this.gmail = google.gmail({ version: 'v1', auth: oauth2Client });
       this.isAvailable = true;
-      this.logger.log(`Service Gmail OAuth2 opérationnel (${emailUser})`);
+      this.logger.log(`Service Gmail API opérationnel (${emailUser})`);
     } catch (error) {
       const msg = (error as Error).message;
-      this.logger.error(`Échec initialisation OAuth2 Gmail: ${msg}`);
+      this.logger.error(`Échec initialisation Gmail API: ${msg}`);
       this.isAvailable = false;
     }
+  }
+
+  private buildRawEmail(options: EmailOptions): string {
+    const fromEmail = options.from || this.fromEmail;
+    const fromName = options.fromName || this.fromName;
+    const to = Array.isArray(options.to) ? options.to.join(', ') : options.to;
+    const cc = options.cc
+      ? Array.isArray(options.cc)
+        ? options.cc.join(', ')
+        : options.cc
+      : '';
+    const bcc = options.bcc
+      ? Array.isArray(options.bcc)
+        ? options.bcc.join(', ')
+        : options.bcc
+      : '';
+
+    const lines: string[] = [
+      `From: ${fromName} <${fromEmail}>`,
+      `To: ${to}`,
+      `Subject: ${options.subject}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: text/html; charset=UTF-8`,
+    ];
+
+    if (cc) lines.push(`Cc: ${cc}`);
+    if (bcc) lines.push(`Bcc: ${bcc}`);
+    if (options.replyTo) lines.push(`Reply-To: ${options.replyTo}`);
+
+    lines.push('', options.html);
+
+    const raw = lines.join('\r\n');
+    return Buffer.from(raw)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
   }
 
   async sendEmail(
@@ -129,37 +150,16 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     }
 
     if (!this.isAvailable) {
-      return { success: false, error: 'Service Gmail OAuth2 indisponible' };
+      return { success: false, error: 'Service Gmail API indisponible' };
     }
 
     try {
-      const fromEmail = options.from || this.fromEmail;
-      const fromName = options.fromName || this.fromName;
-      const recipients = Array.isArray(options.to) ? options.to : [options.to];
+      const raw = this.buildRawEmail(options);
 
-      const mailOptions: nodemailer.SendMailOptions = {
-        from: `${fromName} <${fromEmail}>`,
-        to: recipients,
-        subject: options.subject,
-        html: options.html,
-        text: options.text || this.htmlToText(options.html),
-        replyTo: options.replyTo,
-        cc: options.cc
-          ? Array.isArray(options.cc)
-            ? options.cc
-            : [options.cc]
-          : undefined,
-        bcc: options.bcc
-          ? Array.isArray(options.bcc)
-            ? options.bcc
-            : [options.bcc]
-          : undefined,
-        attachments: options.attachments || [],
-      };
-
-      const info = (await this.transporter.sendMail(mailOptions)) as {
-        messageId: string;
-      };
+      const response = await this.gmail.users.messages.send({
+        userId: 'me',
+        requestBody: { raw },
+      });
 
       this.emailSentTimestamps.push(new Date());
 
@@ -169,29 +169,12 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
 
       this.logger.log(`Email envoyé avec succès vers ${recipientInfo}`);
 
-      return { success: true, messageId: info.messageId };
+      return { success: true, messageId: response.data.id ?? undefined };
     } catch (error) {
       const msg = (error as Error).message;
       this.logger.error(`Échec envoi email: ${msg}`);
       return { success: false, error: msg };
     }
-  }
-
-  private htmlToText(html: string): string {
-    return html
-      .replace(/<style[^>]*>.*?<\/style>/gm, '')
-      .replace(/<script[^>]*>.*?<\/script>/gm, '')
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<p[^>]*>/gi, '\n')
-      .replace(/<\/p>/gi, '\n\n')
-      .replace(/<div[^>]*>/gi, '\n')
-      .replace(/<\/div>/gi, '\n')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .trim();
   }
 
   isServiceAvailable(): boolean {
@@ -202,9 +185,9 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     return {
       available: this.isAvailable,
       message: this.isAvailable
-        ? 'Service Gmail OAuth2 disponible'
+        ? 'Service Gmail API disponible'
         : 'Service non configuré',
-      host: 'gmail OAuth2',
+      host: 'gmail.googleapis.com',
       port: 443,
       secure: true,
       fromEmail: this.fromEmail || 'Non configuré',
@@ -216,10 +199,9 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       if (!this.isAvailable) {
         await this.initialize();
       }
-      if (this.transporter) {
-        await this.transporter.verify();
-      }
-      return { success: true, message: 'Connexion Gmail OAuth2 réussie' };
+      // Test via API HTTP — pas de SMTP
+      await this.gmail.users.getProfile({ userId: 'me' });
+      return { success: true, message: 'Connexion Gmail API réussie' };
     } catch (error) {
       return {
         success: false,
@@ -230,28 +212,20 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
 
   async verifyConnection(): Promise<boolean> {
     try {
-      if (this.transporter) {
-        await this.transporter.verify();
-        this.logger.log('Connexion Gmail OAuth2 vérifiée avec succès');
-        return true;
-      }
+      await this.gmail.users.getProfile({ userId: 'me' });
+      this.logger.log('Connexion Gmail API vérifiée avec succès');
+      return true;
     } catch (error) {
       this.logger.error(
-        `Échec vérification OAuth2: ${(error as Error).message}`,
+        `Échec vérification Gmail API: ${(error as Error).message}`,
       );
+      return false;
     }
-    return false;
   }
 
   close(): void {
-    if (this.transporter) {
-      try {
-        this.transporter.close();
-        this.logger.log('Connexion Gmail OAuth2 fermée');
-      } catch (error) {
-        this.logger.warn(`Erreur fermeture: ${(error as Error).message}`);
-      }
-    }
+    // Rien à fermer avec Gmail API HTTP
+    this.logger.log('Gmail API client fermé');
   }
 
   getFromEmail(): string {
