@@ -7,6 +7,12 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { LoggerSanitizer } from '../common/utils/logger-sanitizer.util';
+// forcing ipv4 - must be first, before any other imports
+import {
+  setDefaultResultOrder,
+  promises as dnsPromises,
+  LookupAddress,
+} from 'dns';
 
 export interface EmailOptions {
   to: string | string[];
@@ -48,6 +54,26 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
   private emailSentTimestamps: Date[] = [];
 
   constructor(private configService: ConfigService) {
+    // Set IPv4 preference
+    setDefaultResultOrder('ipv4first');
+
+    // Perform DNS lookup non-blocking
+    dnsPromises
+      .lookup('smtp.gmail.com', { all: true })
+      .then((addresses: LookupAddress[]) => {
+        const ipv4Only = addresses.filter((a) => a.family === 4);
+        if (ipv4Only.length === 0) {
+          console.warn('[DNS] Aucune adresse IPv4 trouvee pour smtp.gmail.com');
+        } else {
+          console.log(
+            `[DNS] IPv4 force -- ${ipv4Only.map((a) => a.address).join(', ')}`,
+          );
+        }
+      })
+      .catch(() => {
+        console.warn('[DNS] Verification IPv4 non bloquante echouee');
+      });
+
     const emailUser = this.getEmailUser();
     this.fromEmail = emailUser || '';
   }
@@ -271,6 +297,7 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       );
       return false;
     }
+    return false;
   }
 
   getFromEmail(): string {

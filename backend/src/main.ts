@@ -1,10 +1,3 @@
-// forcing ipv4 - must be first, before any other imports
-import {
-  setDefaultResultOrder,
-  promises as dnsPromises,
-  LookupAddress,
-} from 'dns';
-
 import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from './app.module';
@@ -47,23 +40,6 @@ async function bootstrap() {
     httpAdapter.set('trust proxy', 1);
   }
 
-  setDefaultResultOrder('ipv4first');
-
-  void dnsPromises
-    .lookup('smtp.gmail.com', { all: true })
-    .then((addresses: LookupAddress[]) => {
-      const ipv4Only = addresses.filter((a) => a.family === 4);
-      if (ipv4Only.length === 0) {
-        console.warn('[DNS] Aucune adresse IPv4 trouvee pour smtp.gmail.com');
-      } else {
-        console.log(
-          `[DNS] IPv4 force -- ${ipv4Only.map((a) => a.address).join(', ')}`,
-        );
-      }
-    })
-    .catch(() => {
-      console.warn('[DNS] Verification IPv4 non bloquante echouee');
-    });
   app.use(
     helmet.default({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
