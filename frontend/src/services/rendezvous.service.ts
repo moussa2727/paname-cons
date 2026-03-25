@@ -369,61 +369,69 @@ class AdminRendezvousService extends BaseRendezvousService {
    * Export CSV
    */
   async exportToCSV(filters?: RendezvousFilters): Promise<string> {
-    const params: RendezvousQueryDto = {
-      limit: 1000,
-      ...(filters && {
-        ...(filters.status && {
-          status: Array.isArray(filters.status)
-            ? filters.status[0]
-            : filters.status,
+    try {
+      const params: RendezvousQueryDto = {
+        limit: 1000,
+        ...(filters && {
+          ...(filters.status && {
+            status: Array.isArray(filters.status)
+              ? filters.status[0]
+              : filters.status,
+          }),
+          ...(filters.dateRange && {
+            startDate: filters.dateRange.start,
+            endDate: filters.dateRange.end,
+          }),
+          ...(filters.searchTerm && { search: filters.searchTerm }),
+          ...(filters.avisAdmin && { hasAvis: true }),
+          ...(filters.hasProcedure !== undefined && {
+            hasProcedure: filters.hasProcedure,
+          }),
         }),
-        ...(filters.dateRange && {
-          startDate: filters.dateRange.start,
-          endDate: filters.dateRange.end,
-        }),
-        ...(filters.searchTerm && { search: filters.searchTerm }),
-        ...(filters.avisAdmin && { hasAvis: true }),
-        ...(filters.hasProcedure !== undefined && {
-          hasProcedure: filters.hasProcedure,
-        }),
-      }),
-    };
+      };
 
-    const result = await this.searchRendezvous(params);
+      const result = await this.searchRendezvous(params);
 
-    const headers = [
-      "ID",
-      "Prénom",
-      "Nom",
-      "Email",
-      "Téléphone",
-      "Destination",
-      "Niveau d'étude",
-      "Filière",
-      "Date",
-      "Heure",
-      "Statut",
-      "Avis Admin",
-      "Date création",
-    ];
+      const headers = [
+        "ID",
+        "Prénom",
+        "Nom",
+        "Email",
+        "Téléphone",
+        "Destination",
+        "Niveau d'étude",
+        "Filière",
+        "Date",
+        "Heure",
+        "Statut",
+        "Avis Admin",
+        "Date création",
+      ];
 
-    const rows = result.data.map((rdv) => [
-      rdv.id,
-      rdv.firstName,
-      rdv.lastName,
-      rdv.email,
-      rdv.telephone,
-      rdv.effectiveDestination,
-      rdv.effectiveNiveauEtude,
-      rdv.effectiveFiliere,
-      rdv.date,
-      rdv.time,
-      rdv.status,
-      rdv.avisAdmin || "",
-      new Date(rdv.createdAt).toLocaleDateString("fr-FR"),
-    ]);
+      const rows = result.data.map((rdv) => [
+        rdv.id,
+        rdv.firstName,
+        rdv.lastName,
+        rdv.email,
+        rdv.telephone,
+        rdv.effectiveDestination,
+        rdv.effectiveNiveauEtude,
+        rdv.effectiveFiliere,
+        rdv.date,
+        rdv.time,
+        rdv.status,
+        rdv.avisAdmin || "",
+        new Date(rdv.createdAt).toLocaleDateString("fr-FR"),
+      ]);
 
-    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+      const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+      toast.success("Export CSV généré avec succès !");
+      return csv;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'export CSV";
+      toast.error(errorMessage);
+      throw error;
+    }
   }
 }
 
