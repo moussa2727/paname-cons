@@ -259,8 +259,11 @@ export default function AdminSidebar({
                       </Link>
                       <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full animate-pulse"></div>
                     </div>
+                  </div>
 
-                    {/* Texte aligné à gauche sous l'icône */}
+                  {/* Informations utilisateur en dessous */}
+                  <div className="text-start">
+                     {/* Texte aligné à gauche sous l'icône */}
                     <div className="flex flex-col items-start">
                       <h2 className="font-bold text-sky-900 text-sm leading-tight">
                         Gestionnaire
@@ -269,10 +272,6 @@ export default function AdminSidebar({
                         Paname Consulting
                       </p>
                     </div>
-                  </div>
-
-                  {/* Informations utilisateur en dessous */}
-                  <div className="text-start">
                     <div className="flex flex-col items-start gap-1 mt-1">
                       <span className="text-[10px] text-sky-600 truncate max-w-40">
                         {user.email}
@@ -290,7 +289,7 @@ export default function AdminSidebar({
                 whileHover={{ scale: 1.1, x: -2 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={onToggle}
-                className="absolute right-5 top-1/2 -translate-y-1/2 p-2 bg-linear-to-br from-sky-500 to-blue-600 text-white rounded-full shadow-lg hover:shadow-xl hover:from-sky-600 hover:to-blue-700 transition-all duration-200 border-2 border-white group z-10"
+                className="absolute right-5 top-0 -translate-y-1/2 p-2 bg-linear-to-br from-sky-500 to-blue-600 text-white rounded-full shadow-lg hover:shadow-xl hover:from-sky-600 hover:to-blue-700 transition-all duration-200 border-2 border-white group z-10"
                 aria-label="Rétracter le menu"
               >
                 <ChevronLeft
