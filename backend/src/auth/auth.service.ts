@@ -437,7 +437,7 @@ export class AuthService {
       throw new BadRequestException('Ancien mot de passe incorrect');
     }
 
-    await this.usersRepository.updatePassword(userId, newPassword);
+    await this.usersService.updatePassword(userId, newPassword);
 
     // Send password changed email via MailService
     await this.mailService.sendPasswordChangedEmail(user.email, user.firstName);

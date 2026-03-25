@@ -266,10 +266,7 @@ export class UsersService {
   }
 
   async updatePassword(userId: string, newPassword: string): Promise<void> {
-    const hashedPassword = await bcrypt.hash(
-      newPassword,
-      parseInt(this.configService.get<string>('BCRYPT_ROUNDS') || '12'),
-    );
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     await this.usersRepository.update(userId, { password: hashedPassword });
 
