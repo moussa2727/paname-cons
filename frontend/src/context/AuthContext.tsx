@@ -539,7 +539,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     let cancelled = false;
 
     const checkAuth = async (): Promise<void> => {
-      // FIX : guard remember_me supprimé — voir commentaire ci-dessus.
       // On tente toujours le profil ; apiFetch gère le 401 → refresh.
       try {
         // apiFetch gère le retry 401 → refresh → replay en interne
