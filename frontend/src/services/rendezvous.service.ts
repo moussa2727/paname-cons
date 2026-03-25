@@ -205,13 +205,21 @@ class UserRendezvousService extends BaseRendezvousService {
   ): Promise<RendezvousResponseDto> {
     const url = `${this.baseUrl}/rendezvous/${id}/cancel`;
 
-    const response = await apiFetch(url, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    try {
+      const response = await apiFetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
-    return this.handleResponse<RendezvousResponseDto>(response);
+      const result = await this.handleResponse<RendezvousResponseDto>(response);
+      toast.success("Rendez-vous annulé avec succès !");
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'annulation du rendez-vous";
+      toast.error(errorMessage);
+      throw error;
+    }
   }
 }
 
@@ -279,13 +287,21 @@ class AdminRendezvousService extends BaseRendezvousService {
   ): Promise<RendezvousResponseDto> {
     const url = `${this.baseUrl}/admin/rendezvous/${id}/patch`;
 
-    const response = await apiFetch(url, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    try {
+      const response = await apiFetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
-    return this.handleResponse<RendezvousResponseDto>(response);
+      const result = await this.handleResponse<RendezvousResponseDto>(response);
+      toast.success("Rendez-vous mis à jour avec succès !");
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la mise à jour du rendez-vous";
+      toast.error(errorMessage);
+      throw error;
+    }
   }
 
   /**
@@ -297,13 +313,21 @@ class AdminRendezvousService extends BaseRendezvousService {
   ): Promise<RendezvousResponseDto> {
     const url = `${this.baseUrl}/admin/rendezvous/${id}/complete`;
 
-    const response = await apiFetch(url, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    try {
+      const response = await apiFetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
-    return this.handleResponse<RendezvousResponseDto>(response);
+      const result = await this.handleResponse<RendezvousResponseDto>(response);
+      toast.success("Rendez-vous complété avec succès !");
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la complétion du rendez-vous";
+      toast.error(errorMessage);
+      throw error;
+    }
   }
 
   /**
@@ -312,8 +336,15 @@ class AdminRendezvousService extends BaseRendezvousService {
   async deleteRendezvous(id: string): Promise<void> {
     const url = `${this.baseUrl}/admin/rendezvous/${id}/delete`;
 
-    const response = await apiFetch(url, { method: "DELETE" });
-    await this.handleResponse<void>(response);
+    try {
+      const response = await apiFetch(url, { method: "DELETE" });
+      await this.handleResponse<void>(response);
+      toast.success("Rendez-vous supprimé avec succès !");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la suppression du rendez-vous";
+      toast.error(errorMessage);
+      throw error;
+    }
   }
 
   /**
