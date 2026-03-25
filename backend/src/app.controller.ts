@@ -1,10 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Public } from './common/decorators/public.decorator';
 
 @Controller()
 export class AppController {
-  constructor(private configService: ConfigService) {}
+  constructor() {}
 
   @Public()
   @Get()

@@ -393,7 +393,7 @@ export class MailService {
 
     await this.sendEmail({
       to,
-      from: contact.email, // Email dynamique de l'expéditeur
+      from: contact.email,
       fromName: `${contact.firstName} ${contact.lastName}`,
       subject: 'Nouveau message de contact',
       html,
@@ -461,7 +461,7 @@ export class MailService {
 
     await this.sendEmail({
       to: process.env.EMAIL_USER,
-      from: fromEmail || process.env.EMAIL_USER, // Email dynamique ou défaut
+      from: fromEmail, // Email dynamique ou défaut
       fromName: fromName || 'Système Paname Consulting', // Nom dynamique ou défaut
       subject: `[Paname Consulting] ${title}`,
       html,

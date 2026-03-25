@@ -6,8 +6,7 @@ import {
   HttpException,
   Logger,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
-import { ConfigService } from '@nestjs/config';
+import { Request } from 'express';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -22,7 +21,7 @@ interface ErrorResponse {
 export class LoggingInterceptor implements NestInterceptor {
   private logger = new Logger('EXCEPTION');
 
-  constructor(private configService: ConfigService) {}
+  constructor() {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const startTime = Date.now();

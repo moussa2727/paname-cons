@@ -169,7 +169,10 @@ export class ExcludeSensitiveFieldsInterceptor implements NestInterceptor {
     'creditCard',
   ];
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+  intercept(
+    _context: ExecutionContext,
+    next: CallHandler,
+  ): Observable<unknown> {
     return next
       .handle()
       .pipe(map((data: unknown) => this.excludeSensitiveData(data)));
