@@ -132,9 +132,7 @@ const Login: React.FC = () => {
                     <FiLock className="text-white text-xl" />
                   </div>
                 </div>
-                <span className="text-2xl font-bold text-white">
-                  Connexion
-                </span>
+                <span className="text-2xl font-bold text-white">Connexion</span>
               </Link>
             </div>
 

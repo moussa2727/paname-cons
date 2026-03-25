@@ -11,8 +11,6 @@ import {
   XCircle,
   AlertCircle,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
   RefreshCw,
   Info,
   Star,
@@ -22,13 +20,11 @@ import {
   Loader2,
 } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
-import { useRendezvous } from "../../../hooks/useRendezvous";
+import { useUserRendezvous } from "../../../hooks/useRendezvous";
 import {
   type RendezvousResponseDto,
-  type CancelRendezvousDto,
   RendezvousStatus,
   AdminOpinion,
-  CancelledBy,
   RendezvousStatusLabels,
   AdminOpinionLabels,
   timeSlotToDisplay,
@@ -292,28 +288,22 @@ const MesRendezvous: React.FC = () => {
   const location = useLocation();
   const [headerHeight, setHeaderHeight] = useState(0);
 
-  // ✅ DÉLÉGATION COMPLÈTE AU HOOK
+  // ✅ CORRECTION 1: Utiliser les bonnes propriétés du hook
+  // userRendezvous (pas rendezvous) et loadUserRendezvous (pas getRendezvousByEmail)
   const {
-    rendezvous,
+    userRendezvous, // ✅ Correction: 'rendezvous' -> 'userRendezvous'
     loading,
-    pagination,
-    getRendezvousByEmail,
     cancelRendezvous,
-    setFilters,
-    resetFilters,
-    nextPage,
-    previousPage,
-    goToPage,
-  } = useRendezvous({
+    loadUserRendezvous, // ✅ Correction: 'getRendezvousByEmail' -> 'loadUserRendezvous'
+    error,
+  } = useUserRendezvous({
     autoLoad: false,
-    initialParams: {
-      limit: 10,
-      sortBy: "date",
-      sortOrder: "desc",
-    },
   });
 
-  // État local pour le statut sélectionné
+  // État local pour le filtrage
+  const [filteredRendezvous, setFilteredRendezvous] = useState<
+    RendezvousResponseDto[]
+  >([]);
   const [selectedStatus, setSelectedStatus] = useState<RendezvousStatus | "">(
     "",
   );
@@ -360,11 +350,11 @@ const MesRendezvous: React.FC = () => {
   const fetchRendezvous = useCallback(async () => {
     if (!user?.email) return;
     try {
-      await getRendezvousByEmail(user.email);
+      await loadUserRendezvous(); // ✅ Correction: pas besoin de passer l'email, le hook l'utilise déjà
     } catch {
       // Les erreurs sont gérées par le hook
     }
-  }, [user?.email, getRendezvousByEmail]);
+  }, [user?.email, loadUserRendezvous]);
 
   // Chargement initial
   useEffect(() => {
@@ -373,14 +363,21 @@ const MesRendezvous: React.FC = () => {
     }
   }, [user?.email, fetchRendezvous]);
 
-  // ✅ Appliquer le filtre de statut via le hook
+  // ✅ Filtrer les rendez-vous localement
   useEffect(() => {
-    if (selectedStatus) {
-      setFilters({ status: selectedStatus });
-    } else {
-      resetFilters();
+    if (!userRendezvous) {
+      setFilteredRendezvous([]);
+      return;
     }
-  }, [selectedStatus, setFilters, resetFilters]);
+
+    let filtered = [...userRendezvous];
+
+    if (selectedStatus) {
+      filtered = filtered.filter((rdv) => rdv.status === selectedStatus);
+    }
+
+    setFilteredRendezvous(filtered);
+  }, [userRendezvous, selectedStatus]);
 
   // ==================== ANNULATION ====================
 
@@ -394,16 +391,18 @@ const MesRendezvous: React.FC = () => {
     setSelectedRdvForCancel(null);
   };
 
+  // ✅ CORRECTION 2: cancelRendezvous attend (id, reason) comme paramètres
   const handleCancelRendezvous = async (reason?: string) => {
     if (!selectedRdvForCancel) return;
     setCancelling(true);
     try {
-      const cancelData: CancelRendezvousDto = {
-        reason: reason?.trim() || "Annulation par l'utilisateur",
-        cancelledBy: CancelledBy.USER,
-      };
-
-      await cancelRendezvous(selectedRdvForCancel.id, cancelData);
+      // ✅ Correction: cancelRendezvous attend (id, reason) et non un objet CancelRendezvousDto
+      await cancelRendezvous(
+        selectedRdvForCancel.id,
+        reason?.trim() || "Annulation par l'utilisateur",
+      );
+      // Rafraîchir la liste après annulation
+      await fetchRendezvous();
       closeCancelModal();
     } catch {
       // Les erreurs sont gérées par le hook
@@ -500,12 +499,13 @@ const MesRendezvous: React.FC = () => {
               </button>
             </div>
 
-            {/* Pagination info du hook */}
+            {/* Stats */}
             <div className="text-sm text-gray-600">
-              {pagination.total > 0 ? (
+              {filteredRendezvous.length > 0 ? (
                 <>
-                  {pagination.total} rendez-vous • Page {pagination.page}/
-                  {pagination.totalPages}
+                  {filteredRendezvous.length} rendez-vous
+                  {selectedStatus &&
+                    ` • ${RendezvousStatusLabels[selectedStatus]}`}
                 </>
               ) : (
                 "Aucun rendez-vous"
@@ -523,10 +523,23 @@ const MesRendezvous: React.FC = () => {
             </div>
           )}
 
-          {/* Liste - utilise directement rendezvous du hook */}
-          {!loading.list && rendezvous.length > 0 && (
+          {/* Erreur */}
+          {error && !loading.list && (
+            <div className="mb-6 rounded-lg bg-red-50 border border-red-200 p-4 text-center">
+              <p className="text-sm text-red-600">{error}</p>
+              <button
+                onClick={fetchRendezvous}
+                className="mt-2 text-sm text-red-700 underline hover:text-red-800"
+              >
+                Réessayer
+              </button>
+            </div>
+          )}
+
+          {/* Liste - utilise filteredRendezvous pour l'affichage */}
+          {!loading.list && filteredRendezvous.length > 0 && (
             <div className="space-y-4 mb-8">
-              {rendezvous.map((rdv, index) => {
+              {filteredRendezvous.map((rdv, index) => {
                 const canCancel = canCancelRendezvous(rdv);
 
                 return (
@@ -622,7 +635,7 @@ const MesRendezvous: React.FC = () => {
           )}
 
           {/* État vide */}
-          {!loading.list && rendezvous.length === 0 && (
+          {!loading.list && filteredRendezvous.length === 0 && (
             <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
               <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
                 <Calendar className="h-8 w-8 text-gray-400" />
@@ -642,69 +655,6 @@ const MesRendezvous: React.FC = () => {
                 <Plus className="h-4 w-4" />
                 Prendre un rendez-vous
               </button>
-            </div>
-          )}
-
-          {/* Pagination - utilise les méthodes du hook */}
-          {!loading.list && pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-600">
-                Page {pagination.page} sur {pagination.totalPages} • Total :{" "}
-                {pagination.total} rendez-vous
-                {pagination.total > 1 ? "s" : ""}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={previousPage}
-                  disabled={!pagination.hasPrevious || loading.list}
-                  className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Précédent
-                </button>
-
-                <div className="flex items-center gap-1">
-                  {Array.from(
-                    { length: Math.min(5, pagination.totalPages) },
-                    (_, i) => {
-                      let pageNum: number;
-                      if (pagination.totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (pagination.page <= 3) {
-                        pageNum = i + 1;
-                      } else if (pagination.page >= pagination.totalPages - 2) {
-                        pageNum = pagination.totalPages - 4 + i;
-                      } else {
-                        pageNum = pagination.page - 2 + i;
-                      }
-                      return (
-                        <button
-                          key={`page-${pageNum}`}
-                          onClick={() => goToPage(pageNum)}
-                          disabled={loading.list}
-                          className={`min-w-10 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                            pagination.page === pageNum
-                              ? "bg-sky-600 text-white"
-                              : "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    },
-                  )}
-                </div>
-
-                <button
-                  onClick={nextPage}
-                  disabled={!pagination.hasNext || loading.list}
-                  className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Suivant
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
             </div>
           )}
 

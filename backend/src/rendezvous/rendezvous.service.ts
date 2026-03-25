@@ -333,28 +333,32 @@ export class RendezvousService {
       where.email = currentUser.email;
     }
 
-    if (!filters?.status) {
-      where.status = {
-        in: [RendezvousStatus.PENDING, RendezvousStatus.CONFIRMED],
-      };
-    }
+    // Filtre de statut : explicite si fourni, sinon défaut PENDING + CONFIRMED
+    where.status = filters?.status
+      ? filters.status
+      : { in: [RendezvousStatus.PENDING, RendezvousStatus.CONFIRMED] };
 
-    if (filters?.status) where.status = filters.status;
-    if (filters?.date) where.date = filters.date.toISOString().split('T')[0];
     if (filters?.email && currentUser.role === UserRole.ADMIN) {
       where.email = filters.email;
     }
     if (filters?.destination) where.destination = filters.destination;
     if (filters?.filiere) where.filiere = filters.filiere;
 
+    // startDate/endDate prend la priorité sur date simple ; les deux sont mutuellement exclusifs
     if (filters?.startDate || filters?.endDate) {
       where.date = {};
       if (filters?.startDate) {
-        where.date.gte = filters.startDate.toISOString().split('T')[0];
+        (where.date as Prisma.StringFilter).gte = filters.startDate
+          .toISOString()
+          .split('T')[0];
       }
       if (filters?.endDate) {
-        where.date.lte = filters.endDate.toISOString().split('T')[0];
+        (where.date as Prisma.StringFilter).lte = filters.endDate
+          .toISOString()
+          .split('T')[0];
       }
+    } else if (filters?.date) {
+      where.date = filters.date.toISOString().split('T')[0];
     }
 
     if (filters?.search) {
@@ -583,29 +587,31 @@ export class RendezvousService {
         updateData,
       );
 
-      // Send status update notification using MailService
+      // Notification de changement de statut (hors COMPLETED+FAVORABLE qui est géré par complete())
       if (updateData.status && updateData.status !== existing.status) {
-        await this.mailService.sendRendezvousStatusUpdatedEmail(
-          updatedRendezvous.email,
-          updatedRendezvous.firstName,
-          {
-            id: updatedRendezvous.id,
-            date: new Date(updatedRendezvous.date),
-            time: updatedRendezvous.time,
-            destination: updatedRendezvous.destination,
-            destinationAutre: updatedRendezvous.destinationAutre,
-          },
-          existing.status,
-          updateData.status as RendezvousStatus,
-        );
+        const isCompletedFavorable =
+          updateData.status === RendezvousStatus.COMPLETED &&
+          updateRendezvousDto.avisAdmin === AdminOpinion.FAVORABLE;
+
+        if (!isCompletedFavorable) {
+          await this.mailService.sendRendezvousStatusUpdatedEmail(
+            updatedRendezvous.email,
+            updatedRendezvous.firstName,
+            {
+              id: updatedRendezvous.id,
+              date: new Date(updatedRendezvous.date),
+              time: updatedRendezvous.time,
+              destination: updatedRendezvous.destination,
+              destinationAutre: updatedRendezvous.destinationAutre,
+            },
+            existing.status,
+            updateData.status as RendezvousStatus,
+          );
+        }
       }
 
-      if (
-        updateRendezvousDto.status === RendezvousStatus.COMPLETED &&
-        updateRendezvousDto.avisAdmin === AdminOpinion.FAVORABLE
-      ) {
-        await this.createProcedureFromRendezvous(updatedRendezvous);
-      }
+      // La création de procédure est intentionnellement absente ici.
+      // Elle est déclenchée UNIQUEMENT via complete() pour éviter tout double appel.
 
       return updatedRendezvous;
     } catch (error) {
@@ -758,35 +764,44 @@ export class RendezvousService {
   }
 
   async getAvailableDates(startDate: Date, endDate: Date) {
-    const availableDates = this.holidaysService.getAvailableDates(
+    const availableDates = await this.holidaysService.getAvailableDates(
       startDate,
       endDate,
     );
 
-    const datesWithSlots = await Promise.all(
-      (await availableDates).map(async (dateStr) => {
-        const date = new Date(dateStr);
-        const existingRendezvous = await this.rendezvousRepository.findAll({
-          where: {
-            date: dateStr,
-            status: RendezvousStatus.CONFIRMED,
-          },
-        });
+    if (availableDates.length === 0) return [];
 
-        const availableSlots = await this.holidaysService.getAvailableTimeSlots(
-          date,
-          existingRendezvous,
-        );
+    // Une seule requête groupée pour récupérer le nombre de créneaux pris sur toutes les dates
+    const startDateStr = availableDates[0];
+    const endDateStr = availableDates[availableDates.length - 1];
 
-        return {
-          date: dateStr,
-          availableSlots: availableSlots.length,
-          hasSlots: availableSlots.length > 0,
-        };
-      }),
+    const bookedByDate = await this.prisma.rendezvous.groupBy({
+      by: ['date'],
+      where: {
+        date: { gte: startDateStr, lte: endDateStr },
+        status: { in: [RendezvousStatus.CONFIRMED, RendezvousStatus.PENDING] },
+      },
+      _count: { date: true },
+    });
+
+    const bookedCountMap = new Map<string, number>(
+      bookedByDate.map((row) => [row.date, row._count.date]),
     );
 
-    return datesWithSlots.filter((dateInfo) => dateInfo.hasSlots);
+    const allSlots = this.holidaysService.generateAllTimeSlots();
+    const totalSlotsPerDay = allSlots.length;
+
+    return availableDates
+      .map((dateStr) => {
+        const booked = bookedCountMap.get(dateStr) ?? 0;
+        const available = totalSlotsPerDay - booked;
+        return {
+          date: dateStr,
+          availableSlots: available,
+          hasSlots: available > 0,
+        };
+      })
+      .filter((d) => d.hasSlots);
   }
 
   async checkAvailability(date: string, time: string) {
@@ -986,7 +1001,11 @@ export class RendezvousService {
     };
   }
 
-  async cancel(id: string, currentUser: CurrentUser) {
+  async cancel(
+    id: string,
+    currentUser: CurrentUser,
+    cancelDto?: { reason?: string },
+  ) {
     const existing = await this.findById(id, currentUser);
 
     if (existing.status === RendezvousStatus.CANCELLED) {
@@ -1016,10 +1035,13 @@ export class RendezvousService {
       }
     }
 
+    // Le créneau est libéré explicitement par le passage du statut à CANCELLED :
+    // toutes les requêtes de disponibilité excluent les statuts CANCELLED (cf. checkAvailability, getOccupiedSlotsFromDB).
     const cancelled = await this.rendezvousRepository.update(id, {
       status: RendezvousStatus.CANCELLED,
       cancelledAt: new Date(),
       cancelledBy: currentUser.role === UserRole.ADMIN ? 'ADMIN' : 'USER',
+      cancellationReason: cancelDto?.reason ?? null,
     });
 
     // Send cancellation email using MailService
@@ -1067,20 +1089,25 @@ export class RendezvousService {
       avisAdmin: updateRendezvousDto.avisAdmin,
     });
 
-    // Send completion email using MailService
-    await this.mailService.sendProcedureCreatedEmail(
-      updatedRendezvous.email,
-      updatedRendezvous.firstName,
-      {
-        id: updatedRendezvous.id,
-        destination: updatedRendezvous.destination,
-        filiere: updatedRendezvous.filiere,
-        statut: ProcedureStatus.PENDING,
-      },
-    );
-
     if (updateRendezvousDto.avisAdmin === AdminOpinion.FAVORABLE) {
+      // Crée la procédure en premier ; l'email est envoyé à l'intérieur de createProcedureFromRendezvous
+      // avec l'id réel de la procédure créée.
       await this.createProcedureFromRendezvous(updatedRendezvous);
+    } else {
+      // Avis UNFAVORABLE : on notifie uniquement la fin du rendez-vous, sans procédure.
+      await this.mailService.sendRendezvousStatusUpdatedEmail(
+        updatedRendezvous.email,
+        updatedRendezvous.firstName,
+        {
+          id: updatedRendezvous.id,
+          date: new Date(updatedRendezvous.date),
+          time: updatedRendezvous.time,
+          destination: updatedRendezvous.destination,
+          destinationAutre: updatedRendezvous.destinationAutre,
+        },
+        RendezvousStatus.CONFIRMED,
+        RendezvousStatus.COMPLETED,
+      );
     }
 
     return updatedRendezvous;

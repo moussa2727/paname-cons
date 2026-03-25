@@ -1,8 +1,10 @@
 // ============================================================
 // rendezvous.types.ts
 // Version alignée strictement sur le backend Prisma
+// Structure: COMMUN > USER > ADMIN
 // ============================================================
 
+// ==================== PARTIE COMMUNE ====================
 // ==================== ENUMS (Miroir EXACT du backend) ====================
 
 /**
@@ -58,72 +60,7 @@ export const CancelledBy = {
 } as const;
 export type CancelledBy = (typeof CancelledBy)[keyof typeof CancelledBy];
 
-// ==================== DTOs REQUÊTE (Miroir EXACT du backend) ====================
-
-/**
- * POST /rendezvous - CreateRendezvousDto
- */
-export interface CreateRendezvousDto {
-  firstName: string;
-  lastName: string;
-  email: string;
-  telephone: string;
-  destination: string;
-  destinationAutre?: string;
-  niveauEtude: string;
-  niveauEtudeAutre?: string;
-  filiere: string;
-  filiereAutre?: string;
-  date: string; // Format: YYYY-MM-DD
-  time: TimeSlot;
-}
-
-/**
- * PATCH /admin/rendezvous/:id/patch - UpdateRendezvousDto
- */
-export interface UpdateRendezvousDto extends Partial<CreateRendezvousDto> {
-  avisAdmin?: AdminOpinion;
-  cancellationReason?: string;
-  status?: RendezvousStatus;
-}
-
-/**
- * PATCH /rendezvous/:id/cancel - CancelRendezvousDto
- */
-export interface CancelRendezvousDto {
-  reason: string;
-  cancelledBy?: CancelledBy;
-}
-
-/**
- * PATCH /admin/rendezvous/:id/complete - CompleteRendezvousDto
- */
-export interface CompleteRendezvousDto {
-  avisAdmin: AdminOpinion;
-  comments?: string;
-}
-
-/**
- * GET /admin/rendezvous/all - RendezvousQueryDto
- */
-export interface RendezvousQueryDto {
-  page?: number;
-  limit?: number;
-  status?: RendezvousStatus;
-  date?: string;
-  email?: string;
-  destination?: string;
-  filiere?: string;
-  startDate?: string;
-  endDate?: string;
-  search?: string;
-  hasAvis?: boolean;
-  hasProcedure?: boolean;
-  sortBy?: string;
-  sortOrder?: "asc" | "desc";
-}
-
-// ==================== DTOs RÉPONSE (Miroir EXACT du backend) ====================
+// ==================== DTOs COMMUNS (Partagés User/Admin) ====================
 
 /**
  * User info dans les relations
@@ -189,41 +126,6 @@ export interface RendezvousResponseDto {
 }
 
 /**
- * PaginatedRendezvousResponseDto
- */
-export interface PaginatedRendezvousResponseDto {
-  data: RendezvousResponseDto[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrevious: boolean;
-}
-
-/**
- * RendezvousStatisticsDto
- */
-export interface RendezvousStatisticsDto {
-  total: number;
-  byStatus: {
-    confirmed: number;
-    completed: number;
-    cancelled: number;
-    pending: number;
-  };
-  upcoming: {
-    today: number;
-    tomorrow: number;
-    thisWeek: number;
-    thisMonth: number;
-  };
-  topDestinations: { destination: string; count: number }[];
-  completionRate: number;
-  cancellationRate: number;
-}
-
-/**
  * TimeSlot with metadata
  */
 export interface TimeSlotWithMeta {
@@ -268,7 +170,112 @@ export interface AvailableDatesResponseDto {
   hasSlots: boolean;
 }
 
-// ==================== TYPES INTERNES POUR LE HOOK ====================
+// ==================== PARTIE UTILISATEUR ====================
+// ==================== DTOs REQUÊTE UTILISATEUR ====================
+
+/**
+ * POST /rendezvous - CreateRendezvousDto (Utilisateur uniquement)
+ */
+export interface CreateRendezvousDto {
+  firstName: string;
+  lastName: string;
+  email: string;
+  telephone: string;
+  destination: string;
+  destinationAutre?: string;
+  niveauEtude: string;
+  niveauEtudeAutre?: string;
+  filiere: string;
+  filiereAutre?: string;
+  date: string; // Format: YYYY-MM-DD
+  time: TimeSlot;
+}
+
+/**
+ * PATCH /rendezvous/:id/cancel - CancelRendezvousDto (Utilisateur uniquement)
+ */
+export interface CancelRendezvousDto {
+  reason: string;
+  cancelledBy?: CancelledBy;
+}
+
+// ==================== PARTIE ADMINISTRATEUR ====================
+// ==================== DTOs REQUÊTE ADMIN ====================
+
+/**
+ * PATCH /admin/rendezvous/:id/patch - UpdateRendezvousDto
+ */
+export interface UpdateRendezvousDto extends Partial<CreateRendezvousDto> {
+  avisAdmin?: AdminOpinion;
+  cancellationReason?: string;
+  status?: RendezvousStatus;
+}
+
+/**
+ * PATCH /admin/rendezvous/:id/complete - CompleteRendezvousDto
+ */
+export interface CompleteRendezvousDto {
+  avisAdmin: AdminOpinion;
+  comments?: string;
+}
+
+/**
+ * GET /admin/rendezvous/all - RendezvousQueryDto
+ */
+export interface RendezvousQueryDto {
+  page?: number;
+  limit?: number;
+  status?: RendezvousStatus;
+  date?: string;
+  email?: string;
+  destination?: string;
+  filiere?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  hasAvis?: boolean;
+  hasProcedure?: boolean;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}
+
+/**
+ * PaginatedRendezvousResponseDto (Admin seulement)
+ */
+export interface PaginatedRendezvousResponseDto {
+  data: RendezvousResponseDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+/**
+ * RendezvousStatisticsDto (Admin seulement)
+ */
+export interface RendezvousStatisticsDto {
+  total: number;
+  byStatus: {
+    confirmed: number;
+    completed: number;
+    cancelled: number;
+    pending: number;
+  };
+  upcoming: {
+    today: number;
+    tomorrow: number;
+    thisWeek: number;
+    thisMonth: number;
+  };
+  topDestinations: { destination: string; count: number }[];
+  completionRate: number;
+  cancellationRate: number;
+}
+
+// ==================== PARTIE COMMUNE (Suite) ====================
+// ==================== TYPES INTERNES ====================
 
 export interface RendezvousFilters {
   status?: RendezvousStatus | RendezvousStatus[];
@@ -294,7 +301,7 @@ export interface ApiError {
   statusCode?: number;
 }
 
-// ==================== CONSTANTES UTILITAIRES ====================
+// ==================== CONSTANTES UTILITAIRES (Communes) ====================
 
 /**
  * Mapping des libellés français pour l'affichage
@@ -378,7 +385,7 @@ export const FILIERE_OPTIONS = [
   "Autre",
 ];
 
-// ==================== UTILITAIRES TIMESLOT ====================
+// ==================== UTILITAIRES TIMESLOT (Communs) ====================
 
 /**
  * Convertit un TimeSlot (SLOT_*) en format HH:MM pour l'affichage

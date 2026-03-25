@@ -1,3 +1,5 @@
+// Rendezvous.tsx - Version corrigée
+
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "../../../hooks/useAuth";
@@ -36,12 +38,11 @@ import {
   Plus,
   Lock,
 } from "lucide-react";
-import { useRendezvous } from "../../../hooks/useRendezvous";
+import { useAdminRendezvous } from "../../../hooks/useRendezvous";
 import { useDestinations } from "../../../hooks/useDestinations";
 import {
   RendezvousStatus,
   AdminOpinion,
-  CancelledBy,
   DESTINATION_OPTIONS,
   NIVEAU_ETUDE_OPTIONS,
   FILIERE_OPTIONS,
@@ -49,13 +50,12 @@ import {
   RendezvousStatusLabels,
   AdminOpinionLabels,
   type RendezvousResponseDto,
-  type CancelRendezvousDto,
-  type CompleteRendezvousDto,
   type UpdateRendezvousDto,
   type TimeSlot,
   type CreateRendezvousDto,
+  type RendezvousQueryDto,
+  timeSlotToDisplay,
 } from "../../../types/rendezvous.types";
-import { timeSlotToDisplay } from "../../../types/rendezvous.types";
 
 // Types locaux
 type ModalType = "detail" | "complete" | "cancel" | "update" | "create" | null;
@@ -119,6 +119,7 @@ const displayEffectiveValue = (
   if (!value || value.trim() === "") return fallback;
   return value;
 };
+
 const getInitials = (firstName?: string | null, lastName?: string | null) => {
   const fullName = [firstName, lastName].filter(Boolean).join(" ");
   return (fullName || "??")
@@ -200,18 +201,17 @@ const PanelRow = ({
 const RendezvousAdmin = () => {
   const { isAdmin } = useAuth();
 
-  // Hooks avec options explicites
+  // ✅ CORRECTION: Utiliser useAdminRendezvous au lieu de useRendezvous
   const {
-    rendezvous = [],
+    rendezvousList,
     selectedRendezvous,
     statistics,
     pagination,
     loading,
     error,
-    filters,
-    loadRendezvous,
-    loadRendezvousById,
-    loadStatistics,
+    searchRendezvous,
+    getRendezvousById,
+    getStatistics,
     updateRendezvous,
     completeRendezvous,
     cancelRendezvous,
@@ -219,13 +219,13 @@ const RendezvousAdmin = () => {
     createRendezvous,
     getRendezvousByDate,
     getUpcomingRendezvous,
-    exportRendezvous,
-    setFilters,
+    exportToCSV,
+    applyFilters,
     resetFilters,
-    goToPage,
-  } = useRendezvous({
-    autoLoad: true,
-    refreshInterval: 120000, // 2 minutes au lieu de 30 secondes
+    changePage,
+  } = useAdminRendezvous({
+    autoLoadList: true,
+    refreshInterval: 120000,
   });
 
   const { destinations = [], loading: loadingDestinations } = useDestinations();
@@ -245,6 +245,17 @@ const RendezvousAdmin = () => {
     AdminOpinion.FAVORABLE,
   );
   const [completeComment, setCompleteComment] = useState("");
+
+  // État local pour les filtres
+  const [localFilters, setLocalFilters] = useState<RendezvousQueryDto>({
+    page: 1,
+    limit: 20,
+    status: undefined,
+    destination: undefined,
+    startDate: undefined,
+    endDate: undefined,
+    search: undefined,
+  });
 
   // Formulaire d'édition
   const [editForm, setEditForm] = useState<UpdateRendezvousDto>({
@@ -295,25 +306,25 @@ const RendezvousAdmin = () => {
   // Charger les statistiques au montage
   useEffect(() => {
     if (isAdmin) {
-      loadStatistics();
+      getStatistics();
     }
-  }, [isAdmin]);
+  }, [isAdmin, getStatistics]);
 
   // Debounce recherche
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
 
     searchTimer.current = setTimeout(() => {
-      setFilters({
-        ...filters,
-        searchTerm: searchTerm.trim() || undefined,
+      applyFilters({
+        ...localFilters,
+        search: searchTerm.trim() || undefined,
       });
     }, 350);
 
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
     };
-  }, [searchTerm]);
+  }, [searchTerm, localFilters, applyFilters]);
 
   // Panels
   const loadTodayPanel = useCallback(async () => {
@@ -358,13 +369,13 @@ const RendezvousAdmin = () => {
     } else if (activeTab === "upcoming") {
       loadUpcomingPanel();
     }
-  }, [activeTab]);
+  }, [activeTab, loadTodayPanel, loadUpcomingPanel]);
 
   // Filtre rapide par date
   const handleDateQuickFilter = useCallback(
     async (date: string) => {
       if (!date) {
-        await loadRendezvous();
+        await searchRendezvous();
         return;
       }
       setActiveTab("today");
@@ -379,55 +390,125 @@ const RendezvousAdmin = () => {
         setLoadingPanel(false);
       }
     },
-    [getRendezvousByDate, loadRendezvous],
+    [getRendezvousByDate, searchRendezvous],
   );
+
+  // Gestionnaires de filtres
+  const handleStatusFilter = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const value = e.target.value;
+      const newFilters = {
+        ...localFilters,
+        status: value ? (value as RendezvousStatus) : undefined,
+        page: 1,
+      };
+      setLocalFilters(newFilters);
+      applyFilters(newFilters);
+    },
+    [localFilters, applyFilters],
+  );
+
+  const handleDestinationFilter = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const value = e.target.value;
+      const newFilters = {
+        ...localFilters,
+        destination: value || undefined,
+        page: 1,
+      };
+      setLocalFilters(newFilters);
+      applyFilters(newFilters);
+    },
+    [localFilters, applyFilters],
+  );
+
+  const handleStartDateFilter = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      const newFilters = {
+        ...localFilters,
+        startDate: value || undefined,
+        page: 1,
+      };
+      setLocalFilters(newFilters);
+      applyFilters(newFilters);
+    },
+    [localFilters, applyFilters],
+  );
+
+  const handleEndDateFilter = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      const newFilters = {
+        ...localFilters,
+        endDate: value || undefined,
+        page: 1,
+      };
+      setLocalFilters(newFilters);
+      applyFilters(newFilters);
+    },
+    [localFilters, applyFilters],
+  );
+
+  const handleResetFilters = useCallback(() => {
+    setSearchTerm("");
+    setLocalFilters({
+      page: 1,
+      limit: 20,
+      status: undefined,
+      destination: undefined,
+      startDate: undefined,
+      endDate: undefined,
+      search: undefined,
+    });
+    resetFilters();
+  }, [resetFilters]);
 
   // Ouvrir modal
   const openModal = useCallback(
-    async (type: ModalType, rdv: RendezvousResponseDto) => {
-      try {
-        if (type !== "create" && rdv?.id) {
-          await loadRendezvousById(rdv.id);
+    async (type: ModalType, rdv: RendezvousResponseDto | null = null) => {
+      if (type !== "create" && rdv?.id) {
+        try {
+          await getRendezvousById(rdv.id);
+        } catch (error) {
+          console.error("Erreur chargement détails:", error);
         }
+      }
 
-        const data = selectedRendezvous ?? rdv;
-        if (!data) return;
+      const data = selectedRendezvous ?? rdv;
 
-        setModal({ type, rdv: data });
+      setModal({ type, rdv: data });
 
-        if (type === "update") {
-          const isDestAutre = data.destination === "Autre";
-          const isNiveauAutre = data.niveauEtude === "Autre";
-          const isFiliereAutre = data.filiere === "Autre";
+      if (type === "update" && data) {
+        const isDestAutre = data.destination === "Autre";
+        const isNiveauAutre = data.niveauEtude === "Autre";
+        const isFiliereAutre = data.filiere === "Autre";
 
-          setShowOtherDestination(isDestAutre);
-          setShowOtherNiveau(isNiveauAutre);
-          setShowOtherFiliere(isFiliereAutre);
+        setShowOtherDestination(isDestAutre);
+        setShowOtherNiveau(isNiveauAutre);
+        setShowOtherFiliere(isFiliereAutre);
 
-          setEditForm({
-            firstName: data.firstName || "",
-            lastName: data.lastName || "",
-            telephone: data.telephone || "",
-            destination: isDestAutre ? "Autre" : data.destination || "",
-            destinationAutre: data.destinationAutre || "",
-            niveauEtude: isNiveauAutre ? "Autre" : data.niveauEtude || "",
-            niveauEtudeAutre: data.niveauEtudeAutre || "",
-            filiere: isFiliereAutre ? "Autre" : data.filiere || "",
-            filiereAutre: data.filiereAutre || "",
-            date: data.date || "",
-            time: data.time,
-          });
-        } else if (type === "complete") {
-          setCompleteOpinion(AdminOpinion.FAVORABLE);
-          setCompleteComment("");
-        } else if (type === "cancel") {
-          setCancelReason("");
-        }
-      } catch (error) {
-        console.error("Erreur ouverture modal:", error);
+        setEditForm({
+          firstName: data.firstName || "",
+          lastName: data.lastName || "",
+          telephone: data.telephone || "",
+          destination: isDestAutre ? "Autre" : data.destination || "",
+          destinationAutre: data.destinationAutre || "",
+          niveauEtude: isNiveauAutre ? "Autre" : data.niveauEtude || "",
+          niveauEtudeAutre: data.niveauEtudeAutre || "",
+          filiere: isFiliereAutre ? "Autre" : data.filiere || "",
+          filiereAutre: data.filiereAutre || "",
+          date: data.date || "",
+          time: data.time,
+        });
+      } else if (type === "complete") {
+        setCompleteOpinion(AdminOpinion.FAVORABLE);
+        setCompleteComment("");
+      } else if (type === "cancel") {
+        setCancelReason("");
       }
     },
-    [loadRendezvousById, selectedRendezvous],
+    [getRendezvousById, selectedRendezvous],
   );
 
   const closeModal = () => {
@@ -436,20 +517,19 @@ const RendezvousAdmin = () => {
     setCompleteComment("");
   };
 
-  // Mutations
   const handleComplete = async () => {
     if (!modal.rdv?.id) return;
 
     try {
-      const data: CompleteRendezvousDto = {
-        avisAdmin: completeOpinion,
-        comments: completeComment.trim() || undefined,
-      };
-
-      const result = await completeRendezvous(modal.rdv.id, data);
+      // ✅ Correction: completeRendezvous attend (id, avisAdmin, comments?)
+      const result = await completeRendezvous(
+        modal.rdv.id,
+        completeOpinion, // AdminOpinion
+        completeComment.trim() || undefined,
+      );
       if (result) {
         closeModal();
-        await loadStatistics();
+        await getStatistics();
         if (activeTab === "today") await loadTodayPanel();
         if (activeTab === "upcoming") await loadUpcomingPanel();
       }
@@ -458,19 +538,15 @@ const RendezvousAdmin = () => {
     }
   };
 
+  // ✅ CORRECTION: cancelRendezvous attend (id, reason)
   const handleCancel = async () => {
     if (!modal.rdv?.id || !cancelReason.trim()) return;
 
     try {
-      const data: CancelRendezvousDto = {
-        reason: cancelReason.trim(),
-        cancelledBy: CancelledBy.ADMIN,
-      };
-
-      const result = await cancelRendezvous(modal.rdv.id, data);
+      const result = await cancelRendezvous(modal.rdv.id, cancelReason.trim());
       if (result) {
         closeModal();
-        await loadStatistics();
+        await getStatistics();
         if (activeTab === "today") await loadTodayPanel();
         if (activeTab === "upcoming") await loadUpcomingPanel();
       }
@@ -500,7 +576,7 @@ const RendezvousAdmin = () => {
       const result = await updateRendezvous(modal.rdv.id, cleanData);
       if (result) {
         closeModal();
-        await loadStatistics();
+        await getStatistics();
         if (activeTab === "today") await loadTodayPanel();
         if (activeTab === "upcoming") await loadUpcomingPanel();
       }
@@ -528,7 +604,7 @@ const RendezvousAdmin = () => {
       const result = await createRendezvous(cleanData);
       if (result) {
         closeModal();
-        await loadStatistics();
+        await getStatistics();
         if (activeTab === "today") await loadTodayPanel();
         if (activeTab === "upcoming") await loadUpcomingPanel();
 
@@ -563,7 +639,7 @@ const RendezvousAdmin = () => {
     if (confirmModal.id) {
       try {
         await deleteRendezvous(confirmModal.id);
-        await loadStatistics();
+        await getStatistics();
         if (activeTab === "today") await loadTodayPanel();
         if (activeTab === "upcoming") await loadUpcomingPanel();
       } catch (error) {
@@ -580,7 +656,7 @@ const RendezvousAdmin = () => {
   const handleSetPending = async (id: string) => {
     try {
       await updateRendezvous(id, { status: RendezvousStatus.PENDING });
-      await loadStatistics();
+      await getStatistics();
       if (activeTab === "today") await loadTodayPanel();
       if (activeTab === "upcoming") await loadUpcomingPanel();
     } catch (error) {
@@ -591,7 +667,7 @@ const RendezvousAdmin = () => {
   const handleConfirm = async (id: string) => {
     try {
       await updateRendezvous(id, { status: RendezvousStatus.CONFIRMED });
-      await loadStatistics();
+      await getStatistics();
       if (activeTab === "today") await loadTodayPanel();
       if (activeTab === "upcoming") await loadUpcomingPanel();
     } catch (error) {
@@ -601,7 +677,7 @@ const RendezvousAdmin = () => {
 
   const handleExport = async () => {
     try {
-      const csv = await exportRendezvous(filters || {});
+      const csv = await exportToCSV();
       if (!csv) return;
 
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -618,8 +694,8 @@ const RendezvousAdmin = () => {
 
   const handleRefresh = async () => {
     try {
-      await loadRendezvous();
-      await loadStatistics();
+      await searchRendezvous();
+      await getStatistics();
       if (activeTab === "today") await loadTodayPanel();
       if (activeTab === "upcoming") await loadUpcomingPanel();
     } catch (error) {
@@ -627,67 +703,15 @@ const RendezvousAdmin = () => {
     }
   };
 
-  const handleResetFilters = () => {
-    setSearchTerm("");
-    resetFilters();
-  };
-
-  // Gestionnaires pour les filtres
-  const handleStatusFilter = async (
-    e: React.ChangeEvent<HTMLSelectElement>,
-  ) => {
-    const value = e.target.value;
-    setFilters({
-      ...filters,
-      status: value ? (value as RendezvousStatus) : undefined,
-    });
-  };
-
-  const handleDestinationFilter = async (
-    e: React.ChangeEvent<HTMLSelectElement>,
-  ) => {
-    const value = e.target.value;
-    setFilters({
-      ...filters,
-      destination: value || undefined,
-    });
-  };
-
-  const handleStartDateFilter = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const value = e.target.value;
-    setFilters({
-      ...filters,
-      dateRange: {
-        start: value,
-        end: filters?.dateRange?.end || "",
-      },
-    });
-  };
-
-  const handleEndDateFilter = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const value = e.target.value;
-    setFilters({
-      ...filters,
-      dateRange: {
-        start: filters?.dateRange?.start || "",
-        end: value,
-      },
-    });
-  };
-
   // Calcul du nombre de filtres actifs
   const activeFiltersCount = useMemo(() => {
     return [
-      filters?.status,
-      filters?.destination,
-      filters?.dateRange?.start && filters?.dateRange?.end,
-      filters?.searchTerm,
+      localFilters.status,
+      localFilters.destination,
+      localFilters.startDate && localFilters.endDate,
+      searchTerm,
     ].filter(Boolean).length;
-  }, [filters]);
+  }, [localFilters, searchTerm]);
 
   // Statistiques sécurisées avec valeurs par défaut
   const safeStatistics = useMemo(() => {
@@ -853,36 +877,43 @@ const RendezvousAdmin = () => {
               </p>
             ) : (
               <div className="space-y-2">
-                {safeStatistics.topDestinations.slice(0, 5).map((d, i) => {
-                  const max = safeStatistics.topDestinations[0]?.count ?? 1;
-                  const pct = Math.round((d.count / max) * 100);
-                  return (
-                    <div
-                      key={d.destination}
-                      className="flex items-center gap-2"
-                    >
-                      <span className="text-xs font-bold text-gray-400 w-4">
-                        {i + 1}
-                      </span>
-                      <div className="flex-1">
-                        <div className="flex justify-between text-xs mb-0.5">
-                          <span className="font-medium text-gray-700 truncate">
-                            {d.destination}
+                {safeStatistics.topDestinations
+                  .slice(0, 5)
+                  .map(
+                    (
+                      dest: { destination: string; count: number },
+                      index: number,
+                    ) => {
+                      const max = safeStatistics.topDestinations[0]?.count ?? 1;
+                      const pct = Math.round((dest.count / max) * 100);
+                      return (
+                        <div
+                          key={dest.destination}
+                          className="flex items-center gap-2"
+                        >
+                          <span className="text-xs font-bold text-gray-400 w-4">
+                            {index + 1}
                           </span>
-                          <span className="text-gray-500 ml-2 shrink-0">
-                            {d.count}
-                          </span>
+                          <div className="flex-1">
+                            <div className="flex justify-between text-xs mb-0.5">
+                              <span className="font-medium text-gray-700 truncate">
+                                {dest.destination}
+                              </span>
+                              <span className="text-gray-500 ml-2 shrink-0">
+                                {dest.count}
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-1.5">
+                              <div
+                                className="bg-sky-500 h-1.5 rounded-full"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div className="w-full bg-gray-100 rounded-full h-1.5">
-                          <div
-                            className="bg-sky-500 h-1.5 rounded-full"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                      );
+                    },
+                  )}
               </div>
             )}
           </div>
@@ -975,7 +1006,7 @@ const RendezvousAdmin = () => {
           </div>
           <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => setModal({ type: "create", rdv: null })}
+              onClick={() => openModal("create", null)}
               className="flex items-center gap-2 px-3 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 text-sm transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -1091,11 +1122,11 @@ const RendezvousAdmin = () => {
                 {/* Statut */}
                 <div className="relative">
                   <select
-                    value={(filters?.status as string) || ""}
+                    value={localFilters.status || ""}
                     onChange={handleStatusFilter}
                     className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   >
-                    <option value="">Rendez-vous actifs</option>
+                    <option value="">Tous les statuts</option>
                     {Object.entries(STATUS_CFG).map(([val, cfg]) => (
                       <option key={val} value={val}>
                         {cfg.label}
@@ -1103,15 +1134,12 @@ const RendezvousAdmin = () => {
                     ))}
                   </select>
                   <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
-                  <div className="absolute -top-6 left-0 text-xs text-gray-500">
-                    Par défaut: PENDING + CONFIRMED
-                  </div>
                 </div>
 
                 {/* Destination */}
                 <div className="relative">
                   <select
-                    value={filters?.destination ?? ""}
+                    value={localFilters.destination || ""}
                     onChange={handleDestinationFilter}
                     className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   >
@@ -1127,16 +1155,18 @@ const RendezvousAdmin = () => {
 
                 <input
                   type="date"
-                  value={filters?.dateRange?.start ?? ""}
+                  value={localFilters.startDate || ""}
                   onChange={handleStartDateFilter}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-none focus:outiline-none focus:border-sky-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
+                  placeholder="Date début"
                 />
 
                 <input
                   type="date"
-                  value={filters?.dateRange?.end ?? ""}
+                  value={localFilters.endDate || ""}
                   onChange={handleEndDateFilter}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-none focus:border-sky-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
+                  placeholder="Date fin"
                 />
               </div>
             )}
@@ -1172,7 +1202,7 @@ const RendezvousAdmin = () => {
               </p>
             ) : (
               <div className="divide-y divide-gray-50">
-                {todayList.map((rdv) => (
+                {todayList.map((rdv: RendezvousResponseDto) => (
                   <PanelRow
                     key={rdv.id}
                     rdv={rdv}
@@ -1210,7 +1240,7 @@ const RendezvousAdmin = () => {
               </p>
             ) : (
               <div className="divide-y divide-gray-50">
-                {upcomingList.map((rdv) => (
+                {upcomingList.map((rdv: RendezvousResponseDto) => (
                   <PanelRow
                     key={rdv.id}
                     rdv={rdv}
@@ -1229,7 +1259,7 @@ const RendezvousAdmin = () => {
               <div className="flex justify-center py-16">
                 <RefreshCw className="w-8 h-8 text-sky-500 animate-spin" />
               </div>
-            ) : (rendezvous || []).length === 0 ? (
+            ) : (rendezvousList || []).length === 0 ? (
               <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
                 <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500 font-medium">Aucun rendez-vous</p>
@@ -1241,7 +1271,7 @@ const RendezvousAdmin = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                {(rendezvous || []).map((rdv) => (
+                {(rendezvousList || []).map((rdv: RendezvousResponseDto) => (
                   <div
                     key={rdv.id}
                     className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
@@ -1454,7 +1484,7 @@ const RendezvousAdmin = () => {
                 </p>
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => goToPage(pagination.page - 1)}
+                    onClick={() => changePage(pagination.page - 1)}
                     disabled={!pagination.hasPrevious || loading.list}
                     className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -1476,7 +1506,7 @@ const RendezvousAdmin = () => {
                       return (
                         <button
                           key={page}
-                          onClick={() => goToPage(page)}
+                          onClick={() => changePage(page)}
                           disabled={loading.list}
                           className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
                             page === pagination.page
@@ -1490,7 +1520,7 @@ const RendezvousAdmin = () => {
                     },
                   )}
                   <button
-                    onClick={() => goToPage(pagination.page + 1)}
+                    onClick={() => changePage(pagination.page + 1)}
                     disabled={!pagination.hasNext || loading.list}
                     className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -1923,7 +1953,7 @@ const RendezvousAdmin = () => {
                   disabled={loadingDestinations}
                 >
                   <option value="">Sélectionner</option>
-                  {destinations.map((dest) => (
+                  {destinations.map((dest: { id: string; country: string }) => (
                     <option key={dest.id} value={dest.country}>
                       {dest.country}
                     </option>
@@ -2075,7 +2105,7 @@ const RendezvousAdmin = () => {
                     {TIME_SLOT_OPTIONS.map((time) => (
                       <option
                         key={time}
-                        value={`SLOT_${time.replace(":", "")}`}
+                        value={`SLOT_${time.replace(":", "")}` as TimeSlot}
                       >
                         {time}
                       </option>
@@ -2180,7 +2210,10 @@ const RendezvousAdmin = () => {
                   >
                     <option value="">Sélectionner</option>
                     {TIME_SLOT_OPTIONS.map((t) => (
-                      <option key={t} value={`SLOT_${t.replace(":", "")}`}>
+                      <option
+                        key={t}
+                        value={`SLOT_${t.replace(":", "")}` as TimeSlot}
+                      >
                         {t}
                       </option>
                     ))}

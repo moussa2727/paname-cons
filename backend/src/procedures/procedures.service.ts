@@ -180,6 +180,7 @@ export class ProceduresService {
       status,
       email,
       destination,
+      filiere,
       includeDeleted = false,
       includeCompleted = false,
       startDate,
@@ -190,29 +191,35 @@ export class ProceduresService {
     } = query;
 
     const skip = (page - 1) * limit;
-    const where: Prisma.ProcedureWhereInput = { isDeleted: !includeDeleted };
+    const where: Prisma.ProcedureWhereInput = {};
 
-    // Filtres pour admin
-    if (currentUser.role !== UserRole.ADMIN) {
-      where.email = currentUser.email; // Les utilisateurs normaux voient seulement leurs procédures
-    } else {
-      // Par défaut, l'admin ne voit que les procédures en cours et en attente
-      // Sauf si includeCompleted est true pour voir toutes les procédures
-      if (!status && !includeCompleted) {
-        where.statut = {
-          in: [ProcedureStatus.PENDING, ProcedureStatus.IN_PROGRESS],
-        };
-      }
+    // Soft-delete : par défaut on exclut les supprimées ; includeDeleted = true lève ce filtre (admin seulement)
+    if (!includeDeleted) {
+      where.isDeleted = false;
     }
 
-    // Filtres optionnels
-    if (status) where.statut = status;
-    if (email && currentUser.role === UserRole.ADMIN) where.email = email;
-    if (destination) where.destination = destination;
-    if (search) {
-      // Normaliser la recherche pour le téléphone
-      const normalizedSearch = search.replace(/[\s.-]/g, '');
+    if (currentUser.role !== UserRole.ADMIN) {
+      // Un utilisateur ne voit que ses propres procédures non supprimées, tous statuts confondus
+      where.email = currentUser.email;
+      where.isDeleted = false;
+    } else {
+      // Admin : filtre de statut par défaut = PENDING + IN_PROGRESS
+      // includeCompleted = true → tous les statuts (sauf si status explicite)
+      // status explicite → prend toujours la priorité
+      where.statut = status
+        ? status
+        : includeCompleted
+          ? undefined
+          : { in: [ProcedureStatus.PENDING, ProcedureStatus.IN_PROGRESS] };
 
+      if (email) where.email = email;
+    }
+
+    if (destination) where.destination = destination;
+    if (filiere) where.filiere = filiere;
+
+    if (search) {
+      const normalizedSearch = search.replace(/[\s.-]/g, '');
       where.OR = [
         { prenom: { contains: search, mode: 'insensitive' } },
         { nom: { contains: search, mode: 'insensitive' } },
@@ -221,10 +228,14 @@ export class ProceduresService {
         { telephone: { contains: search } },
       ];
     }
+
+    // startDate/endDate et date ne peuvent pas coexister sur createdAt
     if (startDate || endDate) {
       where.createdAt = {};
-      if (startDate) where.createdAt.gte = new Date(startDate);
-      if (endDate) where.createdAt.lte = new Date(endDate);
+      if (startDate)
+        (where.createdAt as Prisma.DateTimeFilter).gte = new Date(startDate);
+      if (endDate)
+        (where.createdAt as Prisma.DateTimeFilter).lte = new Date(endDate);
     }
 
     const [procedures, total] = await Promise.all([
@@ -258,11 +269,13 @@ export class ProceduresService {
     id: string,
     currentUser: CurrentUser,
   ): Promise<ProcedureResponseDto> {
-    const procedure = await this.proceduresRepository.findById(id, {
-      steps: true,
-      rendezVouses: true,
-      user: true,
-    });
+    // Les utilisateurs non-admin ne peuvent pas accéder aux procédures supprimées
+    const includeDeleted = currentUser.role === UserRole.ADMIN;
+    const procedure = await this.proceduresRepository.findById(
+      id,
+      { steps: true, rendezVouses: true, user: true },
+      includeDeleted,
+    );
 
     if (!procedure) {
       throw new NotFoundException(`Procédure avec l'ID ${id} non trouvée`);
@@ -609,22 +622,21 @@ export class ProceduresService {
       throw new NotFoundException(`Procédure avec l'ID ${id} non trouvée`);
     }
 
-    // Seul un admin peut supprimer une procédure
     if (currentUser.role !== UserRole.ADMIN) {
       throw new ForbiddenException(
         'Seul un administrateur peut supprimer une procédure',
       );
     }
 
+    // 1. Marquer isDeleted + statut CANCELLED dans le même update (repository)
     await this.proceduresRepository.softDelete(id, reason);
 
-    // Cascade: annuler toutes les étapes en cours ou en attente
+    // 2. Cascade étapes : après la mise à jour procédure pour que
+    //    tout lecteur trouvant isDeleted=true voit aussi statut=CANCELLED et étapes CANCELLED.
     await this.prisma.step.updateMany({
       where: {
         procedureId: id,
-        statut: {
-          in: [StepStatus.PENDING, StepStatus.IN_PROGRESS],
-        },
+        statut: { in: [StepStatus.PENDING, StepStatus.IN_PROGRESS] },
       },
       data: {
         statut: StepStatus.CANCELLED,
@@ -633,13 +645,10 @@ export class ProceduresService {
       },
     });
 
-    // Notifier l'utilisateur
     await this.mailService.sendProcedureDeletedEmail(
       procedure.email,
       procedure.prenom,
-      {
-        destination: procedure.destination,
-      },
+      { destination: procedure.destination },
       reason,
     );
 
@@ -659,20 +668,23 @@ export class ProceduresService {
       throw new NotFoundException(`Procédure avec l'ID ${id} non trouvée`);
     }
 
-    // Vérifier que l'utilisateur peut annuler sa propre procédure
+    // Vérifier que l'utilisateur peut annuler sa propre procédure (cohérent avec findById/findByUserEmail)
     if (
       currentUser.role !== UserRole.ADMIN &&
-      procedure.userId !== currentUser.id
+      procedure.email !== currentUser.email
     ) {
       throw new ForbiddenException(
         'Vous ne pouvez annuler que vos propres procédures',
       );
     }
 
-    // Vérifier que la procédure peut être annulée
-    if (procedure.statut !== ProcedureStatus.IN_PROGRESS) {
+    // Seules les procédures actives (PENDING ou IN_PROGRESS) peuvent être annulées
+    if (
+      procedure.statut !== ProcedureStatus.IN_PROGRESS &&
+      procedure.statut !== ProcedureStatus.PENDING
+    ) {
       throw new BadRequestException(
-        'Seules les procédures en cours peuvent être annulées',
+        'Seules les procédures en attente ou en cours peuvent être annulées',
       );
     }
 

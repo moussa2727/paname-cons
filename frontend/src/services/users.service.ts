@@ -80,10 +80,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
   const body: BackendDTO_ApiResponse<T> = await response.json();
 
   if (!response.ok) {
-    console.error(
-      "Error:",
-      body.message || `HTTP ${response.status}`,
-    );
+    console.error("Error:", body.message || `HTTP ${response.status}`);
     throw new Error(body.message || `Erreur HTTP ${response.status}`);
   }
   return body.data;

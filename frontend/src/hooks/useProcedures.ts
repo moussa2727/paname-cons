@@ -168,12 +168,9 @@ export function useProcedures(
   const isFirstRender = useRef(true);
 
   // ── Helpers ───────────────────────────────────────────────────────
-  const setLoad = useCallback(
-    (k: keyof ProcedureLoadingState, v: boolean) => {
-      setLoading((prev: ProcedureLoadingState) => ({ ...prev, [k]: v }));
-    },
-    [],
-  );
+  const setLoad = useCallback((k: keyof ProcedureLoadingState, v: boolean) => {
+    setLoading((prev: ProcedureLoadingState) => ({ ...prev, [k]: v }));
+  }, []);
 
   // Debug pour suivre les changements de loading
 
@@ -200,14 +197,10 @@ export function useProcedures(
       setError(null);
 
       try {
-        // Pour les admins, on inclut toutes les procédures par défaut
-        // sauf si le caller a explicitement passé includeCompleted: false
-        const adminDefaults: Partial<ProcedureQueryDto> =
-          user?.role === "ADMIN" && override?.includeCompleted === undefined
-            ? { includeCompleted: true }
-            : {};
-
-        const merged = { ...adminDefaults, ...query, ...override };
+        // On fusionne query + override sans forcer includeCompleted côté hook.
+        // La page (Procedures.tsx) passe includeCompleted:true dans initialQuery si elle veut tout voir.
+        // Le backend par défaut renvoie PENDING+IN_PROGRESS pour l'admin — c'est intentionnel.
+        const merged = { ...query, ...override };
         const res = await ProceduresService.findAll(merged);
 
         if (!res || !Array.isArray(res.data)) {
@@ -469,7 +462,7 @@ export function useProcedures(
       id: string,
       reason?: string,
     ): Promise<ProcedureResponseDto | null> => {
-      setLoad("delete", true);
+      setLoad("update", true);
       setError(null);
       try {
         const updated = await ProceduresService.cancel(id, reason);
@@ -484,7 +477,7 @@ export function useProcedures(
         );
         return null;
       } finally {
-        setLoad("delete", false);
+        setLoad("update", false);
       }
     },
     [selectedProcedure, setLoad],
@@ -556,20 +549,15 @@ export function useProcedures(
 
   const applyFilters = useCallback(async () => {
     try {
-      const adminDefaults: Partial<ProcedureQueryDto> =
-        user?.role === "ADMIN" ? { includeCompleted: true } : {};
-
       const res = await ProceduresService.findAll({
-        ...adminDefaults,
         ...query,
-        // Mapping ProcedureFilters → ProcedureQueryDto (noms identiques au backend)
         status: filters.status,
         email: filters.email,
         destination: filters.destination,
         filiere: filters.filiere,
         includeDeleted: filters.includeDeleted,
-        includeCompleted: filters.includeCompleted ?? adminDefaults.includeCompleted,
-        search: filters.searchTerm,          // searchTerm → search (nom du DTO backend)
+        includeCompleted: filters.includeCompleted,
+        search: filters.searchTerm,
         startDate: filters.dateRange?.start.toISOString().split("T")[0],
         endDate: filters.dateRange?.end.toISOString().split("T")[0],
       });
@@ -578,7 +566,7 @@ export function useProcedures(
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erreur lors du filtrage");
     }
-  }, [filters, query, user?.role, syncPagination]);
+  }, [filters, query, syncPagination]);
 
   const resetFilters = useCallback(() => {
     setFiltersState(DEFAULT_FILTERS);
@@ -610,22 +598,40 @@ export function useProcedures(
   );
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Terminer une procédure complète (toutes les étapes)
+  // completeProcedure — Le statut global est piloté uniquement par updateStep()
+  // via updateGlobalStatus côté backend. Il n'existe pas de route dédiée
+  // /admin/procedures/:id/complete. Pour marquer toutes les étapes COMPLETED,
+  // l'admin doit passer chaque étape à COMPLETED via updateStep().
+  // Cette fonction est conservée comme raccourci : elle passe toutes les étapes
+  // IN_PROGRESS ou PENDING à COMPLETED en séquence.
   // ─────────────────────────────────────────────────────────────────────────
   const completeProcedure = useCallback(
     async (id: string): Promise<ProcedureResponseDto | null> => {
       if (user?.role !== "ADMIN") return null;
 
+      const target = procedures.find((p) => p.id === id) ?? selectedProcedure;
+      if (!target) return null;
+
       setLoad("update", true);
       setError(null);
       try {
-        // Le backend va automatiquement déterminer le statut final
-        const updated = await ProceduresService.completeProcedure(id);
-        setProcedures((prev: ProcedureResponseDto[]) =>
-          prev.map((p) => (p.id === id ? updated : p)),
+        const stepsToComplete = target.steps.filter(
+          (s) => s.statut === "IN_PROGRESS" || s.statut === "PENDING",
         );
-        if (selectedProcedure?.id === id) setSelectedProcedure(updated);
-        return updated;
+
+        let last: ProcedureResponseDto | null = null;
+        for (const step of stepsToComplete) {
+          last = await ProceduresService.updateStep(id, step.nom, {
+            statut: "COMPLETED",
+          });
+        }
+
+        const result = last ?? target;
+        setProcedures((prev: ProcedureResponseDto[]) =>
+          prev.map((p) => (p.id === id ? result : p)),
+        );
+        if (selectedProcedure?.id === id) setSelectedProcedure(result);
+        return result;
       } catch (err: unknown) {
         setError(
           err instanceof Error
@@ -637,13 +643,7 @@ export function useProcedures(
         setLoad("update", false);
       }
     },
-    [
-      user?.role,
-      setLoad,
-      selectedProcedure,
-      setProcedures,
-      setSelectedProcedure,
-    ],
+    [user?.role, setLoad, procedures, selectedProcedure],
   );
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -371,7 +371,6 @@ function MessageRow({
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function Messages() {
-
   const {
     messages,
     stats,

@@ -263,7 +263,7 @@ export default function AdminSidebar({
 
                   {/* Informations utilisateur en dessous */}
                   <div className="text-start">
-                     {/* Texte aligné à gauche sous l'icône */}
+                    {/* Texte aligné à gauche sous l'icône */}
                     <div className="flex flex-col items-start">
                       <h2 className="font-bold text-sky-900 text-sm leading-tight">
                         Gestionnaire

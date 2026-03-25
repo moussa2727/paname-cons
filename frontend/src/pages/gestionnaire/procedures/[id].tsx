@@ -40,7 +40,13 @@ import type {
 
 const STATUS_CONFIG: Record<
   ProcedureStatus,
-  { label: string; color: string; bg: string; border: string; icon: React.ReactNode }
+  {
+    label: string;
+    color: string;
+    bg: string;
+    border: string;
+    icon: React.ReactNode;
+  }
 > = {
   PENDING: {
     label: "En attente",
@@ -83,11 +89,36 @@ const STEP_STATUS_CONFIG: Record<
   StepStatus,
   { label: string; color: string; bg: string; dot: string }
 > = {
-  PENDING: { label: "En attente", color: "text-amber-700", bg: "bg-amber-50", dot: "bg-amber-400" },
-  IN_PROGRESS: { label: "En cours", color: "text-sky-700", bg: "bg-sky-50", dot: "bg-sky-500" },
-  COMPLETED: { label: "Terminée", color: "text-emerald-700", bg: "bg-emerald-50", dot: "bg-emerald-500" },
-  REJECTED: { label: "Refusée", color: "text-red-700", bg: "bg-red-50", dot: "bg-red-500" },
-  CANCELLED: { label: "Annulée", color: "text-slate-600", bg: "bg-slate-50", dot: "bg-slate-400" },
+  PENDING: {
+    label: "En attente",
+    color: "text-amber-700",
+    bg: "bg-amber-50",
+    dot: "bg-amber-400",
+  },
+  IN_PROGRESS: {
+    label: "En cours",
+    color: "text-sky-700",
+    bg: "bg-sky-50",
+    dot: "bg-sky-500",
+  },
+  COMPLETED: {
+    label: "Terminée",
+    color: "text-emerald-700",
+    bg: "bg-emerald-50",
+    dot: "bg-emerald-500",
+  },
+  REJECTED: {
+    label: "Refusée",
+    color: "text-red-700",
+    bg: "bg-red-50",
+    dot: "bg-red-500",
+  },
+  CANCELLED: {
+    label: "Annulée",
+    color: "text-slate-600",
+    bg: "bg-slate-50",
+    dot: "bg-slate-400",
+  },
 };
 
 const STEP_LABELS: Record<StepName, string> = {
@@ -120,7 +151,9 @@ const StatusBadge: React.FC<{ status: ProcedureStatus }> = ({ status }) => {
 const StepStatusBadge: React.FC<{ status: StepStatus }> = ({ status }) => {
   const cfg = STEP_STATUS_CONFIG[status];
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${cfg.bg} ${cfg.color}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${cfg.bg} ${cfg.color}`}
+    >
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
       {cfg.label}
     </span>
@@ -137,15 +170,29 @@ interface ModalProps {
   width?: string;
 }
 
-const Modal: React.FC<ModalProps> = ({ open, onClose, title, children, width = "max-w-lg" }) => {
+const Modal: React.FC<ModalProps> = ({
+  open,
+  onClose,
+  title,
+  children,
+  width = "max-w-lg",
+}) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative bg-white rounded-xl shadow-2xl w-full ${width} animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto`}>
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div
+        className={`relative bg-white rounded-xl shadow-2xl w-full ${width} animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto`}
+      >
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <h3 className="font-semibold text-slate-800 text-sm">{title}</h3>
-          <button onClick={onClose} className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+          <button
+            onClick={onClose}
+            className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+          >
             <X size={16} />
           </button>
         </div>
@@ -157,19 +204,33 @@ const Modal: React.FC<ModalProps> = ({ open, onClose, title, children, width = "
 
 // ─── Champs de formulaire ─────────────────────────────────────────────────────
 
-const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+const Field: React.FC<{ label: string; children: React.ReactNode }> = ({
+  label,
+  children,
+}) => (
   <div>
-    <label className="text-xs font-medium text-slate-500 block mb-1">{label}</label>
+    <label className="text-xs font-medium text-slate-500 block mb-1">
+      {label}
+    </label>
     {children}
   </div>
 );
 
-const inputCls = "w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white text-slate-800 placeholder:text-slate-300";
-const selectCls = "w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white text-slate-800";
+const inputCls =
+  "w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white text-slate-800 placeholder:text-slate-300";
+const selectCls =
+  "w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white text-slate-800";
 
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
 
-type ModalType = "edit" | "editStep" | "addStep" | "complete" | "cancel" | "delete" | null;
+type ModalType =
+  | "edit"
+  | "editStep"
+  | "addStep"
+  | "complete"
+  | "cancel"
+  | "delete"
+  | null;
 
 export default function ProcedureDetail() {
   const { id } = useParams<{ id: string }>();
@@ -189,7 +250,9 @@ export default function ProcedureDetail() {
   } = useProcedures({ autoLoad: false });
 
   // ── Modal state ───────────────────────────────────────────────────────────
-  const [modal, setModal] = useState<{ type: ModalType; stepName?: StepName }>({ type: null });
+  const [modal, setModal] = useState<{ type: ModalType; stepName?: StepName }>({
+    type: null,
+  });
 
   // ── Form states ───────────────────────────────────────────────────────────
   const [editForm, setEditForm] = useState<UpdateProcedureDto>({});
@@ -280,25 +343,37 @@ export default function ProcedureDetail() {
 
   const handleCancel = async () => {
     if (!procedure) return;
-    const result = await cancelProcedure(procedure.id, cancelReason || "Annulation manuelle par l'admin");
+    const result = await cancelProcedure(
+      procedure.id,
+      cancelReason || "Annulation manuelle par l'admin",
+    );
     if (result) closeModal();
   };
 
   const handleDelete = async () => {
     if (!procedure) return;
-    const ok = await remove(procedure.id, deleteReason || "Suppression manuelle");
+    const ok = await remove(
+      procedure.id,
+      deleteReason || "Suppression manuelle",
+    );
     if (ok) navigate("/gestionnaire/procedures");
   };
 
   // ── Dérivés ───────────────────────────────────────────────────────────────
-  const canBeModified = procedure ? !["COMPLETED", "CANCELLED", "REJECTED"].includes(procedure.statut) : false;
-  const canBeCancelled = procedure ? !["COMPLETED", "CANCELLED"].includes(procedure.statut) : false;
+  const canBeModified = procedure
+    ? !["COMPLETED", "CANCELLED", "REJECTED"].includes(procedure.statut)
+    : false;
+  const canBeCancelled = procedure
+    ? !["COMPLETED", "CANCELLED"].includes(procedure.statut)
+    : false;
   const canBeCompleted = procedure ? procedure.statut === "IN_PROGRESS" : false;
 
   // Étapes déjà présentes dans la procédure
   const existingStepNames = new Set(procedure?.steps?.map((s) => s.nom) ?? []);
   // Étapes disponibles à ajouter (pas encore présentes)
-  const availableStepsToAdd = STEP_ORDER.filter((s) => !existingStepNames.has(s));
+  const availableStepsToAdd = STEP_ORDER.filter(
+    (s) => !existingStepNames.has(s),
+  );
 
   // Étapes triées selon l'ordre logique
   const sortedSteps = [...(procedure?.steps ?? [])].sort(
@@ -306,7 +381,9 @@ export default function ProcedureDetail() {
   );
 
   // ── Étapes refusées/rejetées
-  const hasRejectedStep = procedure?.steps?.some((s) => s.statut === "REJECTED");
+  const hasRejectedStep = procedure?.steps?.some(
+    (s) => s.statut === "REJECTED",
+  );
 
   // ── Guards ────────────────────────────────────────────────────────────────
   if (loading.details && !procedure) {
@@ -348,12 +425,10 @@ export default function ProcedureDetail() {
       </Helmet>
 
       <div className="min-h-screen pb-16 bg-slate-50">
-
         {/* ── Header sticky ── */}
         <div className="bg-white border-b border-slate-100 sticky top-0 z-30 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex items-center justify-between h-14 sm:h-16 gap-3">
-
               {/* Gauche */}
               <div className="flex items-center gap-3 min-w-0">
                 <button
@@ -377,7 +452,9 @@ export default function ProcedureDetail() {
                   <p className="text-xs text-slate-400 mt-0.5 hidden sm:block">
                     #{procedure.id.slice(-10)} · créée le{" "}
                     {new Date(procedure.createdAt).toLocaleDateString("fr-FR", {
-                      day: "2-digit", month: "long", year: "numeric",
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
                     })}
                   </p>
                 </div>
@@ -391,7 +468,10 @@ export default function ProcedureDetail() {
                   title="Rafraîchir"
                   className="p-2 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors disabled:opacity-40"
                 >
-                  <RefreshCw size={14} className={loading.details ? "animate-spin" : ""} />
+                  <RefreshCw
+                    size={14}
+                    className={loading.details ? "animate-spin" : ""}
+                  />
                 </button>
 
                 {canBeModified && (
@@ -436,24 +516,31 @@ export default function ProcedureDetail() {
         {/* ── Body ── */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-7">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
             {/* ═══════════════ Colonne principale ═══════════════ */}
             <div className="lg:col-span-2 space-y-5">
-
               {/* Actions mobile (boutons visibles sous sm) */}
               <div className="flex flex-wrap gap-2 sm:hidden">
                 {canBeModified && (
-                  <button onClick={openEdit} className="flex items-center gap-1.5 px-3 py-2 rounded border border-sky-200 text-sky-700 bg-sky-50 text-xs font-medium">
+                  <button
+                    onClick={openEdit}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded border border-sky-200 text-sky-700 bg-sky-50 text-xs font-medium"
+                  >
                     <Edit2 size={12} /> Modifier
                   </button>
                 )}
                 {canBeCompleted && (
-                  <button onClick={() => setModal({ type: "complete" })} className="flex items-center gap-1.5 px-3 py-2 rounded border border-emerald-200 text-emerald-700 bg-emerald-50 text-xs font-medium">
+                  <button
+                    onClick={() => setModal({ type: "complete" })}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded border border-emerald-200 text-emerald-700 bg-emerald-50 text-xs font-medium"
+                  >
                     <Zap size={12} /> Terminer
                   </button>
                 )}
                 {canBeCancelled && (
-                  <button onClick={() => setModal({ type: "cancel" })} className="flex items-center gap-1.5 px-3 py-2 rounded border border-amber-200 text-amber-700 bg-amber-50 text-xs font-medium">
+                  <button
+                    onClick={() => setModal({ type: "cancel" })}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded border border-amber-200 text-amber-700 bg-amber-50 text-xs font-medium"
+                  >
                     <Ban size={12} /> Annuler
                   </button>
                 )}
@@ -466,15 +553,38 @@ export default function ProcedureDetail() {
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
-                    { icon: <User size={14} />, label: "Nom complet", value: procedure.fullName },
-                    { icon: <Mail size={14} />, label: "Email", value: procedure.email },
-                    { icon: <Phone size={14} />, label: "Téléphone", value: procedure.telephone },
-                    { icon: <Calendar size={14} />, label: "Créée le", value: new Date(procedure.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) },
+                    {
+                      icon: <User size={14} />,
+                      label: "Nom complet",
+                      value: procedure.fullName,
+                    },
+                    {
+                      icon: <Mail size={14} />,
+                      label: "Email",
+                      value: procedure.email,
+                    },
+                    {
+                      icon: <Phone size={14} />,
+                      label: "Téléphone",
+                      value: procedure.telephone,
+                    },
+                    {
+                      icon: <Calendar size={14} />,
+                      label: "Créée le",
+                      value: new Date(procedure.createdAt).toLocaleDateString(
+                        "fr-FR",
+                        { day: "2-digit", month: "long", year: "numeric" },
+                      ),
+                    },
                   ].map(({ icon, label, value }) => (
                     <div key={label} className="flex items-start gap-3">
-                      <span className="mt-0.5 text-slate-300 shrink-0">{icon}</span>
+                      <span className="mt-0.5 text-slate-300 shrink-0">
+                        {icon}
+                      </span>
                       <div>
-                        <p className="text-sm font-medium text-slate-800">{value}</p>
+                        <p className="text-sm font-medium text-slate-800">
+                          {value}
+                        </p>
                         <p className="text-xs text-slate-400">{label}</p>
                       </div>
                     </div>
@@ -489,14 +599,30 @@ export default function ProcedureDetail() {
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {[
-                    { icon: <MapPin size={14} />, label: "Destination", value: procedure.effectiveDestination },
-                    { icon: <GraduationCap size={14} />, label: "Niveau d'étude", value: procedure.effectiveNiveauEtude },
-                    { icon: <BookOpen size={14} />, label: "Filière", value: procedure.effectiveFiliere },
+                    {
+                      icon: <MapPin size={14} />,
+                      label: "Destination",
+                      value: procedure.effectiveDestination,
+                    },
+                    {
+                      icon: <GraduationCap size={14} />,
+                      label: "Niveau d'étude",
+                      value: procedure.effectiveNiveauEtude,
+                    },
+                    {
+                      icon: <BookOpen size={14} />,
+                      label: "Filière",
+                      value: procedure.effectiveFiliere,
+                    },
                   ].map(({ icon, label, value }) => (
                     <div key={label} className="flex items-start gap-3">
-                      <span className="mt-0.5 text-slate-300 shrink-0">{icon}</span>
+                      <span className="mt-0.5 text-slate-300 shrink-0">
+                        {icon}
+                      </span>
                       <div>
-                        <p className="text-sm font-medium text-slate-800">{value}</p>
+                        <p className="text-sm font-medium text-slate-800">
+                          {value}
+                        </p>
                         <p className="text-xs text-slate-400">{label}</p>
                       </div>
                     </div>
@@ -513,13 +639,19 @@ export default function ProcedureDetail() {
 
                   {/* Bouton ajouter étape — seulement si des étapes sont disponibles et procédure modifiable */}
                   {canBeModified && availableStepsToAdd.length > 0 && (
-                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <div
+                      className="relative"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         onClick={() => setShowAddStepMenu((v) => !v)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-sky-600 text-white text-xs font-medium hover:bg-sky-700 transition-colors"
                       >
                         <Plus size={12} /> Ajouter une étape
-                        <ChevronDown size={12} className={`transition-transform ${showAddStepMenu ? "rotate-180" : ""}`} />
+                        <ChevronDown
+                          size={12}
+                          className={`transition-transform ${showAddStepMenu ? "rotate-180" : ""}`}
+                        />
                       </button>
                       {showAddStepMenu && (
                         <div className="absolute right-0 top-full mt-1 bg-white border border-slate-100 rounded-lg shadow-xl py-1 z-20 min-w-[220px]">
@@ -549,18 +681,25 @@ export default function ProcedureDetail() {
                       <div
                         key={step.id}
                         className={`border rounded-lg p-4 transition-colors ${
-                          step.isOverdue ? "border-orange-200 bg-orange-50/30" : "border-slate-100"
+                          step.isOverdue
+                            ? "border-orange-200 bg-orange-50/30"
+                            : "border-slate-100"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3 flex-1 min-w-0">
                             {/* Numéro */}
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
-                              step.statut === "COMPLETED" ? "bg-emerald-100 text-emerald-700" :
-                              step.statut === "IN_PROGRESS" ? "bg-sky-100 text-sky-700" :
-                              step.statut === "REJECTED" ? "bg-red-100 text-red-700" :
-                              "bg-slate-100 text-slate-500"
-                            }`}>
+                            <div
+                              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
+                                step.statut === "COMPLETED"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : step.statut === "IN_PROGRESS"
+                                    ? "bg-sky-100 text-sky-700"
+                                    : step.statut === "REJECTED"
+                                      ? "bg-red-100 text-red-700"
+                                      : "bg-slate-100 text-slate-500"
+                              }`}
+                            >
                               {idx + 1}
                             </div>
                             <div className="min-w-0">
@@ -577,11 +716,17 @@ export default function ProcedureDetail() {
                               </div>
                               <div className="flex flex-wrap gap-3 mt-1.5">
                                 <span className="text-xs text-slate-400">
-                                  Créée le {new Date(step.dateCreation).toLocaleDateString("fr-FR")}
+                                  Créée le{" "}
+                                  {new Date(
+                                    step.dateCreation,
+                                  ).toLocaleDateString("fr-FR")}
                                 </span>
                                 {step.dateCompletion && (
                                   <span className="text-xs text-slate-400">
-                                    · Terminée le {new Date(step.dateCompletion).toLocaleDateString("fr-FR")}
+                                    · Terminée le{" "}
+                                    {new Date(
+                                      step.dateCompletion,
+                                    ).toLocaleDateString("fr-FR")}
                                   </span>
                                 )}
                                 {step.duration != null && (
@@ -617,13 +762,21 @@ export default function ProcedureDetail() {
 
               {/* Raison de rejet/annulation si applicable */}
               {(procedure.raisonRejet || procedure.cancelledReason) && (
-                <div className={`rounded-lg border p-4 ${
-                  procedure.statut === "REJECTED" ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"
-                }`}>
-                  <p className="text-xs font-semibold uppercase tracking-wide mb-1 ${
+                <div
+                  className={`rounded-lg border p-4 ${
+                    procedure.statut === "REJECTED"
+                      ? "bg-red-50 border-red-200"
+                      : "bg-slate-50 border-slate-200"
+                  }`}
+                >
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wide mb-1 ${
                     procedure.statut === 'REJECTED' ? 'text-red-600' : 'text-slate-500'
-                  }">
-                    {procedure.statut === "REJECTED" ? "Motif de refus" : "Motif d'annulation"}
+                  }"
+                  >
+                    {procedure.statut === "REJECTED"
+                      ? "Motif de refus"
+                      : "Motif d'annulation"}
                   </p>
                   <p className="text-sm text-slate-700">
                     {procedure.raisonRejet ?? procedure.cancelledReason}
@@ -634,7 +787,6 @@ export default function ProcedureDetail() {
 
             {/* ═══════════════ Sidebar ═══════════════ */}
             <div className="space-y-4">
-
               {/* Progression */}
               <div className="bg-white rounded-lg border border-slate-100 shadow-sm p-5">
                 <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">
@@ -642,8 +794,12 @@ export default function ProcedureDetail() {
                 </h2>
                 <div className="space-y-3">
                   <div className="flex items-end justify-between mb-1">
-                    <span className="text-3xl font-bold text-sky-600">{procedure.progress}%</span>
-                    <span className="text-xs text-slate-400">{procedure.completedSteps}/{procedure.totalSteps} étapes</span>
+                    <span className="text-3xl font-bold text-sky-600">
+                      {procedure.progress}%
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {procedure.completedSteps}/{procedure.totalSteps} étapes
+                    </span>
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div
@@ -653,17 +809,29 @@ export default function ProcedureDetail() {
                   </div>
                   {procedure.activeStep && (
                     <p className="text-xs text-slate-500 mt-2">
-                      Étape active : <span className="font-medium text-slate-700">{STEP_LABELS[procedure.activeStep]}</span>
+                      Étape active :{" "}
+                      <span className="font-medium text-slate-700">
+                        {STEP_LABELS[procedure.activeStep]}
+                      </span>
                     </p>
                   )}
                   {procedure.nextStep && (
                     <p className="text-xs text-slate-500">
-                      Prochaine : <span className="font-medium text-slate-700">{STEP_LABELS[procedure.nextStep]}</span>
+                      Prochaine :{" "}
+                      <span className="font-medium text-slate-700">
+                        {STEP_LABELS[procedure.nextStep]}
+                      </span>
                     </p>
                   )}
                   {procedure.estimatedCompletionDate && (
                     <p className="text-xs text-slate-400 pt-1 border-t border-slate-50">
-                      Estimation : {new Date(procedure.estimatedCompletionDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "long" })}
+                      Estimation :{" "}
+                      {new Date(
+                        procedure.estimatedCompletionDate,
+                      ).toLocaleDateString("fr-FR", {
+                        day: "2-digit",
+                        month: "long",
+                      })}
                     </p>
                   )}
                 </div>
@@ -676,23 +844,60 @@ export default function ProcedureDetail() {
                 </h2>
                 <div className="space-y-2.5 text-xs">
                   {[
-                    { label: "Création", value: new Date(procedure.createdAt).toLocaleDateString("fr-FR") },
-                    procedure.updatedAt && { label: "Dernière modification", value: new Date(procedure.updatedAt).toLocaleDateString("fr-FR") },
-                    procedure.dateDerniereModification && { label: "Dernière action", value: new Date(procedure.dateDerniereModification).toLocaleDateString("fr-FR") },
-                    procedure.dateCompletion && { label: "Complétée le", value: new Date(procedure.dateCompletion).toLocaleDateString("fr-FR") },
-                    procedure.cancelledAt && { label: "Annulée le", value: new Date(procedure.cancelledAt).toLocaleDateString("fr-FR") },
-                    procedure.deletedAt && { label: "Supprimée le", value: new Date(procedure.deletedAt).toLocaleDateString("fr-FR") },
+                    {
+                      label: "Création",
+                      value: new Date(procedure.createdAt).toLocaleDateString(
+                        "fr-FR",
+                      ),
+                    },
+                    procedure.updatedAt && {
+                      label: "Dernière modification",
+                      value: new Date(procedure.updatedAt).toLocaleDateString(
+                        "fr-FR",
+                      ),
+                    },
+                    procedure.dateDerniereModification && {
+                      label: "Dernière action",
+                      value: new Date(
+                        procedure.dateDerniereModification,
+                      ).toLocaleDateString("fr-FR"),
+                    },
+                    procedure.dateCompletion && {
+                      label: "Complétée le",
+                      value: new Date(
+                        procedure.dateCompletion,
+                      ).toLocaleDateString("fr-FR"),
+                    },
+                    procedure.cancelledAt && {
+                      label: "Annulée le",
+                      value: new Date(procedure.cancelledAt).toLocaleDateString(
+                        "fr-FR",
+                      ),
+                    },
+                    procedure.deletedAt && {
+                      label: "Supprimée le",
+                      value: new Date(procedure.deletedAt).toLocaleDateString(
+                        "fr-FR",
+                      ),
+                    },
                   ]
-                    .filter((item): item is { label: string; value: string } => item != null)
+                    .filter(
+                      (item): item is { label: string; value: string } =>
+                        item != null,
+                    )
                     .map((item) => (
-                    <div key={item.label} className="flex justify-between">
-                      <span className="text-slate-400">{item.label}</span>
-                      <span className="text-slate-700 font-medium">{item.value}</span>
-                    </div>
-                  ))}
+                      <div key={item.label} className="flex justify-between">
+                        <span className="text-slate-400">{item.label}</span>
+                        <span className="text-slate-700 font-medium">
+                          {item.value}
+                        </span>
+                      </div>
+                    ))}
                   <div className="flex justify-between">
                     <span className="text-slate-400">Durée</span>
-                    <span className="text-slate-700 font-medium">{procedure.daysSinceCreation}j</span>
+                    <span className="text-slate-700 font-medium">
+                      {procedure.daysSinceCreation}j
+                    </span>
                   </div>
                 </div>
               </div>
@@ -707,13 +912,17 @@ export default function ProcedureDetail() {
                     {procedure.rendezvousDate && (
                       <div className="flex justify-between">
                         <span className="text-slate-400">Date</span>
-                        <span className="text-slate-700 font-medium">{procedure.rendezvousDate}</span>
+                        <span className="text-slate-700 font-medium">
+                          {procedure.rendezvousDate}
+                        </span>
                       </div>
                     )}
                     {procedure.rendezvousStatus && (
                       <div className="flex justify-between">
                         <span className="text-slate-400">Statut</span>
-                        <span className="text-slate-700 font-medium">{procedure.rendezvousStatus}</span>
+                        <span className="text-slate-700 font-medium">
+                          {procedure.rendezvousStatus}
+                        </span>
                       </div>
                     )}
                     {procedure.rendezVousId && (
@@ -732,7 +941,8 @@ export default function ProcedureDetail() {
                     <XCircle size={13} /> Étape refusée
                   </p>
                   <p className="text-xs text-red-600">
-                    Une ou plusieurs étapes ont été refusées. Vérifiez les motifs ci-dessous.
+                    Une ou plusieurs étapes ont été refusées. Vérifiez les
+                    motifs ci-dessous.
                   </p>
                 </div>
               )}
@@ -744,13 +954,20 @@ export default function ProcedureDetail() {
       {/* ════════════════════ MODALS ════════════════════ */}
 
       {/* ── Modal : Modifier la procédure ── */}
-      <Modal open={modal.type === "edit"} onClose={closeModal} title="Modifier la procédure" width="max-w-xl">
+      <Modal
+        open={modal.type === "edit"}
+        onClose={closeModal}
+        title="Modifier la procédure"
+        width="max-w-xl"
+      >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Prénom">
             <input
               className={inputCls}
               value={editForm.prenom ?? ""}
-              onChange={(e) => setEditForm((p) => ({ ...p, prenom: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((p) => ({ ...p, prenom: e.target.value }))
+              }
               placeholder="Prénom"
             />
           </Field>
@@ -758,7 +975,9 @@ export default function ProcedureDetail() {
             <input
               className={inputCls}
               value={editForm.nom ?? ""}
-              onChange={(e) => setEditForm((p) => ({ ...p, nom: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((p) => ({ ...p, nom: e.target.value }))
+              }
               placeholder="Nom"
             />
           </Field>
@@ -766,7 +985,9 @@ export default function ProcedureDetail() {
             <input
               className={inputCls}
               value={editForm.telephone ?? ""}
-              onChange={(e) => setEditForm((p) => ({ ...p, telephone: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((p) => ({ ...p, telephone: e.target.value }))
+              }
               placeholder="+33612345678"
             />
           </Field>
@@ -774,7 +995,9 @@ export default function ProcedureDetail() {
             <input
               className={inputCls}
               value={editForm.destination ?? ""}
-              onChange={(e) => setEditForm((p) => ({ ...p, destination: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((p) => ({ ...p, destination: e.target.value }))
+              }
               placeholder="France"
             />
           </Field>
@@ -783,7 +1006,12 @@ export default function ProcedureDetail() {
               <input
                 className={inputCls}
                 value={editForm.destinationAutre ?? ""}
-                onChange={(e) => setEditForm((p) => ({ ...p, destinationAutre: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((p) => ({
+                    ...p,
+                    destinationAutre: e.target.value,
+                  }))
+                }
               />
             </Field>
           )}
@@ -791,7 +1019,9 @@ export default function ProcedureDetail() {
             <input
               className={inputCls}
               value={editForm.filiere ?? ""}
-              onChange={(e) => setEditForm((p) => ({ ...p, filiere: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((p) => ({ ...p, filiere: e.target.value }))
+              }
               placeholder="Informatique"
             />
           </Field>
@@ -800,7 +1030,9 @@ export default function ProcedureDetail() {
               <input
                 className={inputCls}
                 value={editForm.filiereAutre ?? ""}
-                onChange={(e) => setEditForm((p) => ({ ...p, filiereAutre: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, filiereAutre: e.target.value }))
+                }
               />
             </Field>
           )}
@@ -808,7 +1040,9 @@ export default function ProcedureDetail() {
             <input
               className={inputCls}
               value={editForm.niveauEtude ?? ""}
-              onChange={(e) => setEditForm((p) => ({ ...p, niveauEtude: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((p) => ({ ...p, niveauEtude: e.target.value }))
+              }
               placeholder="Master I"
             />
           </Field>
@@ -817,13 +1051,21 @@ export default function ProcedureDetail() {
               <input
                 className={inputCls}
                 value={editForm.niveauEtudeAutre ?? ""}
-                onChange={(e) => setEditForm((p) => ({ ...p, niveauEtudeAutre: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((p) => ({
+                    ...p,
+                    niveauEtudeAutre: e.target.value,
+                  }))
+                }
               />
             </Field>
           )}
         </div>
         <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-slate-100">
-          <button onClick={closeModal} className="px-4 py-2 text-sm rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+          <button
+            onClick={closeModal}
+            className="px-4 py-2 text-sm rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+          >
             Annuler
           </button>
           <button
@@ -841,29 +1083,51 @@ export default function ProcedureDetail() {
       <Modal
         open={modal.type === "editStep"}
         onClose={closeModal}
-        title={modal.stepName ? `Modifier : ${STEP_LABELS[modal.stepName]}` : "Modifier l'étape"}
+        title={
+          modal.stepName
+            ? `Modifier : ${STEP_LABELS[modal.stepName]}`
+            : "Modifier l'étape"
+        }
       >
         <div className="space-y-4">
           <Field label="Nouveau statut">
             <select
               className={selectCls}
               value={stepForm.statut ?? ""}
-              onChange={(e) => setStepForm((p) => ({ ...p, statut: e.target.value as StepStatus }))}
+              onChange={(e) =>
+                setStepForm((p) => ({
+                  ...p,
+                  statut: e.target.value as StepStatus,
+                }))
+              }
             >
               <option value="">— Choisir —</option>
-              {(["PENDING", "IN_PROGRESS", "COMPLETED", "REJECTED", "CANCELLED"] as StepStatus[]).map((s) => (
-                <option key={s} value={s}>{STEP_STATUS_CONFIG[s].label}</option>
+              {(
+                [
+                  "PENDING",
+                  "IN_PROGRESS",
+                  "COMPLETED",
+                  "REJECTED",
+                  "CANCELLED",
+                ] as StepStatus[]
+              ).map((s) => (
+                <option key={s} value={s}>
+                  {STEP_STATUS_CONFIG[s].label}
+                </option>
               ))}
             </select>
           </Field>
 
-          {(stepForm.statut === "REJECTED" || stepForm.statut === "CANCELLED") && (
+          {(stepForm.statut === "REJECTED" ||
+            stepForm.statut === "CANCELLED") && (
             <Field label="Motif de refus">
               <textarea
                 className={`${inputCls} resize-none`}
                 rows={3}
                 value={stepForm.raisonRefus ?? ""}
-                onChange={(e) => setStepForm((p) => ({ ...p, raisonRefus: e.target.value }))}
+                onChange={(e) =>
+                  setStepForm((p) => ({ ...p, raisonRefus: e.target.value }))
+                }
                 placeholder="Indiquer le motif…"
               />
             </Field>
@@ -874,15 +1138,23 @@ export default function ProcedureDetail() {
               <input
                 type="date"
                 className={inputCls}
-                value={stepForm.dateCompletion?.split("T")[0] ?? new Date().toISOString().split("T")[0]}
-                onChange={(e) => setStepForm((p) => ({ ...p, dateCompletion: e.target.value }))}
+                value={
+                  stepForm.dateCompletion?.split("T")[0] ??
+                  new Date().toISOString().split("T")[0]
+                }
+                onChange={(e) =>
+                  setStepForm((p) => ({ ...p, dateCompletion: e.target.value }))
+                }
               />
             </Field>
           )}
         </div>
 
         <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-slate-100">
-          <button onClick={closeModal} className="px-4 py-2 text-sm rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+          <button
+            onClick={closeModal}
+            className="px-4 py-2 text-sm rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+          >
             Annuler
           </button>
           <button
@@ -890,7 +1162,9 @@ export default function ProcedureDetail() {
             disabled={loading.updateStep || !stepForm.statut}
             className="px-4 py-2 text-sm rounded bg-sky-600 text-white font-medium hover:bg-sky-700 transition-colors disabled:opacity-60 flex items-center gap-2"
           >
-            {loading.updateStep && <RefreshCw size={13} className="animate-spin" />}
+            {loading.updateStep && (
+              <RefreshCw size={13} className="animate-spin" />
+            )}
             Enregistrer
           </button>
         </div>
@@ -900,17 +1174,25 @@ export default function ProcedureDetail() {
       <Modal
         open={modal.type === "addStep"}
         onClose={closeModal}
-        title={modal.stepName ? `Ajouter : ${STEP_LABELS[modal.stepName]}` : "Ajouter une étape"}
+        title={
+          modal.stepName
+            ? `Ajouter : ${STEP_LABELS[modal.stepName]}`
+            : "Ajouter une étape"
+        }
       >
         <p className="text-sm text-slate-600 mb-5">
           Vous allez ajouter l'étape{" "}
           <span className="font-semibold text-slate-800">
             {modal.stepName ? STEP_LABELS[modal.stepName] : ""}
           </span>{" "}
-          à cette procédure. Elle sera initialisée en statut <em>En attente</em>.
+          à cette procédure. Elle sera initialisée en statut <em>En attente</em>
+          .
         </p>
         <div className="flex justify-end gap-3">
-          <button onClick={closeModal} className="px-4 py-2 text-sm rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+          <button
+            onClick={closeModal}
+            className="px-4 py-2 text-sm rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+          >
             Annuler
           </button>
           <button
@@ -918,27 +1200,40 @@ export default function ProcedureDetail() {
             disabled={loading.updateStep}
             className="px-4 py-2 text-sm rounded bg-sky-600 text-white font-medium hover:bg-sky-700 transition-colors disabled:opacity-60 flex items-center gap-2"
           >
-            {loading.updateStep && <RefreshCw size={13} className="animate-spin" />}
+            {loading.updateStep && (
+              <RefreshCw size={13} className="animate-spin" />
+            )}
             Confirmer
           </button>
         </div>
       </Modal>
 
       {/* ── Modal : Terminer la procédure ── */}
-      <Modal open={modal.type === "complete"} onClose={closeModal} title="Terminer la procédure">
+      <Modal
+        open={modal.type === "complete"}
+        onClose={closeModal}
+        title="Terminer la procédure"
+      >
         <div className="flex items-start gap-3 mb-5">
           <div className="p-2 bg-emerald-50 rounded-lg shrink-0">
             <Zap size={18} className="text-emerald-600" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-800 mb-1">Marquer comme terminée</p>
+            <p className="text-sm font-semibold text-slate-800 mb-1">
+              Marquer comme terminée
+            </p>
             <p className="text-sm text-slate-500">
-              Le statut de la procédure passera à <strong>Terminée</strong>. Le backend calculera automatiquement le statut final en fonction des étapes.
+              Le statut de la procédure passera à <strong>Terminée</strong>. Le
+              backend calculera automatiquement le statut final en fonction des
+              étapes.
             </p>
           </div>
         </div>
         <div className="flex justify-end gap-3">
-          <button onClick={closeModal} className="px-4 py-2 text-sm rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+          <button
+            onClick={closeModal}
+            className="px-4 py-2 text-sm rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+          >
             Annuler
           </button>
           <button
@@ -953,13 +1248,18 @@ export default function ProcedureDetail() {
       </Modal>
 
       {/* ── Modal : Annuler la procédure ── */}
-      <Modal open={modal.type === "cancel"} onClose={closeModal} title="Annuler la procédure">
+      <Modal
+        open={modal.type === "cancel"}
+        onClose={closeModal}
+        title="Annuler la procédure"
+      >
         <div className="flex items-start gap-3 mb-4">
           <div className="p-2 bg-amber-50 rounded-lg shrink-0">
             <Ban size={18} className="text-amber-600" />
           </div>
           <p className="text-sm text-slate-600">
-            Cette action est <strong>irréversible</strong>. La procédure sera marquée comme annulée.
+            Cette action est <strong>irréversible</strong>. La procédure sera
+            marquée comme annulée.
           </p>
         </div>
         <Field label="Motif d'annulation (optionnel)">
@@ -972,28 +1272,36 @@ export default function ProcedureDetail() {
           />
         </Field>
         <div className="flex justify-end gap-3 mt-5">
-          <button onClick={closeModal} className="px-4 py-2 text-sm rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+          <button
+            onClick={closeModal}
+            className="px-4 py-2 text-sm rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+          >
             Retour
           </button>
           <button
             onClick={handleCancel}
-            disabled={loading.delete}
+            disabled={loading.update}
             className="px-4 py-2 text-sm rounded bg-amber-500 text-white font-medium hover:bg-amber-600 transition-colors disabled:opacity-60 flex items-center gap-2"
           >
-            {loading.delete && <RefreshCw size={13} className="animate-spin" />}
+            {loading.update && <RefreshCw size={13} className="animate-spin" />}
             Confirmer l'annulation
           </button>
         </div>
       </Modal>
 
       {/* ── Modal : Supprimer la procédure ── */}
-      <Modal open={modal.type === "delete"} onClose={closeModal} title="Supprimer la procédure">
+      <Modal
+        open={modal.type === "delete"}
+        onClose={closeModal}
+        title="Supprimer la procédure"
+      >
         <div className="flex items-start gap-3 mb-4">
           <div className="p-2 bg-red-50 rounded-lg shrink-0">
             <Trash2 size={18} className="text-red-500" />
           </div>
           <p className="text-sm text-slate-600">
-            La procédure sera <strong>supprimée</strong> (soft delete). Cette action ne peut pas être annulée depuis l'interface.
+            La procédure sera <strong>supprimée</strong> (soft delete). Cette
+            action ne peut pas être annulée depuis l'interface.
           </p>
         </div>
         <Field label="Motif de suppression (optionnel)">
@@ -1006,7 +1314,10 @@ export default function ProcedureDetail() {
           />
         </Field>
         <div className="flex justify-end gap-3 mt-5">
-          <button onClick={closeModal} className="px-4 py-2 text-sm rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+          <button
+            onClick={closeModal}
+            className="px-4 py-2 text-sm rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+          >
             Retour
           </button>
           <button

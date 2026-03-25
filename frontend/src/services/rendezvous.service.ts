@@ -1,6 +1,7 @@
 // ============================================================
 // rendezvous.service.ts
 // Version alignée strictement sur le backend
+// Structure: COMMUN > USER > ADMIN
 // ============================================================
 
 import { apiFetch } from "../context/AuthContext";
@@ -21,8 +22,10 @@ import type {
   ApiError,
 } from "../types/rendezvous.types";
 
-class RendezvousService {
-  private readonly baseUrl: string;
+// ==================== CLASSE DE BASE (COMMUNE) ====================
+
+class BaseRendezvousService {
+  protected readonly baseUrl: string;
 
   constructor() {
     this.baseUrl = import.meta.env.VITE_API_URL as string;
@@ -31,7 +34,7 @@ class RendezvousService {
   /**
    * Construit l'URL avec les paramètres de requête
    */
-  private buildUrl(
+  protected buildUrl(
     path: string,
     params?: Record<string, string | number | boolean>,
   ): string {
@@ -49,7 +52,7 @@ class RendezvousService {
   /**
    * Formate une date en YYYY-MM-DD
    */
-  private formatDate(date: Date | string): string {
+  protected formatDate(date: Date | string): string {
     if (typeof date === "string") return date;
     return date.toISOString().split("T")[0];
   }
@@ -57,7 +60,7 @@ class RendezvousService {
   /**
    * Gère les erreurs API
    */
-  private async handleError(response: Response): Promise<never> {
+  protected async handleError(response: Response): Promise<never> {
     let errorMessage = `Erreur ${response.status}`;
 
     try {
@@ -73,7 +76,7 @@ class RendezvousService {
   /**
    * Traite la réponse API
    */
-  private async handleResponse<T>(response: Response): Promise<T> {
+  protected async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       await this.handleError(response);
     }
@@ -99,14 +102,18 @@ class RendezvousService {
 
     return data as T;
   }
+}
 
+// ==================== PARTIE UTILISATEUR ====================
+// Méthodes accessibles aux utilisateurs authentifiés
+
+class UserRendezvousService extends BaseRendezvousService {
   /**
    * GET /rendezvous/available-slots/:date
    */
   async getAvailableSlots(date: Date | string): Promise<AvailableSlotsDto> {
     const dateStr = this.formatDate(date);
     const url = `${this.baseUrl}/rendezvous/available-slots/${encodeURIComponent(dateStr)}`;
-
     const response = await apiFetch(url);
     return this.handleResponse<AvailableSlotsDto>(response);
   }
@@ -197,7 +204,12 @@ class RendezvousService {
 
     return this.handleResponse<RendezvousResponseDto>(response);
   }
+}
 
+// ==================== PARTIE ADMINISTRATEUR ====================
+// Méthodes accessibles uniquement aux administrateurs
+
+class AdminRendezvousService extends BaseRendezvousService {
   /**
    * GET /admin/rendezvous/all
    */
@@ -206,7 +218,7 @@ class RendezvousService {
   ): Promise<PaginatedRendezvousResponseDto> {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
+      if (value !== undefined && value !== null && value !== "") {
         searchParams.set(key, String(value));
       }
     });
@@ -217,6 +229,15 @@ class RendezvousService {
 
     const response = await apiFetch(url);
     return this.handleResponse<PaginatedRendezvousResponseDto>(response);
+  }
+
+  /**
+   * GET /rendezvous/:id - Get a specific rendezvous by ID (admin version)
+   */
+  async getRendezvousById(id: string): Promise<RendezvousResponseDto> {
+    const url = `${this.baseUrl}/rendezvous/${id}`;
+    const response = await apiFetch(url);
+    return this.handleResponse<RendezvousResponseDto>(response);
   }
 
   /**
@@ -293,7 +314,6 @@ class RendezvousService {
     const today = new Date();
     const dateStr = this.formatDate(today);
 
-    // Utiliser la logique par défaut du backend (PENDING + CONFIRMED)
     const params: RendezvousQueryDto = {
       date: dateStr,
       sortBy: "date",
@@ -367,4 +387,57 @@ class RendezvousService {
   }
 }
 
-export const rendezvousService = new RendezvousService();
+// ==================== EXPORT COMBINÉ ====================
+
+export const userRendezvousService = new UserRendezvousService();
+export const adminRendezvousService = new AdminRendezvousService();
+
+// Pour la compatibilité avec le code existant
+export const rendezvousService = {
+  // Méthodes utilisateur
+  getAvailableSlots: userRendezvousService.getAvailableSlots.bind(
+    userRendezvousService,
+  ),
+  getAvailableDates: userRendezvousService.getAvailableDates.bind(
+    userRendezvousService,
+  ),
+  checkAvailability: userRendezvousService.checkAvailability.bind(
+    userRendezvousService,
+  ),
+  createRendezvous: userRendezvousService.createRendezvous.bind(
+    userRendezvousService,
+  ),
+  getRendezvousByEmail: userRendezvousService.getRendezvousByEmail.bind(
+    userRendezvousService,
+  ),
+  getRendezvousById: userRendezvousService.getRendezvousById.bind(
+    userRendezvousService,
+  ),
+  cancelRendezvous: userRendezvousService.cancelRendezvous.bind(
+    userRendezvousService,
+  ),
+
+  // Méthodes admin
+  searchRendezvous: adminRendezvousService.searchRendezvous.bind(
+    adminRendezvousService,
+  ),
+  getStatistics: adminRendezvousService.getStatistics.bind(
+    adminRendezvousService,
+  ),
+  getRendezvousByDate: adminRendezvousService.getRendezvousByDate.bind(
+    adminRendezvousService,
+  ),
+  updateRendezvous: adminRendezvousService.updateRendezvous.bind(
+    adminRendezvousService,
+  ),
+  completeRendezvous: adminRendezvousService.completeRendezvous.bind(
+    adminRendezvousService,
+  ),
+  deleteRendezvous: adminRendezvousService.deleteRendezvous.bind(
+    adminRendezvousService,
+  ),
+  getUpcomingRendezvous: adminRendezvousService.getUpcomingRendezvous.bind(
+    adminRendezvousService,
+  ),
+  exportToCSV: adminRendezvousService.exportToCSV.bind(adminRendezvousService),
+} as UserRendezvousService & AdminRendezvousService;

@@ -28,7 +28,7 @@ import {
   Book,
   Dock,
 } from "lucide-react";
-import { useRendezvous } from "../../../hooks/useRendezvous";
+import { useUserRendezvous } from "../../../hooks/useRendezvous";
 import {
   DESTINATION_OPTIONS,
   NIVEAU_ETUDE_OPTIONS,
@@ -51,6 +51,15 @@ interface FormData {
   filiereAutre?: string;
   date: string;
   time: TimeSlot | "";
+}
+
+// Interface pour les créneaux formatés
+interface FormattedSlot {
+  time: TimeSlot | string;
+  displayTime: string;
+  available: boolean;
+  isPast: boolean;
+  isLunchBreak: boolean;
 }
 
 // ==================== COMPOSANTS RÉUTILISABLES ====================
@@ -167,17 +176,17 @@ const RendezVous = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user, isLoading: authLoading } = useAuth();
 
-  // ✅ DÉLÉGATION COMPLÈTE AU HOOK
+  // ✅ HOOK UTILISATEUR SPÉCIFIQUE
   const {
-    availableDates: hookAvailableDates,
-    availableSlots: hookAvailableSlots,
+    availableDates,
+    availableSlots,
     loading,
     createRendezvous,
     checkAvailability,
     getAvailableSlots,
-    loadAvailableDates,
+    getAvailableDates,
     error: hookError,
-  } = useRendezvous({
+  } = useUserRendezvous({
     autoLoad: false,
   });
 
@@ -212,29 +221,30 @@ const RendezVous = () => {
   const error = localError || hookError || loadError;
 
   // ✅ Transformer les dates disponibles
-  const availableDates = useMemo(() => {
-    console.log("[RendezVous] Dates reçues du hook:", hookAvailableDates);
-    return hookAvailableDates.map((d) => d.date);
-  }, [hookAvailableDates]);
+  const availableDatesList = useMemo(() => {
+    console.log("[RendezVous] Dates reçues du hook:", availableDates);
+    return availableDates.map((d) => d.date);
+  }, [availableDates]);
 
-  // ✅ Transformer les créneaux disponibles
-  const availableSlotsForSelectedDate = useMemo(() => {
-    console.log("[RendezVous] Créneaux reçus du hook:", hookAvailableSlots);
+  // ✅ Transformer les créneaux disponibles - CORRECTION ICI
+  const availableSlotsForSelectedDate = useMemo((): FormattedSlot[] => {
+    console.log("[RendezVous] Créneaux reçus du hook:", availableSlots);
     console.log("[RendezVous] Date sélectionnée:", formData.date);
 
     if (!formData.date) return [];
 
-    // hookAvailableSlots est un tableau de AvailableSlotsDto, je cherche celui pour la date
-    const slotData = hookAvailableSlots.find(
-      (slot) => slot.date === formData.date,
-    );
+    // availableSlots est un tableau d'objets AvailableSlotsDto
+    const slotData =
+      availableSlots && Array.isArray(availableSlots)
+        ? availableSlots.find((slot) => slot.date === formData.date)
+        : null;
 
     console.log("[RendezVous] Créneaux pour la date:", slotData);
 
     if (!slotData || !slotData.availableSlots) return [];
 
-    // availableSlots est un tableau de strings (TimeSlot), je le transforme en objets
-    return slotData.availableSlots.map((timeSlot) => {
+    // availableSlots est un tableau de strings (TimeSlot)
+    return slotData.availableSlots.map((timeSlot: string): FormattedSlot => {
       const displayTime = timeSlotToDisplay(timeSlot as TimeSlot);
       const [hours, minutes] = displayTime.split(":").map(Number);
 
@@ -251,12 +261,12 @@ const RendezVous = () => {
       return {
         time: timeSlot,
         displayTime,
-        available: !isPast && !isLunchBreak, // Désactiver si passé ou pause déjeuner
+        available: !isPast && !isLunchBreak,
         isPast,
         isLunchBreak,
       };
     });
-  }, [hookAvailableSlots, formData.date]);
+  }, [availableSlots, formData.date]);
 
   // Initialiser le formulaire avec les données utilisateur
   useEffect(() => {
@@ -316,7 +326,7 @@ const RendezVous = () => {
           threeMonthsStr,
         );
 
-        await loadAvailableDates(todayStr, threeMonthsStr);
+        await getAvailableDates(todayStr, threeMonthsStr);
 
         console.log("[RendezVous] Dates chargées avec succès");
       } catch (err) {
@@ -328,7 +338,7 @@ const RendezVous = () => {
     };
 
     loadDates();
-  }, [isAuthenticated, loadAvailableDates]);
+  }, [isAuthenticated, getAvailableDates]);
 
   // ✅ Charger les créneaux quand la date change
   useEffect(() => {
@@ -599,7 +609,7 @@ const RendezVous = () => {
               Chargement des dates disponibles...
             </p>
           </div>
-        ) : availableDates.length > 0 ? (
+        ) : availableDatesList.length > 0 ? (
           <select
             name="date"
             value={formData.date}
@@ -608,7 +618,7 @@ const RendezVous = () => {
             required
           >
             <option value="">Sélectionnez une date</option>
-            {availableDates.map((date) => (
+            {availableDatesList.map((date) => (
               <option key={date} value={date}>
                 {new Date(date).toLocaleDateString("fr-FR", {
                   weekday: "long",
@@ -644,12 +654,12 @@ const RendezVous = () => {
             </div>
           ) : availableSlotsForSelectedDate.length > 0 ? (
             <div className="grid grid-cols-3 gap-1 sm:grid-cols-4">
-              {availableSlotsForSelectedDate.map((slot) => {
+              {availableSlotsForSelectedDate.map((slot: FormattedSlot) => {
                 const isSelected = formData.time === slot.time;
 
                 return (
                   <button
-                    key={slot.time}
+                    key={slot.time as string}
                     type="button"
                     onClick={() =>
                       slot.available &&
@@ -708,8 +718,6 @@ const RendezVous = () => {
     </div>
   );
 
-  // ... (le reste des fonctions de rendu reste identique)
-
   return (
     <>
       <Helmet>
@@ -718,6 +726,8 @@ const RendezVous = () => {
           name="description"
           content="Prenez rendez-vous avec un conseiller Paname Consulting"
         />
+        <meta name="robots" content="noindex, nofollow" />
+        <meta name="googlebot" content="noindex, nofollow" />
       </Helmet>
 
       <div className="min-h-screen py-6">

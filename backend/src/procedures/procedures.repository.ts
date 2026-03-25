@@ -151,6 +151,10 @@ export class ProceduresRepository {
         isDeleted: true,
         deletedAt: new Date(),
         deletionReason: reason,
+        // Statut mis à jour ici atomiquement pour rester cohérent
+        // avec les étapes annulées en cascade dans le service.
+        statut: ProcedureStatus.CANCELLED,
+        dateDerniereModification: new Date(),
         updatedAt: new Date(),
       },
     });

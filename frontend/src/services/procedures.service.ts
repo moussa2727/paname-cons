@@ -71,13 +71,12 @@ const API = {
   ADMIN_STATISTICS: "/admin/procedures/statistics",
   ADMIN_STEP: (id: string, stepName: StepName) =>
     `/admin/procedures/${id}/steps/${stepName}`,
+  ADMIN_ADD_STEP: (id: string, stepName: StepName) =>
+    `/admin/procedures/${id}/steps/${stepName}`,
   ADMIN_DELETE: (id: string) => `/admin/procedures/${id}/delete`,
-  ADMIN_COMPLETE: (id: string) => `/admin/procedures/${id}/complete`,
   ADMIN_EXPORT: "/admin/procedures/export",
 
-  // Routes utilisateur
-  PROCEDURE_CREATE: "/procedures/create",
-  PROCEDURE_ALL: "/procedures",
+  // Routes utilisateur + mixtes
   PROCEDURE_BY_EMAIL: (email: string) => `/procedures/by-email/${email}`,
   PROCEDURE_BY_RENDEZVOUS: (rendezVousId: string) =>
     `/procedures/by-rendezvous/${rendezVousId}`,
@@ -227,24 +226,6 @@ export const ProceduresService = {
       return await handleResponse<ProcedureStatisticsDto>(res);
     } catch (error) {
       toast.error("Erreur lors du chargement des statistiques");
-      throw error;
-    }
-  },
-
-  /**
-   * PATCH /admin/procedures/:id/complete
-   * @see ProceduresController.completeProcedure()
-   */
-  async completeProcedure(id: string): Promise<ProcedureResponseDto> {
-    try {
-      const res = await apiFetch(`${BASE_URL}${API.ADMIN_COMPLETE(id)}`, {
-        method: "PATCH",
-        headers: JSON_HEADERS,
-        body: JSON.stringify({}),
-      });
-      return await handleResponse<ProcedureResponseDto>(res);
-    } catch (error) {
-      toast.error("Erreur lors de la complétion de la procédure");
       throw error;
     }
   },
