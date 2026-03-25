@@ -61,12 +61,6 @@ const formatPhoneNumber = (phone: string): string => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// Type du formulaire
-//
-// ❌ email absent  — readOnly, jamais envoyé au backend
-// ❌ telephone absent — l'admin ne peut pas modifier son téléphone
-// ✅ firstName, lastName, password uniquement (UpdateProfileDto backend)
-// ─────────────────────────────────────────────────────────────
 
 interface ProfileForm {
   firstName: string;

@@ -45,7 +45,7 @@ export const MessagesService = {
       toast.success("Message envoyé avec succès");
       return result;
     } catch (error) {
-      console.error("[message.service] Erreur création message:", error);
+      console.error("Erreur création message:", error);
       throw error;
     }
   },
@@ -75,7 +75,7 @@ export const MessagesService = {
 
       return result;
     } catch (error) {
-      console.error("[message.service] Erreur récupération messages:", error);
+      console.error("Erreur récupération messages:", error);
       throw error;
     }
   },
@@ -88,10 +88,7 @@ export const MessagesService = {
 
       return result;
     } catch (error) {
-      console.error(
-        "[message.service] Erreur récupération statistiques:",
-        error,
-      );
+      console.error("Erreur récupération statistiques:", error);
       throw error;
     }
   },
@@ -101,10 +98,7 @@ export const MessagesService = {
       const res = await apiFetch(`${BASE_URL}/admin/contacts/unread-count`);
       return handleResponse<{ count: number }>(res);
     } catch (error) {
-      console.error(
-        "[message.service] Erreur récupération count unread:",
-        error,
-      );
+      console.error("Erreur récupération count unread:", error);
       throw error;
     }
   },
@@ -114,7 +108,7 @@ export const MessagesService = {
       const res = await apiFetch(`${BASE_URL}/admin/contacts/${id}`);
       return handleResponse<ContactResponseDto>(res);
     } catch (error) {
-      console.error("[message.service] Erreur récupération message:", error);
+      console.error("Erreur récupération message:", error);
       throw error;
     }
   },
@@ -133,7 +127,7 @@ export const MessagesService = {
       toast.success("Réponse envoyée avec succès");
       return result;
     } catch (error) {
-      console.error("[message.service] Erreur réponse message:", error);
+      console.error("Erreur réponse message:", error);
       throw error;
     }
   },
@@ -151,7 +145,7 @@ export const MessagesService = {
       );
       return result;
     } catch (error) {
-      console.error("[message.service] Erreur marquage lu/non lu:", error);
+      console.error("Erreur marquage lu/non lu:", error);
       throw error;
     }
   },
@@ -165,7 +159,7 @@ export const MessagesService = {
       toast.success(`${result.count} message(s) marqué(s) comme lu(s)`);
       return result;
     } catch (error) {
-      console.error("[message.service] Erreur marquer tous lus:", error);
+      console.error("Erreur marquer tous lus:", error);
       throw error;
     }
   },
@@ -178,7 +172,7 @@ export const MessagesService = {
       await handleResponse<void>(res);
       toast.success("Message supprimé avec succès");
     } catch (error) {
-      console.error("[message.service] Erreur suppression message:", error);
+      console.error("Erreur suppression message:", error);
       throw error;
     }
   },
@@ -194,7 +188,7 @@ export const MessagesService = {
       await handleResponse<void>(res);
       toast.success("Message supprimé définitivement");
     } catch (error) {
-      console.error("[message.service] Erreur suppression définitive:", error);
+      console.error("Erreur suppression définitive:", error);
       throw error;
     }
   },

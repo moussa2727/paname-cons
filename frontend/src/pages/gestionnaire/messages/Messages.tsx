@@ -371,7 +371,6 @@ function MessageRow({
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function Messages() {
-  console.log("[Messages] Composant Messages monté");
 
   const {
     messages,

@@ -297,7 +297,7 @@ const RendezvousAdmin = () => {
     if (isAdmin) {
       loadStatistics();
     }
-  }, [isAdmin]); // ✅ Retirer loadStatistics pour éviter boucle
+  }, [isAdmin]);
 
   // Debounce recherche
   useEffect(() => {
@@ -313,7 +313,7 @@ const RendezvousAdmin = () => {
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
     };
-  }, [searchTerm]); // ✅ Retirer filters et setFilters pour éviter boucle
+  }, [searchTerm]);
 
   // Panels
   const loadTodayPanel = useCallback(async () => {
@@ -358,7 +358,7 @@ const RendezvousAdmin = () => {
     } else if (activeTab === "upcoming") {
       loadUpcomingPanel();
     }
-  }, [activeTab]); // ✅ Retirer les fonctions pour éviter boucle
+  }, [activeTab]);
 
   // Filtre rapide par date
   const handleDateQuickFilter = useCallback(
@@ -959,6 +959,7 @@ const RendezvousAdmin = () => {
       <Helmet>
         <title>Gestion Des Rendez-vous — Paname Consulting</title>
         <meta name="robots" content="noindex, nofollow" />
+        <meta name="googlebot" content="noindex, nofollow" />
       </Helmet>
 
       <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">

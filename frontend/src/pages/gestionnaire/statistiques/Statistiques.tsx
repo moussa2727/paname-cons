@@ -155,7 +155,6 @@ const Statistiques: React.FC = () => {
     if (!isAdmin) return;
 
     const loadAllStatistics = async () => {
-      console.log("[Statistiques] Chargement de toutes les stats...");
 
       try {
         await Promise.all([
@@ -166,9 +165,8 @@ const Statistiques: React.FC = () => {
           getDestinationsStatistics(), // Méthode spécifique aux destinations
         ]);
 
-        console.log("[Statistiques] ✅ Toutes les stats chargées");
       } catch (error) {
-        console.error("[Statistiques] Erreur chargement stats:", error);
+        console.error(" Erreur chargement stats:", error);
         toast.error("Impossible de charger certaines statistiques");
       }
     };

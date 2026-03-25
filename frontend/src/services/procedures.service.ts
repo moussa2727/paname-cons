@@ -1,5 +1,4 @@
 // services/procedures.service.ts
-// STRICTEMENT CALQUÉ sur procedures.controller.ts (backend)
 
 import { toast } from "react-hot-toast";
 import type {
@@ -55,14 +54,9 @@ async function handleResponse<T>(res: Response): Promise<T> {
     );
   }
 
-  // Le backend retourne directement la structure attendue
-  // Si la réponse a une propriété 'data', on l'utilise, sinon on utilise le corps directement
-  const responseBodyObj = responseBody as Record<string, unknown>;
-  const result =
-    responseBodyObj.data !== undefined
-      ? (responseBodyObj.data as T)
-      : (responseBody as T);
-  return result;
+  // Le backend retourne directement la structure attendue (PaginatedProcedureResponseDto,
+  // ProcedureResponseDto, etc.) — on retourne le corps tel quel sans déballage.
+  return responseBody as T;
 }
 
 // ─── Fetch authentifié ────────────────────────────────────────────────────────
@@ -186,23 +180,37 @@ export const ProceduresService = {
   /**
    * GET /admin/procedures/all
    * @see ProceduresController.findAll()
+   *
+   * Par défaut le backend n'inclut que IN_PROGRESS + PENDING (includeCompleted = false).
+   * Passer { includeCompleted: true } pour récupérer toutes les procédures.
+   * Les valeurs par défaut sont alignées sur ProcedureQueryDto du backend.
    */
   async findAll(
     query: ProcedureQueryDto = {},
   ): Promise<PaginatedProcedureResponseDto> {
+    // Valeurs par défaut alignées sur ProcedureQueryDto du backend
+    const merged: ProcedureQueryDto = {
+      page: 1,
+      limit: 10,
+      sortBy: "createdAt",
+      sortOrder: "desc",
+      ...query,
+    };
+
     const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(query)) {
+    for (const [key, value] of Object.entries(merged)) {
       if (value !== undefined && value !== null && value !== "") {
         params.set(key, String(value));
       }
     }
+
     const url = `${BASE_URL}${API.ADMIN_ALL}${params.toString() ? `?${params}` : ""}`;
 
     try {
       const res = await apiFetch(url, { method: "GET" });
       return await handleResponse<PaginatedProcedureResponseDto>(res);
     } catch (error) {
-      console.error("[ProceduresService] findAll error:", error);
+      console.error("FindAll procedures error:", error);
       throw error;
     }
   },

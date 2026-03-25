@@ -170,7 +170,6 @@ export function useProcedures(
   // ── Helpers ───────────────────────────────────────────────────────
   const setLoad = useCallback(
     (k: keyof ProcedureLoadingState, v: boolean) => {
-      console.log(`🔍 setLoad called: ${k} = ${v}`);
       setLoading((prev: ProcedureLoadingState) => ({ ...prev, [k]: v }));
     },
     [],
@@ -195,19 +194,23 @@ export function useProcedures(
   // ─────────────────────────────────────────────────────────────────────────
   const loadProcedures = useCallback(
     async (override?: ProcedureQueryDto) => {
-      console.log("🔍 loadProcedures called with:", override);
       if (loadingRef.current) return;
       loadingRef.current = true;
       setLoad("list", true);
       setError(null);
 
       try {
-        const merged = { ...query, ...override };
-        console.log("🔍 Merged query:", merged);
+        // Pour les admins, on inclut toutes les procédures par défaut
+        // sauf si le caller a explicitement passé includeCompleted: false
+        const adminDefaults: Partial<ProcedureQueryDto> =
+          user?.role === "ADMIN" && override?.includeCompleted === undefined
+            ? { includeCompleted: true }
+            : {};
+
+        const merged = { ...adminDefaults, ...query, ...override };
         const res = await ProceduresService.findAll(merged);
 
         if (!res || !Array.isArray(res.data)) {
-          console.log("🔍 No data or not array");
           setProcedures([]);
           syncPagination({
             data: [],
@@ -233,7 +236,7 @@ export function useProcedures(
         loadingRef.current = false;
       }
     },
-    [query, setLoad, syncPagination],
+    [query, user?.role, setLoad, syncPagination],
   );
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -553,15 +556,20 @@ export function useProcedures(
 
   const applyFilters = useCallback(async () => {
     try {
+      const adminDefaults: Partial<ProcedureQueryDto> =
+        user?.role === "ADMIN" ? { includeCompleted: true } : {};
+
       const res = await ProceduresService.findAll({
+        ...adminDefaults,
         ...query,
+        // Mapping ProcedureFilters → ProcedureQueryDto (noms identiques au backend)
         status: filters.status,
         email: filters.email,
         destination: filters.destination,
         filiere: filters.filiere,
         includeDeleted: filters.includeDeleted,
-        includeCompleted: filters.includeCompleted,
-        search: filters.searchTerm,
+        includeCompleted: filters.includeCompleted ?? adminDefaults.includeCompleted,
+        search: filters.searchTerm,          // searchTerm → search (nom du DTO backend)
         startDate: filters.dateRange?.start.toISOString().split("T")[0],
         endDate: filters.dateRange?.end.toISOString().split("T")[0],
       });
@@ -570,7 +578,7 @@ export function useProcedures(
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erreur lors du filtrage");
     }
-  }, [filters, query, syncPagination]);
+  }, [filters, query, user?.role, syncPagination]);
 
   const resetFilters = useCallback(() => {
     setFiltersState(DEFAULT_FILTERS);
@@ -644,8 +652,9 @@ export function useProcedures(
   const loadOverdue = useCallback(async () => {
     try {
       const result = await ProceduresService.findAll({
-        status: "IN_PROGRESS",
+        status: "IN_PROGRESS" as ProcedureQueryDto["status"],
         limit: 100,
+        includeCompleted: false,
       });
       setOverdue(result.data.filter((p) => p.isOverdue));
     } catch {
@@ -674,7 +683,6 @@ export function useProcedures(
       isFirstRender.current = false;
       return;
     }
-    // Utiliser la référence actuelle pour éviter la boucle
     const currentLoadProcedures = loadProcedures;
     currentLoadProcedures();
   }, [
@@ -691,7 +699,6 @@ export function useProcedures(
     query.destination,
     query.filiere,
     query.email,
-    // Pas de dépendance à loadProcedures pour éviter la boucle
   ]);
 
   // Rafraîchissement périodique des procédures en retard

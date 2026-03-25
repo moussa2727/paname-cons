@@ -81,7 +81,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
   if (!response.ok) {
     console.error(
-      "[users.service] Error:",
+      "Error:",
       body.message || `HTTP ${response.status}`,
     );
     throw new Error(body.message || `Erreur HTTP ${response.status}`);

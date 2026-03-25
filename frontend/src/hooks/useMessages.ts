@@ -125,7 +125,7 @@ export function useMessages(): UseMessagesReturn {
       const messagesData = Array.isArray(listResult)
         ? listResult
         : listResult.data || [];
-      console.log("[useMessages] Messages received:", messagesData.length);
+      console.log("Messages received:", messagesData.length);
 
       setMessages(messagesData);
       setStats(statsResult);
@@ -157,7 +157,7 @@ export function useMessages(): UseMessagesReturn {
         err instanceof Error ? err.message : "Erreur de chargement";
       setError(message);
       toast.error(message);
-      console.log("[useMessages] fetchMessages error:", err);
+      console.log("fetchMessages error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -220,7 +220,7 @@ export function useMessages(): UseMessagesReturn {
             ? err.message
             : "Erreur lors de l'envoi de la réponse";
         toast.error(message);
-        console.error("[useMessages] respond error:", err);
+        console.error("respond error:", err);
       }
     },
     [refresh],

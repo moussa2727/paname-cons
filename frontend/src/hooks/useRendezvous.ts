@@ -255,7 +255,7 @@ export const useRendezvous = (
       const stats = await rendezvousService.getStatistics();
       setStatistics(stats);
     } catch (err) {
-      console.error("Erreur chargement statistiques:", err);
+      console.error("Erreur chargement statistiques de RendezVous:", err);
     } finally {
       setLoadingKey("statistics", false);
     }

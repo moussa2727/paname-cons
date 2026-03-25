@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import React from "react";
@@ -7,8 +7,6 @@ import {
   Filter,
   X,
   Eye,
-  Pencil,
-  Trash2,
   ChevronLeft,
   ChevronRight,
   BarChart3,
@@ -25,9 +23,9 @@ import {
   Globe,
   BookOpen,
   Calendar,
+  ArrowRight,
 } from "lucide-react";
 import { useProcedures } from "../../../hooks/useProcedures";
-import { useAuth } from "../../../hooks/useAuth";
 import type {
   ProcedureStatus,
   SortOrder,
@@ -139,84 +137,25 @@ const ProgressBar: React.FC<{ value: number }> = ({ value }) => (
   </div>
 );
 
-// ─── Confirmation modal ───────────────────────────────────────────────────────
-
-interface ConfirmModalProps {
-  open: boolean;
-  title: string;
-  description: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  loading?: boolean;
-}
-
-const ConfirmModal: React.FC<ConfirmModalProps> = ({
-  open,
-  title,
-  description,
-  onConfirm,
-  onCancel,
-  loading,
-}) => {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onCancel}
-      />
-      <div className="relative bg-white rounded shadow-2xl p-6 max-w-sm w-full animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="p-2 bg-red-50 rounded">
-            <Trash2 size={20} className="text-red-500" />
-          </div>
-          <h3 className="font-semibold text-slate-800 text-base">{title}</h3>
-        </div>
-        <p className="text-sm text-slate-500 mb-5">{description}</p>
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-2 px-4 rounded border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
-          >
-            Annuler
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={loading}
-            className="flex-1 py-2 px-4 rounded bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-60"
-          >
-            {loading ? "Suppression…" : "Supprimer"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // ─── Procedure Row ────────────────────────────────────────────────────────────
 
 interface ProcedureRowProps {
   procedure: ProcedureResponseDto;
   onView: (id: string) => void;
-  onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
 }
 
-const ProcedureRow: React.FC<ProcedureRowProps> = ({
-  procedure,
-  onView,
-  onEdit,
-  onDelete,
-}) => {
-  const createdAt = new Date(procedure.createdAt);
-  const dateStr = createdAt.toLocaleDateString("fr-FR", {
+const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
+  const dateStr = new Date(procedure.createdAt).toLocaleDateString("fr-FR", {
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
 
   return (
-    <tr className="group hover:bg-sky-50/40 transition-colors border-b border-slate-100 last:border-0">
+    <tr
+      className="group hover:bg-sky-50/40 transition-colors border-b border-slate-100 last:border-0 cursor-pointer"
+      onClick={() => onView(procedure.id)}
+    >
       {/* Candidat */}
       <td className="px-4 py-3">
         <div>
@@ -254,31 +193,18 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({
           {dateStr}
         </span>
       </td>
-      {/* Actions */}
+      {/* CTA */}
       <td className="px-4 py-3">
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => onView(procedure.id)}
-            title="Voir les détails"
-            className="p-1.5 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-100 transition-colors"
-          >
-            <Eye size={15} />
-          </button>
-          <button
-            onClick={() => onEdit(procedure.id)}
-            title="Modifier"
-            className="p-1.5 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-100 transition-colors"
-          >
-            <Pencil size={15} />
-          </button>
-          <button
-            onClick={() => onDelete(procedure.id)}
-            title="Supprimer"
-            className="p-1.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-          >
-            <Trash2 size={15} />
-          </button>
-        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onView(procedure.id);
+          }}
+          title="Voir les détails"
+          className="p-1.5 rounded text-slate-300 group-hover:text-sky-600 group-hover:bg-sky-100 transition-colors"
+        >
+          <ArrowRight size={15} />
+        </button>
       </td>
     </tr>
   );
@@ -286,12 +212,7 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({
 
 // ─── Mobile card ──────────────────────────────────────────────────────────────
 
-const ProcedureCard: React.FC<ProcedureRowProps> = ({
-  procedure,
-  onView,
-  onEdit,
-  onDelete,
-}) => {
+const ProcedureCard: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
   const dateStr = new Date(procedure.createdAt).toLocaleDateString("fr-FR", {
     day: "2-digit",
     month: "short",
@@ -299,7 +220,10 @@ const ProcedureCard: React.FC<ProcedureRowProps> = ({
   });
 
   return (
-    <div className="bg-white rounded border border-slate-100 p-4 shadow-sm">
+    <div
+      className="bg-white rounded border border-slate-100 p-4 shadow-sm cursor-pointer hover:border-sky-200 hover:shadow-md transition-all"
+      onClick={() => onView(procedure.id)}
+    >
       <div className="flex items-start justify-between mb-3">
         <div>
           <p className="font-semibold text-slate-800 text-sm">
@@ -324,24 +248,15 @@ const ProcedureCard: React.FC<ProcedureRowProps> = ({
         </span>
       </div>
       <ProgressBar value={procedure.progress} />
-      <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+      <div className="flex justify-end mt-3 pt-3 border-t border-slate-100">
         <button
-          onClick={() => onView(procedure.id)}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded bg-sky-50 text-sky-600 text-xs font-medium hover:bg-sky-100 transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onView(procedure.id);
+          }}
+          className="flex items-center gap-1.5 py-2 px-3 rounded bg-sky-50 text-sky-600 text-xs font-medium hover:bg-sky-100 transition-colors"
         >
-          <Eye size={13} /> Voir
-        </button>
-        <button
-          onClick={() => onEdit(procedure.id)}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded bg-sky-50 text-sky-600 text-xs font-medium hover:bg-sky-100 transition-colors"
-        >
-          <Pencil size={13} /> Modifier
-        </button>
-        <button
-          onClick={() => onDelete(procedure.id)}
-          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded bg-red-50 text-red-500 text-xs font-medium hover:bg-red-100 transition-colors"
-        >
-          <Trash2 size={13} />
+          <Eye size={13} /> Voir le détail
         </button>
       </div>
     </div>
@@ -351,14 +266,9 @@ const ProcedureCard: React.FC<ProcedureRowProps> = ({
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
 
 export default function Procedures() {
-  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showFilters, setShowFilters] = useState(false);
   const [showStats, setShowStats] = useState(true);
-  const [confirmModal, setConfirmModal] = useState<{
-    open: boolean;
-    id: string | null;
-  }>({ open: false, id: null });
   const [exporting, setExporting] = useState(false);
 
   const {
@@ -371,35 +281,25 @@ export default function Procedures() {
     setQuery,
     setPage,
     setLimit,
-    remove,
     refresh,
   } = useProcedures({
     autoLoad: true,
     shouldLoadStatistics: true,
-    initialQuery: { page: 1, limit: 10, sortBy: "createdAt", sortOrder: "desc" },
+    initialQuery: {
+      page: 1,
+      limit: 10,
+      sortBy: "createdAt",
+      sortOrder: "desc",
+      includeCompleted: true,
+    },
   });
 
-  // ── Navigation ──────────────────────────────────────────────────────────
+  // ── Navigation vers la page détail ──────────────────────────────────────
 
   const handleViewDetails = useCallback(
     (id: string) => navigate(`/gestionnaire/procedures/${id}`),
     [navigate],
   );
-
-  const handleEdit = useCallback(
-    (id: string) => navigate(`/gestionnaire/procedures/${id}`),
-    [navigate],
-  );
-
-  const handleDeleteClick = useCallback((id: string) => {
-    setConfirmModal({ open: true, id });
-  }, []);
-
-  const handleDeleteConfirm = useCallback(async () => {
-    if (!confirmModal.id) return;
-    await remove(confirmModal.id);
-    setConfirmModal({ open: false, id: null });
-  }, [confirmModal.id, remove]);
 
   // ── Export ──────────────────────────────────────────────────────────────
 
@@ -440,7 +340,12 @@ export default function Procedures() {
   const handleResetFilters = useCallback(() => {
     setLocalSearch("");
     setLocalStatus("");
-    setQuery({ search: undefined, status: undefined, page: 1 });
+    setQuery({
+      search: undefined,
+      status: undefined,
+      includeCompleted: true,
+      page: 1,
+    });
     setShowFilters(false);
   }, [setQuery]);
 
@@ -482,20 +387,6 @@ export default function Procedures() {
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Debug pour vérifier les données
-  useEffect(() => {
-    console.log("🔍 Procedures state:", {
-      procedures,
-      loading,
-      error,
-      pagination,
-      statistics,
-      query,
-      user,
-      isAdmin,
-    });
-  }, [procedures, loading, error, pagination, statistics, query, user, isAdmin]);
-
   return (
     <>
       <Helmet>
@@ -517,12 +408,9 @@ export default function Procedures() {
                 <div className="p-1.5 bg-sky-600 rounded">
                   <BarChart3 size={16} className="text-white" />
                 </div>
-                <div>
-                  <h1 className="text-sm sm:text-base font-bold text-slate-800 leading-none">
-                    Procédures
-                  </h1>
-                  
-                </div>
+                <h1 className="text-sm sm:text-base font-bold text-slate-800 leading-none">
+                  Procédures
+                </h1>
               </div>
 
               <div className="flex items-center gap-2">
@@ -574,11 +462,7 @@ export default function Procedures() {
               >
                 <BarChart3 size={12} />
                 Statistiques
-                {showStats ? (
-                  <ChevronUp size={12} />
-                ) : (
-                  <ChevronDown size={12} />
-                )}
+                {showStats ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
               {showStats && (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -605,7 +489,7 @@ export default function Procedures() {
                   value={localSearch}
                   onChange={(e) => setLocalSearch(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleApplyFilters()}
-                  className="w-full pl-8 pr-3 py-2 text-sm rounded border border-slate-200 focus:outline-none focus:ring-none focus:border-sky-400 placeholder:text-slate-300"
+                  className="w-full pl-8 pr-3 py-2 text-sm rounded border border-slate-200 focus:outline-none focus:border-sky-400 placeholder:text-slate-300"
                 />
               </div>
 
@@ -616,7 +500,7 @@ export default function Procedures() {
                   onChange={(e) =>
                     setLocalStatus(e.target.value as ProcedureStatus | "")
                   }
-                  className="flex-1 sm:flex-none text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:ring-none focus:border-sky-400 bg-white text-slate-600"
+                  className="flex-1 sm:flex-none text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white text-slate-600"
                 >
                   <option value="">Tous les statuts</option>
                   {Object.entries(STATUS_CONFIG).map(([k, v]) => (
@@ -652,7 +536,7 @@ export default function Procedures() {
             {/* Extended filters */}
             {showFilters && (
               <div className="mt-3 pt-3 border-t border-slate-100">
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="text-xs text-slate-500 block mb-1">
                       Trier par
@@ -662,7 +546,7 @@ export default function Procedures() {
                       onChange={(e) =>
                         setQuery({ sortBy: e.target.value, page: 1 })
                       }
-                      className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:ring-none focus:border-sky-400 bg-white"
+                      className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
                       <option value="createdAt">Date de création</option>
                       <option value="updatedAt">Dernière maj</option>
@@ -682,7 +566,7 @@ export default function Procedures() {
                           page: 1,
                         })
                       }
-                      className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:ring-none focus:border-sky-400 bg-white"
+                      className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
                       <option value="desc">Décroissant</option>
                       <option value="asc">Croissant</option>
@@ -695,13 +579,31 @@ export default function Procedures() {
                     <select
                       value={query.limit ?? 10}
                       onChange={(e) => setLimit(Number(e.target.value))}
-                      className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:ring-none focus:border-sky-400 bg-white"
+                      className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
                       {[10, 25, 50].map((n) => (
                         <option key={n} value={n}>
                           {n}
                         </option>
                       ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">
+                      Inclure terminées
+                    </label>
+                    <select
+                      value={query.includeCompleted ? "true" : "false"}
+                      onChange={(e) =>
+                        setQuery({
+                          includeCompleted: e.target.value === "true",
+                          page: 1,
+                        })
+                      }
+                      className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
+                    >
+                      <option value="true">Oui</option>
+                      <option value="false">Non</option>
                     </select>
                   </div>
                 </div>
@@ -798,8 +700,6 @@ export default function Procedures() {
                           key={p.id}
                           procedure={p}
                           onView={handleViewDetails}
-                          onEdit={handleEdit}
-                          onDelete={handleDeleteClick}
                         />
                       ))}
                     </tbody>
@@ -813,8 +713,6 @@ export default function Procedures() {
                       key={p.id}
                       procedure={p}
                       onView={handleViewDetails}
-                      onEdit={handleEdit}
-                      onDelete={handleDeleteClick}
                     />
                   ))}
                 </div>
@@ -931,16 +829,6 @@ export default function Procedures() {
             )}
         </div>
       </div>
-
-      {/* ── Confirm delete modal ── */}
-      <ConfirmModal
-        open={confirmModal.open}
-        title="Supprimer la procédure"
-        description="Cette action est irréversible. La procédure sera définitivement supprimée."
-        onConfirm={handleDeleteConfirm}
-        onCancel={() => setConfirmModal({ open: false, id: null })}
-        loading={loading.delete}
-      />
     </>
   );
 }

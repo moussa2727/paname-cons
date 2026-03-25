@@ -502,7 +502,6 @@ const Utilisateurs = () => {
 
   // ── Handler toggle statut ─────────────────────────────────
   const handleToggleStatus = async (user: AppUser) => {
-    // ✅ toast.error au lieu de alert() — non bloquant, dans le flux UI
     if (user.role === "ADMIN" && user.isActive) {
       toast.error("Impossible de désactiver un compte administrateur");
       return;

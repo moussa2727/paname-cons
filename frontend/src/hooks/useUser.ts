@@ -165,16 +165,10 @@ export function useUser(): UseUserReturn {
       startLoading("list");
       try {
         const list = await getUsers(params);
-        console.log("[useUser] fetchUsers success:", {
-          total: list.total,
-          items: list.items.length,
-          page: list.page,
-          limit: list.limit,
-          totalPages: list.totalPages,
-        });
+        toast.success("Utilisateurs chargés avec succès");
         setUserList(list);
       } catch (err) {
-        console.error("[useUser] fetchUsers error:", err);
+        console.error("fetchUsers error:", err);
         const msg =
           err instanceof Error
             ? err.message

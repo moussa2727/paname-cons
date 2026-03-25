@@ -77,9 +77,6 @@ const DestinationCard: React.FC<Destination> = (props) => {
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           onError={() => {
             if (imgSrc !== FALLBACK_IMAGE) {
-              console.warn(
-                `[Destination] Image introuvable pour "${country}" — fallback activé`,
-              );
               setImgSrc(FALLBACK_IMAGE);
             }
           }}

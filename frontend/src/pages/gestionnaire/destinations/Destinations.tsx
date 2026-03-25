@@ -92,7 +92,7 @@ const Destinations = () => {
       try {
         await createDestination(data);
         setShowForm(false);
-        await loadStatistics(); // Recharger les stats après création
+        await loadStatistics();
       } catch (error) {
         console.error("Erreur création destination:", error);
       }
@@ -106,7 +106,7 @@ const Destinations = () => {
         try {
           await updateDestination(editingDestination.id, data);
           setEditingDestination(null);
-          await loadStatistics(); // Recharger les stats après mise à jour
+          await loadStatistics();
         } catch (error) {
           console.error("Erreur mise à jour destination:", error);
         }
@@ -135,7 +135,7 @@ const Destinations = () => {
       try {
         await deleteDestination(confirmDeleteData.id);
         setConfirmDeleteData(null);
-        await loadStatistics(); // Recharger les stats après suppression
+        await loadStatistics();
       } catch (error) {
         console.error("Erreur suppression destination:", error);
       } finally {
