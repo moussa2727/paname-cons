@@ -5,6 +5,7 @@
 // ============================================================
 
 import { apiFetch } from "../context/AuthContext";
+import { toast } from "react-hot-toast";
 import type {
   TimeSlot,
   CreateRendezvousDto,
@@ -158,13 +159,21 @@ class UserRendezvousService extends BaseRendezvousService {
   ): Promise<RendezvousResponseDto> {
     const url = `${this.baseUrl}/rendezvous`;
 
-    const response = await apiFetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    try {
+      const response = await apiFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
-    return this.handleResponse<RendezvousResponseDto>(response);
+      const result = await this.handleResponse<RendezvousResponseDto>(response);
+      toast.success("Rendez-vous créé avec succès !");
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la création du rendez-vous";
+      toast.error(errorMessage);
+      throw error;
+    }
   }
 
   /**
