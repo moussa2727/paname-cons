@@ -358,7 +358,7 @@ export default function Procedures() {
         label: "Total",
         value: statistics.total,
         icon: <Users size={18} />,
-        sub: `+${statistics.newProcedures.thisMonth} ce mois`,
+        sub: `+${statistics.newProcedures?.thisMonth || 0} ce mois`,
         accent: "sky",
       },
       {

@@ -22,6 +22,7 @@
     "studio": "prisma studio",
     "Preset": "prisma migrate reset --force",
     "postinstall": "prisma generate"
+    
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1015.0",

@@ -603,13 +603,13 @@ const Statistiques: React.FC = () => {
                           Rendez-vous
                         </p>
                         <p className="text-2xl font-bold text-indigo-600">
-                          {rendezvousStats?.upcoming?.thisMonth || 0}
+                          {rendezvousStats?.upcoming?.thisMonth ?? 0}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500 mb-1">Messages</p>
                         <p className="text-2xl font-bold text-amber-600">
-                          {messageStats?.thisMonth || 0}
+                          {messageStats?.thisMonth ?? 0}
                         </p>
                       </div>
                     </div>
@@ -617,7 +617,7 @@ const Statistiques: React.FC = () => {
                       <div>
                         <p className="text-xs text-gray-500 mb-1">Procédures</p>
                         <p className="text-2xl font-bold text-emerald-600">
-                          {procedureStats?.newProcedures?.thisMonth || 0}
+                          {procedureStats?.newProcedures?.thisMonth ?? 0}
                         </p>
                       </div>
                       <div>
