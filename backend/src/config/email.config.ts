@@ -119,36 +119,18 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     }
 
     try {
-      // Construction du message avec encoding natif UTF-8
-      const messageParts = [
+      const message = [
         `From: ${options.fromName || this.fromName} <${options.from || this.fromEmail}>`,
         `To: ${Array.isArray(options.to) ? options.to.join(', ') : options.to}`,
-        `Subject: ${options.subject}`,
+        `Subject: =?UTF-8?B?${Buffer.from(options.subject, 'utf8').toString('base64')}?=`,
         `MIME-Version: 1.0`,
         `Content-Type: text/html; charset=UTF-8`,
-        `Content-Transfer-Encoding: 7bit`,
-      ];
+        `Content-Transfer-Encoding: 8bit`,
+        '',
+        options.html,
+      ].join('\r\n');
 
-      if (options.cc) {
-        messageParts.push(
-          `Cc: ${Array.isArray(options.cc) ? options.cc.join(', ') : options.cc}`,
-        );
-      }
-      if (options.bcc) {
-        messageParts.push(
-          `Bcc: ${Array.isArray(options.bcc) ? options.bcc.join(', ') : options.bcc}`,
-        );
-      }
-      if (options.replyTo) {
-        messageParts.push(`Reply-To: ${options.replyTo}`);
-      }
-
-      messageParts.push('', options.html);
-
-      // Gmail API gère l'encodage automatiquement
-      const raw = Buffer.from(messageParts.join('\r\n'), 'utf8').toString(
-        'base64url',
-      );
+      const raw = Buffer.from(message, 'utf8').toString('base64url');
 
       const response = await this.gmail.users.messages.send({
         userId: 'me',
@@ -156,12 +138,7 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       });
 
       this.emailSentTimestamps.push(new Date());
-
-      const recipientInfo = Array.isArray(options.to)
-        ? `${options.to.length} destinataire(s)`
-        : `1 destinataire (${LoggerSanitizer.maskEmail(options.to)})`;
-
-      this.logger.log(`Email envoyé avec succès vers ${recipientInfo}`);
+      this.logger.log(`Email envoyé avec succès`);
 
       return { success: true, messageId: response.data.id ?? undefined };
     } catch (error) {
@@ -170,7 +147,6 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       return { success: false, error: msg };
     }
   }
-
   isServiceAvailable(): boolean {
     return this.isAvailable;
   }
