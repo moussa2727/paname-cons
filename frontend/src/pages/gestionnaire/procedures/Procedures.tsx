@@ -789,7 +789,7 @@ export default function Procedures() {
                       Top destinations
                     </h3>
                     <div className="space-y-2">
-                      {statistics.topDestinations.slice(0, 5).map((d) => (
+                      {(statistics.topDestinations || []).slice(0, 5).map((d) => (
                         <div
                           key={d.destination}
                           className="flex items-center justify-between"
@@ -813,7 +813,7 @@ export default function Procedures() {
                       Top filières
                     </h3>
                     <div className="space-y-2">
-                      {statistics.topFilieres.slice(0, 5).map((f) => (
+                      {(statistics.topFilieres || []).slice(0, 5).map((f) => (
                         <div
                           key={f.filiere}
                           className="flex items-center justify-between"

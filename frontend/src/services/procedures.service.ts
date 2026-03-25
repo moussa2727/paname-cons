@@ -209,7 +209,8 @@ export const ProceduresService = {
       const res = await apiFetch(url, { method: "GET" });
       return await handleResponse<PaginatedProcedureResponseDto>(res);
     } catch (error) {
-      console.error("FindAll procedures error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors du chargement des procédures";
+      toast.error(errorMessage);
       throw error;
     }
   },
@@ -338,32 +339,38 @@ export const ProceduresService = {
    * @see ProceduresController.findByUserEmail()
    */
   async findByEmail(email: string): Promise<ProcedureResponseDto[]> {
-    const res = await apiFetch(`${BASE_URL}${API.PROCEDURE_BY_EMAIL(email)}`, {
-      method: "GET",
-    });
-
-    // 204 = pas de contenu mais pas d'erreur
-    if (res.status === 204) return [];
-
-    let body: unknown;
     try {
-      body = await res.json();
-    } catch {
+      const res = await apiFetch(`${BASE_URL}${API.PROCEDURE_BY_EMAIL(email)}`, {
+        method: "GET",
+      });
+
+      // 204 = pas de contenu mais pas d'erreur
+      if (res.status === 204) return [];
+
+      let body: unknown;
+      try {
+        body = await res.json();
+      } catch {
+        return [];
+      }
+
+      if (!res.ok) {
+        const err = new ProcedureServiceError(
+          (body as { message?: string })?.message ?? `Erreur ${res.status}`,
+          res.status,
+          body as ApiError,
+        );
+        throw err;
+      }
+
+      // Le backend retourne un tableau directement
+      if (Array.isArray(body)) return body as ProcedureResponseDto[];
       return [];
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la recherche des procédures par email";
+      toast.error(errorMessage);
+      throw error;
     }
-
-    if (!res.ok) {
-      const err = new ProcedureServiceError(
-        (body as { message?: string })?.message ?? `Erreur ${res.status}`,
-        res.status,
-        body as ApiError,
-      );
-      throw err;
-    }
-
-    // Le backend retourne un tableau directement
-    if (Array.isArray(body)) return body as ProcedureResponseDto[];
-    return [];
   },
 
   /**
@@ -386,10 +393,16 @@ export const ProceduresService = {
    * @see ProceduresController.findOne()
    */
   async findById(id: string): Promise<ProcedureResponseDto> {
-    const res = await apiFetch(`${BASE_URL}${API.PROCEDURE_DETAILS(id)}`, {
-      method: "GET",
-    });
-    return handleResponse<ProcedureResponseDto>(res);
+    try {
+      const res = await apiFetch(`${BASE_URL}${API.PROCEDURE_DETAILS(id)}`, {
+        method: "GET",
+      });
+      return await handleResponse<ProcedureResponseDto>(res);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors du chargement de la procédure";
+      toast.error(errorMessage);
+      throw error;
+    }
   },
 
   /**
@@ -400,12 +413,20 @@ export const ProceduresService = {
     id: string,
     data: UpdateProcedureDto,
   ): Promise<ProcedureResponseDto> {
-    const res = await apiFetch(`${BASE_URL}${API.PROCEDURE_UPDATE(id)}`, {
-      method: "PATCH",
-      headers: JSON_HEADERS,
-      body: JSON.stringify(data),
-    });
-    return handleResponse<ProcedureResponseDto>(res);
+    try {
+      const res = await apiFetch(`${BASE_URL}${API.PROCEDURE_UPDATE(id)}`, {
+        method: "PATCH",
+        headers: JSON_HEADERS,
+        body: JSON.stringify(data),
+      });
+      const result = await handleResponse<ProcedureResponseDto>(res);
+      toast.success("Procédure mise à jour avec succès");
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la mise à jour de la procédure";
+      toast.error(errorMessage);
+      throw error;
+    }
   },
 
   /**

@@ -450,7 +450,7 @@ export default function ProcedureDetail() {
                     )}
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5 hidden sm:block">
-                    #{procedure.id.slice(-10)} · créée le{" "}
+                    #{procedure.id?.slice(-10) || "N/A"} · créée le{" "}
                     {new Date(procedure.createdAt).toLocaleDateString("fr-FR", {
                       day: "2-digit",
                       month: "long",
@@ -571,10 +571,12 @@ export default function ProcedureDetail() {
                     {
                       icon: <Calendar size={14} />,
                       label: "Créée le",
-                      value: new Date(procedure.createdAt).toLocaleDateString(
-                        "fr-FR",
-                        { day: "2-digit", month: "long", year: "numeric" },
-                      ),
+                      value: procedure.createdAt 
+                        ? new Date(procedure.createdAt).toLocaleDateString(
+                            "fr-FR",
+                            { day: "2-digit", month: "long", year: "numeric" },
+                          )
+                        : "Date inconnue",
                     },
                   ].map(({ icon, label, value }) => (
                     <div key={label} className="flex items-start gap-3">
@@ -846,9 +848,9 @@ export default function ProcedureDetail() {
                   {[
                     {
                       label: "Création",
-                      value: new Date(procedure.createdAt).toLocaleDateString(
-                        "fr-FR",
-                      ),
+                      value: procedure.createdAt 
+                        ? new Date(procedure.createdAt).toLocaleDateString("fr-FR")
+                        : "Date inconnue",
                     },
                     procedure.updatedAt && {
                       label: "Dernière modification",
