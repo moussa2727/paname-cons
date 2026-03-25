@@ -14,7 +14,6 @@ export const welcomeTemplate = (data: WelcomeTemplateData): string => {
       <div style="background:#f0f9ff;padding:25px;border-radius:8px;border-left:4px solid #0ea5e9;margin:25px 0;">
         <h3 style="margin-top:0;color:#0ea5e9;">Pour commencer</h3>
         <ul style="margin:0;padding-left:20px;">
-          <li>Consultez votre tableau de bord</li>
           <li>Prenez rendez-vous avec nos conseillers</li>
           <li>Suivez l'avancement de vos procédures</li>
         </ul>
