@@ -198,7 +198,7 @@ export default function AdminSidebar({
   // Animations simplifiées pour éviter le glitch au chargement
   const sidebarVariants = {
     expanded: {
-      width: 260,
+      width: 200,
       transition: { duration: 0.2 } as const,
     },
     collapsed: {
