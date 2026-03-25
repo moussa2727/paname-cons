@@ -350,40 +350,40 @@ export default function Procedures() {
   }, [setQuery]);
 
   // ── Stats résumées ──────────────────────────────────────────────────────
-
-  const statsCards = useMemo(() => {
-    if (!statistics) return [];
-    return [
-      {
-        label: "Total",
-        value: statistics.total,
-        icon: <Users size={18} />,
-        sub: `+${statistics.newProcedures?.thisMonth || 0} ce mois`,
-        accent: "sky",
-      },
-      {
-        label: "En cours",
-        value: statistics.byStatus?.IN_PROGRESS ?? 0,
-        icon: <TrendingUp size={18} />,
-        sub: `Taux complétion ${statistics.completionRate.toFixed(0)}%`,
-        accent: "sky",
-      },
-      {
-        label: "Complétées",
-        value: statistics.byStatus?.COMPLETED ?? 0,
-        icon: <CheckCircle2 size={18} />,
-        sub: `Moy. ${statistics.averageCompletionTime}j`,
-        accent: "emerald",
-      },
-      {
-        label: "Rejetées",
-        value: statistics.byStatus?.REJECTED ?? 0,
-        icon: <XCircle size={18} />,
-        sub: `Taux ${statistics.rejectionRate.toFixed(0)}%`,
-        accent: "red",
-      },
-    ];
-  }, [statistics]);
+const statsCards = useMemo(() => {
+  if (!statistics) return [];
+  
+  return [
+    {
+      label: "Total",
+      value: statistics.total ?? 0,
+      icon: <Users size={18} />,
+      sub: `+${statistics.newProcedures?.thisMonth ?? 0} ce mois`,
+      accent: "sky",
+    },
+    {
+      label: "En cours",
+      value: statistics.byStatus?.IN_PROGRESS ?? 0,
+      icon: <TrendingUp size={18} />,
+      sub: `Taux complétion ${(statistics.completionRate ?? 0).toFixed(0)}%`,
+      accent: "sky",
+    },
+    {
+      label: "Complétées",
+      value: statistics.byStatus?.COMPLETED ?? 0,
+      icon: <CheckCircle2 size={18} />,
+      sub: `Moy. ${statistics.averageCompletionTime ?? 0}j`,
+      accent: "emerald",
+    },
+    {
+      label: "Rejetées",
+      value: statistics.byStatus?.REJECTED ?? 0,
+      icon: <XCircle size={18} />,
+      sub: `Taux ${(statistics.rejectionRate ?? 0).toFixed(0)}%`,
+      accent: "red",
+    },
+  ];
+}, [statistics]);
 
   // ─────────────────────────────────────────────────────────────────────────
 
