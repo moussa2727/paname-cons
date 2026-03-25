@@ -289,7 +289,7 @@ export default function AdminSidebar({
                 whileHover={{ scale: 1.1, x: -2 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={onToggle}
-                className="absolute right-5 top-2/3 -translate-y-1/2 p-2 bg-linear-to-br from-sky-500 to-blue-600 text-white rounded-full shadow-lg hover:shadow-xl hover:from-sky-600 hover:to-blue-700 transition-all duration-200 border-2 border-white group z-10"
+                className="absolute right-5 top-1/3 -translate-y-1/2 p-2 bg-linear-to-br from-sky-500 to-blue-600 text-white rounded-full shadow-lg hover:shadow-xl hover:from-sky-600 hover:to-blue-700 transition-all duration-200 border-2 border-white group z-10"
                 aria-label="Rétracter le menu"
               >
                 <ChevronLeft
