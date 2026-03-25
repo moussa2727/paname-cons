@@ -260,8 +260,8 @@ export default function AdminSidebar({
                       <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full animate-pulse"></div>
                     </div>
 
-                    {/* Texte aligné à droite de l'icône */}
-                    <div className="flex flex-col">
+                    {/* Texte aligné à gauche sous l'icône */}
+                    <div className="flex flex-col items-start">
                       <h2 className="font-bold text-sky-900 text-sm leading-tight">
                         Gestionnaire
                       </h2>
