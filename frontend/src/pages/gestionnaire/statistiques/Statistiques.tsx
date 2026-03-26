@@ -130,9 +130,7 @@ const Statistiques: React.FC = () => {
 
   // useProcedures - loadStatistics() est la méthode de stats
   const { statistics: procedureStats, loadStatistics: loadProcedureStats } =
-    useProcedures({
-      shouldLoadStatistics: false, // On contrôle manuellement
-    });
+    useProcedures();
 
   // useMessages - stats est dans le hook, refresh() recharge tout
   const { stats: messageStats, refresh: refreshMessages } = useMessages();

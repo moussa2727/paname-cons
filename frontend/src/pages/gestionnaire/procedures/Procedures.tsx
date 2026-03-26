@@ -27,9 +27,8 @@ import {
 } from "lucide-react";
 import { useProcedures } from "../../../hooks/useProcedures";
 import {
-  type ProcedureStatisticsDto,
   type ProcedureResponseDto,
-  ProcedureStatus,
+  type ProcedureStatus,
   type SortOrder,
   type StepName,
   type ExportFormat,
@@ -72,24 +71,6 @@ const STATUS_CONFIG: Record<
     icon: <AlertCircle size={12} />,
   },
 };
-
-const STEP_LABELS: Record<StepName, string> = {
-  DEMANDE_ADMISSION: "Demande d'admission",
-  DEMANDE_VISA: "Demande de visa",
-  PREPARATIF_VOYAGE: "Préparatifs voyage",
-};
-
-// ─── Types pour les analytics ─────────────────────────────────────────────────
-
-interface StepAnalyticsType {
-  stepName: StepName;
-  completionRate: number;
-  averageTime: number;
-}
-
-interface StepsAnalyticsProps {
-  statistics: ProcedureStatisticsDto;
-}
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 
@@ -276,48 +257,6 @@ const ProcedureCard: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
   );
 };
 
-// ─── Steps Analytics Component ────────────────────────────────────────────────
-
-const StepsAnalytics: React.FC<StepsAnalyticsProps> = ({ statistics }) => {
-  const stepsAnalytics = statistics.stepsAnalytics as
-    | StepAnalyticsType[]
-    | undefined;
-
-  if (!stepsAnalytics?.length) return null;
-
-  return (
-    <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
-      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-        <TrendingUp size={12} className="text-sky-500" />
-        Performance par étape
-      </h3>
-      <div className="space-y-3">
-        {stepsAnalytics.map((step) => (
-          <div key={step.stepName}>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="text-slate-600">
-                {STEP_LABELS[step.stepName as StepName] || step.stepName}
-              </span>
-              <span className="font-medium text-sky-600">
-                {step.completionRate}%
-              </span>
-            </div>
-            <div className="h-1.5 bg-slate-100 rounded overflow-hidden">
-              <div
-                className="h-full bg-sky-500 rounded transition-all"
-                style={{ width: `${step.completionRate}%` }}
-              />
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Temps moyen : {step.averageTime} jours
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
 
 export default function Procedures() {
@@ -341,18 +280,8 @@ export default function Procedures() {
     loadStatistics,
     applyFilters,
     resetFilters,
-    exportProcedures, // 👈 AJOUT IMPORTANT
-  } = useProcedures({
-    autoLoad: true,
-    shouldLoadStatistics: true,
-    initialQuery: {
-      page: 1,
-      limit: 10,
-      sortBy: "createdAt",
-      sortOrder: "desc",
-      includeCompleted: true,
-    },
-  });
+    exportProcedures,
+  } = useProcedures();
 
   // ── Navigation vers la page détail ──────────────────────────────────────
   const handleViewDetails = useCallback(
@@ -955,9 +884,6 @@ export default function Procedures() {
                     </div>
                   </div>
                 )}
-
-                {/* Steps Analytics */}
-                <StepsAnalytics statistics={statistics} />
 
                 {/* Stats additionnelles */}
                 <div className="bg-white rounded border border-slate-100 shadow-sm p-4">

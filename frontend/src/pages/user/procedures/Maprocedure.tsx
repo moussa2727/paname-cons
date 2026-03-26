@@ -585,10 +585,7 @@ export default function MaProcedures() {
     refresh,
     loading: { list: isLoading },
     overdue,
-  } = useProcedures({
-    autoLoad: false,
-    refreshInterval: 30000,
-  });
+  } = useProcedures();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProcedureStatus | "ALL">(
