@@ -302,23 +302,6 @@ const RendezvousAdmin = () => {
   }>({ open: false, id: null });
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const getStatisticsRef = useRef(getStatistics);
-  const loadTodayPanelRef = useRef(loadTodayPanel);
-  const loadUpcomingPanelRef = useRef(loadUpcomingPanel);
-
-  // Mettre à jour les refs quand les fonctions changent
-  useEffect(() => {
-    getStatisticsRef.current = getStatistics;
-    loadTodayPanelRef.current = loadTodayPanel;
-    loadUpcomingPanelRef.current = loadUpcomingPanel;
-  });
-
-  // Charger les statistiques au montage
-  useEffect(() => {
-    if (isAdmin) {
-      getStatisticsRef.current();
-    }
-  }, [isAdmin]);
 
   // Debounce recherche
   useEffect(() => {
@@ -366,6 +349,25 @@ const RendezvousAdmin = () => {
     },
     [getUpcomingRendezvous],
   );
+
+  // Refs pour éviter les boucles infinies
+  const getStatisticsRef = useRef(getStatistics);
+  const loadTodayPanelRef = useRef(loadTodayPanel);
+  const loadUpcomingPanelRef = useRef(loadUpcomingPanel);
+
+  // Mettre à jour les refs quand les fonctions changent
+  useEffect(() => {
+    getStatisticsRef.current = getStatistics;
+    loadTodayPanelRef.current = loadTodayPanel;
+    loadUpcomingPanelRef.current = loadUpcomingPanel;
+  });
+
+  // Charger les statistiques au montage
+  useEffect(() => {
+    if (isAdmin) {
+      getStatisticsRef.current();
+    }
+  }, [isAdmin]);
 
   // Switch d'onglet
   const switchTab = useCallback((tab: "list" | "today" | "upcoming") => {
