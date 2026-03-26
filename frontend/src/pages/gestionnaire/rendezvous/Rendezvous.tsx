@@ -1,4 +1,4 @@
-// Rendezvous.tsx - Version avec corrections pour éviter les boucles
+// Rendezvous.tsx - Version corrigée (sans boucles)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
@@ -224,7 +224,7 @@ const RendezvousAdmin = () => {
     changePage,
   } = useAdminRendezvous({
     autoLoadList: true,
-    refreshInterval: 0,
+    refreshInterval: 0, // ✅ Désactivé pour éviter les appels automatiques
   });
 
   const { destinations = [], loading: loadingDestinations } = useDestinations();
@@ -245,12 +245,9 @@ const RendezvousAdmin = () => {
   );
   const [completeComment, setCompleteComment] = useState("");
 
-  // ✅ Refs pour éviter les appels multiples et les boucles
-  const isInitialMountRef = useRef(true);
-  const isLoadingTodayRef = useRef(false);
-  const isLoadingUpcomingRef = useRef(false);
-  const isRefreshingRef = useRef(false);
-  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ✅ Ref pour éviter les appels multiples
+  const hasLoadedTodayRef = useRef(false);
+  const hasLoadedUpcomingRef = useRef(false);
 
   // État local pour les filtres
   const [localFilters, setLocalFilters] = useState<RendezvousQueryDto>({
@@ -314,63 +311,49 @@ const RendezvousAdmin = () => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
 
     searchTimer.current = setTimeout(() => {
-      if (activeTab === "list") {
-        applyFilters({
-          ...localFilters,
-          search: searchTerm.trim() || undefined,
-        });
-      }
+      applyFilters({
+        ...localFilters,
+        search: searchTerm.trim() || undefined,
+      });
     }, 350);
 
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
     };
-  }, [searchTerm, localFilters, applyFilters, activeTab]);
+  }, [searchTerm, localFilters, applyFilters]);
 
-  // ✅ Panels - fonctions stables avec protection contre les appels multiples
+  // ✅ Panels - fonctions stables
   const loadTodayPanel = useCallback(async () => {
-    // Protection contre les appels multiples
-    if (isLoadingTodayRef.current || loadingPanel) return;
-    
-    isLoadingTodayRef.current = true;
+    if (loadingPanel) return; // ✅ Évite les appels multiples
+
     setLoadingPanel(true);
-    
     try {
       const today = new Date().toISOString().split("T")[0];
       const data = await getRendezvousByDate(today);
       setTodayList(Array.isArray(data) ? data : []);
+      hasLoadedTodayRef.current = true;
     } catch (error) {
       console.error("Erreur chargement aujourd'hui:", error);
       setTodayList([]);
     } finally {
       setLoadingPanel(false);
-      // Petit délai avant de réautoriser le chargement
-      setTimeout(() => {
-        isLoadingTodayRef.current = false;
-      }, 500);
     }
   }, [getRendezvousByDate, loadingPanel]);
 
   const loadUpcomingPanel = useCallback(
     async (limit = 10) => {
-      // Protection contre les appels multiples
-      if (isLoadingUpcomingRef.current || loadingPanel) return;
-      
-      isLoadingUpcomingRef.current = true;
+      if (loadingPanel) return; // ✅ Évite les appels multiples
+
       setLoadingPanel(true);
-      
       try {
         const data = await getUpcomingRendezvous(limit);
         setUpcomingList(Array.isArray(data) ? data : []);
+        hasLoadedUpcomingRef.current = true;
       } catch (error) {
         console.error("Erreur chargement à venir:", error);
         setUpcomingList([]);
       } finally {
         setLoadingPanel(false);
-        // Petit délai avant de réautoriser le chargement
-        setTimeout(() => {
-          isLoadingUpcomingRef.current = false;
-        }, 500);
       }
     },
     [getUpcomingRendezvous, loadingPanel],
@@ -378,93 +361,50 @@ const RendezvousAdmin = () => {
 
   // ✅ Switch d'onglet - sans auto-reload
   const switchTab = useCallback((tab: "list" | "today" | "upcoming") => {
-    if (activeTab === tab) return; // Évite de recharger le même onglet
     setActiveTab(tab);
-  }, [activeTab]);
+  }, []);
 
-  // ✅ Effet pour charger les panels UNIQUEMENT à l'initialisation
+  // ✅ Effet pour charger les panels UNIQUEMENT quand l'onglet change ET que les données ne sont pas déjà chargées
   useEffect(() => {
-    if (isInitialMountRef.current) {
-      isInitialMountRef.current = false;
-      // Ne charger que les données nécessaires au démarrage
-      if (activeTab === "today") {
-        loadTodayPanel();
-      } else if (activeTab === "upcoming") {
-        loadUpcomingPanel();
-      }
+    if (activeTab === "today" && !hasLoadedTodayRef.current && !loadingPanel) {
+      loadTodayPanel();
+    } else if (
+      activeTab === "upcoming" &&
+      !hasLoadedUpcomingRef.current &&
+      !loadingPanel
+    ) {
+      loadUpcomingPanel();
     }
-  }, [activeTab, loadTodayPanel, loadUpcomingPanel]);
+  }, [activeTab, loadTodayPanel, loadUpcomingPanel, loadingPanel]);
 
-  // ✅ Fonction de refresh avec debounce
-  const handleRefresh = useCallback(async () => {
-    // Protection contre les appels multiples
-    if (isRefreshingRef.current) return;
-    
-    isRefreshingRef.current = true;
-    
-    // Clear tout timeout existant
-    if (refreshTimeoutRef.current) {
-      clearTimeout(refreshTimeoutRef.current);
-    }
-    
-    try {
-      // Rafraîchir selon l'onglet actif
-      if (activeTab === "list") {
-        await searchRendezvous();
-        await getStatistics();
-      } else if (activeTab === "today") {
-        await loadTodayPanel();
-        await getStatistics();
-      } else if (activeTab === "upcoming") {
-        await loadUpcomingPanel();
-        await getStatistics();
-      }
-    } catch (error) {
-      console.error("Erreur rafraîchissement:", error);
-    } finally {
-      // Délai avant de réautoriser le refresh
-      refreshTimeoutRef.current = setTimeout(() => {
-        isRefreshingRef.current = false;
-        refreshTimeoutRef.current = null;
-      }, 1000);
-    }
-  }, [activeTab, searchRendezvous, getStatistics, loadTodayPanel, loadUpcomingPanel]);
+  // ✅ Réinitialisation des refs quand les données sont modifiées (création, suppression, etc.)
+  const resetPanelCache = useCallback(() => {
+    hasLoadedTodayRef.current = false;
+    hasLoadedUpcomingRef.current = false;
+  }, []);
 
   // Filtre rapide par date
   const handleDateQuickFilter = useCallback(
     async (date: string) => {
       if (!date) {
-        if (activeTab === "list") {
-          await searchRendezvous();
-        }
+        await searchRendezvous();
         return;
       }
-      
-      // Changer d'onglet et charger
       setActiveTab("today");
-      
-      // Attendre que l'état soit mis à jour
-      setTimeout(async () => {
-        if (isLoadingTodayRef.current) return;
-        
-        isLoadingTodayRef.current = true;
-        setLoadingPanel(true);
-        
-        try {
-          const data = await getRendezvousByDate(date);
-          setTodayList(Array.isArray(data) ? data : []);
-        } catch (error) {
-          console.error("Erreur filtre par date:", error);
-          setTodayList([]);
-        } finally {
-          setLoadingPanel(false);
-          setTimeout(() => {
-            isLoadingTodayRef.current = false;
-          }, 500);
-        }
-      }, 0);
+      hasLoadedTodayRef.current = false; // Force le rechargement
+      setLoadingPanel(true);
+      try {
+        const data = await getRendezvousByDate(date);
+        setTodayList(Array.isArray(data) ? data : []);
+        hasLoadedTodayRef.current = true;
+      } catch (error) {
+        console.error("Erreur filtre par date:", error);
+        setTodayList([]);
+      } finally {
+        setLoadingPanel(false);
+      }
     },
-    [getRendezvousByDate, searchRendezvous, activeTab],
+    [getRendezvousByDate, searchRendezvous],
   );
 
   // Gestionnaires de filtres
@@ -477,11 +417,9 @@ const RendezvousAdmin = () => {
         page: 1,
       };
       setLocalFilters(newFilters);
-      if (activeTab === "list") {
-        applyFilters(newFilters);
-      }
+      applyFilters(newFilters);
     },
-    [localFilters, applyFilters, activeTab],
+    [localFilters, applyFilters],
   );
 
   const handleDestinationFilter = useCallback(
@@ -493,11 +431,9 @@ const RendezvousAdmin = () => {
         page: 1,
       };
       setLocalFilters(newFilters);
-      if (activeTab === "list") {
-        applyFilters(newFilters);
-      }
+      applyFilters(newFilters);
     },
-    [localFilters, applyFilters, activeTab],
+    [localFilters, applyFilters],
   );
 
   const handleStartDateFilter = useCallback(
@@ -509,11 +445,9 @@ const RendezvousAdmin = () => {
         page: 1,
       };
       setLocalFilters(newFilters);
-      if (activeTab === "list") {
-        applyFilters(newFilters);
-      }
+      applyFilters(newFilters);
     },
-    [localFilters, applyFilters, activeTab],
+    [localFilters, applyFilters],
   );
 
   const handleEndDateFilter = useCallback(
@@ -525,11 +459,9 @@ const RendezvousAdmin = () => {
         page: 1,
       };
       setLocalFilters(newFilters);
-      if (activeTab === "list") {
-        applyFilters(newFilters);
-      }
+      applyFilters(newFilters);
     },
-    [localFilters, applyFilters, activeTab],
+    [localFilters, applyFilters],
   );
 
   const handleResetFilters = useCallback(() => {
@@ -543,10 +475,8 @@ const RendezvousAdmin = () => {
       endDate: undefined,
       search: undefined,
     });
-    if (activeTab === "list") {
-      resetFilters();
-    }
-  }, [resetFilters, activeTab]);
+    resetFilters();
+  }, [resetFilters]);
 
   // Ouvrir modal
   const openModal = useCallback(
@@ -613,16 +543,9 @@ const RendezvousAdmin = () => {
       if (result) {
         closeModal();
         await getStatistics();
-        // Recharger selon l'onglet actif
-        if (activeTab === "today") {
-          isLoadingTodayRef.current = false;
-          await loadTodayPanel();
-        } else if (activeTab === "upcoming") {
-          isLoadingUpcomingRef.current = false;
-          await loadUpcomingPanel();
-        } else if (activeTab === "list") {
-          await searchRendezvous();
-        }
+        resetPanelCache(); // ✅ Invalide le cache
+        if (activeTab === "today") await loadTodayPanel();
+        if (activeTab === "upcoming") await loadUpcomingPanel();
       }
     } catch (error) {
       console.error("Erreur complétion:", error);
@@ -637,15 +560,9 @@ const RendezvousAdmin = () => {
       if (result) {
         closeModal();
         await getStatistics();
-        if (activeTab === "today") {
-          isLoadingTodayRef.current = false;
-          await loadTodayPanel();
-        } else if (activeTab === "upcoming") {
-          isLoadingUpcomingRef.current = false;
-          await loadUpcomingPanel();
-        } else if (activeTab === "list") {
-          await searchRendezvous();
-        }
+        resetPanelCache(); // ✅ Invalide le cache
+        if (activeTab === "today") await loadTodayPanel();
+        if (activeTab === "upcoming") await loadUpcomingPanel();
       }
     } catch (error) {
       console.error("Erreur annulation:", error);
@@ -674,15 +591,9 @@ const RendezvousAdmin = () => {
       if (result) {
         closeModal();
         await getStatistics();
-        if (activeTab === "today") {
-          isLoadingTodayRef.current = false;
-          await loadTodayPanel();
-        } else if (activeTab === "upcoming") {
-          isLoadingUpcomingRef.current = false;
-          await loadUpcomingPanel();
-        } else if (activeTab === "list") {
-          await searchRendezvous();
-        }
+        resetPanelCache(); // ✅ Invalide le cache
+        if (activeTab === "today") await loadTodayPanel();
+        if (activeTab === "upcoming") await loadUpcomingPanel();
       }
     } catch (error) {
       console.error("Erreur mise à jour:", error);
@@ -709,15 +620,9 @@ const RendezvousAdmin = () => {
       if (result) {
         closeModal();
         await getStatistics();
-        if (activeTab === "today") {
-          isLoadingTodayRef.current = false;
-          await loadTodayPanel();
-        } else if (activeTab === "upcoming") {
-          isLoadingUpcomingRef.current = false;
-          await loadUpcomingPanel();
-        } else if (activeTab === "list") {
-          await searchRendezvous();
-        }
+        resetPanelCache(); // ✅ Invalide le cache
+        if (activeTab === "today") await loadTodayPanel();
+        if (activeTab === "upcoming") await loadUpcomingPanel();
 
         setCreateForm({
           firstName: "",
@@ -751,15 +656,9 @@ const RendezvousAdmin = () => {
       try {
         await deleteRendezvous(confirmModal.id);
         await getStatistics();
-        if (activeTab === "today") {
-          isLoadingTodayRef.current = false;
-          await loadTodayPanel();
-        } else if (activeTab === "upcoming") {
-          isLoadingUpcomingRef.current = false;
-          await loadUpcomingPanel();
-        } else if (activeTab === "list") {
-          await searchRendezvous();
-        }
+        resetPanelCache(); // ✅ Invalide le cache
+        if (activeTab === "today") await loadTodayPanel();
+        if (activeTab === "upcoming") await loadUpcomingPanel();
       } catch (error) {
         console.error("Erreur suppression:", error);
       }
@@ -775,15 +674,9 @@ const RendezvousAdmin = () => {
     try {
       await updateRendezvous(id, { status: RendezvousStatus.PENDING });
       await getStatistics();
-      if (activeTab === "today") {
-        isLoadingTodayRef.current = false;
-        await loadTodayPanel();
-      } else if (activeTab === "upcoming") {
-        isLoadingUpcomingRef.current = false;
-        await loadUpcomingPanel();
-      } else if (activeTab === "list") {
-        await searchRendezvous();
-      }
+      resetPanelCache(); // ✅ Invalide le cache
+      if (activeTab === "today") await loadTodayPanel();
+      if (activeTab === "upcoming") await loadUpcomingPanel();
     } catch (error) {
       console.error("Erreur mise en attente:", error);
     }
@@ -793,15 +686,9 @@ const RendezvousAdmin = () => {
     try {
       await updateRendezvous(id, { status: RendezvousStatus.CONFIRMED });
       await getStatistics();
-      if (activeTab === "today") {
-        isLoadingTodayRef.current = false;
-        await loadTodayPanel();
-      } else if (activeTab === "upcoming") {
-        isLoadingUpcomingRef.current = false;
-        await loadUpcomingPanel();
-      } else if (activeTab === "list") {
-        await searchRendezvous();
-      }
+      resetPanelCache(); // ✅ Invalide le cache
+      if (activeTab === "today") await loadTodayPanel();
+      if (activeTab === "upcoming") await loadUpcomingPanel();
     } catch (error) {
       console.error("Erreur confirmation:", error);
     }
@@ -821,6 +708,17 @@ const RendezvousAdmin = () => {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Erreur export:", error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      await searchRendezvous();
+      await getStatistics();
+      if (activeTab === "today") await loadTodayPanel();
+      if (activeTab === "upcoming") await loadUpcomingPanel();
+    } catch (error) {
+      console.error("Erreur rafraîchissement:", error);
     }
   };
 
@@ -857,15 +755,6 @@ const RendezvousAdmin = () => {
       topDestinations: statistics.topDestinations ?? [],
     };
   }, [statistics]);
-
-  // Nettoyage au démontage
-  useEffect(() => {
-    return () => {
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-      }
-    };
-  }, []);
 
   // Rendu des statistiques
   const renderStatistics = () => {
@@ -1151,11 +1040,11 @@ const RendezvousAdmin = () => {
             </button>
             <button
               onClick={handleRefresh}
-              disabled={loading.list || loading.statistics || loadingPanel || isRefreshingRef.current}
+              disabled={loading.list || loading.statistics || loadingPanel}
               className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm transition-colors disabled:opacity-50"
             >
               <RefreshCw
-                className={`w-4 h-4 ${loading.list || loading.statistics || loadingPanel || isRefreshingRef.current ? "animate-spin" : ""}`}
+                className={`w-4 h-4 ${loading.list || loading.statistics || loadingPanel ? "animate-spin" : ""}`}
               />
               <span className="hidden sm:inline">Actualiser</span>
             </button>
@@ -1313,11 +1202,11 @@ const RendezvousAdmin = () => {
               </h2>
               <button
                 onClick={() => {
-                  isLoadingTodayRef.current = false;
+                  hasLoadedTodayRef.current = false;
                   loadTodayPanel();
                 }}
-                disabled={loadingPanel || isLoadingTodayRef.current}
-                className="text-xs text-sky-600 hover:underline flex items-center gap-1 disabled:opacity-50"
+                disabled={loadingPanel}
+                className="text-xs text-sky-600 hover:underline flex items-center gap-1"
               >
                 <RefreshCw
                   className={`w-3 h-3 ${loadingPanel ? "animate-spin" : ""}`}
@@ -1357,11 +1246,11 @@ const RendezvousAdmin = () => {
               </h2>
               <button
                 onClick={() => {
-                  isLoadingUpcomingRef.current = false;
+                  hasLoadedUpcomingRef.current = false;
                   loadUpcomingPanel(20);
                 }}
-                disabled={loadingPanel || isLoadingUpcomingRef.current}
-                className="text-xs text-indigo-600 hover:underline disabled:opacity-50"
+                disabled={loadingPanel}
+                className="text-xs text-indigo-600 hover:underline"
               >
                 Voir les 20 prochains
               </button>
