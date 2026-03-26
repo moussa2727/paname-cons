@@ -135,9 +135,11 @@ const STEP_ORDER: StepName[] = [
 
 // ─── Composants UI réutilisables ─────────────────────────────────────────────
 
-const StatusBadge: React.FC<{ status: ProcedureStatus | string }> = ({ status }) => {
+const StatusBadge: React.FC<{ status: ProcedureStatus | string }> = ({
+  status,
+}) => {
   // Validation du statut
-  if (!status || typeof status !== 'string') {
+  if (!status || typeof status !== "string") {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold border bg-slate-50 border-slate-200 text-slate-600">
         <AlertCircle size={12} />
@@ -165,9 +167,11 @@ const StatusBadge: React.FC<{ status: ProcedureStatus | string }> = ({ status })
   );
 };
 
-const StepStatusBadge: React.FC<{ status: StepStatus | string }> = ({ status }) => {
+const StepStatusBadge: React.FC<{ status: StepStatus | string }> = ({
+  status,
+}) => {
   // Validation du statut
-  if (!status || typeof status !== 'string') {
+  if (!status || typeof status !== "string") {
     return (
       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-slate-50 text-slate-600">
         <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
