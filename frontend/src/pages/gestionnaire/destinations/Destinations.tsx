@@ -224,7 +224,7 @@ const Destinations = () => {
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                 <button
                   onClick={handleExportCSV}
-                  className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={loading || destinations.length === 0}
                 >
                   <Download className="w-4 h-4" />
@@ -234,7 +234,7 @@ const Destinations = () => {
 
                 <button
                   onClick={() => setShowForm(true)}
-                  className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors"
+                  className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm bg-sky-600 text-white rounded hover:bg-sky-700 transition-colors"
                   disabled={loading}
                 >
                   <Plus className="w-4 h-4" />
@@ -249,7 +249,7 @@ const Destinations = () => {
         {/* Stats Cards */}
         <div className="px-4 sm:px-6 lg:px-8 py-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+            <div className="bg-white rounded shadow-sm border border-gray-200 p-4 sm:p-6">
               <div className="flex items-center justify-between mb-2">
                 <Globe className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500" />
                 <span className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -262,7 +262,7 @@ const Destinations = () => {
               </p>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+            <div className="bg-white rounded shadow-sm border border-gray-200 p-4 sm:p-6">
               <div className="flex items-center justify-between mb-2">
                 <MapPin className="w-6 h-6 sm:w-8 sm:h-8 text-green-500" />
                 <span className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -274,7 +274,7 @@ const Destinations = () => {
               </p>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+            <div className="bg-white rounded shadow-sm border border-gray-200 p-4 sm:p-6">
               <div className="flex items-center justify-between mb-2">
                 <Image className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-500" />
                 <span className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -284,7 +284,7 @@ const Destinations = () => {
               <p className="text-gray-600 text-xs sm:text-sm">Avec images</p>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+            <div className="bg-white rounded shadow-sm border border-gray-200 p-4 sm:p-6">
               <div className="flex items-center justify-between mb-2">
                 <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-purple-500" />
                 <span className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -300,7 +300,7 @@ const Destinations = () => {
 
         {/* Filters and Search */}
         <div className="px-4 sm:px-6 lg:px-8 pb-4">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <div className="bg-white rounded shadow-sm border border-gray-200 p-4 sm:p-6">
             <div className="flex flex-col lg:flex-row gap-4">
               {/* Search */}
               <div className="flex-1">
@@ -311,7 +311,7 @@ const Destinations = () => {
                     placeholder="Rechercher une destination..."
                     value={searchTerm}
                     onChange={(e) => handleSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                    className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded focus:ring-none focus:outline-none focus:border-sky-500"
                   />
                 </div>
               </div>
@@ -325,7 +325,7 @@ const Destinations = () => {
                     setSortBy(sort as "country" | "createdAt" | "updatedAt");
                     setSortOrder(order as "asc" | "desc");
                   }}
-                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-none focus:outline-none focus:border-sky-500 hover:border-sky-600"
+                  className="px-3 py-2 text-sm border border-gray-300 rounded focus:ring-none focus:outline-none focus:border-sky-500 hover:border-sky-600"
                 >
                   <option value="createdAt-desc">Plus récentes</option>
                   <option value="createdAt-asc">Plus anciennes</option>
@@ -344,7 +344,7 @@ const Destinations = () => {
             {sortedDestinations.map((destination: Destination) => (
               <div
                 key={destination.id}
-                className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
               >
                 {/* Header */}
                 <div className="relative h-32 sm:h-40 bg-linear-to-br from-sky-400 to-indigo-600">
@@ -415,7 +415,7 @@ const Destinations = () => {
                       title="Supprimer"
                     >
                       {deletingId === destination.id ? (
-                        <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded animate-spin"></div>
                       ) : (
                         <Trash2 className="w-4 h-4" />
                       )}
@@ -443,7 +443,7 @@ const Destinations = () => {
 
           {loading && (
             <div className="text-center py-12">
-              <div className="w-8 h-8 border-2 border-sky-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <div className="w-8 h-8 border-2 border-sky-600 border-t-transparent rounded animate-spin mx-auto mb-4"></div>
               <p className="text-gray-500">Chargement...</p>
             </div>
           )}

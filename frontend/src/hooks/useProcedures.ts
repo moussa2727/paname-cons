@@ -687,27 +687,49 @@ export function useProcedures(
   // Effets - Optimisés pour éviter les boucles
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Chargement initial
+  // Refs stables pour le chargement initial (une seule fois, sans boucle)
+  const initialLoadDoneRef = useRef(false);
+  const statsLoadDoneRef = useRef(false);
+
+  // Ref vers loadProcedures pour l'effet query — évite de le mettre en dépendance
+  // (loadProcedures dépend de query → le mettre en dep créerait une boucle infinie)
+  const loadProceduresRef = useRef(loadProcedures);
+  useEffect(() => {
+    loadProceduresRef.current = loadProcedures;
+  }, [loadProcedures]);
+
+  // Chargement initial de la liste — attend que l'auth soit résolue
+  // L'ancien effet s'exécutait au montage avec isAuthenticated=false, donc
+  // le service appelait l'API sans token → pas de données / erreur silencieuse.
   useEffect(() => {
     if (!autoLoad) return;
+    if (!isAuthenticated) return;
+    if (initialLoadDoneRef.current) return;
+    initialLoadDoneRef.current = true;
+    loadProceduresRef.current();
+  }, [autoLoad, isAuthenticated]);
 
-    const loadData = async () => {
-      const promises: Promise<unknown>[] = [loadProcedures()];
-      if (shouldLoadStatistics) promises.push(loadStatistics());
-      await Promise.all(promises);
-    };
-    loadData();
+  // Chargement des stats — attend que le rôle ADMIN soit confirmé
+  // C'est le bug principal des stats : l'ancien effet s'exécutait au montage
+  // avec user=null, et loadStatistics() retournait immédiatement à cause du
+  // guard `if (user?.role !== "ADMIN") return`. Les stats ne chargeaient jamais.
+  useEffect(() => {
+    if (!autoLoad) return;
+    if (!shouldLoadStatistics) return;
+    if (user?.role !== "ADMIN") return;
+    if (statsLoadDoneRef.current) return;
+    statsLoadDoneRef.current = true;
+    loadStatistics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Exécuté une seule fois au montage
+  }, [autoLoad, shouldLoadStatistics, user?.role]); // loadStatistics exclu : ref stable suffit
 
-  // Rechargement quand le query change (avec comparaison pour éviter les boucles)
+  // Rechargement quand le query change — via loadProceduresRef pour éviter la boucle
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
 
-    // Sérialiser le query pour comparer les changements profonds
     const currentQueryKey = JSON.stringify({
       page: query.page,
       limit: query.limit,
@@ -727,7 +749,7 @@ export function useProcedures(
     if (previousQueryRef.current === currentQueryKey) return;
     previousQueryRef.current = currentQueryKey;
 
-    loadProcedures();
+    loadProceduresRef.current(); // via ref → pas de dépendance instable
   }, [
     query.page,
     query.limit,
@@ -742,7 +764,7 @@ export function useProcedures(
     query.destination,
     query.filiere,
     query.email,
-    loadProcedures,
+    // loadProcedures volontairement absent : accédé via loadProceduresRef
   ]);
 
   // Rafraîchissement périodique des procédures en retard

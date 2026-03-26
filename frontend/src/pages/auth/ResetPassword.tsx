@@ -1,6 +1,13 @@
 import React, { useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
-import { FiEye, FiEyeOff, FiLock, FiCheckCircle, FiXCircle, FiArrowLeft } from "react-icons/fi";
+import {
+  FiEye,
+  FiEyeOff,
+  FiLock,
+  FiCheckCircle,
+  FiXCircle,
+  FiArrowLeft,
+} from "react-icons/fi";
 import { useAuth } from "../../hooks/useAuth";
 import { Helmet } from "react-helmet-async";
 
@@ -59,15 +66,17 @@ const ResetPassword: React.FC = () => {
     setSuccess(false);
 
     if (!token) {
-      setError("Token invalide ou manquant. Vérifiez le lien dans votre email.");
+      setError(
+        "Token invalide ou manquant. Vérifiez le lien dans votre email.",
+      );
       return;
     }
-    
+
     if (!isPasswordValid) {
       setError("Le mot de passe ne respecte pas tous les critères de sécurité");
       return;
     }
-    
+
     if (!doPasswordsMatch) {
       setError("Les mots de passe ne correspondent pas");
       return;
@@ -77,19 +86,24 @@ const ResetPassword: React.FC = () => {
       // La méthode resetPassword gère déjà les toasts (succès et erreur)
       await resetPassword(token, formData.newPassword);
       setSuccess(true);
-      
+
       // Redirection après 3 secondes
       setTimeout(() => {
         navigate("/connexion", {
-          state: { message: "Votre mot de passe a été réinitialisé avec succès !" },
+          state: {
+            message: "Votre mot de passe a été réinitialisé avec succès !",
+          },
         });
       }, 3000);
     } catch (err) {
       // AuthContext a déjà affiché un toast.error
       // On affiche l'erreur dans l'UI pour plus de détails
-      const errorMessage = err instanceof Error ? err.message : "Erreur lors de la réinitialisation";
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Erreur lors de la réinitialisation";
       setError(errorMessage);
-      
+
       if (import.meta.env.DEV) {
         console.error("[ResetPassword] handleSubmit error:", err);
       }
@@ -102,7 +116,10 @@ const ResetPassword: React.FC = () => {
       <>
         <Helmet>
           <title>Lien invalide - Paname Consulting</title>
-          <meta name="description" content="Lien de réinitialisation invalide ou expiré" />
+          <meta
+            name="description"
+            content="Lien de réinitialisation invalide ou expiré"
+          />
           <meta name="robots" content="noindex, nofollow" />
         </Helmet>
 
@@ -110,7 +127,10 @@ const ResetPassword: React.FC = () => {
           <div className="w-full max-w-md">
             <div className="bg-white rounded shadow-xl overflow-hidden">
               <div className="bg-linear-to-r from-sky-500 to-sky-600 p-6 text-center">
-                <Link to="/" className="flex items-center justify-center space-x-3">
+                <Link
+                  to="/"
+                  className="flex items-center justify-center space-x-3"
+                >
                   <div className="bg-white p-2 rounded-full">
                     <div className="w-10 h-10 rounded-full bg-linear-to-r from-sky-500 to-sky-600 flex items-center justify-center">
                       <FiLock className="text-white text-xl" />
@@ -208,7 +228,8 @@ const ResetPassword: React.FC = () => {
                     Votre mot de passe a été modifié avec succès.
                   </p>
                   <p className="text-sm text-gray-500">
-                    Redirection vers la page de connexion dans quelques secondes...
+                    Redirection vers la page de connexion dans quelques
+                    secondes...
                   </p>
                   <Link
                     to="/connexion"
@@ -221,9 +242,7 @@ const ResetPassword: React.FC = () => {
               ) : (
                 <form className="space-y-4" onSubmit={handleSubmit}>
                   {/* Token caché */}
-                  {token && (
-                    <input type="hidden" name="token" value={token} />
-                  )}
+                  {token && <input type="hidden" name="token" value={token} />}
 
                   {/* Nouveau mot de passe */}
                   <div>
@@ -238,7 +257,10 @@ const ResetPassword: React.FC = () => {
                         type={showPassword.newPassword ? "text" : "password"}
                         value={formData.newPassword}
                         onChange={(e) => {
-                          setFormData({ ...formData, newPassword: e.target.value });
+                          setFormData({
+                            ...formData,
+                            newPassword: e.target.value,
+                          });
                           setError("");
                         }}
                         className="pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:outline-none focus:border-sky-500 pr-9 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -277,10 +299,15 @@ const ResetPassword: React.FC = () => {
                         <FiLock className="text-gray-400" />
                       </div>
                       <input
-                        type={showPassword.confirmPassword ? "text" : "password"}
+                        type={
+                          showPassword.confirmPassword ? "text" : "password"
+                        }
                         value={formData.confirmPassword}
                         onChange={(e) => {
-                          setFormData({ ...formData, confirmPassword: e.target.value });
+                          setFormData({
+                            ...formData,
+                            confirmPassword: e.target.value,
+                          });
                           setError("");
                         }}
                         className="pl-9 w-full px-3 py-2 rounded bg-gray-50 border border-gray-300 hover:border-sky-400 focus:outline-none focus:border-sky-500 pr-9 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -292,7 +319,9 @@ const ResetPassword: React.FC = () => {
                       <button
                         type="button"
                         className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                        onClick={() => togglePasswordVisibility("confirmPassword")}
+                        onClick={() =>
+                          togglePasswordVisibility("confirmPassword")
+                        }
                         disabled={isLoading}
                         aria-label={
                           showPassword.confirmPassword

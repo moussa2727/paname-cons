@@ -23,7 +23,7 @@ const Loader: React.FC<LoaderProps> = ({
     lg: "w-14 h-14",
   };
 
-  const containerClasses = fullScreen 
+  const containerClasses = fullScreen
     ? "fixed inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-50"
     : "flex items-center justify-center";
 
@@ -61,7 +61,7 @@ const Loader: React.FC<LoaderProps> = ({
             `}
           />
         </div>
-        
+
         {message && (
           <span className="text-slate-500 text-sm font-medium animate-pulse">
             {message}

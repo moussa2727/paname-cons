@@ -1166,7 +1166,7 @@ const RendezvousAdmin = () => {
         {renderStatistics()}
 
         {/* ONGLETS */}
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded w-fit">
           {(
             [
               { key: "list", label: "Tous", count: pagination?.total ?? 0 },
@@ -1177,7 +1177,7 @@ const RendezvousAdmin = () => {
             <button
               key={key}
               onClick={() => switchTab(key)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+              className={`px-4 py-2 rounded text-sm font-medium transition-all flex items-center gap-2 ${
                 activeTab === key
                   ? "bg-white shadow-sm text-gray-900"
                   : "text-gray-500 hover:text-gray-700"
@@ -1197,7 +1197,7 @@ const RendezvousAdmin = () => {
 
         {/* BARRE RECHERCHE + FILTRES */}
         {activeTab === "list" && (
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm space-y-4">
+          <div className="bg-white rounded border border-gray-200 p-4 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -1211,17 +1211,17 @@ const RendezvousAdmin = () => {
                       handleSearch(searchTerm);
                     }
                   }}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 text-sm"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded focus:ring-none focus:outline-none focus:border-sky-500 text-sm"
                 />
               </div>
               <input
                 type="date"
                 onChange={(e) => handleDateQuickFilter(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                className="border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
               />
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors ${
+                className={`flex items-center gap-2 px-3 py-2 border rounded text-sm transition-colors ${
                   activeFiltersCount > 0
                     ? "border-sky-400 bg-sky-50 text-sky-700"
                     : "border-gray-300 hover:bg-gray-50 text-gray-700"
@@ -1238,7 +1238,7 @@ const RendezvousAdmin = () => {
               {activeFiltersCount > 0 && (
                 <button
                   onClick={handleResetFilters}
-                  className="flex items-center gap-2 px-3 py-2 border border-red-200 bg-red-50 text-red-600 rounded-lg text-sm hover:bg-red-100 transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 border border-red-200 bg-red-50 text-red-600 rounded text-sm hover:bg-red-100 transition-colors"
                 >
                   <X className="w-4 h-4" /> Effacer
                 </button>
@@ -1251,7 +1251,7 @@ const RendezvousAdmin = () => {
                   <select
                     value={localFilters.status || ""}
                     onChange={handleStatusFilter}
-                    className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:border-sky-500"
+                    className="w-full appearance-none bg-white border border-gray-300 rounded px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-none focus:border-sky-500"
                   >
                     <option value="">Tous les statuts</option>
                     {Object.entries(STATUS_CFG).map(([val, cfg]) => (
@@ -1267,7 +1267,7 @@ const RendezvousAdmin = () => {
                     value={localFilters.destination || ""}
                     onChange={handleDestinationFilter}
                     disabled={loadingDestinations}
-                    className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:border-sky-500 disabled:opacity-60"
+                    className="w-full appearance-none bg-white border border-gray-300 rounded px-3 py-2 pr-8 text-sm focus:outline-none focus:border-sky-500 disabled:opacity-60"
                   >
                     <option value="">Toutes destinations</option>
                     {destinationOptions.map((d) => (
@@ -1282,13 +1282,13 @@ const RendezvousAdmin = () => {
                   type="date"
                   value={localFilters.startDate || ""}
                   onChange={handleStartDateFilter}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-sky-500"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-sky-500"
                 />
                 <input
                   type="date"
                   value={localFilters.endDate || ""}
                   onChange={handleEndDateFilter}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-sky-500"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-sky-500"
                 />
               </div>
             )}
@@ -1297,7 +1297,7 @@ const RendezvousAdmin = () => {
 
         {/* PANEL AUJOURD'HUI */}
         {activeTab === "today" && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
                 <CalendarDays className="w-4 h-4 text-sky-500" /> Rendez-vous du
@@ -1341,7 +1341,7 @@ const RendezvousAdmin = () => {
 
         {/* PANEL À VENIR */}
         {activeTab === "upcoming" && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-indigo-500" /> Prochains
@@ -1388,7 +1388,7 @@ const RendezvousAdmin = () => {
                 <RefreshCw className="w-8 h-8 text-sky-500 animate-spin" />
               </div>
             ) : (rendezvousList || []).length === 0 ? (
-              <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+              <div className="text-center py-16 bg-white rounded border border-gray-200">
                 <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500 font-medium">Aucun rendez-vous</p>
                 <p className="text-gray-400 text-sm mt-1">
@@ -1402,11 +1402,11 @@ const RendezvousAdmin = () => {
                 {(rendezvousList || []).map((rdv: RendezvousResponseDto) => (
                   <div
                     key={rdv.id}
-                    className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                    className="bg-white rounded border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
                   >
                     <div className="p-4 sm:p-5">
                       <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 bg-linear-to-br from-sky-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0">
+                        <div className="w-10 h-10 bg-linear-to-br from-sky-400 to-indigo-500 rounded flex items-center justify-center text-white font-bold text-sm shrink-0">
                           {getInitials(rdv.firstName, rdv.lastName)}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1486,7 +1486,7 @@ const RendezvousAdmin = () => {
                             <button
                               onClick={() => openModal("detail", rdv)}
                               disabled={loading.details}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-50"
                             >
                               {loading.details ? (
                                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -1517,7 +1517,7 @@ const RendezvousAdmin = () => {
                               <button
                                 onClick={() => openModal("complete", rdv)}
                                 disabled={loading.complete}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-emerald-300 text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-emerald-300 text-emerald-700 rounded hover:bg-emerald-50 transition-colors disabled:opacity-50"
                               >
                                 {loading.complete ? (
                                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -1532,7 +1532,7 @@ const RendezvousAdmin = () => {
                               <button
                                 onClick={() => handleSetPending(rdv.id)}
                                 disabled={loading.update}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-orange-300 text-orange-700 rounded-lg hover:bg-orange-50 transition-colors disabled:opacity-50"
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-orange-300 text-orange-700 rounded hover:bg-orange-50 transition-colors disabled:opacity-50"
                               >
                                 {loading.update ? (
                                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -1547,7 +1547,7 @@ const RendezvousAdmin = () => {
                               <button
                                 onClick={() => handleConfirm(rdv.id)}
                                 disabled={loading.update}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-sky-300 text-sky-700 rounded-lg hover:bg-sky-50 transition-colors disabled:opacity-50"
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-sky-300 text-sky-700 rounded hover:bg-sky-50 transition-colors disabled:opacity-50"
                               >
                                 {loading.update ? (
                                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -1563,7 +1563,7 @@ const RendezvousAdmin = () => {
                                 <button
                                   onClick={() => openModal("cancel", rdv)}
                                   disabled={loading.cancel}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors disabled:opacity-50"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-amber-300 text-amber-700 rounded hover:bg-amber-50 transition-colors disabled:opacity-50"
                                 >
                                   {loading.cancel ? (
                                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -1579,7 +1579,7 @@ const RendezvousAdmin = () => {
                                 <button
                                   onClick={() => handleDelete(rdv.id)}
                                   disabled={loading.delete}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors ml-auto disabled:opacity-50"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors ml-auto disabled:opacity-50"
                                 >
                                   {loading.delete ? (
                                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -1600,7 +1600,7 @@ const RendezvousAdmin = () => {
 
             {/* PAGINATION */}
             {pagination && pagination.total > 0 && (
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white rounded-xl border border-gray-200 px-5 py-3 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white rounded border border-gray-200 px-5 py-3 shadow-sm">
                 <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
                   <p>
                     Page{" "}
@@ -1620,7 +1620,7 @@ const RendezvousAdmin = () => {
                         changeLimit(Number.parseInt(e.target.value, 10))
                       }
                       disabled={loading.list}
-                      className="border border-gray-300 rounded-lg px-2 py-1 text-sm text-gray-800 bg-white focus:outline-none focus:border-sky-500 disabled:opacity-50"
+                      className="border border-gray-300 rounded px-2 py-1 text-sm text-gray-800 bg-white focus:outline-none focus:ring-none focus:border-sky-500 disabled:opacity-50"
                     >
                       {Array.from(new Set([10, 20, 50, 100, pagination.limit]))
                         .sort((a, b) => a - b)
@@ -1636,7 +1636,7 @@ const RendezvousAdmin = () => {
                   <button
                     onClick={() => changePage(pagination.page - 1)}
                     disabled={!pagination.hasPrevious || loading.list}
-                    className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="p-2 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -1658,7 +1658,7 @@ const RendezvousAdmin = () => {
                           key={page}
                           onClick={() => changePage(page)}
                           disabled={loading.list}
-                          className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${page === pagination.page ? "bg-sky-600 text-white" : "border border-gray-300 hover:bg-gray-50 text-gray-700"}`}
+                          className={`w-9 h-9 rounded text-sm font-medium transition-colors ${page === pagination.page ? "bg-sky-600 text-white" : "border border-gray-300 hover:bg-gray-50 text-gray-700"}`}
                         >
                           {page}
                         </button>
@@ -1668,7 +1668,7 @@ const RendezvousAdmin = () => {
                   <button
                     onClick={() => changePage(pagination.page + 1)}
                     disabled={!pagination.hasNext || loading.list}
-                    className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="p-2 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -1682,7 +1682,7 @@ const RendezvousAdmin = () => {
       {/* MODAL DÉTAIL */}
       {modal.type === "detail" && modal.rdv && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-t-2xl sm:rounded shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <ModalHeader title="Détails du rendez-vous" onClose={closeModal} />
             <div className="p-6 space-y-5">
               {loading.details ? (
@@ -1692,7 +1692,7 @@ const RendezvousAdmin = () => {
               ) : (
                 <>
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-linear-to-br from-sky-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                    <div className="w-14 h-14 bg-linear-to-br from-sky-400 to-indigo-500 rounded flex items-center justify-center text-white font-bold text-lg">
                       {getInitials(modal.rdv.firstName, modal.rdv.lastName)}
                     </div>
                     <div>
@@ -1852,7 +1852,7 @@ const RendezvousAdmin = () => {
       {/* MODAL TERMINER */}
       {modal.type === "complete" && modal.rdv && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <ModalHeader title="Terminer le rendez-vous" onClose={closeModal} />
             <div className="p-6 space-y-5">
               <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600">
@@ -1874,7 +1874,7 @@ const RendezvousAdmin = () => {
                     <button
                       key={op}
                       onClick={() => setCompleteOpinion(op)}
-                      className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-all ${completeOpinion === op ? (op === AdminOpinion.FAVORABLE ? "border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm" : "border-red-400 bg-red-50 text-red-700 shadow-sm") : "border-gray-200 text-gray-500 hover:border-gray-300"}`}
+                      className={`flex items-center justify-center gap-2 py-3 rounded border-2 text-sm font-medium transition-all ${completeOpinion === op ? (op === AdminOpinion.FAVORABLE ? "border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm" : "border-red-400 bg-red-50 text-red-700 shadow-sm") : "border-gray-200 text-gray-500 hover:border-gray-300"}`}
                     >
                       {op === AdminOpinion.FAVORABLE ? (
                         <>
@@ -1900,7 +1900,7 @@ const RendezvousAdmin = () => {
                   onChange={(e) => setCompleteComment(e.target.value)}
                   rows={3}
                   placeholder="Notes sur la consultation…"
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 resize-none"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500 resize-none"
                 />
               </div>
 
@@ -1908,7 +1908,7 @@ const RendezvousAdmin = () => {
                 <button
                   onClick={handleComplete}
                   disabled={loading.complete}
-                  className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 bg-emerald-600 text-white rounded text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
                 >
                   {loading.complete ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
@@ -1919,7 +1919,7 @@ const RendezvousAdmin = () => {
                 </button>
                 <button
                   onClick={closeModal}
-                  className="flex-1 py-2.5 border border-gray-300 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+                  className="flex-1 py-2.5 border border-gray-300 rounded text-sm hover:bg-gray-50 transition-colors"
                 >
                   Annuler
                 </button>
@@ -1932,7 +1932,7 @@ const RendezvousAdmin = () => {
       {/* MODAL ANNULER */}
       {modal.type === "cancel" && modal.rdv && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <ModalHeader title="Annuler le rendez-vous" onClose={closeModal} />
             <div className="p-6 space-y-5">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
@@ -1950,7 +1950,7 @@ const RendezvousAdmin = () => {
                   rows={4}
                   maxLength={500}
                   placeholder="Expliquez la raison…"
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 resize-none"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500 resize-none"
                 />
                 <p className="text-xs text-gray-400 text-right mt-1">
                   {cancelReason.length}/500
@@ -1960,7 +1960,7 @@ const RendezvousAdmin = () => {
                 <button
                   onClick={handleCancel}
                   disabled={loading.cancel || !cancelReason.trim()}
-                  className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 bg-red-600 text-white rounded text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
                 >
                   {loading.cancel ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
@@ -1971,7 +1971,7 @@ const RendezvousAdmin = () => {
                 </button>
                 <button
                   onClick={closeModal}
-                  className="flex-1 py-2.5 border border-gray-300 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+                  className="flex-1 py-2.5 border border-gray-300 rounded text-sm hover:bg-gray-50 transition-colors"
                 >
                   Retour
                 </button>
@@ -1984,7 +1984,7 @@ const RendezvousAdmin = () => {
       {/* MODAL CRÉER */}
       {modal.type === "create" && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <ModalHeader title="Créer un rendez-vous" onClose={closeModal} />
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -2001,7 +2001,7 @@ const RendezvousAdmin = () => {
                         firstName: e.target.value,
                       })
                     }
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                     placeholder="Prénom"
                   />
                 </div>
@@ -2015,7 +2015,7 @@ const RendezvousAdmin = () => {
                     onChange={(e) =>
                       setCreateForm({ ...createForm, lastName: e.target.value })
                     }
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                     placeholder="Nom"
                   />
                 </div>
@@ -2032,7 +2032,7 @@ const RendezvousAdmin = () => {
                     onChange={(e) =>
                       setCreateForm({ ...createForm, email: e.target.value })
                     }
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                     placeholder="email@example.com"
                   />
                 </div>
@@ -2049,7 +2049,7 @@ const RendezvousAdmin = () => {
                         telephone: e.target.value,
                       })
                     }
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                     placeholder="+33 6 12 34 56 78"
                   />
                 </div>
@@ -2071,7 +2071,7 @@ const RendezvousAdmin = () => {
                         v !== "Autre" ? "" : createForm.destinationAutre,
                     });
                   }}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-sky-500"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   disabled={loadingDestinations}
                 >
                   <option value="">
@@ -2094,7 +2094,7 @@ const RendezvousAdmin = () => {
                       })
                     }
                     placeholder="Précisez la destination"
-                    className="mt-2 w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="mt-2 w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   />
                 )}
               </div>
@@ -2116,7 +2116,7 @@ const RendezvousAdmin = () => {
                           v !== "Autre" ? "" : createForm.niveauEtudeAutre,
                       });
                     }}
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   >
                     <option value="">Sélectionner</option>
                     {NIVEAU_ETUDE_OPTIONS.map((n) => (
@@ -2136,7 +2136,7 @@ const RendezvousAdmin = () => {
                         })
                       }
                       placeholder="Précisez votre niveau"
-                      className="mt-2 w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                      className="mt-2 w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                     />
                   )}
                 </div>
@@ -2156,7 +2156,7 @@ const RendezvousAdmin = () => {
                           v !== "Autre" ? "" : createForm.filiereAutre,
                       });
                     }}
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   >
                     <option value="">Sélectionner</option>
                     {FILIERE_OPTIONS.map((f) => (
@@ -2176,7 +2176,7 @@ const RendezvousAdmin = () => {
                         })
                       }
                       placeholder="Précisez la filière"
-                      className="mt-2 w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                      className="mt-2 w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                     />
                   )}
                 </div>
@@ -2194,7 +2194,7 @@ const RendezvousAdmin = () => {
                       setCreateForm({ ...createForm, date: e.target.value })
                     }
                     min={new Date().toISOString().split("T")[0]}
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   />
                 </div>
                 <div>
@@ -2206,7 +2206,7 @@ const RendezvousAdmin = () => {
                     onChange={(e) =>
                       setCreateForm({ ...createForm, time: e.target.value })
                     }
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   >
                     <option value="">Sélectionner</option>
                     {TIME_SLOT_OPTIONS.map((t) => (
@@ -2261,7 +2261,7 @@ const RendezvousAdmin = () => {
                       onChange={(e) =>
                         setEditForm({ ...editForm, [field]: e.target.value })
                       }
-                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                     />
                   </div>
                 ))}
@@ -2277,7 +2277,7 @@ const RendezvousAdmin = () => {
                   onChange={(e) =>
                     setEditForm({ ...editForm, telephone: e.target.value })
                   }
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                 />
               </div>
 
@@ -2292,7 +2292,7 @@ const RendezvousAdmin = () => {
                     onChange={(e) =>
                       setEditForm({ ...editForm, date: e.target.value })
                     }
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   />
                 </div>
                 <div>
@@ -2304,7 +2304,7 @@ const RendezvousAdmin = () => {
                     onChange={(e) =>
                       setEditForm({ ...editForm, time: e.target.value })
                     }
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   >
                     <option value="">Sélectionner</option>
                     {TIME_SLOT_OPTIONS.map((t) => (
@@ -2333,7 +2333,7 @@ const RendezvousAdmin = () => {
                           v !== "Autre" ? "" : editForm.niveauEtudeAutre,
                       });
                     }}
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   >
                     <option value="">Sélectionner</option>
                     {NIVEAU_ETUDE_OPTIONS.map((n) => (
@@ -2353,7 +2353,7 @@ const RendezvousAdmin = () => {
                         })
                       }
                       placeholder="Précisez votre niveau"
-                      className="mt-2 w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                      className="mt-2 w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                     />
                   )}
                 </div>
@@ -2373,7 +2373,7 @@ const RendezvousAdmin = () => {
                           v !== "Autre" ? "" : editForm.filiereAutre,
                       });
                     }}
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   >
                     <option value="">Sélectionner</option>
                     {FILIERE_OPTIONS.map((f) => (
@@ -2393,7 +2393,7 @@ const RendezvousAdmin = () => {
                         })
                       }
                       placeholder="Précisez votre filière"
-                      className="mt-2 w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                      className="mt-2 w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                     />
                   )}
                 </div>
@@ -2417,7 +2417,7 @@ const RendezvousAdmin = () => {
                       });
                     }}
                     disabled={loadingDestinations}
-                    className="w-full appearance-none border border-gray-300 rounded-xl px-3 py-2 pr-8 text-sm focus:ring-2 focus:ring-sky-500 disabled:opacity-60"
+                    className="w-full appearance-none border border-gray-300 rounded px-3 py-2 pr-8 text-sm focus:ring-none focus:outline-none focus:border-sky-500 disabled:opacity-60"
                   >
                     <option value="">
                       {loadingDestinations ? "Chargement..." : "Sélectionner"}
@@ -2441,7 +2441,7 @@ const RendezvousAdmin = () => {
                       })
                     }
                     placeholder="Précisez votre destination"
-                    className="mt-2 w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
+                    className="mt-2 w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   />
                 )}
               </div>
@@ -2450,7 +2450,7 @@ const RendezvousAdmin = () => {
                 <button
                   onClick={handleUpdate}
                   disabled={loading.update}
-                  className="flex-1 py-2.5 bg-sky-600 text-white rounded-xl text-sm font-semibold hover:bg-sky-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 bg-sky-600 text-white rounded text-sm font-semibold hover:bg-sky-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
                 >
                   {loading.update ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
@@ -2461,7 +2461,7 @@ const RendezvousAdmin = () => {
                 </button>
                 <button
                   onClick={closeModal}
-                  className="flex-1 py-2.5 border border-gray-300 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+                  className="flex-1 py-2.5 border border-gray-300 rounded text-sm hover:bg-gray-50 transition-colors"
                 >
                   Annuler
                 </button>

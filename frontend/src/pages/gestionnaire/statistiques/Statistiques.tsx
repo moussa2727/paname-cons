@@ -386,7 +386,7 @@ const Statistiques: React.FC = () => {
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing || isLoading}
-                className="p-2 bg-white border border-sky-200 rounded-xl hover:bg-sky-50 transition-colors disabled:opacity-50"
+                className="p-2 bg-white border border-sky-200 rounded hover:bg-sky-50 transition-colors disabled:opacity-50"
               >
                 <RefreshCw
                   className={`w-4 h-4 text-sky-600 ${isRefreshing ? "animate-spin" : ""}`}
@@ -400,7 +400,7 @@ const Statistiques: React.FC = () => {
         <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           {isLoading ? (
             <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600" />
+              <div className="animate-spin rounded h-12 w-12 border-b-2 border-sky-600" />
             </div>
           ) : (
             <div className="space-y-6">
@@ -414,7 +414,7 @@ const Statistiques: React.FC = () => {
               {/* Graphiques */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Activité hebdomadaire */}
-                <div className="bg-white rounded-2xl border border-sky-100 shadow-sm p-5">
+                <div className="bg-white rounded border border-sky-100 shadow-sm p-5">
                   <h3 className="text-sm font-semibold text-gray-800 mb-4">
                     Activité hebdomadaire (moyenne)
                   </h3>
@@ -498,7 +498,7 @@ const Statistiques: React.FC = () => {
                 </div>
 
                 {/* Destinations populaires */}
-                <div className="bg-white rounded-2xl border border-sky-100 shadow-sm p-5">
+                <div className="bg-white rounded border border-sky-100 shadow-sm p-5">
                   <h3 className="text-sm font-semibold text-gray-800 mb-4">
                     Destinations les plus demandées
                   </h3>
@@ -529,7 +529,7 @@ const Statistiques: React.FC = () => {
               {/* Statistiques hebdomadaires et mensuelles */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Cette semaine */}
-                <div className="bg-white rounded-2xl border border-sky-100 shadow-sm p-5">
+                <div className="bg-white rounded border border-sky-100 shadow-sm p-5">
                   <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-sky-500" />
                     Cette semaine
@@ -571,7 +571,7 @@ const Statistiques: React.FC = () => {
                 </div>
 
                 {/* Ce mois */}
-                <div className="bg-white rounded-2xl border border-sky-100 shadow-sm p-5">
+                <div className="bg-white rounded border border-sky-100 shadow-sm p-5">
                   <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-indigo-500" />
                     Ce mois
@@ -615,7 +615,7 @@ const Statistiques: React.FC = () => {
 
               {/* Alertes */}
               {alerts.length > 0 && (
-                <div className="bg-white rounded-2xl border border-sky-100 shadow-sm p-5">
+                <div className="bg-white rounded border border-sky-100 shadow-sm p-5">
                   <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 text-amber-500" />
                     Alertes
@@ -624,7 +624,7 @@ const Statistiques: React.FC = () => {
                     {alerts.map((alert, i) => (
                       <div
                         key={i}
-                        className={`flex items-center gap-3 p-3 ${alert.bg} rounded-xl`}
+                        className={`flex items-center gap-3 p-3 ${alert.bg} rounded`}
                       >
                         <alert.icon
                           className={`w-4 h-4 ${alert.color} shrink-0`}

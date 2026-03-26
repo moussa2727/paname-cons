@@ -592,7 +592,7 @@ const Utilisateurs = () => {
 
           <button
             onClick={() => setShowCreate(true)}
-            className="self-end sm:self-auto flex items-center gap-2 px-4 py-2.5 bg-sky-500 text-white rounded-xl text-sm font-medium hover:bg-sky-600 transition-colors shadow-sm shadow-sky-200"
+            className="self-end sm:self-auto flex items-center gap-2 px-4 py-2.5 bg-sky-500 text-white rounded text-sm font-medium hover:bg-sky-600 transition-colors shadow-sm shadow-sky-200"
           >
             <Plus size={15} /> Nouvel utilisateur
           </button>
@@ -602,7 +602,7 @@ const Utilisateurs = () => {
         {statistics && (
           <div className="max-w-6xl mx-auto mb-6 sm:mb-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+              <div className="bg-white rounded shadow-sm border border-gray-200 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-2">
                   <Users className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500" />
                   <span className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -618,7 +618,7 @@ const Utilisateurs = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+              <div className="bg-white rounded shadow-sm border border-gray-200 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-2">
                   <UserCheck className="w-6 h-6 sm:w-8 sm:h-8 text-green-500" />
                   <span className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -639,7 +639,7 @@ const Utilisateurs = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+              <div className="bg-white rounded shadow-sm border border-gray-200 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-2">
                   <UserX className="w-6 h-6 sm:w-8 sm:h-8 text-amber-500" />
                   <span className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -661,7 +661,7 @@ const Utilisateurs = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+              <div className="bg-white rounded shadow-sm border border-gray-200 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-2">
                   <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-purple-500" />
                   <span className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -697,7 +697,7 @@ const Utilisateurs = () => {
               placeholder="Rechercher par nom, email, téléphone…"
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-all shadow-sm"
+              className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded text-sm bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-all shadow-sm"
             />
             {search && (
               <button
@@ -711,7 +711,7 @@ const Utilisateurs = () => {
           <button
             onClick={() => load(page)}
             disabled={loading.list}
-            className="px-3 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-500 hover:text-sky-500 hover:border-sky-300 transition-colors shadow-sm disabled:opacity-50"
+            className="px-3 py-2.5 border border-slate-200 rounded bg-white text-slate-500 hover:text-sky-500 hover:border-sky-300 transition-colors shadow-sm disabled:opacity-50"
             title="Actualiser"
           >
             <RefreshCw
@@ -722,7 +722,7 @@ const Utilisateurs = () => {
         </div>
 
         {/* ── Tableau ─────────────────────────────────────────── */}
-        <div className="max-w-6xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="max-w-6xl mx-auto bg-white rounded border border-slate-200 shadow-sm overflow-hidden">
           {loading.list && !userList && (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <div className="w-8 h-8 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
@@ -827,7 +827,7 @@ const Utilisateurs = () => {
                             <button
                               onClick={() => handleToggleStatus(user)}
                               disabled={user.role === "ADMIN" && user.isActive}
-                              className={`p-1.5 rounded-lg transition-colors ${
+                              className={`p-1.5 rounded transition-colors ${
                                 user.role === "ADMIN" && user.isActive
                                   ? "text-slate-300 cursor-not-allowed opacity-50"
                                   : user.isActive
@@ -850,14 +850,14 @@ const Utilisateurs = () => {
                             </button>
                             <button
                               onClick={() => openEdit(user)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-colors"
+                              className="p-1.5 rounded text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-colors"
                               title="Modifier"
                             >
                               <Edit2 size={14} />
                             </button>
                             <button
                               onClick={() => setDeleteTarget(user)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                              className="p-1.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                               title="Supprimer"
                             >
                               <Trash2 size={14} />
@@ -884,7 +884,7 @@ const Utilisateurs = () => {
                           <button
                             onClick={() => handleToggleStatus(user)}
                             disabled={user.role === "ADMIN" && user.isActive}
-                            className={`p-1.5 rounded-lg transition-colors ${
+                            className={`p-1.5 rounded transition-colors ${
                               user.role === "ADMIN" && user.isActive
                                 ? "text-slate-300 cursor-not-allowed opacity-50"
                                 : user.isActive
@@ -900,13 +900,13 @@ const Utilisateurs = () => {
                           </button>
                           <button
                             onClick={() => openEdit(user)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-colors"
+                            className="p-1.5 rounded text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-colors"
                           >
                             <Edit2 size={13} />
                           </button>
                           <button
                             onClick={() => setDeleteTarget(user)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            className="p-1.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                           >
                             <Trash2 size={13} />
                           </button>
@@ -938,7 +938,7 @@ const Utilisateurs = () => {
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1 || loading.list}
-                  className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-sky-500 hover:border-sky-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-white"
+                  className="p-1.5 rounded border border-slate-200 text-slate-400 hover:text-sky-500 hover:border-sky-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-white"
                 >
                   <ChevronLeft size={14} />
                 </button>
@@ -967,7 +967,7 @@ const Utilisateurs = () => {
                         key={item}
                         onClick={() => setPage(item as number)}
                         disabled={loading.list}
-                        className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors border ${
+                        className={`w-7 h-7 rounded text-xs font-medium transition-colors border ${
                           page === item
                             ? "bg-sky-500 text-white border-sky-500 shadow-sm"
                             : "bg-white text-slate-500 border-slate-200 hover:border-sky-300 hover:text-sky-500"
@@ -981,7 +981,7 @@ const Utilisateurs = () => {
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages || loading.list}
-                  className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-sky-500 hover:border-sky-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-white"
+                  className="p-1.5 rounded border border-slate-200 text-slate-400 hover:text-sky-500 hover:border-sky-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-white"
                 >
                   <ChevronRight size={14} />
                 </button>

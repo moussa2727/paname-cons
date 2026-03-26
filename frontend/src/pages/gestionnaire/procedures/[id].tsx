@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useProcedures } from "../../../hooks/useProcedures";
@@ -226,7 +226,7 @@ const Modal: React.FC<ModalProps> = ({
         onClick={onClose}
       />
       <div
-        className={`relative bg-white rounded-xl shadow-2xl w-full ${width} animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto`}
+        className={`relative bg-white rounded shadow-2xl w-full ${width} animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto`}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <h3 className="font-semibold text-slate-800 text-sm">{title}</h3>
@@ -304,13 +304,20 @@ export default function ProcedureDetail() {
   const [showAddStepMenu, setShowAddStepMenu] = useState(false);
 
   // ── Chargement initial ────────────────────────────────────────────────────
+  const loadedIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (id && isAdmin) {
-      loadById(id).catch(err => {
-        console.error("Failed to load procedure:", err);
-      });
-    }
-  }, [id, isAdmin, loadById]);
+    if (!id || !isAdmin) return;
+    // Évite de recharger si l'ID n'a pas changé (loadById peut changer de référence)
+    if (loadedIdRef.current === id) return;
+    loadedIdRef.current = id;
+    loadById(id).catch((err) => {
+      console.error("Failed to load procedure:", err);
+      loadedIdRef.current = null; // reset pour permettre un retry
+    });
+  }, [id, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Note : loadById volontairement exclu — sa référence peut varier sans que
+  // le comportement change. On utilise loadedIdRef pour éviter les boucles.
 
   // Fermer le menu déroulant au clic extérieur
   useEffect(() => {
@@ -322,7 +329,10 @@ export default function ProcedureDetail() {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const reload = useCallback(async () => {
-    if (id) await loadById(id);
+    if (!id) return;
+    loadedIdRef.current = null; // force le rechargement même si l'ID n'a pas changé
+    await loadById(id);
+    loadedIdRef.current = id;
   }, [id, loadById]);
 
   const closeModal = useCallback(() => {
@@ -475,7 +485,7 @@ export default function ProcedureDetail() {
   if (error && !procedure) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm max-w-sm w-full">
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded p-4 text-red-700 text-sm max-w-sm w-full">
           <AlertCircle size={16} className="shrink-0" /> {error}
         </div>
       </div>
@@ -497,8 +507,8 @@ export default function ProcedureDetail() {
       <Helmet>
         <title>
           {procedure?.fullName
-            ? `Procédure ${procedure.fullName} — Paname Consulting`
-            : "Procédure — Paname Consulting"}
+            ? `Procédure ${procedure.fullName} - Paname Consulting`
+            : "Procédure - Paname Consulting"}
         </title>
         <meta name="robots" content="noindex, nofollow" />
         <meta name="googlebot" content="noindex, nofollow" />
@@ -627,7 +637,7 @@ export default function ProcedureDetail() {
               </div>
 
               {/* Infos personnelles */}
-              <div className="bg-white rounded-lg border border-slate-100 shadow-sm p-5">
+              <div className="bg-white rounded border border-slate-100 shadow-sm p-5">
                 <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">
                   Informations personnelles
                 </h2>
@@ -675,7 +685,7 @@ export default function ProcedureDetail() {
               </div>
 
               {/* Infos académiques */}
-              <div className="bg-white rounded-lg border border-slate-100 shadow-sm p-5">
+              <div className="bg-white rounded border border-slate-100 shadow-sm p-5">
                 <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">
                   Informations académiques
                 </h2>
@@ -713,7 +723,7 @@ export default function ProcedureDetail() {
               </div>
 
               {/* Étapes */}
-              <div className="bg-white rounded-lg border border-slate-100 shadow-sm p-5">
+              <div className="bg-white rounded border border-slate-100 shadow-sm p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
                     Étapes de la procédure
@@ -736,7 +746,7 @@ export default function ProcedureDetail() {
                         />
                       </button>
                       {showAddStepMenu && (
-                        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-100 rounded-lg shadow-xl py-1 z-20 min-w-[220px]">
+                        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-100 rounded shadow-xl py-1 z-20 min-w-[220px]">
                           {availableStepsToAdd.map((stepName) => (
                             <button
                               key={stepName}
@@ -762,7 +772,7 @@ export default function ProcedureDetail() {
                     {sortedSteps.map((step, idx) => (
                       <div
                         key={step.id}
-                        className={`border rounded-lg p-4 transition-colors ${
+                        className={`border rounded p-4 transition-colors ${
                           step.isOverdue
                             ? "border-orange-200 bg-orange-50/30"
                             : "border-slate-100"
@@ -772,7 +782,7 @@ export default function ProcedureDetail() {
                           <div className="flex items-start gap-3 flex-1 min-w-0">
                             {/* Numéro */}
                             <div
-                              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
+                              className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
                                 step.statut === "COMPLETED"
                                   ? "bg-emerald-100 text-emerald-700"
                                   : step.statut === "IN_PROGRESS"
@@ -845,7 +855,7 @@ export default function ProcedureDetail() {
               {/* Raison de rejet/annulation si applicable */}
               {(procedure.raisonRejet || procedure.cancelledReason) && (
                 <div
-                  className={`rounded-lg border p-4 ${
+                  className={`rounded border p-4 ${
                     procedure.statut === "REJECTED"
                       ? "bg-red-50 border-red-200"
                       : "bg-slate-50 border-slate-200"
@@ -870,7 +880,7 @@ export default function ProcedureDetail() {
             {/* ═══════════════ Sidebar ═══════════════ */}
             <div className="space-y-4">
               {/* Progression */}
-              <div className="bg-white rounded-lg border border-slate-100 shadow-sm p-5">
+              <div className="bg-white rounded border border-slate-100 shadow-sm p-5">
                 <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">
                   Progression
                 </h2>
@@ -883,9 +893,9 @@ export default function ProcedureDetail() {
                       {procedure.completedSteps}/{procedure.totalSteps} étapes
                     </span>
                   </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-2 bg-slate-100 rounded overflow-hidden">
                     <div
-                      className="h-full bg-sky-500 rounded-full transition-all"
+                      className="h-full bg-sky-500 rounded transition-all"
                       style={{ width: `${procedure.progress}%` }}
                     />
                   </div>
@@ -920,7 +930,7 @@ export default function ProcedureDetail() {
               </div>
 
               {/* Historique */}
-              <div className="bg-white rounded-lg border border-slate-100 shadow-sm p-5">
+              <div className="bg-white rounded border border-slate-100 shadow-sm p-5">
                 <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">
                   Historique
                 </h2>
@@ -988,7 +998,7 @@ export default function ProcedureDetail() {
 
               {/* Rendez-vous lié */}
               {(procedure.rendezvousStatus || procedure.rendezvousDate) && (
-                <div className="bg-white rounded-lg border border-slate-100 shadow-sm p-5">
+                <div className="bg-white rounded border border-slate-100 shadow-sm p-5">
                   <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
                     Rendez-vous associé
                   </h2>
@@ -1020,7 +1030,7 @@ export default function ProcedureDetail() {
 
               {/* Alerte étape rejetée */}
               {hasRejectedStep && (
-                <div className="rounded-lg bg-red-50 border border-red-200 p-4">
+                <div className="rounded bg-red-50 border border-red-200 p-4">
                   <p className="text-xs font-semibold text-red-700 flex items-center gap-1.5 mb-1">
                     <XCircle size={13} /> Étape refusée
                   </p>
@@ -1302,7 +1312,7 @@ export default function ProcedureDetail() {
         title="Terminer la procédure"
       >
         <div className="flex items-start gap-3 mb-5">
-          <div className="p-2 bg-emerald-50 rounded-lg shrink-0">
+          <div className="p-2 bg-emerald-50 rounded shrink-0">
             <Zap size={18} className="text-emerald-600" />
           </div>
           <div>
@@ -1341,7 +1351,7 @@ export default function ProcedureDetail() {
         title="Annuler la procédure"
       >
         <div className="flex items-start gap-3 mb-4">
-          <div className="p-2 bg-amber-50 rounded-lg shrink-0">
+          <div className="p-2 bg-amber-50 rounded shrink-0">
             <Ban size={18} className="text-amber-600" />
           </div>
           <p className="text-sm text-slate-600">
@@ -1383,7 +1393,7 @@ export default function ProcedureDetail() {
         title="Supprimer la procédure"
       >
         <div className="flex items-start gap-3 mb-4">
-          <div className="p-2 bg-red-50 rounded-lg shrink-0">
+          <div className="p-2 bg-red-50 rounded shrink-0">
             <Trash2 size={18} className="text-red-500" />
           </div>
           <p className="text-sm text-slate-600">

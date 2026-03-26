@@ -202,14 +202,14 @@ const Profil = () => {
                 <button
                   onClick={handleCancel}
                   disabled={isSaving}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded hover:bg-slate-50 transition-colors text-sm font-medium disabled:opacity-50"
                 >
                   <X size={14} /> Annuler
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors text-sm font-medium shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 text-white rounded hover:bg-sky-600 transition-colors text-sm font-medium shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Save size={14} />
                   {isSaving ? "Enregistrement…" : "Enregistrer"}
@@ -218,7 +218,7 @@ const Profil = () => {
             ) : (
               <button
                 onClick={handleEdit}
-                className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors text-sm font-medium shadow-sm"
+                className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 text-white rounded hover:bg-sky-600 transition-colors text-sm font-medium shadow-sm"
               >
                 <Edit2 size={14} /> Modifier
               </button>
@@ -228,15 +228,15 @@ const Profil = () => {
 
         <div className="max-w-3xl mx-auto flex flex-col gap-5">
           {/* Identity card */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center shadow-sm">
+          <div className="bg-white rounded border border-slate-200 p-6 text-center shadow-sm">
             <div className="flex justify-center mb-4">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-linear-to-br from-sky-400 to-indigo-500 flex items-center justify-center font-serif text-2xl sm:text-3xl text-white tracking-wider shadow-lg shadow-sky-200">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded bg-linear-to-br from-sky-400 to-indigo-500 flex items-center justify-center font-serif text-2xl sm:text-3xl text-white tracking-wider shadow-lg shadow-sky-200">
                 {initials || "?"}
               </div>
             </div>
 
             <div className="flex items-center justify-center gap-2 mb-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-200 shrink-0" />
+              <span className="w-2 h-2 rounded bg-emerald-400 shadow-sm shadow-emerald-200 shrink-0" />
               <h2 className="font-serif text-lg sm:text-xl text-slate-900 font-normal">
                 {profile?.firstName} {profile?.lastName}
               </h2>
@@ -245,7 +245,7 @@ const Profil = () => {
             <p className="text-slate-500 text-sm mb-3">{roleLabel}</p>
 
             <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold tracking-wider uppercase ${
                 userIsAdmin
                   ? "bg-amber-50 text-amber-700 border border-amber-200"
                   : "bg-sky-50 text-sky-700 border border-sky-200"
@@ -258,7 +258,7 @@ const Profil = () => {
             <div className="h-px bg-slate-100 my-5" />
 
             <div className="flex flex-col sm:flex-row gap-2 justify-center">
-              <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
+              <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded border border-slate-100">
                 <Calendar size={13} className="text-sky-400 shrink-0" />
                 <span className="text-xs text-slate-500">
                   Membre depuis{" "}
@@ -269,7 +269,7 @@ const Profil = () => {
                   </span>
                 </span>
               </div>
-              <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
+              <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded border border-slate-100">
                 <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
                 <span className="text-xs text-slate-500">
                   <span className="font-medium text-slate-700">
@@ -281,7 +281,7 @@ const Profil = () => {
           </div>
 
           {/* Personal info card */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+          <div className="bg-white rounded border border-slate-200 p-6 shadow-sm">
             <h3 className="font-serif text-base text-slate-900 font-normal mb-5">
               Informations personnelles
             </h3>
@@ -299,11 +299,11 @@ const Profil = () => {
                     onChange={(e) =>
                       setFormData((p) => ({ ...p, firstName: e.target.value }))
                     }
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900 focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 transition-all"
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded text-sm bg-slate-50 text-slate-900 focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 transition-all"
                   />
                 ) : (
                   <div className="flex items-center gap-2.5 py-2 border-b border-slate-100">
-                    <span className="w-7 h-7 bg-sky-50 rounded-lg flex items-center justify-center text-sky-400 text-xs font-bold shrink-0">
+                    <span className="w-7 h-7 bg-sky-50 rounded flex items-center justify-center text-sky-400 text-xs font-bold shrink-0">
                       {profile?.firstName?.[0] ?? "?"}
                     </span>
                     <span className="text-sm text-slate-800 font-medium">
@@ -327,11 +327,11 @@ const Profil = () => {
                     onChange={(e) =>
                       setFormData((p) => ({ ...p, lastName: e.target.value }))
                     }
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900 focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 transition-all"
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded text-sm bg-slate-50 text-slate-900 focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 transition-all"
                   />
                 ) : (
                   <div className="flex items-center gap-2.5 py-2 border-b border-slate-100">
-                    <span className="w-7 h-7 bg-sky-50 rounded-lg flex items-center justify-center text-sky-400 text-xs font-bold shrink-0">
+                    <span className="w-7 h-7 bg-sky-50 rounded flex items-center justify-center text-sky-400 text-xs font-bold shrink-0">
                       {profile?.lastName?.[0] ?? "?"}
                     </span>
                     <span className="text-sm text-slate-800 font-medium">
@@ -357,7 +357,7 @@ const Profil = () => {
                         setFormData((p) => ({ ...p, password: e.target.value }))
                       }
                       placeholder="Laisser vide pour ne pas modifier"
-                      className="w-full px-3 py-2.5 pr-10 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900 focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 transition-all"
+                      className="w-full px-3 py-2.5 pr-10 border border-slate-200 rounded text-sm bg-slate-50 text-slate-900 focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 transition-all"
                     />
                     <button
                       type="button"
@@ -369,7 +369,7 @@ const Profil = () => {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2.5 py-2 border-b border-slate-100">
-                    <div className="w-4 h-4 bg-slate-200 rounded-full shrink-0" />
+                    <div className="w-4 h-4 bg-slate-200 rounded shrink-0" />
                     <span className="text-sm text-slate-800 font-medium">
                       •••••••••••••••••
                     </span>
@@ -395,7 +395,7 @@ const Profil = () => {
                     type={showEmail ? "email" : "password"}
                     value={profile?.email ?? ""}
                     readOnly
-                    className="w-full px-3 py-2.5 pr-10 border border-slate-100 rounded-xl text-sm bg-slate-50 text-slate-500 cursor-not-allowed select-none"
+                    className="w-full px-3 py-2.5 pr-10 border border-slate-100 rounded text-sm bg-slate-50 text-slate-500 cursor-not-allowed select-none"
                   />
                   <button
                     type="button"

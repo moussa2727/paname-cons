@@ -535,7 +535,7 @@ export default function Procedures() {
                   onClick={() => refresh()}
                   disabled={loading.list || loading.statistics}
                   title="Rafraîchir"
-                  className="p-2 rounded-xl text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors disabled:opacity-40"
+                  className="p-2 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors disabled:opacity-40"
                 >
                   <RefreshCw
                     size={15}
@@ -550,7 +550,7 @@ export default function Procedures() {
                   onClick={handleRefreshStats}
                   disabled={loading.statistics}
                   title="Rafraîchir les stats"
-                  className="hidden sm:flex p-2 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40"
+                  className="hidden sm:flex p-2 rounded text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40"
                 >
                   <BarChart3
                     size={14}
@@ -567,7 +567,7 @@ export default function Procedures() {
                     <Download size={13} />
                     {exporting ? "Export…" : "Exporter"}
                   </button>
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-slate-100 rounded-xl shadow-lg py-1 hidden group-hover:block min-w-[120px] z-10">
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-slate-100 rounded shadow-lg py-1 hidden group-hover:block min-w-[120px] z-10">
                     {(["csv", "excel", "pdf"] as ExportFormat[]).map((f) => (
                       <button
                         key={f}
