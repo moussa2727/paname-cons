@@ -1,6 +1,6 @@
 // ============================================================
 // useRendezvous.ts
-// Version corrigée - Sans boucles infinies
+// Version anti-boucle - deps stables, fetch unique par rôle
 // Structure: COMMUN > USER > ADMIN
 // ============================================================
 
@@ -26,7 +26,7 @@ import type {
   AdminOpinion,
 } from "../types/rendezvous.types";
 
-// ==================== TYPES COMMUNS ====================
+// ==================== TYPES ====================
 
 interface LoadingState {
   list: boolean;
@@ -51,362 +51,236 @@ interface PaginationState {
   hasPrevious: boolean;
 }
 
-// ==================== OPTIONS TYPES ====================
-
-interface UseBaseRendezvousOptions {
+interface UseUserRendezvousOptions {
   autoLoad?: boolean;
   refreshInterval?: number;
-}
-
-interface UseUserRendezvousOptions extends UseBaseRendezvousOptions {
   userEmail?: string;
 }
 
-interface UseAdminRendezvousOptions extends UseBaseRendezvousOptions {
+interface UseAdminRendezvousOptions {
+  autoLoad?: boolean;
+  refreshInterval?: number;
   initialQuery?: RendezvousQueryDto;
-  autoLoadList?: boolean;
 }
-
-interface UseRendezvousOptions extends UseBaseRendezvousOptions {
-  userEmail?: string;
-  initialQuery?: RendezvousQueryDto;
-  autoLoadList?: boolean;
-}
-
-// ==================== HOOK DE BASE (COMMUN) ====================
-
-const useBaseRendezvous = () => {
-  const [loading, setLoading] = useState<LoadingState>({
-    list: false,
-    details: false,
-    create: false,
-    update: false,
-    cancel: false,
-    complete: false,
-    delete: false,
-    availability: false,
-    slots: false,
-    dates: false,
-    statistics: false,
-  });
-
-  const [error, setError] = useState<string | null>(null);
-  const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
-    null,
-  );
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const setLoadingKey = useCallback(
-    (key: keyof LoadingState, value: boolean) => {
-      if (mountedRef.current) {
-        setLoading((prev) => ({ ...prev, [key]: value }));
-      }
-    },
-    [],
-  );
-
-  const handleError = useCallback((err: unknown) => {
-    const message =
-      err instanceof Error ? err.message : "Une erreur est survenue";
-    if (mountedRef.current) {
-      setError(message);
-    }
-    // Log seulement les erreurs
-    console.error(`[Rendezvous Error] ${message}`);
-    return message;
-  }, []);
-
-  const clearError = useCallback(() => {
-    if (mountedRef.current) {
-      setError(null);
-    }
-  }, []);
-
-  const cleanupRefreshInterval = useCallback(() => {
-    if (refreshIntervalRef.current) {
-      clearInterval(refreshIntervalRef.current);
-      refreshIntervalRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    return cleanupRefreshInterval;
-  }, [cleanupRefreshInterval]);
-
-  return {
-    loading,
-    setLoadingKey,
-    error,
-    handleError,
-    clearError,
-    cleanupRefreshInterval,
-    refreshIntervalRef,
-    mountedRef,
-    setError, // ✅ Ajout de setError manquant
-  };
-};
 
 // ==================== HOOK UTILISATEUR ====================
 
 export const useUserRendezvous = (options: UseUserRendezvousOptions = {}) => {
   const { autoLoad = true, refreshInterval = 0, userEmail } = options;
   const { user } = useAuth();
-  const base = useBaseRendezvous();
 
-  const [userRendezvous, setUserRendezvous] = useState<RendezvousResponseDto[]>(
-    [],
-  );
-  const [selectedRendezvous, setSelectedRendezvous] =
-    useState<RendezvousResponseDto | null>(null);
-  const [availableSlots, setAvailableSlots] =
-    useState<AvailableSlotsDto | null>(null);
-  const [availableDates, setAvailableDates] = useState<
-    AvailableDatesResponseDto[]
-  >([]);
-  const [availabilityCheck, setAvailabilityCheck] =
-    useState<AvailabilityCheckDto | null>(null);
+  const [userRendezvous, setUserRendezvous] = useState<RendezvousResponseDto[]>([]);
+  const [selectedRendezvous, setSelectedRendezvous] = useState<RendezvousResponseDto | null>(null);
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlotsDto | null>(null);
+  const [availableDates, setAvailableDates] = useState<AvailableDatesResponseDto[]>([]);
+  const [availabilityCheck, setAvailabilityCheck] = useState<AvailabilityCheckDto | null>(null);
+  const [loading, setLoading] = useState<LoadingState>({
+    list: false, details: false, create: false, update: false,
+    cancel: false, complete: false, delete: false,
+    availability: false, slots: false, dates: false, statistics: false,
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  // Refs stables — ne causent jamais de re-render
+  const mountedRef = useRef(true);
+  const fetchingRef = useRef(false);
+  const initialLoadDoneRef = useRef(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref pour lire l'email courant dans l'interval sans le mettre en dep
+  const emailRef = useRef<string | undefined>(undefined);
 
   const email = userEmail || user?.email;
-  const initialLoadDoneRef = useRef(false);
-  const isRefreshingRef = useRef(false);
+  emailRef.current = email;
 
-  // ==================== FONCTIONS DE FETCH STABLES ====================
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
 
-  const fetchUserRendezvous = useCallback(
-    async (userEmailParam: string) => {
-      if (!userEmailParam || isRefreshingRef.current) return [];
+  const setLoadingKey = useCallback((key: keyof LoadingState, value: boolean) => {
+    if (mountedRef.current) setLoading((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
-      isRefreshingRef.current = true;
-      base.setLoadingKey("list", true);
-      base.clearError();
+  const handleError = useCallback((err: unknown) => {
+    const message = err instanceof Error ? err.message : "Une erreur est survenue";
+    if (mountedRef.current) setError(message);
+    console.error(`[UserRendezvous] ${message}`);
+    return message;
+  }, []);
 
-      try {
-        const data =
-          await userRendezvousService.getRendezvousByEmail(userEmailParam);
-        if (base.mountedRef.current) {
-          setUserRendezvous(data);
-        }
-        return data;
-      } catch (err) {
-        base.handleError(err);
-        return [];
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("list", false);
-        }
-        isRefreshingRef.current = false;
-      }
-    },
-    [base],
-  );
+  const clearError = useCallback(() => {
+    if (mountedRef.current) setError(null);
+  }, []);
+
+  // ==================== FETCH INTERNE (stable - pas dans les deps publiques) ====================
+
+  const fetchByEmail = useCallback(async (targetEmail: string) => {
+    if (!targetEmail || fetchingRef.current) return;
+    fetchingRef.current = true;
+    setLoadingKey("list", true);
+    setError(null);
+    try {
+      const data = await userRendezvousService.getRendezvousByEmail(targetEmail);
+      if (mountedRef.current) setUserRendezvous(data);
+    } catch (err) {
+      handleError(err);
+    } finally {
+      if (mountedRef.current) setLoadingKey("list", false);
+      fetchingRef.current = false;
+    }
+  }, [setLoadingKey, handleError]);
 
   // ==================== MÉTHODES PUBLIQUES ====================
 
   const loadUserRendezvous = useCallback(async () => {
-    if (!email) {
-      base.setError("Aucun email fourni");
-      return [];
+    if (!emailRef.current) { setError("Aucun email fourni"); return; }
+    await fetchByEmail(emailRef.current);
+  }, [fetchByEmail]);
+
+  const getRendezvousById = useCallback(async (id: string): Promise<RendezvousResponseDto> => {
+    setLoadingKey("details", true);
+    setError(null);
+    try {
+      const data = await userRendezvousService.getRendezvousById(id);
+      if (mountedRef.current) setSelectedRendezvous(data);
+      return data;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      if (mountedRef.current) setLoadingKey("details", false);
     }
-    return fetchUserRendezvous(email);
-  }, [email, fetchUserRendezvous, base]);
+  }, [setLoadingKey, handleError]);
 
-  const getRendezvousById = useCallback(
-    async (id: string) => {
-      base.setLoadingKey("details", true);
-      base.clearError();
+  const getAvailableSlots = useCallback(async (date: Date | string): Promise<AvailableSlotsDto> => {
+    setLoadingKey("slots", true);
+    setError(null);
+    try {
+      const data = await userRendezvousService.getAvailableSlots(date);
+      if (mountedRef.current) setAvailableSlots(data);
+      return data;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      if (mountedRef.current) setLoadingKey("slots", false);
+    }
+  }, [setLoadingKey, handleError]);
 
-      try {
-        const data = await userRendezvousService.getRendezvousById(id);
-        if (base.mountedRef.current) {
-          setSelectedRendezvous(data);
-        }
-        return data;
-      } catch (err) {
-        base.handleError(err);
-        throw err;
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("details", false);
-        }
+  const getAvailableDates = useCallback(async (
+    startDate?: Date | string,
+    endDate?: Date | string,
+  ): Promise<AvailableDatesResponseDto[]> => {
+    setLoadingKey("dates", true);
+    setError(null);
+    try {
+      const data = await userRendezvousService.getAvailableDates(startDate, endDate);
+      if (mountedRef.current) setAvailableDates(data);
+      return data;
+    } catch (err) {
+      handleError(err);
+      return [];
+    } finally {
+      if (mountedRef.current) setLoadingKey("dates", false);
+    }
+  }, [setLoadingKey, handleError]);
+
+  const checkAvailability = useCallback(async (
+    date: Date | string,
+    time: RendezvousTimeHHMM,
+  ): Promise<AvailabilityCheckDto> => {
+    setLoadingKey("availability", true);
+    setError(null);
+    try {
+      const data = await userRendezvousService.checkAvailability(date, time);
+      if (mountedRef.current) setAvailabilityCheck(data);
+      return data;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      if (mountedRef.current) setLoadingKey("availability", false);
+    }
+  }, [setLoadingKey, handleError]);
+
+  const createRendezvous = useCallback(async (data: CreateRendezvousDto): Promise<RendezvousResponseDto> => {
+    setLoadingKey("create", true);
+    setError(null);
+    try {
+      const newRdv = await userRendezvousService.createRendezvous(data);
+      // Optimistic update local — pas de refetch global
+      if (mountedRef.current && data.email === emailRef.current) {
+        setUserRendezvous((prev) => [...prev, newRdv]);
       }
-    },
-    [base],
-  );
+      return newRdv;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      if (mountedRef.current) setLoadingKey("create", false);
+    }
+  }, [setLoadingKey, handleError]);
 
-  const getAvailableSlots = useCallback(
-    async (date: Date | string) => {
-      base.setLoadingKey("slots", true);
-      base.clearError();
-
-      try {
-        const data = await userRendezvousService.getAvailableSlots(date);
-        if (base.mountedRef.current) {
-          setAvailableSlots(data);
-        }
-        return data;
-      } catch (err) {
-        base.handleError(err);
-        throw err;
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("slots", false);
-        }
+  const cancelRendezvous = useCallback(async (id: string, reason: string): Promise<RendezvousResponseDto> => {
+    setLoadingKey("cancel", true);
+    setError(null);
+    try {
+      const dto: CancelRendezvousDto = { reason };
+      const updated = await userRendezvousService.cancelRendezvous(id, dto);
+      if (mountedRef.current) {
+        setUserRendezvous((prev) => prev.map((r) => (r.id === id ? updated : r)));
+        setSelectedRendezvous((prev) => (prev?.id === id ? updated : prev));
       }
-    },
-    [base],
-  );
-
-  const getAvailableDates = useCallback(
-    async (startDate?: Date | string, endDate?: Date | string) => {
-      base.setLoadingKey("dates", true);
-      base.clearError();
-
-      try {
-        const data = await userRendezvousService.getAvailableDates(
-          startDate,
-          endDate,
-        );
-        if (base.mountedRef.current) {
-          setAvailableDates(data);
-        }
-        return data;
-      } catch (err) {
-        base.handleError(err);
-        return [];
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("dates", false);
-        }
-      }
-    },
-    [base],
-  );
-
-  const checkAvailability = useCallback(
-    async (date: Date | string, time: RendezvousTimeHHMM) => {
-      base.setLoadingKey("availability", true);
-      base.clearError();
-
-      try {
-        const data = await userRendezvousService.checkAvailability(date, time);
-        if (base.mountedRef.current) {
-          setAvailabilityCheck(data);
-        }
-        return data;
-      } catch (err) {
-        base.handleError(err);
-        throw err;
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("availability", false);
-        }
-      }
-    },
-    [base],
-  );
-
-  const createRendezvous = useCallback(
-    async (data: CreateRendezvousDto) => {
-      base.setLoadingKey("create", true);
-      base.clearError();
-
-      try {
-        const newRendezvous =
-          await userRendezvousService.createRendezvous(data);
-        if (base.mountedRef.current && email && data.email === email) {
-          setUserRendezvous((prev) => [...prev, newRendezvous]);
-        }
-        return newRendezvous;
-      } catch (err) {
-        base.handleError(err);
-        throw err;
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("create", false);
-        }
-      }
-    },
-    [email, base],
-  );
-
-  const cancelRendezvous = useCallback(
-    async (id: string, reason: string) => {
-      base.setLoadingKey("cancel", true);
-      base.clearError();
-
-      try {
-        const data: CancelRendezvousDto = { reason };
-        const updated = await userRendezvousService.cancelRendezvous(id, data);
-
-        if (base.mountedRef.current) {
-          setUserRendezvous((prev) =>
-            prev.map((rdv) => (rdv.id === id ? updated : rdv)),
-          );
-          if (selectedRendezvous?.id === id) {
-            setSelectedRendezvous(updated);
-          }
-        }
-
-        return updated;
-      } catch (err) {
-        base.handleError(err);
-        throw err;
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("cancel", false);
-        }
-      }
-    },
-    [selectedRendezvous, base],
-  );
+      return updated;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      if (mountedRef.current) setLoadingKey("cancel", false);
+    }
+  }, [setLoadingKey, handleError]);
 
   const refresh = useCallback(async () => {
-    if (email) {
-      return fetchUserRendezvous(email);
-    }
-  }, [email, fetchUserRendezvous]);
+    if (emailRef.current) await fetchByEmail(emailRef.current);
+  }, [fetchByEmail]);
 
   // ==================== EFFETS ====================
 
-  // Effet initial contrôlé - PAS DE BOUCLE
+  // Chargement initial unique — déclenché uniquement quand email devient disponible
   useEffect(() => {
     if (autoLoad && email && !initialLoadDoneRef.current) {
       initialLoadDoneRef.current = true;
-      fetchUserRendezvous(email);
+      fetchByEmail(email);
     }
+    // Intentionnellement: email seul. fetchByEmail est stable (useCallback []).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email]); // email seul, fetchUserRendezvous est stable
+  }, [email]);
 
-  // Refresh interval - avec nettoyage propre
+  // Refresh interval — stable via emailRef, pas de dep sur email
   useEffect(() => {
-    if (refreshInterval > 0 && email && !isRefreshingRef.current) {
-      base.cleanupRefreshInterval();
-      base.refreshIntervalRef.current = setInterval(() => {
-        fetchUserRendezvous(email);
-      }, refreshInterval);
-
-      return () => base.cleanupRefreshInterval();
-    }
-  }, [refreshInterval, email, fetchUserRendezvous, base]);
+    if (refreshInterval <= 0) return;
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      if (emailRef.current && !fetchingRef.current) fetchByEmail(emailRef.current);
+    }, refreshInterval);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+    // Intentionnellement: refreshInterval seul. fetchByEmail est stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshInterval]);
 
   return {
-    // State
     userRendezvous,
     selectedRendezvous,
     availableSlots,
     availableDates,
     availabilityCheck,
-    loading: base.loading,
-    error: base.error,
-
-    // Methods
+    loading,
+    error,
     loadUserRendezvous,
     getRendezvousById,
     getAvailableSlots,
@@ -415,7 +289,7 @@ export const useUserRendezvous = (options: UseUserRendezvousOptions = {}) => {
     createRendezvous,
     cancelRendezvous,
     refresh,
-    clearError: base.clearError,
+    clearError,
     setSelectedRendezvous,
   };
 };
@@ -423,455 +297,348 @@ export const useUserRendezvous = (options: UseUserRendezvousOptions = {}) => {
 // ==================== HOOK ADMINISTRATEUR ====================
 
 export const useAdminRendezvous = (options: UseAdminRendezvousOptions = {}) => {
-  const { autoLoadList = true, refreshInterval = 0, initialQuery } = options;
-  const base = useBaseRendezvous();
+  const { autoLoad = true, refreshInterval = 0, initialQuery } = options;
 
-  const [rendezvousList, setRendezvousList] = useState<RendezvousResponseDto[]>(
-    [],
-  );
-  const [selectedRendezvous, setSelectedRendezvous] =
-    useState<RendezvousResponseDto | null>(null);
+  const [rendezvousList, setRendezvousList] = useState<RendezvousResponseDto[]>([]);
+  const [selectedRendezvous, setSelectedRendezvous] = useState<RendezvousResponseDto | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({
-    total: 0,
-    page: 1,
-    limit: 20,
-    totalPages: 0,
-    hasNext: false,
-    hasPrevious: false,
+    total: 0, page: 1, limit: 20, totalPages: 0, hasNext: false, hasPrevious: false,
   });
-  const [statistics, setStatistics] = useState<RendezvousStatisticsDto | null>(
-    null,
-  );
+  const [statistics, setStatistics] = useState<RendezvousStatisticsDto | null>(null);
   const [query, setQuery] = useState<RendezvousQueryDto>(
-    initialQuery || { page: 1, limit: 20 },
+    initialQuery ?? { page: 1, limit: 20 },
   );
+  const [loading, setLoading] = useState<LoadingState>({
+    list: false, details: false, create: false, update: false,
+    cancel: false, complete: false, delete: false,
+    availability: false, slots: false, dates: false, statistics: false,
+  });
+  const [error, setError] = useState<string | null>(null);
 
+  const mountedRef = useRef(true);
+  const fetchingListRef = useRef(false);
+  const fetchingStatsRef = useRef(false);
   const initialLoadDoneRef = useRef(false);
-  const isRefreshingListRef = useRef(false);
-  const isRefreshingStatsRef = useRef(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref pour lire la query courante dans les callbacks sans la mettre en dep
+  const queryRef = useRef<RendezvousQueryDto>(query);
+  queryRef.current = query;
 
-  // ==================== FONCTIONS DE FETCH STABLES ====================
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
 
-  const fetchRendezvousList = useCallback(
-    async (searchQuery: RendezvousQueryDto) => {
-      if (isRefreshingListRef.current) return;
+  const setLoadingKey = useCallback((key: keyof LoadingState, value: boolean) => {
+    if (mountedRef.current) setLoading((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
-      isRefreshingListRef.current = true;
-      base.setLoadingKey("list", true);
-      base.clearError();
+  const handleError = useCallback((err: unknown) => {
+    const message = err instanceof Error ? err.message : "Une erreur est survenue";
+    if (mountedRef.current) setError(message);
+    console.error(`[AdminRendezvous] ${message}`);
+    return message;
+  }, []);
 
-      try {
-        const result =
-          await adminRendezvousService.searchRendezvous(searchQuery);
-        if (base.mountedRef.current) {
-          setRendezvousList(result.data);
-          setPagination({
-            total: result.total,
-            page: result.page,
-            limit: result.limit,
-            totalPages: result.totalPages,
-            hasNext: result.hasNext,
-            hasPrevious: result.hasPrevious,
-          });
-        }
-        return result;
-      } catch (err) {
-        base.handleError(err);
-        throw err;
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("list", false);
-        }
-        isRefreshingListRef.current = false;
-      }
-    },
-    [base],
-  );
+  const clearError = useCallback(() => {
+    if (mountedRef.current) setError(null);
+  }, []);
 
-  const fetchStatistics = useCallback(async () => {
-    if (isRefreshingStatsRef.current) return;
+  // ==================== FETCH INTERNES STABLES ====================
 
-    isRefreshingStatsRef.current = true;
-    base.setLoadingKey("statistics", true);
-    base.clearError();
-
+  const fetchList = useCallback(async (q: RendezvousQueryDto) => {
+    if (fetchingListRef.current) return;
+    fetchingListRef.current = true;
+    setLoadingKey("list", true);
+    setError(null);
     try {
-      const data = await adminRendezvousService.getStatistics();
-      if (base.mountedRef.current) {
-        setStatistics(data);
+      const result = await adminRendezvousService.searchRendezvous(q);
+      if (mountedRef.current) {
+        setRendezvousList(result.data);
+        setPagination({
+          total: result.total,
+          page: result.page,
+          limit: result.limit,
+          totalPages: result.totalPages,
+          hasNext: result.hasNext,
+          hasPrevious: result.hasPrevious,
+        });
       }
-      return data;
+      return result;
     } catch (err) {
-      base.handleError(err);
+      handleError(err);
       throw err;
     } finally {
-      if (base.mountedRef.current) {
-        base.setLoadingKey("statistics", false);
-      }
-      isRefreshingStatsRef.current = false;
+      if (mountedRef.current) setLoadingKey("list", false);
+      fetchingListRef.current = false;
     }
-  }, [base]);
+  }, [setLoadingKey, handleError]);
+
+  const fetchStats = useCallback(async () => {
+    if (fetchingStatsRef.current) return;
+    fetchingStatsRef.current = true;
+    setLoadingKey("statistics", true);
+    setError(null);
+    try {
+      const data = await adminRendezvousService.getStatistics();
+      if (mountedRef.current) setStatistics(data);
+      return data;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      if (mountedRef.current) setLoadingKey("statistics", false);
+      fetchingStatsRef.current = false;
+    }
+  }, [setLoadingKey, handleError]);
 
   // ==================== MÉTHODES PUBLIQUES ====================
 
-  const searchRendezvous = useCallback(
-    async (searchQuery?: RendezvousQueryDto) => {
-      const currentQuery = searchQuery || query;
-      return fetchRendezvousList(currentQuery);
-    },
-    [query, fetchRendezvousList],
-  );
+  const searchRendezvous = useCallback(async (overrideQuery?: RendezvousQueryDto) => {
+    return fetchList(overrideQuery ?? queryRef.current);
+  }, [fetchList]);
 
-  const getRendezvousById = useCallback(
-    async (id: string) => {
-      base.setLoadingKey("details", true);
-      base.clearError();
-
-      try {
-        const data = await adminRendezvousService.getRendezvousById(id);
-        if (base.mountedRef.current) {
-          setSelectedRendezvous(data);
-        }
-        return data;
-      } catch (err) {
-        base.handleError(err);
-        throw err;
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("details", false);
-        }
-      }
-    },
-    [base],
-  );
+  const getRendezvousById = useCallback(async (id: string): Promise<RendezvousResponseDto> => {
+    setLoadingKey("details", true);
+    setError(null);
+    try {
+      const data = await adminRendezvousService.getRendezvousById(id);
+      if (mountedRef.current) setSelectedRendezvous(data);
+      return data;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      if (mountedRef.current) setLoadingKey("details", false);
+    }
+  }, [setLoadingKey, handleError]);
 
   const getStatistics = useCallback(async () => {
-    return fetchStatistics();
-  }, [fetchStatistics]);
+    return fetchStats();
+  }, [fetchStats]);
 
-  const updateRendezvous = useCallback(
-    async (id: string, data: UpdateRendezvousDto) => {
-      base.setLoadingKey("update", true);
-      base.clearError();
+  const createRendezvous = useCallback(async (data: CreateRendezvousDto): Promise<RendezvousResponseDto> => {
+    setLoadingKey("create", true);
+    setError(null);
+    try {
+      const newRdv = await userRendezvousService.createRendezvous(data);
+      // Refetch la liste courante pour rester cohérent avec la pagination
+      await fetchList(queryRef.current);
+      return newRdv;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      if (mountedRef.current) setLoadingKey("create", false);
+    }
+  }, [setLoadingKey, handleError, fetchList]);
 
-      try {
-        const updated = await adminRendezvousService.updateRendezvous(id, data);
-
-        if (base.mountedRef.current) {
-          setRendezvousList((prev) =>
-            prev.map((rdv) => (rdv.id === id ? updated : rdv)),
-          );
-          if (selectedRendezvous?.id === id) {
-            setSelectedRendezvous(updated);
-          }
-        }
-
-        return updated;
-      } catch (err) {
-        base.handleError(err);
-        throw err;
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("update", false);
-        }
+  const updateRendezvous = useCallback(async (id: string, data: UpdateRendezvousDto): Promise<RendezvousResponseDto> => {
+    setLoadingKey("update", true);
+    setError(null);
+    try {
+      const updated = await adminRendezvousService.updateRendezvous(id, data);
+      if (mountedRef.current) {
+        setRendezvousList((prev) => prev.map((r) => (r.id === id ? updated : r)));
+        setSelectedRendezvous((prev) => (prev?.id === id ? updated : prev));
       }
-    },
-    [selectedRendezvous, base],
-  );
+      return updated;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      if (mountedRef.current) setLoadingKey("update", false);
+    }
+  }, [setLoadingKey, handleError]);
 
-  const completeRendezvous = useCallback(
-    async (id: string, avisAdmin: AdminOpinion, comments?: string) => {
-      base.setLoadingKey("complete", true);
-      base.clearError();
-
-      try {
-        const data: CompleteRendezvousDto = { avisAdmin, comments };
-        const completed = await adminRendezvousService.completeRendezvous(
-          id,
-          data,
-        );
-
-        if (base.mountedRef.current) {
-          setRendezvousList((prev) =>
-            prev.map((rdv) => (rdv.id === id ? completed : rdv)),
-          );
-          if (selectedRendezvous?.id === id) {
-            setSelectedRendezvous(completed);
-          }
-        }
-
-        return completed;
-      } catch (err) {
-        base.handleError(err);
-        throw err;
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("complete", false);
-        }
+  const completeRendezvous = useCallback(async (
+    id: string,
+    avisAdmin: AdminOpinion,
+    comments?: string,
+  ): Promise<RendezvousResponseDto> => {
+    setLoadingKey("complete", true);
+    setError(null);
+    try {
+      const dto: CompleteRendezvousDto = { avisAdmin, comments };
+      const completed = await adminRendezvousService.completeRendezvous(id, dto);
+      if (mountedRef.current) {
+        setRendezvousList((prev) => prev.map((r) => (r.id === id ? completed : r)));
+        setSelectedRendezvous((prev) => (prev?.id === id ? completed : prev));
       }
-    },
-    [selectedRendezvous, base],
-  );
+      return completed;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      if (mountedRef.current) setLoadingKey("complete", false);
+    }
+  }, [setLoadingKey, handleError]);
 
-  const cancelRendezvous = useCallback(
-    async (id: string, reason: string) => {
-      base.setLoadingKey("cancel", true);
-      base.clearError();
-
-      try {
-        const data: CancelRendezvousDto = { reason };
-        const updated = await adminRendezvousService.cancelRendezvousAsAdmin(
-          id,
-          data,
-        );
-
-        if (base.mountedRef.current) {
-          setRendezvousList((prev) =>
-            prev.map((rdv) => (rdv.id === id ? updated : rdv)),
-          );
-          if (selectedRendezvous?.id === id) {
-            setSelectedRendezvous(updated);
-          }
-        }
-
-        return updated;
-      } catch (err) {
-        base.handleError(err);
-        throw err;
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("cancel", false);
-        }
+  const cancelRendezvous = useCallback(async (id: string, reason: string): Promise<RendezvousResponseDto> => {
+    setLoadingKey("cancel", true);
+    setError(null);
+    try {
+      const dto: CancelRendezvousDto = { reason };
+      const updated = await adminRendezvousService.cancelRendezvousAsAdmin(id, dto);
+      if (mountedRef.current) {
+        setRendezvousList((prev) => prev.map((r) => (r.id === id ? updated : r)));
+        setSelectedRendezvous((prev) => (prev?.id === id ? updated : prev));
       }
-    },
-    [selectedRendezvous, base],
-  );
+      return updated;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      if (mountedRef.current) setLoadingKey("cancel", false);
+    }
+  }, [setLoadingKey, handleError]);
 
-  const deleteRendezvous = useCallback(
-    async (id: string) => {
-      base.setLoadingKey("delete", true);
-      base.clearError();
-
-      try {
-        await adminRendezvousService.deleteRendezvous(id);
-        if (base.mountedRef.current) {
-          setRendezvousList((prev) => prev.filter((rdv) => rdv.id !== id));
-          if (selectedRendezvous?.id === id) {
-            setSelectedRendezvous(null);
-          }
-        }
-        return true;
-      } catch (err) {
-        base.handleError(err);
-        throw err;
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("delete", false);
-        }
+  const deleteRendezvous = useCallback(async (id: string): Promise<void> => {
+    setLoadingKey("delete", true);
+    setError(null);
+    try {
+      await adminRendezvousService.deleteRendezvous(id);
+      if (mountedRef.current) {
+        setRendezvousList((prev) => prev.filter((r) => r.id !== id));
+        setSelectedRendezvous((prev) => (prev?.id === id ? null : prev));
       }
-    },
-    [selectedRendezvous, base],
-  );
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      if (mountedRef.current) setLoadingKey("delete", false);
+    }
+  }, [setLoadingKey, handleError]);
 
-  const getUpcomingRendezvous = useCallback(
-    async (limit = 10) => {
-      base.setLoadingKey("list", true);
-      base.clearError();
+  const getRendezvousByDate = useCallback(async (date: string): Promise<RendezvousResponseDto[]> => {
+    setLoadingKey("list", true);
+    setError(null);
+    try {
+      return await adminRendezvousService.getRendezvousByDate(date);
+    } catch (err) {
+      handleError(err);
+      return [];
+    } finally {
+      if (mountedRef.current) setLoadingKey("list", false);
+    }
+  }, [setLoadingKey, handleError]);
 
-      try {
-        const data = await adminRendezvousService.getUpcomingRendezvous(limit);
-        return data;
-      } catch (err) {
-        base.handleError(err);
-        return [];
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("list", false);
-        }
-      }
-    },
-    [base],
-  );
+  const exportToCSV = useCallback(async (filters?: RendezvousFilters): Promise<string> => {
+    setLoadingKey("list", true);
+    setError(null);
+    try {
+      return await adminRendezvousService.exportToCSV(filters);
+    } catch (err) {
+      handleError(err);
+      throw err;
+    } finally {
+      if (mountedRef.current) setLoadingKey("list", false);
+    }
+  }, [setLoadingKey, handleError]);
 
-  const createRendezvous = useCallback(
-    async (data: CreateRendezvousDto) => {
-      base.setLoadingKey("create", true);
-      base.clearError();
-
-      try {
-        const newRendezvous =
-          await userRendezvousService.createRendezvous(data);
-        await fetchRendezvousList(query);
-        return newRendezvous;
-      } catch (err) {
-        base.handleError(err);
-        throw err;
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("create", false);
-        }
-      }
-    },
-    [base, query, fetchRendezvousList],
-  );
-
-  const getRendezvousByDate = useCallback(
-    async (date: string) => {
-      base.setLoadingKey("list", true);
-      base.clearError();
-
-      try {
-        const data = await adminRendezvousService.getRendezvousByDate(date);
-        return data;
-      } catch (err) {
-        base.handleError(err);
-        return [];
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("list", false);
-        }
-      }
-    },
-    [base],
-  );
-
-  const exportToCSV = useCallback(
-    async (filters?: RendezvousFilters) => {
-      base.setLoadingKey("list", true);
-      base.clearError();
-
-      try {
-        const csv = await adminRendezvousService.exportToCSV(filters);
-        return csv;
-      } catch (err) {
-        base.handleError(err);
-        throw err;
-      } finally {
-        if (base.mountedRef.current) {
-          base.setLoadingKey("list", false);
-        }
-      }
-    },
-    [base],
-  );
-
-  const applyFilters = useCallback(
-    (newFilters: Partial<RendezvousQueryDto>) => {
-      const updatedQuery = { ...query, ...newFilters, page: 1 };
-      setQuery(updatedQuery);
-      fetchRendezvousList(updatedQuery);
-    },
-    [query, fetchRendezvousList],
-  );
+  // Navigation / filtres — mettent à jour query ET lancent le fetch en une seule opération
+  const applyFilters = useCallback((newFilters: Partial<RendezvousQueryDto>) => {
+    const updated = { ...queryRef.current, ...newFilters, page: 1 };
+    setQuery(updated);
+    fetchList(updated);
+  }, [fetchList]);
 
   const resetFilters = useCallback(() => {
-    const defaultQuery: RendezvousQueryDto = {
-      page: 1,
-      limit: query.limit || 20,
-    };
+    const defaultQuery: RendezvousQueryDto = { page: 1, limit: queryRef.current.limit ?? 20 };
     setQuery(defaultQuery);
-    fetchRendezvousList(defaultQuery);
-  }, [query.limit, fetchRendezvousList]);
+    fetchList(defaultQuery);
+  }, [fetchList]);
 
-  const changePage = useCallback(
-    (page: number) => {
-      const newQuery = { ...query, page };
-      setQuery(newQuery);
-      fetchRendezvousList(newQuery);
-    },
-    [query, fetchRendezvousList],
-  );
+  const changePage = useCallback((page: number) => {
+    const updated = { ...queryRef.current, page };
+    setQuery(updated);
+    fetchList(updated);
+  }, [fetchList]);
 
-  const changeLimit = useCallback(
-    (limit: number) => {
-      const newQuery = { ...query, limit, page: 1 };
-      setQuery(newQuery);
-      fetchRendezvousList(newQuery);
-    },
-    [query, fetchRendezvousList],
-  );
+  const changeLimit = useCallback((limit: number) => {
+    const updated = { ...queryRef.current, limit, page: 1 };
+    setQuery(updated);
+    fetchList(updated);
+  }, [fetchList]);
 
   const refresh = useCallback(async () => {
-    await Promise.all([fetchRendezvousList(query), fetchStatistics()]);
-  }, [query, fetchRendezvousList, fetchStatistics]);
+    await Promise.all([fetchList(queryRef.current), fetchStats()]);
+  }, [fetchList, fetchStats]);
 
   // ==================== EFFETS ====================
 
-  // Effet initial contrôlé - PAS DE BOUCLE
+  // Chargement initial unique — [] intentionnel, fetchList/fetchStats sont stables
   useEffect(() => {
-    if (autoLoadList && !initialLoadDoneRef.current) {
+    if (autoLoad && !initialLoadDoneRef.current) {
       initialLoadDoneRef.current = true;
-      fetchRendezvousList(query);
-      fetchStatistics();
+      fetchList(queryRef.current);
+      fetchStats();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Dépendances vides, exécuté une seule fois
+  }, []);
 
-  // Refresh interval - avec nettoyage propre
+  // Refresh interval — stable via queryRef, pas de dep sur query
   useEffect(() => {
-    if (refreshInterval > 0 && !isRefreshingListRef.current) {
-      base.cleanupRefreshInterval();
-      base.refreshIntervalRef.current = setInterval(() => {
-        refresh();
-      }, refreshInterval);
-
-      return () => base.cleanupRefreshInterval();
-    }
-  }, [refreshInterval, refresh, base]);
+    if (refreshInterval <= 0) return;
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      if (!fetchingListRef.current && !fetchingStatsRef.current) {
+        fetchList(queryRef.current);
+        fetchStats();
+      }
+    }, refreshInterval);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+    // Intentionnellement: refreshInterval seul. fetchList/fetchStats sont stables.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshInterval]);
 
   return {
-    // State
     rendezvousList,
     selectedRendezvous,
     pagination,
     statistics,
     query,
-    loading: base.loading,
-    error: base.error,
-
-    // Methods
+    loading,
+    error,
     searchRendezvous,
     getRendezvousById,
     getStatistics,
+    createRendezvous,
     updateRendezvous,
     completeRendezvous,
     cancelRendezvous,
     deleteRendezvous,
-    getUpcomingRendezvous,
-    exportToCSV,
-    createRendezvous,
     getRendezvousByDate,
+    exportToCSV,
     changePage,
     changeLimit,
     applyFilters,
     resetFilters,
     refresh,
-    clearError: base.clearError,
+    clearError,
     setSelectedRendezvous,
     setQuery,
   };
 };
 
-// ==================== HOOK COMBINÉ (COMMUN) ====================
-
-export const useRendezvous = (options: UseRendezvousOptions = {}) => {
+// ==================== HOOK COMBINÉ ====================
+export const useRendezvous = (
+  options: UseUserRendezvousOptions & UseAdminRendezvousOptions = {},
+) => {
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
 
-  const userHook = useUserRendezvous(options);
-  const adminHook = useAdminRendezvous(options);
+  const userHook = useUserRendezvous(isAdmin ? { autoLoad: false } : options);
+  const adminHook = useAdminRendezvous(isAdmin ? options : { autoLoad: false });
 
   if (isAdmin) {
-    return {
-      ...adminHook,
-      isAdmin: true as const,
-      isUser: false as const,
-    };
+    return { ...adminHook, isAdmin: true as const, isUser: false as const };
   }
 
-  return {
-    ...userHook,
-    isAdmin: false as const,
-    isUser: true as const,
-  };
+  return { ...userHook, isAdmin: false as const, isUser: true as const };
 };

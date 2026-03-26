@@ -33,21 +33,13 @@ import {
 // Hooks uniquement - Utilisation des méthodes stats disponibles
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useAdminRendezvous } from "../../../hooks/useRendezvous";
+import { useAdminRendezvous} from "../../../hooks/useRendezvous";
 import { useUser } from "../../../hooks/useUser";
 import { useProcedures } from "../../../hooks/useProcedures";
 import { useMessages } from "../../../hooks/useMessages";
 import { useDestinations } from "../../../hooks/useDestinations";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../../../hooks/useAuth";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Types - Supprimés car non utilisés (garder pour usage futur si nécessaire)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Note: Ces types peuvent être ré-importés si nécessaire plus tard
-// import type { ProcedureStatus } from "../../../types/procedures.types";
-// import type { RendezvousStatus } from "../../../types/rendezvous.types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Interfaces locales (uniquement pour l'UI)
@@ -132,10 +124,8 @@ const Statistiques: React.FC = () => {
   // useAdminRendezvous - getStatistics() est la seule méthode de stats
   const { statistics: rendezvousStats, getStatistics: loadRendezvousStats } =
     useAdminRendezvous({
-      autoLoadList: false, // On contrôle manuellement le chargement
+      autoLoad: false, // On contrôle manuellement le chargement
     });
-
-  // useUser - fetchStatistics() est la méthode de stats
   const { statistics: userStats, fetchStatistics: fetchUserStats } = useUser();
 
   // useProcedures - loadStatistics() est la méthode de stats
