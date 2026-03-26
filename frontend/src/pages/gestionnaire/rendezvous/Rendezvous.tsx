@@ -302,13 +302,23 @@ const RendezvousAdmin = () => {
   }>({ open: false, id: null });
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const getStatisticsRef = useRef(getStatistics);
+  const loadTodayPanelRef = useRef(loadTodayPanel);
+  const loadUpcomingPanelRef = useRef(loadUpcomingPanel);
+
+  // Mettre à jour les refs quand les fonctions changent
+  useEffect(() => {
+    getStatisticsRef.current = getStatistics;
+    loadTodayPanelRef.current = loadTodayPanel;
+    loadUpcomingPanelRef.current = loadUpcomingPanel;
+  });
 
   // Charger les statistiques au montage
   useEffect(() => {
     if (isAdmin) {
-      getStatistics();
+      getStatisticsRef.current();
     }
-  }, [isAdmin, getStatistics]);
+  }, [isAdmin]);
 
   // Debounce recherche
   useEffect(() => {
@@ -365,11 +375,11 @@ const RendezvousAdmin = () => {
   // Effet pour charger les panels quand l'onglet change
   useEffect(() => {
     if (activeTab === "today") {
-      loadTodayPanel();
+      loadTodayPanelRef.current();
     } else if (activeTab === "upcoming") {
-      loadUpcomingPanel();
+      loadUpcomingPanelRef.current();
     }
-  }, [activeTab, loadTodayPanel, loadUpcomingPanel]);
+  }, [activeTab]);
 
   // Filtre rapide par date
   const handleDateQuickFilter = useCallback(
