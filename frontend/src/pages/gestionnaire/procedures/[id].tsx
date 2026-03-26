@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+// pages/gestionnaire/procedures/[id].tsx
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useProcedures } from "../../../hooks/useProcedures";
@@ -127,12 +128,6 @@ const STEP_LABELS: Record<StepName, string> = {
   DEMANDE_VISA: "Demande de visa",
   PREPARATIF_VOYAGE: "Préparatifs voyage",
 };
-
-const STEP_ORDER: StepName[] = [
-  "DEMANDE_ADMISSION",
-  "DEMANDE_VISA",
-  "PREPARATIF_VOYAGE",
-];
 
 // ─── Composants UI réutilisables ─────────────────────────────────────────────
 
@@ -274,10 +269,17 @@ export default function ProcedureDetail() {
   const navigate = useNavigate();
   const { isAdmin, user } = useAuth();
 
+  // Toutes les données et actions sont fournies par le hook
   const {
     selectedProcedure: procedure,
     loading,
     error,
+    canBeModified,
+    canBeCancelled,
+    canBeCompleted,
+    hasRejectedStep,
+    availableStepsToAdd,
+    sortedSteps,
     loadById,
     update,
     updateStep,
@@ -285,43 +287,32 @@ export default function ProcedureDetail() {
     completeProcedure,
     cancelProcedure,
     remove,
-  } = useProcedures({ autoLoad: false });
+    refresh,
+  } = useProcedures();
 
-  // ── Modal state ───────────────────────────────────────────────────────────
+  // ── Modal state locale (seulement UI, pas de logique métier) ──────────────
   const [modal, setModal] = useState<{ type: ModalType; stepName?: StepName }>({
     type: null,
   });
-
-  // ── Form states ───────────────────────────────────────────────────────────
   const [editForm, setEditForm] = useState<UpdateProcedureDto>({});
   const [stepForm, setStepForm] = useState<UpdateStepDto>({});
   const [deleteReason, setDeleteReason] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [showAddStepMenu, setShowAddStepMenu] = useState(false);
 
-  // ── Ref stable vers loadById pour éviter les boucles ─────────────────────
-  // loadById dépend de setLoad (stable) — sa référence ne devrait pas changer,
-  // mais on utilise un ref par sécurité pour découpler l'effet de sa dépendance.
+  // Ref stable pour loadById
   const loadByIdRef = useRef(loadById);
   useEffect(() => {
     loadByIdRef.current = loadById;
   }, [loadById]);
 
-  // ── Chargement initial : se déclenche dès que id ET isAdmin sont prêts ────
-  // FIX : on dépend de `id` ET de `user` (pas juste isAdmin booléen) pour
-  // que l'effet se relance quand l'auth se résout après le premier render.
+  // Chargement initial
   useEffect(() => {
     if (!id || !isAdmin) return;
     loadByIdRef.current(id).catch((err) => {
       console.error("Failed to load procedure:", err);
     });
-    // `user` ici sert uniquement de trigger quand l'auth se résout.
-    // `id` change quand on navigue vers une autre procédure → re-fetch correct.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user]);
-  // Note : isAdmin dérive de user, mais dépendre de user garantit que
-  // l'effet se relance exactement une fois quand l'objet user est résolu,
-  // même si isAdmin était déjà true (ce qui n'arriverait pas en pratique).
 
   // Fermer le menu déroulant au clic extérieur
   useEffect(() => {
@@ -331,12 +322,7 @@ export default function ProcedureDetail() {
     return () => document.removeEventListener("click", handler);
   }, [showAddStepMenu]);
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  const reload = useCallback(async () => {
-    if (!id) return;
-    await loadByIdRef.current(id);
-  }, [id]);
-
+  // ── Handlers (délégation au hook) ─────────────────────────────────────────
   const closeModal = useCallback(() => {
     setModal({ type: null });
     setEditForm({});
@@ -374,7 +360,6 @@ export default function ProcedureDetail() {
     setShowAddStepMenu(false);
   }, []);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleUpdate = async () => {
     if (!procedure) return;
     const result = await update(procedure.id, editForm);
@@ -403,50 +388,16 @@ export default function ProcedureDetail() {
     if (!procedure) return;
     const result = await cancelProcedure(
       procedure.id,
-      cancelReason || "Annulation manuelle par l'admin",
+      cancelReason || "Annulation manuelle par l'admin"
     );
     if (result) closeModal();
   };
 
   const handleDelete = async () => {
     if (!procedure) return;
-    const ok = await remove(
-      procedure.id,
-      deleteReason || "Suppression manuelle",
-    );
+    const ok = await remove(procedure.id, deleteReason || "Suppression manuelle");
     if (ok) navigate("/gestionnaire/procedures");
   };
-
-  // ── Dérivés ───────────────────────────────────────────────────────────────
-  const canBeModified = procedure
-    ? !["COMPLETED", "CANCELLED", "REJECTED"].includes(procedure.statut)
-    : false;
-  const canBeCancelled = procedure
-    ? !["COMPLETED", "CANCELLED"].includes(procedure.statut)
-    : false;
-  const canBeCompleted = procedure ? procedure.statut === "IN_PROGRESS" : false;
-
-  const existingStepNames = useMemo(
-    () => new Set(procedure?.steps?.map((s) => s.nom) ?? []),
-    [procedure?.steps],
-  );
-
-  const availableStepsToAdd = useMemo(
-    () => STEP_ORDER.filter((s) => !existingStepNames.has(s)),
-    [existingStepNames],
-  );
-
-  const sortedSteps = useMemo(
-    () =>
-      [...(procedure?.steps ?? [])].sort(
-        (a, b) => STEP_ORDER.indexOf(a.nom) - STEP_ORDER.indexOf(b.nom),
-      ),
-    [procedure?.steps],
-  );
-
-  const hasRejectedStep = procedure?.steps?.some(
-    (s) => s.statut === "REJECTED",
-  );
 
   // ── Guards ────────────────────────────────────────────────────────────────
   if (!isAdmin) {
@@ -495,12 +446,11 @@ export default function ProcedureDetail() {
     <>
       <Helmet>
         <title>
-          {procedure?.fullName
+          {procedure.fullName
             ? `Procédure ${procedure.fullName} - Paname Consulting`
             : "Procédure - Paname Consulting"}
         </title>
         <meta name="robots" content="noindex, nofollow" />
-        <meta name="googlebot" content="noindex, nofollow" />
       </Helmet>
 
       <div className="min-h-screen pb-16">
@@ -542,7 +492,7 @@ export default function ProcedureDetail() {
               {/* Actions header */}
               <div className="flex items-center gap-2 shrink-0">
                 <button
-                  onClick={reload}
+                  onClick={refresh}
                   disabled={loading.details}
                   title="Rafraîchir"
                   className="p-2 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors disabled:opacity-40"
@@ -653,7 +603,7 @@ export default function ProcedureDetail() {
                       value: procedure.createdAt
                         ? new Date(procedure.createdAt).toLocaleDateString(
                             "fr-FR",
-                            { day: "2-digit", month: "long", year: "numeric" },
+                            { day: "2-digit", month: "long", year: "numeric" }
                           )
                         : "Date inconnue",
                     },
@@ -797,14 +747,14 @@ export default function ProcedureDetail() {
                                 <span className="text-xs text-slate-400">
                                   Créée le{" "}
                                   {new Date(
-                                    step.dateCreation,
+                                    step.dateCreation
                                   ).toLocaleDateString("fr-FR")}
                                 </span>
                                 {step.dateCompletion && (
                                   <span className="text-xs text-slate-400">
                                     · Terminée le{" "}
                                     {new Date(
-                                      step.dateCompletion,
+                                      step.dateCompletion
                                     ).toLocaleDateString("fr-FR")}
                                   </span>
                                 )}
@@ -907,7 +857,7 @@ export default function ProcedureDetail() {
                     <p className="text-xs text-slate-400 pt-1 border-t border-slate-50">
                       Estimation :{" "}
                       {new Date(
-                        procedure.estimatedCompletionDate,
+                        procedure.estimatedCompletionDate
                       ).toLocaleDateString("fr-FR", {
                         day: "2-digit",
                         month: "long",
@@ -928,44 +878,44 @@ export default function ProcedureDetail() {
                       label: "Création",
                       value: procedure.createdAt
                         ? new Date(procedure.createdAt).toLocaleDateString(
-                            "fr-FR",
+                            "fr-FR"
                           )
                         : "Date inconnue",
                     },
                     procedure.updatedAt && {
                       label: "Dernière modification",
                       value: new Date(procedure.updatedAt).toLocaleDateString(
-                        "fr-FR",
+                        "fr-FR"
                       ),
                     },
                     procedure.dateDerniereModification && {
                       label: "Dernière action",
                       value: new Date(
-                        procedure.dateDerniereModification,
+                        procedure.dateDerniereModification
                       ).toLocaleDateString("fr-FR"),
                     },
                     procedure.dateCompletion && {
                       label: "Complétée le",
                       value: new Date(
-                        procedure.dateCompletion,
+                        procedure.dateCompletion
                       ).toLocaleDateString("fr-FR"),
                     },
                     procedure.cancelledAt && {
                       label: "Annulée le",
                       value: new Date(procedure.cancelledAt).toLocaleDateString(
-                        "fr-FR",
+                        "fr-FR"
                       ),
                     },
                     procedure.deletedAt && {
                       label: "Supprimée le",
                       value: new Date(procedure.deletedAt).toLocaleDateString(
-                        "fr-FR",
+                        "fr-FR"
                       ),
                     },
                   ]
                     .filter(
                       (item): item is { label: string; value: string } =>
-                        item != null,
+                        item != null
                     )
                     .map((item) => (
                       <div key={item.label} className="flex justify-between">
