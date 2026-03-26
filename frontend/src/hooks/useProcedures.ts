@@ -255,13 +255,16 @@ export function useProcedures(
   // ─────────────────────────────────────────────────────────────────────────
   const loadById = useCallback(
     async (id: string): Promise<ProcedureResponseDto | null> => {
+      console.log("loadById called with ID:", id);
       setLoad("details", true);
       setError(null);
       try {
         const procedure = await ProceduresService.findById(id);
+        console.log("Procedure loaded");
         setSelectedProcedure(procedure);
         return procedure;
       } catch (err: unknown) {
+        console.error("Error loading procedure:", err);
         setError(
           err instanceof Error ? err.message : "Erreur lors du chargement",
         );

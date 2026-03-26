@@ -35,6 +35,7 @@ import type {
   UpdateStepDto,
   StepResponseDto,
 } from "../../../types/procedures.types";
+import { useAuth } from "../../../hooks/useAuth";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -275,6 +276,7 @@ type ModalType =
 export default function ProcedureDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   const {
     selectedProcedure: procedure,
@@ -303,8 +305,12 @@ export default function ProcedureDetail() {
 
   // ── Chargement initial ────────────────────────────────────────────────────
   useEffect(() => {
-    if (id) loadById(id);
-  }, [id, loadById]);
+    if (id && isAdmin) {
+      loadById(id).catch(err => {
+        console.error("Failed to load procedure:", err);
+      });
+    }
+  }, [id, isAdmin, loadById]);
 
   // Fermer le menu déroulant au clic extérieur
   useEffect(() => {
@@ -434,7 +440,27 @@ export default function ProcedureDetail() {
     (s) => s.statut === "REJECTED",
   );
 
+  // ── Debug info ─────────────────────────────────────────────────────────────
+  console.log("Debug info:", {
+    id,
+    isAdmin,
+    procedure,
+    loading,
+    error,
+  });
+
   // ── Guards ────────────────────────────────────────────────────────────────
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm max-w-sm w-full">
+          <AlertCircle size={16} className="shrink-0" />
+          Accès réservé aux administrateurs
+        </div>
+      </div>
+    );
+  }
+
   if (loading.details && !procedure) {
     return (
       <div className="min-h-screen flex items-center justify-center">
