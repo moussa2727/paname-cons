@@ -30,7 +30,6 @@ import {
   type ProcedureResponseDto,
   type ProcedureStatus,
   type SortOrder,
-  type StepName,
   type ExportFormat,
 } from "../../../types/procedures.types";
 
