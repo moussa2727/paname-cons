@@ -170,7 +170,10 @@ class UserRendezvousService extends BaseRendezvousService {
       toast.success("Rendez-vous créé avec succès !");
       return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la création du rendez-vous";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la création du rendez-vous";
       toast.error(errorMessage);
       throw error;
     }
@@ -216,7 +219,10 @@ class UserRendezvousService extends BaseRendezvousService {
       toast.success("Rendez-vous annulé avec succès !");
       return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'annulation du rendez-vous";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de l'annulation du rendez-vous";
       toast.error(errorMessage);
       throw error;
     }
@@ -298,7 +304,10 @@ class AdminRendezvousService extends BaseRendezvousService {
       toast.success("Rendez-vous mis à jour avec succès !");
       return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la mise à jour du rendez-vous";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la mise à jour du rendez-vous";
       toast.error(errorMessage);
       throw error;
     }
@@ -324,7 +333,10 @@ class AdminRendezvousService extends BaseRendezvousService {
       toast.success("Rendez-vous complété avec succès !");
       return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la complétion du rendez-vous";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la complétion du rendez-vous";
       toast.error(errorMessage);
       throw error;
     }
@@ -341,7 +353,10 @@ class AdminRendezvousService extends BaseRendezvousService {
       await this.handleResponse<void>(response);
       toast.success("Rendez-vous supprimé avec succès !");
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la suppression du rendez-vous";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la suppression du rendez-vous";
       toast.error(errorMessage);
       throw error;
     }
@@ -424,11 +439,14 @@ class AdminRendezvousService extends BaseRendezvousService {
         new Date(rdv.createdAt).toLocaleDateString("fr-FR"),
       ]);
 
-      const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+      const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join(
+        "\n",
+      );
       toast.success("Export CSV généré avec succès !");
       return csv;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'export CSV";
+      const errorMessage =
+        error instanceof Error ? error.message : "Erreur lors de l'export CSV";
       toast.error(errorMessage);
       throw error;
     }

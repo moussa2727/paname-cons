@@ -33,7 +33,7 @@ import {
 // Hooks uniquement - Utilisation des méthodes stats disponibles
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useRendezvous } from "../../../hooks/useRendezvous";
+import { useAdminRendezvous } from "../../../hooks/useRendezvous";
 import { useUser } from "../../../hooks/useUser";
 import { useProcedures } from "../../../hooks/useProcedures";
 import { useMessages } from "../../../hooks/useMessages";
@@ -129,10 +129,10 @@ const Statistiques: React.FC = () => {
 
   // ─── Hooks - Utilisation UNIQUEMENT des méthodes stats disponibles ─────
 
-  // useRendezvous - loadStatistics() est la seule méthode de stats
-  const { statistics: rendezvousStats, loadStatistics: loadRendezvousStats } =
-    useRendezvous({
-      autoLoad: false, // On contrôle manuellement le chargement
+  // useAdminRendezvous - getStatistics() est la seule méthode de stats
+  const { statistics: rendezvousStats, getStatistics: loadRendezvousStats } =
+    useAdminRendezvous({
+      autoLoadList: false, // On contrôle manuellement le chargement
     });
 
   // useUser - fetchStatistics() est la méthode de stats

@@ -124,7 +124,7 @@ const getInitials = (firstName?: string | null, lastName?: string | null) => {
   const fullName = [firstName, lastName].filter(Boolean).join(" ");
   return (fullName || "??")
     .split(" ")
-    .map((n) => n[0])
+    .map((n) => n?.[0] || "")
     .join("")
     .toUpperCase()
     .slice(0, 2);
@@ -877,7 +877,7 @@ const RendezvousAdmin = () => {
               </p>
             ) : (
               <div className="space-y-2">
-                {safeStatistics.topDestinations
+                {(safeStatistics.topDestinations || [])
                   .slice(0, 5)
                   .map(
                     (

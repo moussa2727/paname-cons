@@ -209,7 +209,10 @@ export const ProceduresService = {
       const res = await apiFetch(url, { method: "GET" });
       return await handleResponse<PaginatedProcedureResponseDto>(res);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors du chargement des procédures";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors du chargement des procédures";
       toast.error(errorMessage);
       throw error;
     }
@@ -340,9 +343,12 @@ export const ProceduresService = {
    */
   async findByEmail(email: string): Promise<ProcedureResponseDto[]> {
     try {
-      const res = await apiFetch(`${BASE_URL}${API.PROCEDURE_BY_EMAIL(email)}`, {
-        method: "GET",
-      });
+      const res = await apiFetch(
+        `${BASE_URL}${API.PROCEDURE_BY_EMAIL(email)}`,
+        {
+          method: "GET",
+        },
+      );
 
       // 204 = pas de contenu mais pas d'erreur
       if (res.status === 204) return [];
@@ -367,7 +373,10 @@ export const ProceduresService = {
       if (Array.isArray(body)) return body as ProcedureResponseDto[];
       return [];
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la recherche des procédures par email";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la recherche des procédures par email";
       toast.error(errorMessage);
       throw error;
     }
@@ -399,7 +408,10 @@ export const ProceduresService = {
       });
       return await handleResponse<ProcedureResponseDto>(res);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors du chargement de la procédure";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors du chargement de la procédure";
       toast.error(errorMessage);
       throw error;
     }
@@ -423,7 +435,10 @@ export const ProceduresService = {
       toast.success("Procédure mise à jour avec succès");
       return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la mise à jour de la procédure";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la mise à jour de la procédure";
       toast.error(errorMessage);
       throw error;
     }

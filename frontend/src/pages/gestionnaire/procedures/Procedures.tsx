@@ -789,19 +789,21 @@ export default function Procedures() {
                       Top destinations
                     </h3>
                     <div className="space-y-2">
-                      {(statistics.topDestinations || []).slice(0, 5).map((d) => (
-                        <div
-                          key={d.destination}
-                          className="flex items-center justify-between"
-                        >
-                          <span className="text-sm text-slate-600 truncate max-w-[70%]">
-                            {d.destination}
-                          </span>
-                          <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-                            {d.count}
-                          </span>
-                        </div>
-                      ))}
+                      {(statistics.topDestinations || [])
+                        .slice(0, 5)
+                        .map((d) => (
+                          <div
+                            key={d.destination}
+                            className="flex items-center justify-between"
+                          >
+                            <span className="text-sm text-slate-600 truncate max-w-[70%]">
+                              {d.destination}
+                            </span>
+                            <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                              {d.count}
+                            </span>
+                          </div>
+                        ))}
                     </div>
                   </div>
                 )}

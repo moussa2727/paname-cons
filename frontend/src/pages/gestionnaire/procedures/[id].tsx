@@ -571,7 +571,7 @@ export default function ProcedureDetail() {
                     {
                       icon: <Calendar size={14} />,
                       label: "Créée le",
-                      value: procedure.createdAt 
+                      value: procedure.createdAt
                         ? new Date(procedure.createdAt).toLocaleDateString(
                             "fr-FR",
                             { day: "2-digit", month: "long", year: "numeric" },
@@ -848,8 +848,10 @@ export default function ProcedureDetail() {
                   {[
                     {
                       label: "Création",
-                      value: procedure.createdAt 
-                        ? new Date(procedure.createdAt).toLocaleDateString("fr-FR")
+                      value: procedure.createdAt
+                        ? new Date(procedure.createdAt).toLocaleDateString(
+                            "fr-FR",
+                          )
                         : "Date inconnue",
                     },
                     procedure.updatedAt && {
