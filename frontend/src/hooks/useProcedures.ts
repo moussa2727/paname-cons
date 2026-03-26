@@ -81,7 +81,6 @@ export interface UseProceduresActions {
   remove: (id: string, reason?: string) => Promise<boolean>;
   completeProcedure: (id: string) => Promise<ProcedureResponseDto | null>;
 
-  // Export
   exportProcedures: (format: ExportFormat) => Promise<Blob | null>;
 
   // Actions utilisateur
@@ -300,7 +299,7 @@ export function useProcedures(
         setLoad("export", false);
       }
     },
-    [query, setLoad],
+    [query, setError, setLoad],
   );
 
   // ─────────────────────────────────────────────────────────────────────────
