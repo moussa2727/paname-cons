@@ -350,24 +350,12 @@ const RendezvousAdmin = () => {
     [getUpcomingRendezvous],
   );
 
-  // Refs pour éviter les boucles infinies
-  const getStatisticsRef = useRef(getStatistics);
-  const loadTodayPanelRef = useRef(loadTodayPanel);
-  const loadUpcomingPanelRef = useRef(loadUpcomingPanel);
-
-  // Mettre à jour les refs quand les fonctions changent
-  useEffect(() => {
-    getStatisticsRef.current = getStatistics;
-    loadTodayPanelRef.current = loadTodayPanel;
-    loadUpcomingPanelRef.current = loadUpcomingPanel;
-  });
-
-  // Charger les statistiques au montage
+  // Charger les statistiques au montage avec une seule exécution
   useEffect(() => {
     if (isAdmin) {
-      getStatisticsRef.current();
+      getStatistics();
     }
-  }, [isAdmin]);
+  }, []); // Seulement au montage
 
   // Switch d'onglet
   const switchTab = useCallback((tab: "list" | "today" | "upcoming") => {
@@ -377,11 +365,11 @@ const RendezvousAdmin = () => {
   // Effet pour charger les panels quand l'onglet change
   useEffect(() => {
     if (activeTab === "today") {
-      loadTodayPanelRef.current();
+      loadTodayPanel();
     } else if (activeTab === "upcoming") {
-      loadUpcomingPanelRef.current();
+      loadUpcomingPanel();
     }
-  }, [activeTab]);
+  }, [activeTab, loadTodayPanel, loadUpcomingPanel]); // Ajout des dépendances correctes
 
   // Filtre rapide par date
   const handleDateQuickFilter = useCallback(
