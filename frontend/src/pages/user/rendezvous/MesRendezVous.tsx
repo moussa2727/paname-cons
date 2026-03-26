@@ -298,6 +298,7 @@ const MesRendezvous: React.FC = () => {
     error,
   } = useUserRendezvous({
     autoLoad: false,
+    refreshInterval: 0,
   });
 
   // État local pour le filtrage
@@ -354,14 +355,14 @@ const MesRendezvous: React.FC = () => {
     } catch {
       // Les erreurs sont gérées par le hook
     }
-  }, [user?.email, loadUserRendezvous]);
+  }, [loadUserRendezvous]);
 
   // Chargement initial
   useEffect(() => {
     if (user?.email) {
       fetchRendezvous();
     }
-  }, [user?.email, fetchRendezvous]);
+  }, []); // Seulement au montage
 
   // ✅ Filtrer les rendez-vous localement
   useEffect(() => {

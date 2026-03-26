@@ -225,7 +225,7 @@ const RendezvousAdmin = () => {
     changePage,
   } = useAdminRendezvous({
     autoLoadList: true,
-    refreshInterval: 120000,
+    refreshInterval: 0,
   });
 
   const { destinations = [], loading: loadingDestinations } = useDestinations();
@@ -350,13 +350,7 @@ const RendezvousAdmin = () => {
     [getUpcomingRendezvous],
   );
 
-  // Charger les statistiques au montage avec une seule exécution
-  useEffect(() => {
-    if (isAdmin) {
-      getStatistics();
-    }
-  }, []); // Seulement au montage
-
+  
   // Switch d'onglet
   const switchTab = useCallback((tab: "list" | "today" | "upcoming") => {
     setActiveTab(tab);
