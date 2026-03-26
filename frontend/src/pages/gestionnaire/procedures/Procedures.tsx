@@ -182,7 +182,7 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
           </p>
           <p className="text-xs text-slate-400 mt-0.5">{procedure.email}</p>
         </div>
-       </td>
+      </td>
       <td className="px-4 py-3 hidden sm:table-cell">
         <div className="flex flex-col gap-0.5">
           <span className="inline-flex items-center gap-1 text-xs text-slate-600">
@@ -194,19 +194,19 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
             {procedure.effectiveFiliere}
           </span>
         </div>
-       </td>
+      </td>
       <td className="px-4 py-3">
         <StatusBadge status={procedure.statut} />
-       </td>
+      </td>
       <td className="px-4 py-3 hidden md:table-cell min-w-[120px]">
         <ProgressBar value={procedure.progress} />
-       </td>
+      </td>
       <td className="px-4 py-3 hidden lg:table-cell">
         <span className="inline-flex items-center gap-1 text-xs text-slate-500">
           <Calendar size={10} />
           {dateStr}
         </span>
-       </td>
+      </td>
       <td className="px-4 py-3">
         <button
           onClick={(e) => {
@@ -218,8 +218,8 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
         >
           <ArrowRight size={15} />
         </button>
-       </td>
-     </tr>
+      </td>
+    </tr>
   );
 };
 
@@ -366,30 +366,30 @@ export default function Procedures() {
   }, [loadStatistics]);
 
   // ── Export ──────────────────────────────────────────────────────────────
- // ── Export ──────────────────────────────────────────────────────────────
-const handleExport = useCallback(
-  async (format: ExportFormat) => {
-    setExporting(true);
-    try {
-      const blob = await exportProcedures(format);
-      if (!blob) {
-        console.error("Export failed: no data received");
-        return;
+  // ── Export ──────────────────────────────────────────────────────────────
+  const handleExport = useCallback(
+    async (format: ExportFormat) => {
+      setExporting(true);
+      try {
+        const blob = await exportProcedures(format);
+        if (!blob) {
+          console.error("Export failed: no data received");
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `procedures.${format === "excel" ? "xlsx" : format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Export error:", err);
+      } finally {
+        setExporting(false);
       }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `procedures.${format === "excel" ? "xlsx" : format}`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("Export error:", err);
-    } finally {
-      setExporting(false);
-    }
-  },
-  [exportProcedures],
-);
+    },
+    [exportProcedures],
+  );
 
   // ── Gestion des filtres via le hook ─────────────────────────────────────
   const handleStatusFilter = useCallback(
