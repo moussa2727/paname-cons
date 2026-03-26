@@ -135,8 +135,27 @@ const STEP_ORDER: StepName[] = [
 
 // ─── Composants UI réutilisables ─────────────────────────────────────────────
 
-const StatusBadge: React.FC<{ status: ProcedureStatus }> = ({ status }) => {
-  const cfg = STATUS_CONFIG[status];
+const StatusBadge: React.FC<{ status: ProcedureStatus | string }> = ({ status }) => {
+  // Validation du statut
+  if (!status || typeof status !== 'string') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold border bg-slate-50 border-slate-200 text-slate-600">
+        <AlertCircle size={12} />
+        Non défini
+      </span>
+    );
+  }
+
+  const cfg = STATUS_CONFIG[status as ProcedureStatus];
+  if (!cfg) {
+    // Fallback pour statut inconnu
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold border bg-slate-50 border-slate-200 text-slate-600">
+        <AlertCircle size={12} />
+        {status}
+      </span>
+    );
+  }
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold border ${cfg.bg} ${cfg.border} ${cfg.color}`}
@@ -146,8 +165,27 @@ const StatusBadge: React.FC<{ status: ProcedureStatus }> = ({ status }) => {
   );
 };
 
-const StepStatusBadge: React.FC<{ status: StepStatus }> = ({ status }) => {
-  const cfg = STEP_STATUS_CONFIG[status];
+const StepStatusBadge: React.FC<{ status: StepStatus | string }> = ({ status }) => {
+  // Validation du statut
+  if (!status || typeof status !== 'string') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-slate-50 text-slate-600">
+        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+        Non défini
+      </span>
+    );
+  }
+
+  const cfg = STEP_STATUS_CONFIG[status as StepStatus];
+  if (!cfg) {
+    // Fallback pour statut inconnu
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-slate-50 text-slate-600">
+        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+        {status}
+      </span>
+    );
+  }
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${cfg.bg} ${cfg.color}`}
@@ -1126,11 +1164,14 @@ export default function ProcedureDetail() {
                   "REJECTED",
                   "CANCELLED",
                 ] as StepStatus[]
-              ).map((s) => (
-                <option key={s} value={s}>
-                  {STEP_STATUS_CONFIG[s].label}
-                </option>
-              ))}
+              ).map((s) => {
+                const cfg = STEP_STATUS_CONFIG[s];
+                return (
+                  <option key={s} value={s}>
+                    {cfg?.label || s}
+                  </option>
+                );
+              })}
             </select>
           </Field>
 
