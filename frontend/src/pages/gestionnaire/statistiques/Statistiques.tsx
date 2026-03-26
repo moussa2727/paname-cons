@@ -151,26 +151,33 @@ const Statistiques: React.FC = () => {
   const { getDestinationsStatistics } = useDestinations();
 
   // ─── Chargement unique de toutes les stats au montage ──────────────────
-  useEffect(() => {
+  const loadAllStatistics = useCallback(async () => {
     if (!isAdmin) return;
 
-    const loadAllStatistics = async () => {
-      try {
-        await Promise.all([
-          loadRendezvousStats(),
-          fetchUserStats(),
-          loadProcedureStats(),
-          refreshMessages(), // refresh recharge tout, y compris les stats
-          getDestinationsStatistics(), // Méthode spécifique aux destinations
-        ]);
-      } catch (error) {
-        console.error(" Erreur chargement stats:", error);
-        toast.error("Impossible de charger certaines statistiques");
-      }
-    };
+    try {
+      await Promise.all([
+        loadRendezvousStats(),
+        fetchUserStats(),
+        loadProcedureStats(),
+        refreshMessages(), // refresh recharge tout, y compris les stats
+        getDestinationsStatistics(), // Méthode spécifique aux destinations
+      ]);
+    } catch (error) {
+      console.error(" Erreur chargement stats:", error);
+      toast.error("Impossible de charger certaines statistiques");
+    }
+  }, [
+    isAdmin,
+    loadRendezvousStats,
+    fetchUserStats,
+    loadProcedureStats,
+    refreshMessages,
+    getDestinationsStatistics,
+  ]);
 
+  useEffect(() => {
     loadAllStatistics();
-  }, []); // Seulement au montage
+  }, [loadAllStatistics]);
 
   // ─── Données pour l'activité hebdomadaire ─────────────────────────────
   const weeklyActivity = useMemo(() => {
@@ -330,13 +337,7 @@ const Statistiques: React.FC = () => {
     setIsRefreshing(true);
 
     try {
-      await Promise.all([
-        loadRendezvousStats(),
-        fetchUserStats(),
-        loadProcedureStats(),
-        refreshMessages(),
-        getDestinationsStatistics(),
-      ]);
+      await loadAllStatistics();
       toast.success("Statistiques actualisées avec succès");
     } catch (error) {
       console.error("Erreur lors du rafraîchissement:", error);
@@ -344,13 +345,7 @@ const Statistiques: React.FC = () => {
     } finally {
       setIsRefreshing(false);
     }
-  }, [
-    loadRendezvousStats,
-    fetchUserStats,
-    loadProcedureStats,
-    refreshMessages,
-    getDestinationsStatistics,
-  ]);
+  }, [loadAllStatistics]);
 
   // ─── Vérification admin ───────────────────────────────────────────────
   if (!isAdmin) {

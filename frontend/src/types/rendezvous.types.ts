@@ -8,26 +8,14 @@
 // ==================== ENUMS (Miroir EXACT du backend) ====================
 
 /**
- * Créneaux horaires - Correspond exactement à Prisma TimeSlot
- * Pause déjeuner : 12:00 est autorisé, 12:30-14:00 exclu
+ * Heure d'un rendez-vous telle qu'exposée par l'API Nest/Prisma :
+ * chaîne `HH:MM` (ex. "09:00", "14:30"), comme dans CreateRendezvousDto et la sérialisation JSON du TimeSlot Prisma.
+ * Ne pas envoyer de préfixes `SLOT_*` au backend.
  */
-export const TimeSlot = {
-  SLOT_0900: "SLOT_0900",
-  SLOT_0930: "SLOT_0930",
-  SLOT_1000: "SLOT_1000",
-  SLOT_1030: "SLOT_1030",
-  SLOT_1100: "SLOT_1100",
-  SLOT_1130: "SLOT_1130",
-  SLOT_1200: "SLOT_1200", // 12:00 est autorisé
-  // Pause déjeuner 12:30-14:00 exclue
-  SLOT_1400: "SLOT_1400",
-  SLOT_1430: "SLOT_1430",
-  SLOT_1500: "SLOT_1500",
-  SLOT_1530: "SLOT_1530",
-  SLOT_1600: "SLOT_1600",
-  SLOT_1630: "SLOT_1630",
-} as const;
-export type TimeSlot = keyof typeof TimeSlot;
+export type RendezvousTimeHHMM = string;
+
+/** @deprecated Utiliser `RendezvousTimeHHMM` — alias historique */
+export type TimeSlot = RendezvousTimeHHMM;
 
 /**
  * Statuts du rendez-vous - Correspond exactement à Prisma RendezvousStatus
@@ -82,27 +70,23 @@ export interface ProcedureInfoDto {
 }
 
 /**
- * RendezvousResponseDto - Correspond exactement à ce que le backend renvoie
+ * Réponse rendez-vous — champs enrichis selon l'endpoint (ex. GET by-email ajoute fullName, canCancel, etc.).
  */
 export interface RendezvousResponseDto {
   id: string;
   firstName: string;
   lastName: string;
-  fullName: string;
   email: string;
   telephone: string;
   destination: string;
   destinationAutre?: string | null;
-  effectiveDestination: string;
   niveauEtude: string;
   niveauEtudeAutre?: string | null;
-  effectiveNiveauEtude: string;
   filiere: string;
   filiereAutre?: string | null;
-  effectiveFiliere: string;
   date: string;
-  time: TimeSlot;
-  dateTime: string;
+  /** Sérialisation Prisma : "09:00", "14:30", etc. */
+  time: RendezvousTimeHHMM;
   status: RendezvousStatus;
   avisAdmin?: AdminOpinion | null;
   cancelledAt?: string | null;
@@ -113,11 +97,16 @@ export interface RendezvousResponseDto {
   userId?: string | null;
   user?: UserInfoDto | null;
   procedure?: ProcedureInfoDto | null;
-  canCancel: boolean;
-  canModify: boolean;
-  isPast: boolean;
-  isToday: boolean;
-  minutesUntilRendezvous: number;
+  fullName?: string;
+  effectiveDestination?: string;
+  effectiveNiveauEtude?: string;
+  effectiveFiliere?: string;
+  dateTime?: string;
+  canCancel?: boolean;
+  canModify?: boolean;
+  isPast?: boolean;
+  isToday?: boolean;
+  minutesUntilRendezvous?: number;
   lunchBreakInfo?: {
     lunchBreakStart: string;
     lunchBreakEnd: string;
@@ -141,12 +130,13 @@ export interface TimeSlotWithMeta {
  * AvailableSlotsDto
  */
 export interface AvailableSlotsDto {
-  date: string;
+  /** ISO ou chaîne selon sérialisation JSON du backend */
+  date: string | Date;
   available: boolean;
   reason?: string;
-  availableSlots: string[]; // Tableau de strings comme dans le backend
-  totalSlots: number;
-  occupiedSlots: number;
+  availableSlots: string[];
+  totalSlots?: number;
+  occupiedSlots?: number;
 }
 
 /**
@@ -155,10 +145,10 @@ export interface AvailableSlotsDto {
 export interface AvailabilityCheckDto {
   available: boolean;
   date: string;
-  time: TimeSlot;
+  time: RendezvousTimeHHMM;
   message?: string;
   alternativeSlots?: string[];
-  nextAvailableSlot?: { date: string; time: TimeSlot };
+  nextAvailableSlot?: { date: string; time: RendezvousTimeHHMM };
 }
 
 /**
@@ -188,7 +178,8 @@ export interface CreateRendezvousDto {
   filiere: string;
   filiereAutre?: string;
   date: string; // Format: YYYY-MM-DD
-  time: TimeSlot;
+  /** Format HH:MM — identique au CreateRendezvousDto backend */
+  time: RendezvousTimeHHMM;
 }
 
 /**
@@ -387,46 +378,25 @@ export const FILIERE_OPTIONS = [
 
 // ==================== UTILITAIRES TIMESLOT (Communs) ====================
 
-/**
- * Convertit un TimeSlot (SLOT_*) en format HH:MM pour l'affichage
- */
-export const timeSlotToDisplay = (timeSlot: TimeSlot): string => {
-  const map: Record<TimeSlot, string> = {
-    SLOT_0900: "09:00",
-    SLOT_0930: "09:30",
-    SLOT_1000: "10:00",
-    SLOT_1030: "10:30",
-    SLOT_1100: "11:00",
-    SLOT_1130: "11:30",
-    SLOT_1200: "12:00",
-    SLOT_1400: "14:00",
-    SLOT_1430: "14:30",
-    SLOT_1500: "15:00",
-    SLOT_1530: "15:30",
-    SLOT_1600: "16:00",
-    SLOT_1630: "16:30",
-  };
-  return map[timeSlot] || timeSlot;
+/** Ancien format interne SLOT_* → HH:MM (rétrocompatibilité) */
+const LEGACY_SLOT_TO_HHMM: Record<string, string> = {
+  SLOT_0900: "09:00",
+  SLOT_0930: "09:30",
+  SLOT_1000: "10:00",
+  SLOT_1030: "10:30",
+  SLOT_1100: "11:00",
+  SLOT_1130: "11:30",
+  SLOT_1200: "12:00",
+  SLOT_1400: "14:00",
+  SLOT_1430: "14:30",
+  SLOT_1500: "15:00",
+  SLOT_1530: "15:30",
+  SLOT_1600: "16:00",
+  SLOT_1630: "16:30",
 };
 
 /**
- * Convertit un format HH:MM en TimeSlot (SLOT_*) pour le backend
+ * Affichage HH:MM : l'API renvoie déjà "09:00" ; les anciennes valeurs SLOT_* sont encore mappées.
  */
-export const displayToTimeSlot = (display: string): TimeSlot => {
-  const map: Record<string, TimeSlot> = {
-    "09:00": "SLOT_0900",
-    "09:30": "SLOT_0930",
-    "10:00": "SLOT_1000",
-    "10:30": "SLOT_1030",
-    "11:00": "SLOT_1100",
-    "11:30": "SLOT_1130",
-    "12:00": "SLOT_1200",
-    "14:00": "SLOT_1400",
-    "14:30": "SLOT_1430",
-    "15:00": "SLOT_1500",
-    "15:30": "SLOT_1530",
-    "16:00": "SLOT_1600",
-    "16:30": "SLOT_1630",
-  };
-  return map[display] || (display as TimeSlot);
-};
+export const timeSlotToDisplay = (time: string): string =>
+  LEGACY_SLOT_TO_HHMM[time] ?? time;

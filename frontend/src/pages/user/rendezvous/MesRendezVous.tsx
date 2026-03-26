@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -39,7 +39,7 @@ import Loader from "../../../components/shared/user/Loader";
  */
 const canCancelRendezvous = (rdv: RendezvousResponseDto): boolean => {
   return (
-    rdv.canCancel &&
+    rdv.canCancel === true &&
     (rdv.status === RendezvousStatus.PENDING ||
       rdv.status === RendezvousStatus.CONFIRMED)
   );
@@ -183,7 +183,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                   <MapPin className="mt-0.5 h-4 w-4 text-gray-500" />
                   <span className="text-gray-700">
                     <span className="font-medium">Destination :</span>{" "}
-                    {rdv.effectiveDestination}
+                    {rdv.effectiveDestination ?? rdv.destination}
                   </span>
                 </div>
                 <div className="flex items-start gap-2">
@@ -288,23 +288,19 @@ const MesRendezvous: React.FC = () => {
   const location = useLocation();
   const [headerHeight, setHeaderHeight] = useState(0);
 
-  // ✅ CORRECTION 1: Utiliser les bonnes propriétés du hook
-  // userRendezvous (pas rendezvous) et loadUserRendezvous (pas getRendezvousByEmail)
+  // ✅ Utilisation correcte du hook userRendezvous
   const {
-    userRendezvous, // ✅ Correction: 'rendezvous' -> 'userRendezvous'
+    userRendezvous,
     loading,
     cancelRendezvous,
-    loadUserRendezvous, // ✅ Correction: 'getRendezvousByEmail' -> 'loadUserRendezvous'
+    loadUserRendezvous,
     error,
   } = useUserRendezvous({
     autoLoad: false,
     refreshInterval: 0,
   });
 
-  // État local pour le filtrage
-  const [filteredRendezvous, setFilteredRendezvous] = useState<
-    RendezvousResponseDto[]
-  >([]);
+  // ✅ État local pour le filtrage - PAS de duplication inutile
   const [selectedStatus, setSelectedStatus] = useState<RendezvousStatus | "">(
     "",
   );
@@ -351,33 +347,26 @@ const MesRendezvous: React.FC = () => {
   const fetchRendezvous = useCallback(async () => {
     if (!user?.email) return;
     try {
-      await loadUserRendezvous(); // ✅ Correction: pas besoin de passer l'email, le hook l'utilise déjà
+      await loadUserRendezvous();
     } catch {
       // Les erreurs sont gérées par le hook
     }
-  }, [loadUserRendezvous]);
+  }, [loadUserRendezvous, user?.email]);
 
-  // Chargement initial
+  // Chargement initial - UNE SEULE FOIS
   useEffect(() => {
     if (user?.email) {
       fetchRendezvous();
     }
-  }, []); // Seulement au montage
+  }, [user?.email, fetchRendezvous]);
 
-  // ✅ Filtrer les rendez-vous localement
-  useEffect(() => {
-    if (!userRendezvous) {
-      setFilteredRendezvous([]);
-      return;
-    }
+  // ✅ FILTRAGE avec useMemo - optimisation et pas de duplication
+  const filteredRendezvous = useMemo(() => {
+    if (!userRendezvous) return [];
 
-    let filtered = [...userRendezvous];
+    if (!selectedStatus) return userRendezvous;
 
-    if (selectedStatus) {
-      filtered = filtered.filter((rdv) => rdv.status === selectedStatus);
-    }
-
-    setFilteredRendezvous(filtered);
+    return userRendezvous.filter((rdv) => rdv.status === selectedStatus);
   }, [userRendezvous, selectedStatus]);
 
   // ==================== ANNULATION ====================
@@ -392,18 +381,15 @@ const MesRendezvous: React.FC = () => {
     setSelectedRdvForCancel(null);
   };
 
-  // ✅ CORRECTION 2: cancelRendezvous attend (id, reason) comme paramètres
   const handleCancelRendezvous = async (reason?: string) => {
     if (!selectedRdvForCancel) return;
     setCancelling(true);
     try {
-      // ✅ Correction: cancelRendezvous attend (id, reason) et non un objet CancelRendezvousDto
       await cancelRendezvous(
         selectedRdvForCancel.id,
         reason?.trim() || "Annulation par l'utilisateur",
       );
-      // Rafraîchir la liste après annulation
-      await fetchRendezvous();
+      // ✅ Pas de rechargement automatique - le hook gère la mise à jour
       closeCancelModal();
     } catch {
       // Les erreurs sont gérées par le hook
@@ -458,6 +444,9 @@ const MesRendezvous: React.FC = () => {
     return null;
   }
 
+  // Vérifier si les données sont en cours de chargement initial
+  const isLoading = loading.list;
+
   return (
     <>
       <Helmet>
@@ -477,7 +466,7 @@ const MesRendezvous: React.FC = () => {
                 <select
                   value={selectedStatus}
                   onChange={handleStatusChange}
-                  disabled={loading.list}
+                  disabled={isLoading}
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent bg-white transition-all duration-200 hover:border-sky-400"
                 >
                   {statusOptions.map((opt) => (
@@ -490,11 +479,11 @@ const MesRendezvous: React.FC = () => {
 
               <button
                 onClick={fetchRendezvous}
-                disabled={loading.list}
+                disabled={isLoading}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <RefreshCw
-                  className={`h-4 w-4 ${loading.list ? "animate-spin" : ""}`}
+                  className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
                 />
                 Actualiser
               </button>
@@ -515,7 +504,7 @@ const MesRendezvous: React.FC = () => {
           </div>
 
           {/* Chargement */}
-          {loading.list && (
+          {isLoading && (
             <div className="mb-6 text-center py-12">
               <Loader loading={true} size="md" />
               <p className="mt-3 text-sm text-gray-600">
@@ -525,7 +514,7 @@ const MesRendezvous: React.FC = () => {
           )}
 
           {/* Erreur */}
-          {error && !loading.list && (
+          {error && !isLoading && (
             <div className="mb-6 rounded-lg bg-red-50 border border-red-200 p-4 text-center">
               <p className="text-sm text-red-600">{error}</p>
               <button
@@ -537,15 +526,15 @@ const MesRendezvous: React.FC = () => {
             </div>
           )}
 
-          {/* Liste - utilise filteredRendezvous pour l'affichage */}
-          {!loading.list && filteredRendezvous.length > 0 && (
+          {/* Liste - utilisation directe de filteredRendezvous */}
+          {!isLoading && filteredRendezvous.length > 0 && (
             <div className="space-y-4 mb-8">
-              {filteredRendezvous.map((rdv, index) => {
+              {filteredRendezvous.map((rdv) => {
                 const canCancel = canCancelRendezvous(rdv);
 
                 return (
                   <div
-                    key={`rdv-${rdv.id}-${index}`}
+                    key={rdv.id}
                     className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-all duration-300"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -570,7 +559,9 @@ const MesRendezvous: React.FC = () => {
                           </div>
                           <div className="flex items-center text-sm text-gray-600">
                             <MapPin className="mr-2 h-4 w-4 text-sky-500" />
-                            <span>{rdv.effectiveDestination}</span>
+                            <span>
+                              {rdv.effectiveDestination ?? rdv.destination}
+                            </span>
                           </div>
                           <div className="flex items-center text-sm text-gray-600">
                             <BookOpen className="mr-2 h-4 w-4 text-sky-500" />
@@ -636,7 +627,7 @@ const MesRendezvous: React.FC = () => {
           )}
 
           {/* État vide */}
-          {!loading.list && filteredRendezvous.length === 0 && (
+          {!isLoading && filteredRendezvous.length === 0 && (
             <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
               <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
                 <Calendar className="h-8 w-8 text-gray-400" />

@@ -43,7 +43,6 @@ import { useDestinations } from "../../../hooks/useDestinations";
 import {
   RendezvousStatus,
   AdminOpinion,
-  DESTINATION_OPTIONS,
   NIVEAU_ETUDE_OPTIONS,
   FILIERE_OPTIONS,
   TIME_SLOT_OPTIONS,
@@ -51,9 +50,9 @@ import {
   AdminOpinionLabels,
   type RendezvousResponseDto,
   type UpdateRendezvousDto,
-  type TimeSlot,
   type CreateRendezvousDto,
   type RendezvousQueryDto,
+  type RendezvousFilters,
   timeSlotToDisplay,
 } from "../../../types/rendezvous.types";
 
@@ -178,7 +177,9 @@ const PanelRow = ({
         {rdv.firstName} {rdv.lastName}
       </p>
       <p className="text-xs text-gray-500 truncate">
-        {displayEffectiveValue(rdv.effectiveDestination)}
+        {displayEffectiveValue(
+          rdv.effectiveDestination ?? rdv.destination ?? "",
+        )}
       </p>
     </div>
     <div className="flex items-center gap-3 shrink-0">
@@ -222,12 +223,27 @@ const RendezvousAdmin = () => {
     applyFilters,
     resetFilters,
     changePage,
+    changeLimit,
+    refresh,
+    clearError,
   } = useAdminRendezvous({
     autoLoadList: true,
     refreshInterval: 0,
   });
 
-  const { destinations = [], loading: loadingDestinations } = useDestinations();
+  const { destinations, loading: loadingDestinations } = useDestinations();
+
+  /** Pays issus de l’API + « Autre » — même logique que la page utilisateur */
+  const destinationOptions = useMemo(() => {
+    const countries = destinations
+      .map((d) => d.country)
+      .filter((c): c is string => Boolean(c?.trim()));
+    const unique = Array.from(new Set(countries)).sort((a, b) =>
+      a.localeCompare(b, "fr", { sensitivity: "base" }),
+    );
+    if (!unique.includes("Autre")) unique.push("Autre");
+    return unique;
+  }, [destinations]);
 
   // État local
   const [searchTerm, setSearchTerm] = useState("");
@@ -275,7 +291,7 @@ const RendezvousAdmin = () => {
     filiere: "",
     filiereAutre: "",
     date: "",
-    time: "" as TimeSlot,
+    time: "",
   });
 
   const [showOtherDestination, setShowOtherDestination] = useState(false);
@@ -294,7 +310,7 @@ const RendezvousAdmin = () => {
     filiere: "",
     filiereAutre: "",
     date: "",
-    time: "" as TimeSlot,
+    time: "",
   });
 
   const [showOtherDestinationCreate, setShowOtherDestinationCreate] =
@@ -413,8 +429,7 @@ const RendezvousAdmin = () => {
     try {
       // Rafraîchir selon l'onglet actif
       if (activeTab === "list") {
-        await searchRendezvous();
-        await getStatistics();
+        await refresh();
       } else if (activeTab === "today") {
         await loadTodayPanel();
         await getStatistics();
@@ -431,13 +446,7 @@ const RendezvousAdmin = () => {
         refreshTimeoutRef.current = null;
       }, 1000);
     }
-  }, [
-    activeTab,
-    searchRendezvous,
-    getStatistics,
-    loadTodayPanel,
-    loadUpcomingPanel,
-  ]);
+  }, [activeTab, refresh, getStatistics, loadTodayPanel, loadUpcomingPanel]);
 
   // Filtre rapide par date
   const handleDateQuickFilter = useCallback(
@@ -740,7 +749,7 @@ const RendezvousAdmin = () => {
           filiere: "",
           filiereAutre: "",
           date: "",
-          time: "" as TimeSlot,
+          time: "",
         });
         setShowOtherDestinationCreate(false);
         setShowOtherNiveauCreate(false);
@@ -818,7 +827,22 @@ const RendezvousAdmin = () => {
 
   const handleExport = async () => {
     try {
-      const csv = await exportToCSV();
+      const filters: RendezvousFilters = {
+        ...(localFilters.status ? { status: localFilters.status } : {}),
+        ...(localFilters.destination
+          ? { destination: localFilters.destination }
+          : {}),
+        ...(localFilters.startDate && localFilters.endDate
+          ? {
+              dateRange: {
+                start: localFilters.startDate,
+                end: localFilters.endDate,
+              },
+            }
+          : {}),
+        ...(searchTerm.trim() ? { searchTerm: searchTerm.trim() } : {}),
+      };
+      const csv = await exportToCSV(filters);
       if (!csv) return;
 
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -1114,7 +1138,11 @@ const RendezvousAdmin = () => {
           <XCircle className="w-12 h-12 text-red-400" />
           <p className="text-red-800 font-semibold">{error}</p>
           <button
-            onClick={handleRefresh}
+            type="button"
+            onClick={async () => {
+              clearError();
+              await handleRefresh();
+            }}
             className="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
           >
             Réessayer
@@ -1285,10 +1313,11 @@ const RendezvousAdmin = () => {
                   <select
                     value={localFilters.destination || ""}
                     onChange={handleDestinationFilter}
-                    className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
+                    disabled={loadingDestinations}
+                    className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:ring-none focus:outline-none focus:border-sky-500 disabled:opacity-60"
                   >
                     <option value="">Toutes destinations</option>
-                    {DESTINATION_OPTIONS.map((d) => (
+                    {destinationOptions.map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
@@ -1480,12 +1509,19 @@ const RendezvousAdmin = () => {
                           <div className="flex flex-wrap gap-3 text-sm text-gray-600 mb-3">
                             <span className="flex items-center gap-1">
                               <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                              {displayEffectiveValue(rdv.effectiveDestination)}
+                              {displayEffectiveValue(
+                                rdv.effectiveDestination || "",
+                              )}
                             </span>
                             <span className="flex items-center gap-1">
                               <GraduationCap className="w-3.5 h-3.5 text-gray-400" />
-                              {displayEffectiveValue(rdv.effectiveNiveauEtude)}{" "}
-                              · {displayEffectiveValue(rdv.effectiveFiliere)}
+                              {displayEffectiveValue(
+                                rdv.effectiveNiveauEtude || "",
+                              )}{" "}
+                              ·{" "}
+                              {displayEffectiveValue(
+                                rdv.effectiveFiliere || "",
+                              )}
                             </span>
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3.5 h-3.5 text-gray-400" />
@@ -1620,18 +1656,39 @@ const RendezvousAdmin = () => {
             )}
 
             {/* PAGINATION */}
-            {pagination && pagination.totalPages > 1 && (
-              <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-5 py-3 shadow-sm">
-                <p className="text-sm text-gray-500">
-                  Page{" "}
-                  <span className="font-semibold text-gray-900">
-                    {pagination.page}
-                  </span>{" "}
-                  / {pagination.totalPages}
-                  <span className="ml-2 text-gray-400">
-                    · {pagination.total} rendez-vous
-                  </span>
-                </p>
+            {pagination && pagination.total > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white rounded-xl border border-gray-200 px-5 py-3 shadow-sm">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                  <p>
+                    Page{" "}
+                    <span className="font-semibold text-gray-900">
+                      {pagination.page}
+                    </span>{" "}
+                    / {pagination.totalPages}
+                    <span className="ml-2 text-gray-400">
+                      · {pagination.total} rendez-vous
+                    </span>
+                  </p>
+                  <label className="inline-flex items-center gap-2 text-xs">
+                    <span className="text-gray-500">Par page</span>
+                    <select
+                      value={pagination.limit}
+                      onChange={(e) =>
+                        changeLimit(Number.parseInt(e.target.value, 10))
+                      }
+                      disabled={loading.list}
+                      className="border border-gray-300 rounded-lg px-2 py-1 text-sm text-gray-800 bg-white focus:outline-none focus:border-sky-500 disabled:opacity-50"
+                    >
+                      {Array.from(new Set([10, 20, 50, 100, pagination.limit]))
+                        .sort((a, b) => a - b)
+                        .map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                </div>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => changePage(pagination.page - 1)}
@@ -1730,21 +1787,21 @@ const RendezvousAdmin = () => {
                         Icon: MapPin,
                         label: "Destination",
                         value: displayEffectiveValue(
-                          modal.rdv.effectiveDestination,
+                          modal.rdv.effectiveDestination || "",
                         ),
                       },
                       {
                         Icon: GraduationCap,
                         label: "Niveau",
                         value: displayEffectiveValue(
-                          modal.rdv.effectiveNiveauEtude,
+                          modal.rdv.effectiveNiveauEtude || "",
                         ),
                       },
                       {
                         Icon: BookOpen,
                         label: "Filière",
                         value: displayEffectiveValue(
-                          modal.rdv.effectiveFiliere,
+                          modal.rdv.effectiveFiliere || "",
                         ),
                       },
                       {
@@ -2102,13 +2159,16 @@ const RendezvousAdmin = () => {
                   className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-none focus:outline-none focus:border-sky-500"
                   disabled={loadingDestinations}
                 >
-                  <option value="">Sélectionner</option>
-                  {destinations.map((dest: { id: string; country: string }) => (
-                    <option key={dest.id} value={dest.country}>
-                      {dest.country}
+                  <option value="">
+                    {loadingDestinations
+                      ? "Chargement des destinations..."
+                      : "Sélectionner"}
+                  </option>
+                  {destinationOptions.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
                     </option>
                   ))}
-                  <option value="Autre">Autre</option>
                 </select>
 
                 {showOtherDestinationCreate && (
@@ -2246,17 +2306,14 @@ const RendezvousAdmin = () => {
                     onChange={(e) =>
                       setCreateForm({
                         ...createForm,
-                        time: e.target.value as TimeSlot,
+                        time: e.target.value,
                       })
                     }
                     className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="">Sélectionner</option>
                     {TIME_SLOT_OPTIONS.map((time) => (
-                      <option
-                        key={time}
-                        value={`SLOT_${time.replace(":", "")}` as TimeSlot}
-                      >
+                      <option key={time} value={time}>
                         {time}
                       </option>
                     ))}
@@ -2353,17 +2410,14 @@ const RendezvousAdmin = () => {
                     onChange={(e) =>
                       setEditForm({
                         ...editForm,
-                        time: e.target.value as TimeSlot,
+                        time: e.target.value,
                       })
                     }
                     className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="">Sélectionner</option>
                     {TIME_SLOT_OPTIONS.map((t) => (
-                      <option
-                        key={t}
-                        value={`SLOT_${t.replace(":", "")}` as TimeSlot}
-                      >
+                      <option key={t} value={t}>
                         {t}
                       </option>
                     ))}
@@ -2478,10 +2532,15 @@ const RendezvousAdmin = () => {
                           value !== "Autre" ? "" : editForm.destinationAutre,
                       });
                     }}
-                    className="w-full appearance-none border border-gray-300 rounded-xl px-3 py-2 pr-8 text-sm focus:ring-2 focus:ring-sky-500"
+                    disabled={loadingDestinations}
+                    className="w-full appearance-none border border-gray-300 rounded-xl px-3 py-2 pr-8 text-sm focus:ring-2 focus:ring-sky-500 disabled:opacity-60"
                   >
-                    <option value="">Sélectionner</option>
-                    {DESTINATION_OPTIONS.map((d) => (
+                    <option value="">
+                      {loadingDestinations
+                        ? "Chargement des destinations..."
+                        : "Sélectionner"}
+                    </option>
+                    {destinationOptions.map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>

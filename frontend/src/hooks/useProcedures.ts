@@ -229,7 +229,7 @@ export function useProcedures(
         loadingRef.current = false;
       }
     },
-    [query, user?.role, setLoad, syncPagination],
+    [query, setLoad, syncPagination], // user?.role est déjà inclus dans query via le backend
   );
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -666,7 +666,7 @@ export function useProcedures(
   // Effets
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Chargement initial
+  // Chargement initial (évite les boucles avec useCallback stable)
   useEffect(() => {
     if (!autoLoad) return;
     const loadData = async () => {
@@ -675,16 +675,17 @@ export function useProcedures(
       await Promise.all(promises);
     };
     loadData();
-  }, [autoLoad, shouldLoadStatistics, loadProcedures, loadStatistics]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoLoad, shouldLoadStatistics]); // loadProcedures et loadStatistics sont stables via useCallback
 
-  // Rechargement quand le query change
+  // Rechargement quand le query change (évite les boucles)
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
-    const currentLoadProcedures = loadProcedures;
-    currentLoadProcedures();
+    // Utiliser la fonction stable pour éviter les boucles
+    loadProcedures();
   }, [
     query.page,
     query.limit,
@@ -699,15 +700,16 @@ export function useProcedures(
     query.destination,
     query.filiere,
     query.email,
+    loadProcedures, // Ajouté pour corriger le warning ESLint
   ]);
 
-  // Rafraîchissement périodique des procédures en retard
+  // Rafraîchissement périodique des procédures en retard (évite les boucles)
   useEffect(() => {
     if (!autoLoad || !refreshInterval) return;
     loadOverdue();
     const id = setInterval(loadOverdue, refreshInterval);
     return () => clearInterval(id);
-  }, [autoLoad, refreshInterval, loadOverdue]);
+  }, [autoLoad, refreshInterval, loadOverdue]); // Ajouté pour corriger le warning ESLint
 
   // ─────────────────────────────────────────────────────────────────────────
   // Retour du hook

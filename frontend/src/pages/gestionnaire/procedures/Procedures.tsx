@@ -376,6 +376,13 @@ export default function Procedures() {
         accent: "emerald",
       },
       {
+        label: "En attente",
+        value: statistics.byStatus?.PENDING ?? 0,
+        icon: <Clock size={18} />,
+        sub: `+${statistics.newProcedures?.thisWeek ?? 0} cette semaine`,
+        accent: "amber",
+      },
+      {
         label: "Rejetées",
         value: statistics.byStatus?.REJECTED ?? 0,
         icon: <XCircle size={18} />,
@@ -469,7 +476,7 @@ export default function Procedures() {
                 )}
               </button>
               {showStats && (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                   {statsCards.map((s) => (
                     <StatCard key={s.label} {...s} />
                   ))}
@@ -781,7 +788,7 @@ export default function Procedures() {
           {statistics &&
             (statistics.topDestinations?.length > 0 ||
               statistics.topFilieres?.length > 0) && (
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {statistics.topDestinations?.length > 0 && (
                   <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
                     <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
@@ -831,6 +838,40 @@ export default function Procedures() {
                     </div>
                   </div>
                 )}
+
+                {/* Stats additionnelles */}
+                <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                    <AlertCircle size={12} className="text-slate-500" />
+                    Autres stats
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-600">
+                        Procédures annulées
+                      </span>
+                      <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+                        {statistics.byStatus?.CANCELLED ?? 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-600">
+                        Nouvelles aujourd'hui
+                      </span>
+                      <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                        {statistics.newProcedures?.today ?? 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-600">
+                        Taux de réussite
+                      </span>
+                      <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                        {(statistics.completionRate ?? 0).toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
         </div>

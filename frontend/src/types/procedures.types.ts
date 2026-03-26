@@ -24,7 +24,6 @@ export type StepStatus = (typeof StepStatus)[keyof typeof StepStatus];
 
 export const StepName = {
   DEMANDE_ADMISSION: "DEMANDE_ADMISSION",
-  ENTRETIEN_MOTIVATION: "ENTRETIEN_MOTIVATION",
   DEMANDE_VISA: "DEMANDE_VISA",
   PREPARATIF_VOYAGE: "PREPARATIF_VOYAGE",
 } as const;
@@ -39,8 +38,7 @@ export type StatusColor =
   | "red"
   | "gray"
   | "yellow"
-  | "orange"
-  | "purple";
+  | "orange"; // Backend renvoie aussi "orange" pour CANCELLED
 
 // ─── Types pour le hook (AJOUTÉS) ────────────────────────────────────────────
 

@@ -1,13 +1,13 @@
 // ============================================================
 // rendezvous.service.ts
-// Version alignée strictement sur le backend
+// Version corrigée - Pas de boucles infinies
 // Structure: COMMUN > USER > ADMIN
 // ============================================================
 
 import { apiFetch } from "../context/AuthContext";
-import { toast } from "react-hot-toast";
+import toast from "react-hot-toast";
 import type {
-  TimeSlot,
+  RendezvousTimeHHMM,
   CreateRendezvousDto,
   UpdateRendezvousDto,
   CancelRendezvousDto,
@@ -32,9 +32,6 @@ class BaseRendezvousService {
     this.baseUrl = import.meta.env.VITE_API_URL as string;
   }
 
-  /**
-   * Construit l'URL avec les paramètres de requête
-   */
   protected buildUrl(
     path: string,
     params?: Record<string, string | number | boolean>,
@@ -50,17 +47,11 @@ class BaseRendezvousService {
     return url.toString();
   }
 
-  /**
-   * Formate une date en YYYY-MM-DD
-   */
   protected formatDate(date: Date | string): string {
     if (typeof date === "string") return date;
     return date.toISOString().split("T")[0];
   }
 
-  /**
-   * Gère les erreurs API
-   */
   protected async handleError(response: Response): Promise<never> {
     let errorMessage = `Erreur ${response.status}`;
 
@@ -71,12 +62,12 @@ class BaseRendezvousService {
       // Ignorer
     }
 
+    // Log seulement les erreurs
+    console.error(`[API Error] ${errorMessage}`);
+
     throw new Error(errorMessage);
   }
 
-  /**
-   * Traite la réponse API
-   */
   protected async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       await this.handleError(response);
@@ -88,8 +79,6 @@ class BaseRendezvousService {
 
     const data = await response.json();
 
-    // Si la réponse a une structure enveloppée (data), l'extraire
-    // SAUF si c'est déjà une réponse paginée (qui a déjà une propriété 'data')
     if (
       data &&
       typeof data === "object" &&
@@ -106,12 +95,8 @@ class BaseRendezvousService {
 }
 
 // ==================== PARTIE UTILISATEUR ====================
-// Méthodes accessibles aux utilisateurs authentifiés
 
 class UserRendezvousService extends BaseRendezvousService {
-  /**
-   * GET /rendezvous/available-slots/:date
-   */
   async getAvailableSlots(date: Date | string): Promise<AvailableSlotsDto> {
     const dateStr = this.formatDate(date);
     const url = `${this.baseUrl}/rendezvous/available-slots/${encodeURIComponent(dateStr)}`;
@@ -119,9 +104,6 @@ class UserRendezvousService extends BaseRendezvousService {
     return this.handleResponse<AvailableSlotsDto>(response);
   }
 
-  /**
-   * GET /rendezvous/available-dates
-   */
   async getAvailableDates(
     startDate?: Date | string,
     endDate?: Date | string,
@@ -137,12 +119,9 @@ class UserRendezvousService extends BaseRendezvousService {
     return this.handleResponse<AvailableDatesResponseDto[]>(response);
   }
 
-  /**
-   * GET /rendezvous/check-availability
-   */
   async checkAvailability(
     date: Date | string,
-    time: TimeSlot,
+    time: RendezvousTimeHHMM,
   ): Promise<AvailabilityCheckDto> {
     const dateStr = this.formatDate(date);
     const url = `${this.baseUrl}/rendezvous/check-availability?date=${encodeURIComponent(dateStr)}&time=${encodeURIComponent(time)}`;
@@ -151,9 +130,6 @@ class UserRendezvousService extends BaseRendezvousService {
     return this.handleResponse<AvailabilityCheckDto>(response);
   }
 
-  /**
-   * POST /rendezvous
-   */
   async createRendezvous(
     data: CreateRendezvousDto,
   ): Promise<RendezvousResponseDto> {
@@ -170,38 +146,26 @@ class UserRendezvousService extends BaseRendezvousService {
       toast.success("Rendez-vous créé avec succès !");
       return result;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de la création du rendez-vous";
-      toast.error(errorMessage);
+      const message =
+        error instanceof Error ? error.message : "Erreur lors de la création";
+      console.error(`[Create Rendezvous Error] ${message}`);
+      toast.error(message);
       throw error;
     }
   }
 
-  /**
-   * GET /rendezvous/by-email/:email
-   */
   async getRendezvousByEmail(email: string): Promise<RendezvousResponseDto[]> {
     const url = `${this.baseUrl}/rendezvous/by-email/${encodeURIComponent(email)}`;
-
     const response = await apiFetch(url);
     return this.handleResponse<RendezvousResponseDto[]>(response);
   }
 
-  /**
-   * GET /rendezvous/:id
-   */
   async getRendezvousById(id: string): Promise<RendezvousResponseDto> {
     const url = `${this.baseUrl}/rendezvous/${id}`;
-
     const response = await apiFetch(url);
     return this.handleResponse<RendezvousResponseDto>(response);
   }
 
-  /**
-   * PATCH /rendezvous/:id/cancel
-   */
   async cancelRendezvous(
     id: string,
     data: CancelRendezvousDto,
@@ -219,23 +183,18 @@ class UserRendezvousService extends BaseRendezvousService {
       toast.success("Rendez-vous annulé avec succès !");
       return result;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de l'annulation du rendez-vous";
-      toast.error(errorMessage);
+      const message =
+        error instanceof Error ? error.message : "Erreur lors de l'annulation";
+      console.error(`[Cancel Rendezvous Error] ${message}`);
+      toast.error(message);
       throw error;
     }
   }
 }
 
 // ==================== PARTIE ADMINISTRATEUR ====================
-// Méthodes accessibles uniquement aux administrateurs
 
 class AdminRendezvousService extends BaseRendezvousService {
-  /**
-   * GET /admin/rendezvous/all
-   */
   async searchRendezvous(
     params: RendezvousQueryDto,
   ): Promise<PaginatedRendezvousResponseDto> {
@@ -254,18 +213,12 @@ class AdminRendezvousService extends BaseRendezvousService {
     return this.handleResponse<PaginatedRendezvousResponseDto>(response);
   }
 
-  /**
-   * GET /rendezvous/:id - Get a specific rendezvous by ID (admin version)
-   */
   async getRendezvousById(id: string): Promise<RendezvousResponseDto> {
     const url = `${this.baseUrl}/rendezvous/${id}`;
     const response = await apiFetch(url);
     return this.handleResponse<RendezvousResponseDto>(response);
   }
 
-  /**
-   * GET /admin/rendezvous/statistics
-   */
   async getStatistics(): Promise<RendezvousStatisticsDto> {
     const response = await apiFetch(
       `${this.baseUrl}/admin/rendezvous/statistics`,
@@ -273,7 +226,6 @@ class AdminRendezvousService extends BaseRendezvousService {
     const data =
       await this.handleResponse<Partial<RendezvousStatisticsDto>>(response);
 
-    // ✅ S'assurer que topDestinations est toujours un tableau
     return {
       total: data.total ?? 0,
       byStatus: data.byStatus ?? {
@@ -296,20 +248,13 @@ class AdminRendezvousService extends BaseRendezvousService {
     };
   }
 
-  /**
-   * GET /rendezvous/by-date/:date
-   */
   async getRendezvousByDate(date: string): Promise<RendezvousResponseDto[]> {
     const url = `${this.baseUrl}/rendezvous/by-date/${encodeURIComponent(date)}`;
-
     const response = await apiFetch(url);
     const data = await response.json();
     return Array.isArray(data) ? data : [];
   }
 
-  /**
-   * PATCH /admin/rendezvous/:id/patch
-   */
   async updateRendezvous(
     id: string,
     data: UpdateRendezvousDto,
@@ -327,18 +272,16 @@ class AdminRendezvousService extends BaseRendezvousService {
       toast.success("Rendez-vous mis à jour avec succès !");
       return result;
     } catch (error) {
-      const errorMessage =
+      const message =
         error instanceof Error
           ? error.message
-          : "Erreur lors de la mise à jour du rendez-vous";
-      toast.error(errorMessage);
+          : "Erreur lors de la mise à jour";
+      console.error(`[Update Rendezvous Error] ${message}`);
+      toast.error(message);
       throw error;
     }
   }
 
-  /**
-   * PATCH /admin/rendezvous/:id/complete
-   */
   async completeRendezvous(
     id: string,
     data: CompleteRendezvousDto,
@@ -356,18 +299,14 @@ class AdminRendezvousService extends BaseRendezvousService {
       toast.success("Rendez-vous complété avec succès !");
       return result;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de la complétion du rendez-vous";
-      toast.error(errorMessage);
+      const message =
+        error instanceof Error ? error.message : "Erreur lors de la complétion";
+      console.error(`[Complete Rendezvous Error] ${message}`);
+      toast.error(message);
       throw error;
     }
   }
 
-  /**
-   * DELETE /admin/rendezvous/:id/delete
-   */
   async deleteRendezvous(id: string): Promise<void> {
     const url = `${this.baseUrl}/admin/rendezvous/${id}/delete`;
 
@@ -376,18 +315,44 @@ class AdminRendezvousService extends BaseRendezvousService {
       await this.handleResponse<void>(response);
       toast.success("Rendez-vous supprimé avec succès !");
     } catch (error) {
-      const errorMessage =
+      const message =
         error instanceof Error
           ? error.message
-          : "Erreur lors de la suppression du rendez-vous";
-      toast.error(errorMessage);
+          : "Erreur lors de la suppression";
+      console.error(`[Delete Rendezvous Error] ${message}`);
+      toast.error(message);
       throw error;
     }
   }
 
   /**
-   * GET /admin/rendezvous/all avec filtres simplifiés
+   * PATCH /rendezvous/:id/cancel — même route que l’utilisateur ; le backend fixe cancelledBy (USER/ADMIN).
    */
+  async cancelRendezvousAsAdmin(
+    id: string,
+    data: CancelRendezvousDto,
+  ): Promise<RendezvousResponseDto> {
+    const url = `${this.baseUrl}/rendezvous/${id}/cancel`;
+
+    try {
+      const response = await apiFetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = await this.handleResponse<RendezvousResponseDto>(response);
+      toast.success("Rendez-vous annulé avec succès !");
+      return result;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Erreur lors de l'annulation";
+      console.error(`[Cancel Rendezvous (admin) Error] ${message}`);
+      toast.error(message);
+      throw error;
+    }
+  }
+
   async getUpcomingRendezvous(limit = 10): Promise<RendezvousResponseDto[]> {
     const today = new Date();
     const dateStr = this.formatDate(today);
@@ -403,9 +368,6 @@ class AdminRendezvousService extends BaseRendezvousService {
     return result.data;
   }
 
-  /**
-   * Export CSV
-   */
   async exportToCSV(filters?: RendezvousFilters): Promise<string> {
     try {
       const params: RendezvousQueryDto = {
@@ -430,7 +392,6 @@ class AdminRendezvousService extends BaseRendezvousService {
 
       const result = await this.searchRendezvous(params);
 
-      // ✅ Vérification que result.data existe et est un tableau
       if (!result || !result.data || !Array.isArray(result.data)) {
         console.warn("Aucune donnée à exporter");
         return "";
@@ -452,7 +413,6 @@ class AdminRendezvousService extends BaseRendezvousService {
         "Date création",
       ];
 
-      // ✅ Sécurisation du mapping avec fallback
       const rows = result.data.map((rdv) => [
         rdv?.id || "",
         rdv?.firstName || "",
@@ -477,10 +437,10 @@ class AdminRendezvousService extends BaseRendezvousService {
       toast.success("Export CSV généré avec succès !");
       return csv;
     } catch (error) {
-      const errorMessage =
+      const message =
         error instanceof Error ? error.message : "Erreur lors de l'export CSV";
-      toast.error(errorMessage);
-      console.error("Erreur export CSV:", error);
+      console.error(`[Export CSV Error] ${message}`);
+      toast.error(message);
       throw error;
     }
   }
@@ -491,7 +451,6 @@ class AdminRendezvousService extends BaseRendezvousService {
 export const userRendezvousService = new UserRendezvousService();
 export const adminRendezvousService = new AdminRendezvousService();
 
-// Pour la compatibilité avec le code existant
 export const rendezvousService = {
   // Méthodes utilisateur
   getAvailableSlots: userRendezvousService.getAvailableSlots.bind(
@@ -535,8 +494,11 @@ export const rendezvousService = {
   deleteRendezvous: adminRendezvousService.deleteRendezvous.bind(
     adminRendezvousService,
   ),
+  cancelRendezvousAsAdmin: adminRendezvousService.cancelRendezvousAsAdmin.bind(
+    adminRendezvousService,
+  ),
   getUpcomingRendezvous: adminRendezvousService.getUpcomingRendezvous.bind(
     adminRendezvousService,
   ),
   exportToCSV: adminRendezvousService.exportToCSV.bind(adminRendezvousService),
-} as UserRendezvousService & AdminRendezvousService;
+};

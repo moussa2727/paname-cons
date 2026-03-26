@@ -79,7 +79,6 @@ const STATUS_CONFIG: Record<
 
 const STEP_LABELS: Record<StepName, string> = {
   DEMANDE_ADMISSION: "Demande d'admission",
-  ENTRETIEN_MOTIVATION: "Entretien de motivation",
   DEMANDE_VISA: "Demande de visa",
   PREPARATIF_VOYAGE: "Préparatifs voyage",
 };
@@ -139,9 +138,8 @@ function StepTimeline({ steps }: { steps: StepResponseDto[] }) {
   const sorted = [...steps].sort((a, b) => {
     const order: Record<string, number> = {
       DEMANDE_ADMISSION: 0,
-      ENTRETIEN_MOTIVATION: 1,
-      DEMANDE_VISA: 2,
-      PREPARATIF_VOYAGE: 3,
+      DEMANDE_VISA: 1,
+      PREPARATIF_VOYAGE: 2,
     };
     return (order[a.nom] ?? 99) - (order[b.nom] ?? 99);
   });
@@ -608,7 +606,7 @@ export default function MaProcedures() {
         console.error("Erreur chargement procédures:", err);
       });
     }
-  }, [user?.email, findByEmail]);
+  }, [user?.email, findByEmail]); // ✅ Dépendances correctes
 
   // Filtrage local uniquement pour l'affichage UI
   const filtered = useMemo(() => {

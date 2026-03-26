@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useProcedures } from "../../../hooks/useProcedures";
@@ -123,14 +123,12 @@ const STEP_STATUS_CONFIG: Record<
 
 const STEP_LABELS: Record<StepName, string> = {
   DEMANDE_ADMISSION: "Demande d'admission",
-  ENTRETIEN_MOTIVATION: "Entretien de motivation",
   DEMANDE_VISA: "Demande de visa",
   PREPARATIF_VOYAGE: "Préparatifs voyage",
 };
 
 const STEP_ORDER: StepName[] = [
   "DEMANDE_ADMISSION",
-  "ENTRETIEN_MOTIVATION",
   "DEMANDE_VISA",
   "PREPARATIF_VOYAGE",
 ];
@@ -368,16 +366,25 @@ export default function ProcedureDetail() {
     : false;
   const canBeCompleted = procedure ? procedure.statut === "IN_PROGRESS" : false;
 
-  // Étapes déjà présentes dans la procédure
-  const existingStepNames = new Set(procedure?.steps?.map((s) => s.nom) ?? []);
-  // Étapes disponibles à ajouter (pas encore présentes)
-  const availableStepsToAdd = STEP_ORDER.filter(
-    (s) => !existingStepNames.has(s),
+  // Étapes déjà présentes dans la procédure (utilisation de Set pour performance)
+  const existingStepNames = useMemo(
+    () => new Set(procedure?.steps?.map((s) => s.nom) ?? []),
+    [procedure?.steps],
   );
 
-  // Étapes triées selon l'ordre logique
-  const sortedSteps = [...(procedure?.steps ?? [])].sort(
-    (a, b) => STEP_ORDER.indexOf(a.nom) - STEP_ORDER.indexOf(b.nom),
+  // Étapes disponibles à ajouter (pas encore présentes)
+  const availableStepsToAdd = useMemo(
+    () => STEP_ORDER.filter((s) => !existingStepNames.has(s)),
+    [existingStepNames],
+  );
+
+  // Étapes triées selon l'ordre logique (tri stable avec clé unique)
+  const sortedSteps = useMemo(
+    () =>
+      [...(procedure?.steps ?? [])].sort(
+        (a, b) => STEP_ORDER.indexOf(a.nom) - STEP_ORDER.indexOf(b.nom),
+      ),
+    [procedure?.steps],
   );
 
   // ── Étapes refusées/rejetées

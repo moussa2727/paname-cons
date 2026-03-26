@@ -29,11 +29,10 @@ import {
   Dock,
 } from "lucide-react";
 import { useUserRendezvous } from "../../../hooks/useRendezvous";
+import { useDestinations } from "../../../hooks/useDestinations";
 import {
-  DESTINATION_OPTIONS,
   NIVEAU_ETUDE_OPTIONS,
   FILIERE_OPTIONS,
-  type TimeSlot,
   type CreateRendezvousDto,
   timeSlotToDisplay,
 } from "../../../types/rendezvous.types";
@@ -50,12 +49,13 @@ interface FormData {
   filiere: string;
   filiereAutre?: string;
   date: string;
-  time: TimeSlot | "";
+  /** HH:MM — aligné sur CreateRendezvousDto backend */
+  time: string;
 }
 
 // Interface pour les créneaux formatés
 interface FormattedSlot {
-  time: TimeSlot | string;
+  time: string;
   displayTime: string;
   available: boolean;
   isPast: boolean;
@@ -176,6 +176,13 @@ const RendezVous = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user, isLoading: authLoading } = useAuth();
 
+  // ✅ Destinations dynamiques (API)
+  const {
+    destinations,
+    loading: destinationsLoading,
+    error: destinationsError,
+  } = useDestinations();
+
   // ✅ HOOK UTILISATEUR SPÉCIFIQUE
   const {
     availableDates,
@@ -191,16 +198,17 @@ const RendezVous = () => {
   });
 
   const [currentStep, setCurrentStep] = useState(1);
-  const [isLoadingDates, setIsLoadingDates] = useState(false);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  // État du formulaire
+  const [showOtherDestination, setShowOtherDestination] = useState(false);
+  const [showOtherNiveau, setShowOtherNiveau] = useState(false);
+  const [showOtherFiliere, setShowOtherFiliere] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  // Instead of useEffect, use a useMemo or initialize state with user data directly
   const [formData, setFormData] = useState<FormData>(() => ({
-    firstName: "",
-    lastName: "",
-    email: "",
-    telephone: "",
+    firstName: user?.firstName || "",
+    lastName: user?.lastName || "",
+    email: user?.email || "",
+    telephone: user?.telephone || "",
     destination: "",
     destinationAutre: "",
     niveauEtude: "",
@@ -211,75 +219,65 @@ const RendezVous = () => {
     time: "",
   }));
 
-  const [showOtherDestination, setShowOtherDestination] = useState(false);
-  const [showOtherNiveau, setShowOtherNiveau] = useState(false);
-  const [showOtherFiliere, setShowOtherFiliere] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(null);
+  // Remonter l'erreur destinations dans l'UI (sans bloquer le formulaire)
+  const loadError = useMemo(() => {
+    return destinationsError || null;
+  }, [destinationsError]);
 
   // ✅ Utiliser les erreurs
   const error = localError || hookError || loadError;
 
+  const destinationOptions = useMemo(() => {
+    const apiCountries = destinations
+      .map((d) => d.country)
+      .filter((c): c is string => Boolean(c && c.trim()));
+    const unique = Array.from(new Set(apiCountries)).sort((a, b) =>
+      a.localeCompare(b, "fr", { sensitivity: "base" }),
+    );
+    if (!unique.includes("Autre")) unique.push("Autre");
+    return unique;
+  }, [destinations]);
+
   // ✅ Transformer les dates disponibles
   const availableDatesList = useMemo(() => {
-    console.log("[RendezVous] Dates reçues du hook:", availableDates);
     return availableDates.map((d) => d.date);
   }, [availableDates]);
 
-  // ✅ Transformer les créneaux disponibles - CORRECTION ICI
+  // ✅ Transformer les créneaux disponibles
   const availableSlotsForSelectedDate = useMemo((): FormattedSlot[] => {
-    console.log("[RendezVous] Créneaux reçus du hook:", availableSlots);
-    console.log("[RendezVous] Date sélectionnée:", formData.date);
-
     if (!formData.date) return [];
 
-    // availableSlots est un tableau d'objets AvailableSlotsDto
-    const slotData =
-      availableSlots && Array.isArray(availableSlots)
-        ? availableSlots.find((slot) => slot.date === formData.date)
-        : null;
+    if (!availableSlots) return [];
 
-    console.log("[RendezVous] Créneaux pour la date:", slotData);
+    const slotDay =
+      typeof availableSlots.date === "string"
+        ? availableSlots.date.split("T")[0]
+        : new Date(availableSlots.date).toISOString().split("T")[0];
+    if (slotDay !== formData.date) return [];
 
-    if (!slotData || !slotData.availableSlots) return [];
+    return availableSlots.availableSlots.map(
+      (timeSlot: string): FormattedSlot => {
+        const displayTime = timeSlotToDisplay(timeSlot);
+        const [hours, minutes] = displayTime.split(":").map(Number);
 
-    // availableSlots est un tableau de strings (TimeSlot)
-    return slotData.availableSlots.map((timeSlot: string): FormattedSlot => {
-      const displayTime = timeSlotToDisplay(timeSlot as TimeSlot);
-      const [hours, minutes] = displayTime.split(":").map(Number);
+        const rendezvousDateTime = new Date(
+          `${formData.date}T${displayTime}:00`,
+        );
+        const now = new Date();
 
-      // Créer la date complète du rendez-vous
-      const rendezvousDateTime = new Date(`${formData.date}T${displayTime}:00`);
-      const now = new Date();
+        const isPast = rendezvousDateTime < now;
+        const isLunchBreak = (hours === 12 && minutes >= 30) || hours === 13;
 
-      // Calculer si le créneau est passé
-      const isPast = rendezvousDateTime < now;
-
-      // Calculer si c'est la pause déjeuner (12:30-14:00)
-      const isLunchBreak = (hours === 12 && minutes >= 30) || hours === 13;
-
-      return {
-        time: timeSlot,
-        displayTime,
-        available: !isPast && !isLunchBreak,
-        isPast,
-        isLunchBreak,
-      };
-    });
+        return {
+          time: timeSlot,
+          displayTime,
+          available: !isPast && !isLunchBreak,
+          isPast,
+          isLunchBreak,
+        };
+      },
+    );
   }, [availableSlots, formData.date]);
-
-  // Initialiser le formulaire avec les données utilisateur
-  useEffect(() => {
-    if (user) {
-      setFormData((prev) => ({
-        ...prev,
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
-        email: user.email || "",
-        telephone: user.telephone || "",
-      }));
-    }
-  }, [user]);
 
   // Initialisation AOS
   useEffect(() => {
@@ -299,20 +297,14 @@ const RendezVous = () => {
 
   // ✅ Charger les dates disponibles
   useEffect(() => {
-    const loadDates = async () => {
-      if (!isAuthenticated) {
-        console.log(
-          "[RendezVous] Utilisateur non authentifié, pas de chargement",
-        );
-        return;
-      }
+    let isMounted = true;
 
-      console.log("[RendezVous] Début chargement des dates...");
-      setIsLoadingDates(true);
-      setLoadError(null);
+    const loadDates = async () => {
+      if (!isAuthenticated) return;
+
+      setLocalError(null);
 
       try {
-        // Charger les dates pour les 3 prochains mois
         const today = new Date();
         const threeMonthsLater = new Date();
         threeMonthsLater.setMonth(today.getMonth() + 3);
@@ -320,53 +312,48 @@ const RendezVous = () => {
         const todayStr = today.toISOString().split("T")[0];
         const threeMonthsStr = threeMonthsLater.toISOString().split("T")[0];
 
-        console.log(
-          "[RendezVous] Appel getAvailableDates avec:",
-          todayStr,
-          threeMonthsStr,
-        );
-
-        await getAvailableDates(todayStr, threeMonthsStr);
-
-        console.log("[RendezVous] Dates chargées avec succès");
+        if (isMounted) {
+          await getAvailableDates(todayStr, threeMonthsStr);
+        }
       } catch (err) {
-        console.error("[RendezVous] Erreur détaillée chargement dates:", err);
-        setLoadError(err instanceof Error ? err.message : "Erreur inconnue");
-      } finally {
-        setIsLoadingDates(false);
+        if (isMounted) {
+          console.error("[RendezVous] Erreur chargement dates:", err);
+          setLocalError(err instanceof Error ? err.message : "Erreur inconnue");
+        }
       }
     };
 
     loadDates();
+
+    return () => {
+      isMounted = false;
+    };
   }, [isAuthenticated, getAvailableDates]);
 
   // ✅ Charger les créneaux quand la date change
   useEffect(() => {
-    const loadSlots = async () => {
-      if (!formData.date || !isAuthenticated) {
-        console.log("[RendezVous] Pas de date sélectionnée ou non authentifié");
-        return;
-      }
+    let isMounted = true;
 
-      console.log("[RendezVous] Chargement des créneaux pour:", formData.date);
-      setIsLoadingSlots(true);
-      setLoadError(null);
+    const loadSlots = async () => {
+      if (!formData.date || !isAuthenticated) return;
 
       try {
-        await getAvailableSlots(formData.date);
-        console.log("[RendezVous] Créneaux chargés avec succès");
+        if (isMounted) {
+          await getAvailableSlots(formData.date);
+        }
       } catch (err) {
-        console.error(
-          "[RendezVous] Erreur détaillée chargement créneaux:",
-          err,
-        );
-        setLoadError(err instanceof Error ? err.message : "Erreur inconnue");
-      } finally {
-        setIsLoadingSlots(false);
+        if (isMounted) {
+          console.error("[RendezVous] Erreur chargement créneaux:", err);
+          setLocalError(err instanceof Error ? err.message : "Erreur inconnue");
+        }
       }
     };
 
     loadSlots();
+
+    return () => {
+      isMounted = false;
+    };
   }, [formData.date, isAuthenticated, getAvailableSlots]);
 
   // Gestion des changements de formulaire
@@ -538,7 +525,7 @@ const RendezVous = () => {
     try {
       const availabilityCheck = await checkAvailability(
         formData.date,
-        formData.time as TimeSlot,
+        formData.time,
       );
 
       if (availabilityCheck && !availabilityCheck.available) {
@@ -571,7 +558,7 @@ const RendezVous = () => {
             ? formData.filiereAutre?.trim()
             : undefined,
         date: formData.date,
-        time: formData.time as TimeSlot,
+        time: formData.time,
       };
 
       const result = await createRendezvous(submitData);
@@ -603,7 +590,7 @@ const RendezVous = () => {
             Date *
           </span>
         </label>
-        {isLoadingDates ? (
+        {loading.dates ? (
           <div className="rounded border border-gray-300 bg-gray-50 px-3 py-2">
             <p className="text-xs text-gray-600">
               Chargement des dates disponibles...
@@ -646,7 +633,7 @@ const RendezVous = () => {
               Horaire *
             </span>
           </label>
-          {isLoadingSlots ? (
+          {loading.slots ? (
             <div className="rounded border border-gray-300 bg-gray-50 px-3 py-2">
               <p className="text-xs text-gray-600">
                 Chargement des créneaux disponibles...
@@ -665,10 +652,10 @@ const RendezVous = () => {
                       slot.available &&
                       setFormData((prev) => ({
                         ...prev,
-                        time: slot.time as TimeSlot,
+                        time: slot.time,
                       }))
                     }
-                    disabled={!slot.available || isLoadingSlots}
+                    disabled={!slot.available || loading.slots}
                     className={`rounded px-2 py-1.5 text-xs transition-all duration-150 focus:outline-none focus:ring-none ${
                       isSelected
                         ? "bg-sky-600 text-white"
@@ -709,7 +696,7 @@ const RendezVous = () => {
                   month: "long",
                   year: "numeric",
                 })}{" "}
-                à {timeSlotToDisplay(formData.time as TimeSlot)}
+                à {timeSlotToDisplay(formData.time)}
               </p>
             </div>
           )}
@@ -752,7 +739,6 @@ const RendezVous = () => {
                 <button
                   onClick={() => {
                     setLocalError(null);
-                    setLoadError(null);
                   }}
                   className="ml-auto text-red-500 hover:text-red-700"
                 >
@@ -924,9 +910,14 @@ const RendezVous = () => {
                           name="destination"
                           value={formData.destination}
                           onChange={handleInputChange}
-                          options={DESTINATION_OPTIONS}
+                          options={destinationOptions}
                           required
                           icon={<Globe className="text-sky-500 h-3 w-3" />}
+                          placeholder={
+                            destinationsLoading
+                              ? "Chargement des destinations..."
+                              : "Sélectionner"
+                          }
                         />
                         {showOtherDestination && (
                           <div className="mt-3">
