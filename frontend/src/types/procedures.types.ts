@@ -2,11 +2,24 @@
 // Types strictement basés sur les DTOs backend
 
 // ─── Enums (miroir Prisma) ────────────────────────────────────────────────────
-export type ProcedureStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
-export type StepStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
-export type StepName = 'DEMANDE_ADMISSION' | 'DEMANDE_VISA' | 'PREPARATIF_VOYAGE';
-export type SortOrder = 'asc' | 'desc';
-export type ExportFormat = 'csv' | 'excel' | 'pdf';
+export type ProcedureStatus =
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "REJECTED"
+  | "CANCELLED";
+export type StepStatus =
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "REJECTED"
+  | "CANCELLED";
+export type StepName =
+  | "DEMANDE_ADMISSION"
+  | "DEMANDE_VISA"
+  | "PREPARATIF_VOYAGE";
+export type SortOrder = "asc" | "desc";
+export type ExportFormat = "csv" | "excel" | "pdf";
 
 // ─── DTOs ────────────────────────────────────────────────────────────────────
 export interface CreateProcedureDto {

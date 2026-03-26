@@ -23,14 +23,17 @@ const API = {
   ADMIN_CREATE: "/admin/procedures/create",
   ADMIN_ALL: "/admin/procedures/all",
   ADMIN_STATISTICS: "/admin/procedures/statistics",
-  ADMIN_STEP: (id: string, stepName: StepName) => `/admin/procedures/${id}/steps/${stepName}`,
-  ADMIN_ADD_STEP: (id: string, stepName: StepName) => `/admin/procedures/${id}/steps/${stepName}`,
+  ADMIN_STEP: (id: string, stepName: StepName) =>
+    `/admin/procedures/${id}/steps/${stepName}`,
+  ADMIN_ADD_STEP: (id: string, stepName: StepName) =>
+    `/admin/procedures/${id}/steps/${stepName}`,
   ADMIN_DELETE: (id: string) => `/admin/procedures/${id}/delete`,
   ADMIN_EXPORT: "/admin/procedures/export",
-  
+
   // Routes User + Mixed
   PROCEDURE_BY_EMAIL: (email: string) => `/procedures/by-email/${email}`,
-  PROCEDURE_BY_RENDEZVOUS: (rendezVousId: string) => `/procedures/by-rendezvous/${rendezVousId}`,
+  PROCEDURE_BY_RENDEZVOUS: (rendezVousId: string) =>
+    `/procedures/by-rendezvous/${rendezVousId}`,
   PROCEDURE_DETAILS: (id: string) => `/procedures/${id}/details`,
   PROCEDURE_UPDATE: (id: string) => `/procedures/${id}/update`,
   PROCEDURE_CANCEL: (id: string) => `/procedures/${id}/cancel`,
@@ -58,7 +61,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 // ─── Service ─────────────────────────────────────────────────────────────────
 export const ProceduresService = {
   // ==================== ROUTES ADMIN ====================
-  
+
   /**
    * POST /admin/procedures/create
    * Créer une procédure depuis un rendez-vous éligible
@@ -78,15 +81,21 @@ export const ProceduresService = {
    * GET /admin/procedures/all
    * Liste toutes les procédures (admin)
    */
-  async findAll(query: ProcedureQueryDto = {}): Promise<PaginatedProcedureResponseDto> {
+  async findAll(
+    query: ProcedureQueryDto = {},
+  ): Promise<PaginatedProcedureResponseDto> {
     const params = new URLSearchParams();
-    Object.entries({ page: 1, limit: 10, sortBy: "createdAt", sortOrder: "desc", ...query }).forEach(
-      ([key, value]) => {
-        if (value !== undefined && value !== null && value !== "") {
-          params.set(key, String(value));
-        }
+    Object.entries({
+      page: 1,
+      limit: 10,
+      sortBy: "createdAt",
+      sortOrder: "desc",
+      ...query,
+    }).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        params.set(key, String(value));
       }
-    );
+    });
 
     const res = await apiFetch(`${BASE_URL}${API.ADMIN_ALL}?${params}`);
     return handleResponse<PaginatedProcedureResponseDto>(res);
@@ -105,7 +114,11 @@ export const ProceduresService = {
    * PATCH /admin/procedures/:id/steps/:stepName
    * Mettre à jour une étape (Admin seulement)
    */
-  async updateStep(id: string, stepName: StepName, data: UpdateStepDto): Promise<ProcedureResponseDto> {
+  async updateStep(
+    id: string,
+    stepName: StepName,
+    data: UpdateStepDto,
+  ): Promise<ProcedureResponseDto> {
     const res = await apiFetch(`${BASE_URL}${API.ADMIN_STEP(id, stepName)}`, {
       method: "PATCH",
       headers: JSON_HEADERS,
@@ -121,9 +134,12 @@ export const ProceduresService = {
    * Ajouter une étape (Admin seulement)
    */
   async addStep(id: string, stepName: StepName): Promise<ProcedureResponseDto> {
-    const res = await apiFetch(`${BASE_URL}${API.ADMIN_ADD_STEP(id, stepName)}`, {
-      method: "POST",
-    });
+    const res = await apiFetch(
+      `${BASE_URL}${API.ADMIN_ADD_STEP(id, stepName)}`,
+      {
+        method: "POST",
+      },
+    );
     const result = await handleResponse<ProcedureResponseDto>(res);
     toast.success(`Étape ${stepName} ajoutée`);
     return result;
@@ -147,7 +163,10 @@ export const ProceduresService = {
    * GET /admin/procedures/export
    * Exporter les procédures (CSV, Excel, PDF)
    */
-  async exportProcedures(format: ExportFormat, query: ProcedureQueryDto = {}): Promise<Blob> {
+  async exportProcedures(
+    format: ExportFormat,
+    query: ProcedureQueryDto = {},
+  ): Promise<Blob> {
     const params = new URLSearchParams({ format });
     Object.entries(query).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== "") {
@@ -177,8 +196,12 @@ export const ProceduresService = {
    * GET /procedures/by-rendezvous/:rendezVousId
    * Trouver une procédure par ID de rendez-vous
    */
-  async findByRendezvousId(rendezVousId: string): Promise<ProcedureResponseDto | null> {
-    const res = await apiFetch(`${BASE_URL}${API.PROCEDURE_BY_RENDEZVOUS(rendezVousId)}`);
+  async findByRendezvousId(
+    rendezVousId: string,
+  ): Promise<ProcedureResponseDto | null> {
+    const res = await apiFetch(
+      `${BASE_URL}${API.PROCEDURE_BY_RENDEZVOUS(rendezVousId)}`,
+    );
     if (res.status === 404) return null;
     return handleResponse<ProcedureResponseDto>(res);
   },
@@ -196,7 +219,10 @@ export const ProceduresService = {
    * PATCH /procedures/:id/update
    * Mettre à jour une procédure
    */
-  async update(id: string, data: UpdateProcedureDto): Promise<ProcedureResponseDto> {
+  async update(
+    id: string,
+    data: UpdateProcedureDto,
+  ): Promise<ProcedureResponseDto> {
     const res = await apiFetch(`${BASE_URL}${API.PROCEDURE_UPDATE(id)}`, {
       method: "PATCH",
       headers: JSON_HEADERS,
@@ -215,7 +241,9 @@ export const ProceduresService = {
     const res = await apiFetch(`${BASE_URL}${API.PROCEDURE_CANCEL(id)}`, {
       method: "PATCH",
       headers: JSON_HEADERS,
-      body: JSON.stringify({ reason: reason || "Annulation par l'utilisateur" }),
+      body: JSON.stringify({
+        reason: reason || "Annulation par l'utilisateur",
+      }),
     });
     const result = await handleResponse<ProcedureResponseDto>(res);
     toast.success("Procédure annulée");

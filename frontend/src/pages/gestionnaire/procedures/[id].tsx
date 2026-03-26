@@ -312,7 +312,7 @@ export default function ProcedureDetail() {
     loadByIdRef.current(id).catch((err) => {
       console.error("Failed to load procedure:", err);
     });
-  }, [id, user]);
+  }, [id, user, isAdmin]);
 
   // Fermer le menu déroulant au clic extérieur
   useEffect(() => {
@@ -388,14 +388,17 @@ export default function ProcedureDetail() {
     if (!procedure) return;
     const result = await cancelProcedure(
       procedure.id,
-      cancelReason || "Annulation manuelle par l'admin"
+      cancelReason || "Annulation manuelle par l'admin",
     );
     if (result) closeModal();
   };
 
   const handleDelete = async () => {
     if (!procedure) return;
-    const ok = await remove(procedure.id, deleteReason || "Suppression manuelle");
+    const ok = await remove(
+      procedure.id,
+      deleteReason || "Suppression manuelle",
+    );
     if (ok) navigate("/gestionnaire/procedures");
   };
 
@@ -603,7 +606,7 @@ export default function ProcedureDetail() {
                       value: procedure.createdAt
                         ? new Date(procedure.createdAt).toLocaleDateString(
                             "fr-FR",
-                            { day: "2-digit", month: "long", year: "numeric" }
+                            { day: "2-digit", month: "long", year: "numeric" },
                           )
                         : "Date inconnue",
                     },
@@ -747,14 +750,14 @@ export default function ProcedureDetail() {
                                 <span className="text-xs text-slate-400">
                                   Créée le{" "}
                                   {new Date(
-                                    step.dateCreation
+                                    step.dateCreation,
                                   ).toLocaleDateString("fr-FR")}
                                 </span>
                                 {step.dateCompletion && (
                                   <span className="text-xs text-slate-400">
                                     · Terminée le{" "}
                                     {new Date(
-                                      step.dateCompletion
+                                      step.dateCompletion,
                                     ).toLocaleDateString("fr-FR")}
                                   </span>
                                 )}
@@ -857,7 +860,7 @@ export default function ProcedureDetail() {
                     <p className="text-xs text-slate-400 pt-1 border-t border-slate-50">
                       Estimation :{" "}
                       {new Date(
-                        procedure.estimatedCompletionDate
+                        procedure.estimatedCompletionDate,
                       ).toLocaleDateString("fr-FR", {
                         day: "2-digit",
                         month: "long",
@@ -878,44 +881,44 @@ export default function ProcedureDetail() {
                       label: "Création",
                       value: procedure.createdAt
                         ? new Date(procedure.createdAt).toLocaleDateString(
-                            "fr-FR"
+                            "fr-FR",
                           )
                         : "Date inconnue",
                     },
                     procedure.updatedAt && {
                       label: "Dernière modification",
                       value: new Date(procedure.updatedAt).toLocaleDateString(
-                        "fr-FR"
+                        "fr-FR",
                       ),
                     },
                     procedure.dateDerniereModification && {
                       label: "Dernière action",
                       value: new Date(
-                        procedure.dateDerniereModification
+                        procedure.dateDerniereModification,
                       ).toLocaleDateString("fr-FR"),
                     },
                     procedure.dateCompletion && {
                       label: "Complétée le",
                       value: new Date(
-                        procedure.dateCompletion
+                        procedure.dateCompletion,
                       ).toLocaleDateString("fr-FR"),
                     },
                     procedure.cancelledAt && {
                       label: "Annulée le",
                       value: new Date(procedure.cancelledAt).toLocaleDateString(
-                        "fr-FR"
+                        "fr-FR",
                       ),
                     },
                     procedure.deletedAt && {
                       label: "Supprimée le",
                       value: new Date(procedure.deletedAt).toLocaleDateString(
-                        "fr-FR"
+                        "fr-FR",
                       ),
                     },
                   ]
                     .filter(
                       (item): item is { label: string; value: string } =>
-                        item != null
+                        item != null,
                     )
                     .map((item) => (
                       <div key={item.label} className="flex justify-between">
