@@ -33,7 +33,7 @@ import {
 // Hooks uniquement - Utilisation des méthodes stats disponibles
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useAdminRendezvous} from "../../../hooks/useRendezvous";
+import { useAdminRendezvous } from "../../../hooks/useRendezvous";
 import { useUser } from "../../../hooks/useUser";
 import { useProcedures } from "../../../hooks/useProcedures";
 import { useMessages } from "../../../hooks/useMessages";
