@@ -1,4 +1,4 @@
-// Rendezvous.tsx - Version corrigée
+// Rendezvous.tsx - Version corrigée (sans boucles)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
@@ -201,7 +201,6 @@ const PanelRow = ({
 const RendezvousAdmin = () => {
   const { isAdmin } = useAuth();
 
-  // ✅ CORRECTION: Utiliser useAdminRendezvous au lieu de useRendezvous
   const {
     rendezvousList,
     selectedRendezvous,
@@ -225,7 +224,7 @@ const RendezvousAdmin = () => {
     changePage,
   } = useAdminRendezvous({
     autoLoadList: true,
-    refreshInterval: 0,
+    refreshInterval: 0, // ✅ Désactivé pour éviter les appels automatiques
   });
 
   const { destinations = [], loading: loadingDestinations } = useDestinations();
@@ -245,6 +244,10 @@ const RendezvousAdmin = () => {
     AdminOpinion.FAVORABLE,
   );
   const [completeComment, setCompleteComment] = useState("");
+
+  // ✅ Ref pour éviter les appels multiples
+  const hasLoadedTodayRef = useRef(false);
+  const hasLoadedUpcomingRef = useRef(false);
 
   // État local pour les filtres
   const [localFilters, setLocalFilters] = useState<RendezvousQueryDto>({
@@ -319,27 +322,33 @@ const RendezvousAdmin = () => {
     };
   }, [searchTerm, localFilters, applyFilters]);
 
-  // Panels
+  // ✅ Panels - fonctions stables
   const loadTodayPanel = useCallback(async () => {
+    if (loadingPanel) return; // ✅ Évite les appels multiples
+    
     setLoadingPanel(true);
     try {
       const today = new Date().toISOString().split("T")[0];
       const data = await getRendezvousByDate(today);
       setTodayList(Array.isArray(data) ? data : []);
+      hasLoadedTodayRef.current = true;
     } catch (error) {
       console.error("Erreur chargement aujourd'hui:", error);
       setTodayList([]);
     } finally {
       setLoadingPanel(false);
     }
-  }, [getRendezvousByDate]);
+  }, [getRendezvousByDate, loadingPanel]);
 
   const loadUpcomingPanel = useCallback(
     async (limit = 10) => {
+      if (loadingPanel) return; // ✅ Évite les appels multiples
+      
       setLoadingPanel(true);
       try {
         const data = await getUpcomingRendezvous(limit);
         setUpcomingList(Array.isArray(data) ? data : []);
+        hasLoadedUpcomingRef.current = true;
       } catch (error) {
         console.error("Erreur chargement à venir:", error);
         setUpcomingList([]);
@@ -347,23 +356,28 @@ const RendezvousAdmin = () => {
         setLoadingPanel(false);
       }
     },
-    [getUpcomingRendezvous],
+    [getUpcomingRendezvous, loadingPanel],
   );
 
-  
-  // Switch d'onglet
+  // ✅ Switch d'onglet - sans auto-reload
   const switchTab = useCallback((tab: "list" | "today" | "upcoming") => {
     setActiveTab(tab);
   }, []);
 
-  // Effet pour charger les panels quand l'onglet change
+  // ✅ Effet pour charger les panels UNIQUEMENT quand l'onglet change ET que les données ne sont pas déjà chargées
   useEffect(() => {
-    if (activeTab === "today") {
+    if (activeTab === "today" && !hasLoadedTodayRef.current && !loadingPanel) {
       loadTodayPanel();
-    } else if (activeTab === "upcoming") {
+    } else if (activeTab === "upcoming" && !hasLoadedUpcomingRef.current && !loadingPanel) {
       loadUpcomingPanel();
     }
-  }, [activeTab, loadTodayPanel, loadUpcomingPanel]); // Ajout des dépendances correctes
+  }, [activeTab, loadTodayPanel, loadUpcomingPanel, loadingPanel]);
+
+  // ✅ Réinitialisation des refs quand les données sont modifiées (création, suppression, etc.)
+  const resetPanelCache = useCallback(() => {
+    hasLoadedTodayRef.current = false;
+    hasLoadedUpcomingRef.current = false;
+  }, []);
 
   // Filtre rapide par date
   const handleDateQuickFilter = useCallback(
@@ -373,10 +387,12 @@ const RendezvousAdmin = () => {
         return;
       }
       setActiveTab("today");
+      hasLoadedTodayRef.current = false; // Force le rechargement
       setLoadingPanel(true);
       try {
         const data = await getRendezvousByDate(date);
         setTodayList(Array.isArray(data) ? data : []);
+        hasLoadedTodayRef.current = true;
       } catch (error) {
         console.error("Erreur filtre par date:", error);
         setTodayList([]);
@@ -515,15 +531,15 @@ const RendezvousAdmin = () => {
     if (!modal.rdv?.id) return;
 
     try {
-      // ✅ Correction: completeRendezvous attend (id, avisAdmin, comments?)
       const result = await completeRendezvous(
         modal.rdv.id,
-        completeOpinion, // AdminOpinion
+        completeOpinion,
         completeComment.trim() || undefined,
       );
       if (result) {
         closeModal();
         await getStatistics();
+        resetPanelCache(); // ✅ Invalide le cache
         if (activeTab === "today") await loadTodayPanel();
         if (activeTab === "upcoming") await loadUpcomingPanel();
       }
@@ -532,7 +548,6 @@ const RendezvousAdmin = () => {
     }
   };
 
-  // ✅ CORRECTION: cancelRendezvous attend (id, reason)
   const handleCancel = async () => {
     if (!modal.rdv?.id || !cancelReason.trim()) return;
 
@@ -541,6 +556,7 @@ const RendezvousAdmin = () => {
       if (result) {
         closeModal();
         await getStatistics();
+        resetPanelCache(); // ✅ Invalide le cache
         if (activeTab === "today") await loadTodayPanel();
         if (activeTab === "upcoming") await loadUpcomingPanel();
       }
@@ -571,6 +587,7 @@ const RendezvousAdmin = () => {
       if (result) {
         closeModal();
         await getStatistics();
+        resetPanelCache(); // ✅ Invalide le cache
         if (activeTab === "today") await loadTodayPanel();
         if (activeTab === "upcoming") await loadUpcomingPanel();
       }
@@ -599,6 +616,7 @@ const RendezvousAdmin = () => {
       if (result) {
         closeModal();
         await getStatistics();
+        resetPanelCache(); // ✅ Invalide le cache
         if (activeTab === "today") await loadTodayPanel();
         if (activeTab === "upcoming") await loadUpcomingPanel();
 
@@ -634,6 +652,7 @@ const RendezvousAdmin = () => {
       try {
         await deleteRendezvous(confirmModal.id);
         await getStatistics();
+        resetPanelCache(); // ✅ Invalide le cache
         if (activeTab === "today") await loadTodayPanel();
         if (activeTab === "upcoming") await loadUpcomingPanel();
       } catch (error) {
@@ -651,6 +670,7 @@ const RendezvousAdmin = () => {
     try {
       await updateRendezvous(id, { status: RendezvousStatus.PENDING });
       await getStatistics();
+      resetPanelCache(); // ✅ Invalide le cache
       if (activeTab === "today") await loadTodayPanel();
       if (activeTab === "upcoming") await loadUpcomingPanel();
     } catch (error) {
@@ -662,6 +682,7 @@ const RendezvousAdmin = () => {
     try {
       await updateRendezvous(id, { status: RendezvousStatus.CONFIRMED });
       await getStatistics();
+      resetPanelCache(); // ✅ Invalide le cache
       if (activeTab === "today") await loadTodayPanel();
       if (activeTab === "upcoming") await loadUpcomingPanel();
     } catch (error) {
@@ -690,6 +711,7 @@ const RendezvousAdmin = () => {
     try {
       await searchRendezvous();
       await getStatistics();
+      resetPanelCache(); // ✅ Invalide le cache
       if (activeTab === "today") await loadTodayPanel();
       if (activeTab === "upcoming") await loadUpcomingPanel();
     } catch (error) {
@@ -1176,7 +1198,10 @@ const RendezvousAdmin = () => {
                 jour
               </h2>
               <button
-                onClick={loadTodayPanel}
+                onClick={() => {
+                  hasLoadedTodayRef.current = false;
+                  loadTodayPanel();
+                }}
                 disabled={loadingPanel}
                 className="text-xs text-sky-600 hover:underline flex items-center gap-1"
               >
@@ -1217,7 +1242,10 @@ const RendezvousAdmin = () => {
                 rendez-vous
               </h2>
               <button
-                onClick={() => loadUpcomingPanel(20)}
+                onClick={() => {
+                  hasLoadedUpcomingRef.current = false;
+                  loadUpcomingPanel(20);
+                }}
                 disabled={loadingPanel}
                 className="text-xs text-indigo-600 hover:underline"
               >
