@@ -371,7 +371,7 @@ const RendezvousAdmin = () => {
     } else if (activeTab === "upcoming" && !hasLoadedUpcomingRef.current && !loadingPanel) {
       loadUpcomingPanel();
     }
-  }, [activeTab, loadTodayPanel, loadUpcomingPanel, loadingPanel]);
+  }, [activeTab]); // Seulement quand l'onglet change
 
   // ✅ Réinitialisation des refs quand les données sont modifiées (création, suppression, etc.)
   const resetPanelCache = useCallback(() => {
@@ -711,7 +711,7 @@ const RendezvousAdmin = () => {
     try {
       await searchRendezvous();
       await getStatistics();
-      resetPanelCache(); // ✅ Invalide le cache
+      // Pas de resetPanelCache ici pour éviter la boucle
       if (activeTab === "today") await loadTodayPanel();
       if (activeTab === "upcoming") await loadUpcomingPanel();
     } catch (error) {
