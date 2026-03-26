@@ -177,6 +177,26 @@ export function useProcedures(
     setLoading((prev: ProcedureLoadingState) => ({ ...prev, [k]: v }));
   }, []);
 
+  // Déwrappe l'enveloppe API { data: T } ou { statusCode, data: T } si présente.
+  // Certains endpoints NestJS retournent la ressource directement, d'autres l'enveloppent.
+  const unwrapProcedure = (raw: unknown): ProcedureResponseDto => {
+    if (raw && typeof raw === "object") {
+      const obj = raw as Record<string, unknown>;
+      if (
+        "data" in obj &&
+        obj.data &&
+        typeof obj.data === "object" &&
+        "id" in (obj.data as object)
+      ) {
+        return obj.data as ProcedureResponseDto;
+      }
+      if ("id" in obj) {
+        return raw as ProcedureResponseDto;
+      }
+    }
+    throw new Error("Réponse invalide : structure inattendue");
+  };
+
   const syncPagination = useCallback((res: PaginatedProcedureResponseDto) => {
     if (!res) return;
     setPagination({
@@ -255,12 +275,11 @@ export function useProcedures(
   // ─────────────────────────────────────────────────────────────────────────
   const loadById = useCallback(
     async (id: string): Promise<ProcedureResponseDto | null> => {
-      console.log("loadById called with ID:", id);
       setLoad("details", true);
       setError(null);
       try {
-        const procedure = await ProceduresService.findById(id);
-        console.log("Procedure loaded");
+        const raw = await ProceduresService.findById(id);
+        const procedure = unwrapProcedure(raw);
         setSelectedProcedure(procedure);
         return procedure;
       } catch (err: unknown) {
@@ -313,7 +332,7 @@ export function useProcedures(
       setLoad("create", true);
       setError(null);
       try {
-        const procedure = await ProceduresService.create(data);
+        const procedure = unwrapProcedure(await ProceduresService.create(data));
         setProcedures((prev: ProcedureResponseDto[]) => [procedure, ...prev]);
         setPagination((prev: ProcedurePagination) => ({
           ...prev,
@@ -347,7 +366,7 @@ export function useProcedures(
       setLoad("update", true);
       setError(null);
       try {
-        const updated = await ProceduresService.update(id, data);
+        const updated = unwrapProcedure(await ProceduresService.update(id, data));
         setProcedures((prev: ProcedureResponseDto[]) =>
           prev.map((p) => (p.id === id ? updated : p)),
         );
@@ -383,7 +402,7 @@ export function useProcedures(
       setLoad("updateStep", true);
       setError(null);
       try {
-        const updated = await ProceduresService.updateStep(id, stepName, data);
+        const updated = unwrapProcedure(await ProceduresService.updateStep(id, stepName, data));
         setProcedures((prev: ProcedureResponseDto[]) =>
           prev.map((p) => (p.id === id ? updated : p)),
         );
@@ -418,7 +437,7 @@ export function useProcedures(
       setLoad("updateStep", true);
       setError(null);
       try {
-        const updated = await ProceduresService.addStep(id, stepName);
+        const updated = unwrapProcedure(await ProceduresService.addStep(id, stepName));
         setProcedures((prev: ProcedureResponseDto[]) =>
           prev.map((p) => (p.id === id ? updated : p)),
         );
@@ -492,7 +511,7 @@ export function useProcedures(
       setLoad("update", true);
       setError(null);
       try {
-        const updated = await ProceduresService.cancel(id, reason);
+        const updated = unwrapProcedure(await ProceduresService.cancel(id, reason));
         setProcedures((prev: ProcedureResponseDto[]) =>
           prev.map((p) => (p.id === id ? updated : p)),
         );
@@ -529,9 +548,9 @@ export function useProcedures(
 
         let last: ProcedureResponseDto | null = null;
         for (const step of stepsToComplete) {
-          last = await ProceduresService.updateStep(id, step.nom, {
+          last = unwrapProcedure(await ProceduresService.updateStep(id, step.nom, {
             statut: "COMPLETED",
-          });
+          }));
         }
 
         const result = last ?? target;
