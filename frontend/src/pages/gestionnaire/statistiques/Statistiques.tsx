@@ -189,7 +189,11 @@ const Statistiques: React.FC = () => {
         ? Math.floor(messageStats.thisWeek / 7)
         : 0,
     }));
-  }, [rendezvousStats?.upcoming?.thisWeek, procedureStats?.newProcedures?.thisWeek, messageStats?.thisWeek]);
+  }, [
+    rendezvousStats?.upcoming?.thisWeek,
+    procedureStats?.newProcedures?.thisWeek,
+    messageStats?.thisWeek,
+  ]);
 
   // ─── Données pour les destinations (depuis les stats procédures) ──────
   const destinationData = useMemo(() => {

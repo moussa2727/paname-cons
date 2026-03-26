@@ -266,22 +266,35 @@ class AdminRendezvousService extends BaseRendezvousService {
   /**
    * GET /admin/rendezvous/statistics
    */
-async getStatistics(): Promise<RendezvousStatisticsDto> {
-  const response = await apiFetch(
-    `${this.baseUrl}/admin/rendezvous/statistics`,
-  );
-  const data = await this.handleResponse<Partial<RendezvousStatisticsDto>>(response);
-  
-  // ✅ S'assurer que topDestinations est toujours un tableau
-  return {
-    total: data.total ?? 0,
-    byStatus: data.byStatus ?? { pending: 0, confirmed: 0, completed: 0, cancelled: 0 },
-    completionRate: data.completionRate ?? 0,
-    cancellationRate: data.cancellationRate ?? 0,
-    upcoming: data.upcoming ?? { today: 0, tomorrow: 0, thisWeek: 0, thisMonth: 0 },
-    topDestinations: Array.isArray(data.topDestinations) ? data.topDestinations : [],
-  };
-}
+  async getStatistics(): Promise<RendezvousStatisticsDto> {
+    const response = await apiFetch(
+      `${this.baseUrl}/admin/rendezvous/statistics`,
+    );
+    const data =
+      await this.handleResponse<Partial<RendezvousStatisticsDto>>(response);
+
+    // ✅ S'assurer que topDestinations est toujours un tableau
+    return {
+      total: data.total ?? 0,
+      byStatus: data.byStatus ?? {
+        pending: 0,
+        confirmed: 0,
+        completed: 0,
+        cancelled: 0,
+      },
+      completionRate: data.completionRate ?? 0,
+      cancellationRate: data.cancellationRate ?? 0,
+      upcoming: data.upcoming ?? {
+        today: 0,
+        tomorrow: 0,
+        thisWeek: 0,
+        thisMonth: 0,
+      },
+      topDestinations: Array.isArray(data.topDestinations)
+        ? data.topDestinations
+        : [],
+    };
+  }
 
   /**
    * GET /rendezvous/by-date/:date
@@ -453,10 +466,14 @@ async getStatistics(): Promise<RendezvousStatisticsDto> {
         rdv?.time || "",
         rdv?.status || "",
         rdv?.avisAdmin || "",
-        rdv?.createdAt ? new Date(rdv.createdAt).toLocaleDateString("fr-FR") : "",
+        rdv?.createdAt
+          ? new Date(rdv.createdAt).toLocaleDateString("fr-FR")
+          : "",
       ]);
 
-      const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+      const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join(
+        "\n",
+      );
       toast.success("Export CSV généré avec succès !");
       return csv;
     } catch (error) {

@@ -331,10 +331,10 @@ const RendezvousAdmin = () => {
   const loadTodayPanel = useCallback(async () => {
     // Protection contre les appels multiples
     if (isLoadingTodayRef.current || loadingPanel) return;
-    
+
     isLoadingTodayRef.current = true;
     setLoadingPanel(true);
-    
+
     try {
       const today = new Date().toISOString().split("T")[0];
       const data = await getRendezvousByDate(today);
@@ -355,10 +355,10 @@ const RendezvousAdmin = () => {
     async (limit = 10) => {
       // Protection contre les appels multiples
       if (isLoadingUpcomingRef.current || loadingPanel) return;
-      
+
       isLoadingUpcomingRef.current = true;
       setLoadingPanel(true);
-      
+
       try {
         const data = await getUpcomingRendezvous(limit);
         setUpcomingList(Array.isArray(data) ? data : []);
@@ -377,10 +377,13 @@ const RendezvousAdmin = () => {
   );
 
   // ✅ Switch d'onglet - sans auto-reload
-  const switchTab = useCallback((tab: "list" | "today" | "upcoming") => {
-    if (activeTab === tab) return; // Évite de recharger le même onglet
-    setActiveTab(tab);
-  }, [activeTab]);
+  const switchTab = useCallback(
+    (tab: "list" | "today" | "upcoming") => {
+      if (activeTab === tab) return; // Évite de recharger le même onglet
+      setActiveTab(tab);
+    },
+    [activeTab],
+  );
 
   // ✅ Effet pour charger les panels UNIQUEMENT à l'initialisation
   useEffect(() => {
@@ -399,14 +402,14 @@ const RendezvousAdmin = () => {
   const handleRefresh = useCallback(async () => {
     // Protection contre les appels multiples
     if (isRefreshingRef.current) return;
-    
+
     isRefreshingRef.current = true;
-    
+
     // Clear tout timeout existant
     if (refreshTimeoutRef.current) {
       clearTimeout(refreshTimeoutRef.current);
     }
-    
+
     try {
       // Rafraîchir selon l'onglet actif
       if (activeTab === "list") {
@@ -428,7 +431,13 @@ const RendezvousAdmin = () => {
         refreshTimeoutRef.current = null;
       }, 1000);
     }
-  }, [activeTab, searchRendezvous, getStatistics, loadTodayPanel, loadUpcomingPanel]);
+  }, [
+    activeTab,
+    searchRendezvous,
+    getStatistics,
+    loadTodayPanel,
+    loadUpcomingPanel,
+  ]);
 
   // Filtre rapide par date
   const handleDateQuickFilter = useCallback(
@@ -439,17 +448,17 @@ const RendezvousAdmin = () => {
         }
         return;
       }
-      
+
       // Changer d'onglet et charger
       setActiveTab("today");
-      
+
       // Attendre que l'état soit mis à jour
       setTimeout(async () => {
         if (isLoadingTodayRef.current) return;
-        
+
         isLoadingTodayRef.current = true;
         setLoadingPanel(true);
-        
+
         try {
           const data = await getRendezvousByDate(date);
           setTodayList(Array.isArray(data) ? data : []);
@@ -1151,7 +1160,12 @@ const RendezvousAdmin = () => {
             </button>
             <button
               onClick={handleRefresh}
-              disabled={loading.list || loading.statistics || loadingPanel || isRefreshingRef.current}
+              disabled={
+                loading.list ||
+                loading.statistics ||
+                loadingPanel ||
+                isRefreshingRef.current
+              }
               className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm transition-colors disabled:opacity-50"
             >
               <RefreshCw
