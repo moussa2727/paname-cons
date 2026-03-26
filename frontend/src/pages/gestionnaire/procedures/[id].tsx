@@ -139,7 +139,6 @@ const STEP_ORDER: StepName[] = [
 const StatusBadge: React.FC<{ status: ProcedureStatus | string }> = ({
   status,
 }) => {
-  // Validation du statut
   if (!status || typeof status !== "string") {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold border bg-slate-50 border-slate-200 text-slate-600">
@@ -151,7 +150,6 @@ const StatusBadge: React.FC<{ status: ProcedureStatus | string }> = ({
 
   const cfg = STATUS_CONFIG[status as ProcedureStatus];
   if (!cfg) {
-    // Fallback pour statut inconnu
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold border bg-slate-50 border-slate-200 text-slate-600">
         <AlertCircle size={12} />
@@ -171,7 +169,6 @@ const StatusBadge: React.FC<{ status: ProcedureStatus | string }> = ({
 const StepStatusBadge: React.FC<{ status: StepStatus | string }> = ({
   status,
 }) => {
-  // Validation du statut
   if (!status || typeof status !== "string") {
     return (
       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-slate-50 text-slate-600">
@@ -183,7 +180,6 @@ const StepStatusBadge: React.FC<{ status: StepStatus | string }> = ({
 
   const cfg = STEP_STATUS_CONFIG[status as StepStatus];
   if (!cfg) {
-    // Fallback pour statut inconnu
     return (
       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-slate-50 text-slate-600">
         <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
@@ -276,7 +272,7 @@ type ModalType =
 export default function ProcedureDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
 
   const {
     selectedProcedure: procedure,
@@ -303,21 +299,29 @@ export default function ProcedureDetail() {
   const [cancelReason, setCancelReason] = useState("");
   const [showAddStepMenu, setShowAddStepMenu] = useState(false);
 
-  // ── Chargement initial ────────────────────────────────────────────────────
-  const loadedIdRef = useRef<string | null>(null);
+  // ── Ref stable vers loadById pour éviter les boucles ─────────────────────
+  // loadById dépend de setLoad (stable) — sa référence ne devrait pas changer,
+  // mais on utilise un ref par sécurité pour découpler l'effet de sa dépendance.
+  const loadByIdRef = useRef(loadById);
+  useEffect(() => {
+    loadByIdRef.current = loadById;
+  }, [loadById]);
 
+  // ── Chargement initial : se déclenche dès que id ET isAdmin sont prêts ────
+  // FIX : on dépend de `id` ET de `user` (pas juste isAdmin booléen) pour
+  // que l'effet se relance quand l'auth se résout après le premier render.
   useEffect(() => {
     if (!id || !isAdmin) return;
-    // Évite de recharger si l'ID n'a pas changé (loadById peut changer de référence)
-    if (loadedIdRef.current === id) return;
-    loadedIdRef.current = id;
-    loadById(id).catch((err) => {
+    loadByIdRef.current(id).catch((err) => {
       console.error("Failed to load procedure:", err);
-      loadedIdRef.current = null; // reset pour permettre un retry
     });
-  }, [id, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Note : loadById volontairement exclu — sa référence peut varier sans que
-  // le comportement change. On utilise loadedIdRef pour éviter les boucles.
+    // `user` ici sert uniquement de trigger quand l'auth se résout.
+    // `id` change quand on navigue vers une autre procédure → re-fetch correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user]);
+  // Note : isAdmin dérive de user, mais dépendre de user garantit que
+  // l'effet se relance exactement une fois quand l'objet user est résolu,
+  // même si isAdmin était déjà true (ce qui n'arriverait pas en pratique).
 
   // Fermer le menu déroulant au clic extérieur
   useEffect(() => {
@@ -330,10 +334,8 @@ export default function ProcedureDetail() {
   // ── Helpers ───────────────────────────────────────────────────────────────
   const reload = useCallback(async () => {
     if (!id) return;
-    loadedIdRef.current = null; // force le rechargement même si l'ID n'a pas changé
-    await loadById(id);
-    loadedIdRef.current = id;
-  }, [id, loadById]);
+    await loadByIdRef.current(id);
+  }, [id]);
 
   const closeModal = useCallback(() => {
     setModal({ type: null });
@@ -424,19 +426,16 @@ export default function ProcedureDetail() {
     : false;
   const canBeCompleted = procedure ? procedure.statut === "IN_PROGRESS" : false;
 
-  // Étapes déjà présentes dans la procédure (utilisation de Set pour performance)
   const existingStepNames = useMemo(
     () => new Set(procedure?.steps?.map((s) => s.nom) ?? []),
     [procedure?.steps],
   );
 
-  // Étapes disponibles à ajouter (pas encore présentes)
   const availableStepsToAdd = useMemo(
     () => STEP_ORDER.filter((s) => !existingStepNames.has(s)),
     [existingStepNames],
   );
 
-  // Étapes triées selon l'ordre logique (tri stable avec clé unique)
   const sortedSteps = useMemo(
     () =>
       [...(procedure?.steps ?? [])].sort(
@@ -445,19 +444,9 @@ export default function ProcedureDetail() {
     [procedure?.steps],
   );
 
-  // ── Étapes refusées/rejetées
   const hasRejectedStep = procedure?.steps?.some(
     (s) => s.statut === "REJECTED",
   );
-
-  // ── Debug info ─────────────────────────────────────────────────────────────
-  console.log("Debug info:", {
-    id,
-    isAdmin,
-    procedure,
-    loading,
-    error,
-  });
 
   // ── Guards ────────────────────────────────────────────────────────────────
   if (!isAdmin) {
@@ -608,7 +597,7 @@ export default function ProcedureDetail() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             {/* ═══════════════ Colonne principale ═══════════════ */}
             <div className="lg:col-span-2 space-y-5">
-              {/* Actions mobile (boutons visibles sous sm) */}
+              {/* Actions mobile */}
               <div className="flex flex-wrap gap-2 sm:hidden">
                 {canBeModified && (
                   <button
@@ -729,7 +718,6 @@ export default function ProcedureDetail() {
                     Étapes de la procédure
                   </h2>
 
-                  {/* Bouton ajouter étape — seulement si des étapes sont disponibles et procédure modifiable */}
                   {canBeModified && availableStepsToAdd.length > 0 && (
                     <div
                       className="relative"
@@ -780,7 +768,6 @@ export default function ProcedureDetail() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3 flex-1 min-w-0">
-                            {/* Numéro */}
                             <div
                               className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
                                 step.statut === "COMPLETED"
@@ -835,7 +822,6 @@ export default function ProcedureDetail() {
                             </div>
                           </div>
 
-                          {/* Bouton modifier étape */}
                           {canBeModified && step.canBeModified && (
                             <button
                               onClick={() => openEditStep(step)}
@@ -852,7 +838,7 @@ export default function ProcedureDetail() {
                 )}
               </div>
 
-              {/* Raison de rejet/annulation si applicable */}
+              {/* Raison de rejet/annulation */}
               {(procedure.raisonRejet || procedure.cancelledReason) && (
                 <div
                   className={`rounded border p-4 ${
@@ -862,9 +848,11 @@ export default function ProcedureDetail() {
                   }`}
                 >
                   <p
-                    className="text-xs font-semibold uppercase tracking-wide mb-1 ${
-                    procedure.statut === 'REJECTED' ? 'text-red-600' : 'text-slate-500'
-                  }"
+                    className={`text-xs font-semibold uppercase tracking-wide mb-1 ${
+                      procedure.statut === "REJECTED"
+                        ? "text-red-600"
+                        : "text-slate-500"
+                    }`}
                   >
                     {procedure.statut === "REJECTED"
                       ? "Motif de refus"

@@ -698,6 +698,12 @@ export function useProcedures(
     loadProceduresRef.current = loadProcedures;
   }, [loadProcedures]);
 
+  // Ref vers loadStatistics — même raison : stabilise la référence dans l'effet
+  const loadStatisticsRef = useRef(loadStatistics);
+  useEffect(() => {
+    loadStatisticsRef.current = loadStatistics;
+  }, [loadStatistics]);
+
   // Chargement initial de la liste — attend que l'auth soit résolue
   // L'ancien effet s'exécutait au montage avec isAuthenticated=false, donc
   // le service appelait l'API sans token → pas de données / erreur silencieuse.
@@ -709,19 +715,22 @@ export function useProcedures(
     loadProceduresRef.current();
   }, [autoLoad, isAuthenticated]);
 
-  // Chargement des stats — attend que le rôle ADMIN soit confirmé
-  // C'est le bug principal des stats : l'ancien effet s'exécutait au montage
-  // avec user=null, et loadStatistics() retournait immédiatement à cause du
-  // guard `if (user?.role !== "ADMIN") return`. Les stats ne chargeaient jamais.
+  // Chargement des stats — attend que le rôle ADMIN soit confirmé.
+  // FIX : le flag est posé APRÈS l'appel réussi (pas avant) pour permettre
+  // un retry si le premier appel échoue silencieusement (ex: token pas encore prêt).
+  // On utilise loadStatisticsRef pour éviter une boucle via la dépendance.
   useEffect(() => {
     if (!autoLoad) return;
     if (!shouldLoadStatistics) return;
     if (user?.role !== "ADMIN") return;
     if (statsLoadDoneRef.current) return;
     statsLoadDoneRef.current = true;
-    loadStatistics();
+    loadStatisticsRef.current().catch(() => {
+      // En cas d'erreur, on reset le flag pour permettre un retry au prochain render
+      statsLoadDoneRef.current = false;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoLoad, shouldLoadStatistics, user?.role]); // loadStatistics exclu : ref stable suffit
+  }, [autoLoad, shouldLoadStatistics, user?.role]);
 
   // Rechargement quand le query change — via loadProceduresRef pour éviter la boucle
   useEffect(() => {

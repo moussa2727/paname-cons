@@ -292,9 +292,7 @@ function MessageRow({
     <tr className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <div
-            className={`w-2 h-2 rounded shrink-0 ${statusConfig.dot}`}
-          />
+          <div className={`w-2 h-2 rounded shrink-0 ${statusConfig.dot}`} />
           <div className="flex-1 min-w-0">
             <div className="font-medium text-slate-800 truncate">
               {message.fullName || "Anonyme"}

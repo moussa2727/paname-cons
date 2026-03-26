@@ -1,11 +1,9 @@
 // prisma/schema.prisma
 // ==================== HARMONISATION AVEC SCHEMAS MONGOOSE ====================
-// Ce schéma Prisma a été harmonisé pour correspondre exactement aux schemas Mongoose:
-// - Enums utilisent les valeurs françaises des schemas Mongoose
-// - Modèles User, Procedure, Rendezvous, Contact, Notification correspondent aux schemas Mongoose
-// - Ajout des enums TimeSlot, Destination, Filiere depuis le schema Rendezvous
+// - Modèles User, Procedure, Rendezvous, Contact, Notification correspondent
+// - Ajout des enums TimeSlot, Destination, Filiere
 // - Méthodes virtuelles documentées pour implémentation dans les services NestJS
-// - Relations Prisma remplacent les tableaux embarqués de Mongoose
+// - Relations Prisma 
 // =========================================================================
 
 generator client {
