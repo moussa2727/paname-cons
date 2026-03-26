@@ -31,8 +31,9 @@ import type {
   SortOrder,
   ExportFormat,
   ProcedureResponseDto,
+  StepName,
+  ProcedureStatisticsDto,
 } from "../../../types/procedures.types";
-import { ProceduresService } from "../../../services/procedures.service";
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
@@ -72,6 +73,24 @@ const STATUS_CONFIG: Record<
   },
 };
 
+const STEP_LABELS: Record<StepName, string> = {
+  DEMANDE_ADMISSION: "Demande d'admission",
+  DEMANDE_VISA: "Demande de visa",
+  PREPARATIF_VOYAGE: "Préparatifs voyage",
+};
+
+// ─── Types pour les analytics ─────────────────────────────────────────────────
+
+interface StepAnalyticsType {
+  stepName: StepName;
+  completionRate: number;
+  averageTime: number;
+}
+
+interface StepsAnalyticsProps {
+  statistics: ProcedureStatisticsDto;
+}
+
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 
 interface StatCardProps {
@@ -95,9 +114,7 @@ const StatCard: React.FC<StatCardProps> = ({
         <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">
           {label}
         </p>
-        <p
-          className={`text-2xl sm:text-3xl font-bold text-${accent}-600 leading-none`}
-        >
+        <p className={`text-2xl sm:text-3xl font-bold text-${accent}-600 leading-none`}>
           {value}
         </p>
         {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
@@ -156,7 +173,6 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
       className="group hover:bg-sky-50/40 transition-colors border-b border-slate-100 last:border-0 cursor-pointer"
       onClick={() => onView(procedure.id)}
     >
-      {/* Candidat */}
       <td className="px-4 py-3">
         <div>
           <p className="font-semibold text-slate-800 text-sm">
@@ -164,8 +180,7 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
           </p>
           <p className="text-xs text-slate-400 mt-0.5">{procedure.email}</p>
         </div>
-      </td>
-      {/* Destination / Filière */}
+        </td>
       <td className="px-4 py-3 hidden sm:table-cell">
         <div className="flex flex-col gap-0.5">
           <span className="inline-flex items-center gap-1 text-xs text-slate-600">
@@ -177,23 +192,19 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
             {procedure.effectiveFiliere}
           </span>
         </div>
-      </td>
-      {/* Statut */}
+        </td>
       <td className="px-4 py-3">
         <StatusBadge status={procedure.statut} />
-      </td>
-      {/* Progression */}
+        </td>
       <td className="px-4 py-3 hidden md:table-cell min-w-[120px]">
         <ProgressBar value={procedure.progress} />
-      </td>
-      {/* Date */}
+        </td>
       <td className="px-4 py-3 hidden lg:table-cell">
         <span className="inline-flex items-center gap-1 text-xs text-slate-500">
           <Calendar size={10} />
           {dateStr}
         </span>
-      </td>
-      {/* CTA */}
+        </td>
       <td className="px-4 py-3">
         <button
           onClick={(e) => {
@@ -205,8 +216,8 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
         >
           <ArrowRight size={15} />
         </button>
-      </td>
-    </tr>
+        </td>
+      </tr>
   );
 };
 
@@ -263,6 +274,44 @@ const ProcedureCard: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
   );
 };
 
+// ─── Steps Analytics Component ────────────────────────────────────────────────
+
+const StepsAnalytics: React.FC<StepsAnalyticsProps> = ({ statistics }) => {
+  const stepsAnalytics = statistics.stepsAnalytics as StepAnalyticsType[] | undefined;
+  
+  if (!stepsAnalytics?.length) return null;
+
+  return (
+    <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
+      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+        <TrendingUp size={12} className="text-sky-500" />
+        Performance par étape
+      </h3>
+      <div className="space-y-3">
+        {stepsAnalytics.map((step) => (
+          <div key={step.stepName}>
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-slate-600">
+                {STEP_LABELS[step.stepName as StepName] || step.stepName}
+              </span>
+              <span className="font-medium text-sky-600">{step.completionRate}%</span>
+            </div>
+            <div className="h-1.5 bg-slate-100 rounded overflow-hidden">
+              <div
+                className="h-full bg-sky-500 rounded transition-all"
+                style={{ width: `${step.completionRate}%` }}
+              />
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Temps moyen : {step.averageTime} jours
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
 
 export default function Procedures() {
@@ -271,6 +320,7 @@ export default function Procedures() {
   const [showStats, setShowStats] = useState(true);
   const [exporting, setExporting] = useState(false);
 
+  // ── Hook unique ── TOUTE la logique est ici
   const {
     procedures,
     statistics,
@@ -282,6 +332,9 @@ export default function Procedures() {
     setPage,
     setLimit,
     refresh,
+    loadStatistics,
+    applyFilters,
+    resetFilters,
   } = useProcedures({
     autoLoad: true,
     shouldLoadStatistics: true,
@@ -295,18 +348,22 @@ export default function Procedures() {
   });
 
   // ── Navigation vers la page détail ──────────────────────────────────────
-
   const handleViewDetails = useCallback(
     (id: string) => navigate(`/gestionnaire/procedures/${id}`),
     [navigate],
   );
 
-  // ── Export ──────────────────────────────────────────────────────────────
+  // ── Rafraîchissement manuel des stats ───────────────────────────────────
+  const handleRefreshStats = useCallback(() => {
+    loadStatistics();
+  }, [loadStatistics]);
 
+  // ── Export ──────────────────────────────────────────────────────────────
   const handleExport = useCallback(
     async (format: ExportFormat) => {
       setExporting(true);
       try {
+        const { ProceduresService } = await import("../../../services/procedures.service");
         const blob = await ProceduresService.exportProcedures(format, query);
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -314,6 +371,8 @@ export default function Procedures() {
         a.download = `procedures.${format === "excel" ? "xlsx" : format}`;
         a.click();
         URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Export error:", err);
       } finally {
         setExporting(false);
       }
@@ -321,35 +380,40 @@ export default function Procedures() {
     [query],
   );
 
-  // ── Filtres locaux ──────────────────────────────────────────────────────
+  // ── Gestion des filtres via le hook ─────────────────────────────────────
+  const handleStatusFilter = useCallback(
+    (status: ProcedureStatus | "") => {
+      if (status) {
+        setQuery({ status, page: 1 });
+      } else {
+        // ✅ Créer un nouvel objet sans la propriété status
+        const newQuery = { ...query };
+        delete newQuery.status;
+        setQuery({ ...newQuery, page: 1 });
+      }
+      setShowFilters(false);
+    },
+    [query, setQuery],
+  );
 
-  const [localSearch, setLocalSearch] = useState(query.search ?? "");
-  const [localStatus, setLocalStatus] = useState<ProcedureStatus | "">(
-    (query.status as ProcedureStatus) ?? "",
+  const handleSearchFilter = useCallback(
+    (search: string) => {
+      setQuery({ search: search || undefined, page: 1 });
+    },
+    [setQuery],
   );
 
   const handleApplyFilters = useCallback(() => {
-    setQuery({
-      search: localSearch || undefined,
-      status: localStatus ? (localStatus as ProcedureStatus) : undefined,
-      page: 1,
-    });
+    applyFilters();
     setShowFilters(false);
-  }, [localSearch, localStatus, setQuery]);
+  }, [applyFilters]);
 
-  const handleResetFilters = useCallback(() => {
-    setLocalSearch("");
-    setLocalStatus("");
-    setQuery({
-      search: undefined,
-      status: undefined,
-      includeCompleted: true,
-      page: 1,
-    });
+  const handleResetAllFilters = useCallback(() => {
+    resetFilters();
     setShowFilters(false);
-  }, [setQuery]);
+  }, [resetFilters]);
 
-  // ── Stats résumées ──────────────────────────────────────────────────────
+  // ── Stats cards ──────────────────────────────────────────────────────────
   const statsCards = useMemo(() => {
     if (!statistics) return [];
 
@@ -392,16 +456,38 @@ export default function Procedures() {
     ];
   }, [statistics]);
 
+  // ── Valeurs actuelles des filtres pour l'UI ─────────────────────────────
+  const currentSearch = query.search ?? "";
+  const currentStatus = query.status ?? "";
+
+  // ── Helper pour générer les numéros de page sans ESLint warning ─────────
+  const getPageNumbers = useCallback(() => {
+    const totalPages = pagination.totalPages;
+    const currentPage = pagination.page;
+    const maxVisible = 5;
+    
+    if (totalPages <= maxVisible) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    
+    if (currentPage <= 3) {
+      return [1, 2, 3, 4, 5];
+    }
+    
+    if (currentPage >= totalPages - 2) {
+      return Array.from({ length: maxVisible }, (_, i) => totalPages - maxVisible + i + 1);
+    }
+    
+    return [currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2];
+  }, [pagination.totalPages, pagination.page]);
+
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <>
       <Helmet>
         <title>Gestion Des Procédures - Paname Consulting</title>
-        <meta
-          name="description"
-          content="Gestion des procédures d'immigration"
-        />
+        <meta name="description" content="Gestion des procédures d'immigration" />
         <meta name="robots" content="noindex, nofollow" />
         <meta name="googlebot" content="noindex, nofollow" />
       </Helmet>
@@ -421,16 +507,27 @@ export default function Procedures() {
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Rafraîchir tout */}
                 <button
                   onClick={() => refresh()}
-                  disabled={loading.list}
+                  disabled={loading.list || loading.statistics}
                   title="Rafraîchir"
                   className="p-2 rounded-xl text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors disabled:opacity-40"
                 >
                   <RefreshCw
                     size={15}
-                    className={loading.list ? "animate-spin" : ""}
+                    className={loading.list || loading.statistics ? "animate-spin" : ""}
                   />
+                </button>
+
+                {/* Rafraîchir uniquement les stats */}
+                <button
+                  onClick={handleRefreshStats}
+                  disabled={loading.statistics}
+                  title="Rafraîchir les stats"
+                  className="hidden sm:flex p-2 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40"
+                >
+                  <BarChart3 size={14} className={loading.statistics ? "animate-spin" : ""} />
                 </button>
 
                 {/* Export dropdown */}
@@ -469,11 +566,7 @@ export default function Procedures() {
               >
                 <BarChart3 size={12} />
                 Statistiques
-                {showStats ? (
-                  <ChevronUp size={12} />
-                ) : (
-                  <ChevronDown size={12} />
-                )}
+                {showStats ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
               {showStats && (
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -488,7 +581,7 @@ export default function Procedures() {
           {/* ── Toolbar ── */}
           <div className="bg-white rounded border border-slate-100 shadow-sm p-3 sm:p-4">
             <div className="flex flex-col sm:flex-row gap-3">
-              {/* Search */}
+              {/* Search - utilise le hook directement */}
               <div className="relative flex-1">
                 <Search
                   size={14}
@@ -497,20 +590,18 @@ export default function Procedures() {
                 <input
                   type="text"
                   placeholder="Rechercher (nom, email…)"
-                  value={localSearch}
-                  onChange={(e) => setLocalSearch(e.target.value)}
+                  value={currentSearch}
+                  onChange={(e) => handleSearchFilter(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleApplyFilters()}
                   className="w-full pl-8 pr-3 py-2 text-sm rounded border border-slate-200 focus:outline-none focus:border-sky-400 placeholder:text-slate-300"
                 />
               </div>
 
               <div className="flex gap-2">
-                {/* Status quick filter */}
+                {/* Status quick filter - utilise le hook directement */}
                 <select
-                  value={localStatus}
-                  onChange={(e) =>
-                    setLocalStatus(e.target.value as ProcedureStatus | "")
-                  }
+                  value={currentStatus}
+                  onChange={(e) => handleStatusFilter(e.target.value as ProcedureStatus | "")}
                   className="flex-1 sm:flex-none text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white text-slate-600"
                 >
                   <option value="">Tous les statuts</option>
@@ -521,7 +612,7 @@ export default function Procedures() {
                   ))}
                 </select>
 
-                {/* More filters */}
+                {/* More filters - utilise le hook pour applyFilters */}
                 <button
                   onClick={() => setShowFilters((v) => !v)}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded border text-sm font-medium transition-colors ${
@@ -544,19 +635,15 @@ export default function Procedures() {
               </div>
             </div>
 
-            {/* Extended filters */}
+            {/* Extended filters - utilise setQuery directement */}
             {showFilters && (
               <div className="mt-3 pt-3 border-t border-slate-100">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="text-xs text-slate-500 block mb-1">
-                      Trier par
-                    </label>
+                    <label className="text-xs text-slate-500 block mb-1">Trier par</label>
                     <select
                       value={query.sortBy ?? "createdAt"}
-                      onChange={(e) =>
-                        setQuery({ sortBy: e.target.value, page: 1 })
-                      }
+                      onChange={(e) => setQuery({ sortBy: e.target.value, page: 1 })}
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
                       <option value="createdAt">Date de création</option>
@@ -566,16 +653,11 @@ export default function Procedures() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500 block mb-1">
-                      Ordre
-                    </label>
+                    <label className="text-xs text-slate-500 block mb-1">Ordre</label>
                     <select
                       value={query.sortOrder ?? "desc"}
                       onChange={(e) =>
-                        setQuery({
-                          sortOrder: e.target.value as SortOrder,
-                          page: 1,
-                        })
+                        setQuery({ sortOrder: e.target.value as SortOrder, page: 1 })
                       }
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
@@ -584,15 +666,13 @@ export default function Procedures() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500 block mb-1">
-                      Par page
-                    </label>
+                    <label className="text-xs text-slate-500 block mb-1">Par page</label>
                     <select
                       value={query.limit ?? 10}
                       onChange={(e) => setLimit(Number(e.target.value))}
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
-                      {[10, 25, 50].map((n) => (
+                      {[10, 25, 50, 100].map((n) => (
                         <option key={n} value={n}>
                           {n}
                         </option>
@@ -600,16 +680,11 @@ export default function Procedures() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500 block mb-1">
-                      Inclure terminées
-                    </label>
+                    <label className="text-xs text-slate-500 block mb-1">Inclure terminées</label>
                     <select
                       value={query.includeCompleted ? "true" : "false"}
                       onChange={(e) =>
-                        setQuery({
-                          includeCompleted: e.target.value === "true",
-                          page: 1,
-                        })
+                        setQuery({ includeCompleted: e.target.value === "true", page: 1 })
                       }
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
@@ -620,10 +695,10 @@ export default function Procedures() {
                 </div>
                 <div className="flex justify-end mt-3">
                   <button
-                    onClick={handleResetFilters}
+                    onClick={handleResetAllFilters}
                     className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-500 transition-colors"
                   >
-                    <X size={12} /> Réinitialiser
+                    <X size={12} /> Réinitialiser tous les filtres
                   </button>
                 </div>
               </div>
@@ -647,9 +722,7 @@ export default function Procedures() {
                   "Chargement…"
                 ) : (
                   <>
-                    <span className="font-semibold text-slate-700">
-                      {pagination.total}
-                    </span>{" "}
+                    <span className="font-semibold text-slate-700">{pagination.total}</span>{" "}
                     procédure{pagination.total !== 1 ? "s" : ""}
                   </>
                 )}
@@ -664,11 +737,8 @@ export default function Procedures() {
             {/* Loading skeleton */}
             {loading.list && (
               <div className="p-4 space-y-3">
-                {[...Array(5)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-12 bg-slate-100 rounded animate-pulse"
-                  />
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div key={index} className="h-12 bg-slate-100 rounded animate-pulse" />
                 ))}
               </div>
             )}
@@ -678,6 +748,14 @@ export default function Procedures() {
               <div className="text-center py-16 text-slate-400">
                 <AlertCircle className="mx-auto mb-3 opacity-40" size={36} />
                 <p className="text-sm">Aucune procédure trouvée</p>
+                {(currentSearch || currentStatus) && (
+                  <button
+                    onClick={handleResetAllFilters}
+                    className="mt-3 text-xs text-sky-600 hover:text-sky-700"
+                  >
+                    Réinitialiser les filtres
+                  </button>
+                )}
               </div>
             )}
 
@@ -688,30 +766,21 @@ export default function Procedures() {
                   <table className="w-full">
                     <thead>
                       <tr className="text-left border-b border-slate-100">
-                        {[
-                          "Candidat",
-                          "Destination / Filière",
-                          "Statut",
-                          "Progression",
-                          "Créée le",
-                          "",
-                        ].map((h) => (
-                          <th
-                            key={h}
-                            className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide"
-                          >
-                            {h}
-                          </th>
-                        ))}
+                        {["Candidat", "Destination / Filière", "Statut", "Progression", "Créée le", ""].map(
+                          (header) => (
+                            <th
+                              key={header}
+                              className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide"
+                            >
+                              {header}
+                            </th>
+                          ),
+                        )}
                       </tr>
                     </thead>
                     <tbody>
                       {procedures.map((p) => (
-                        <ProcedureRow
-                          key={p.id}
-                          procedure={p}
-                          onView={handleViewDetails}
-                        />
+                        <ProcedureRow key={p.id} procedure={p} onView={handleViewDetails} />
                       ))}
                     </tbody>
                   </table>
@@ -720,11 +789,7 @@ export default function Procedures() {
                 {/* Mobile cards */}
                 <div className="md:hidden p-3 space-y-3">
                   {procedures.map((p) => (
-                    <ProcedureCard
-                      key={p.id}
-                      procedure={p}
-                      onView={handleViewDetails}
-                    />
+                    <ProcedureCard key={p.id} procedure={p} onView={handleViewDetails} />
                   ))}
                 </div>
               </>
@@ -742,35 +807,19 @@ export default function Procedures() {
                 </button>
 
                 <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, pagination.totalPages) })
-                    .map((_, i) => {
-                      const p = pagination.page;
-                      const t = pagination.totalPages;
-                      let page: number;
-                      if (t <= 5) {
-                        page = i + 1;
-                      } else if (p <= 3) {
-                        page = i + 1;
-                      } else if (p >= t - 2) {
-                        page = t - 4 + i;
-                      } else {
-                        page = p - 2 + i;
-                      }
-                      return page;
-                    })
-                    .map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => setPage(page)}
-                        className={`w-7 h-7 rounded text-xs font-medium transition-colors ${
-                          page === pagination.page
-                            ? "bg-sky-600 text-white"
-                            : "text-slate-500 hover:bg-sky-50 hover:text-sky-600"
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
+                  {getPageNumbers().map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setPage(page)}
+                      className={`w-7 h-7 rounded text-xs font-medium transition-colors ${
+                        page === pagination.page
+                          ? "bg-sky-600 text-white"
+                          : "text-slate-500 hover:bg-sky-50 hover:text-sky-600"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
                 </div>
 
                 <button
@@ -784,96 +833,95 @@ export default function Procedures() {
             )}
           </div>
 
-          {/* ── Top destinations & filières ── */}
-          {statistics &&
-            (statistics.topDestinations?.length > 0 ||
-              statistics.topFilieres?.length > 0) && (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {statistics.topDestinations?.length > 0 && (
-                  <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
-                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                      <Globe size={12} className="text-sky-500" />
-                      Top destinations
-                    </h3>
-                    <div className="space-y-2">
-                      {(statistics.topDestinations || [])
-                        .slice(0, 5)
-                        .map((d) => (
-                          <div
-                            key={d.destination}
-                            className="flex items-center justify-between"
-                          >
-                            <span className="text-sm text-slate-600 truncate max-w-[70%]">
-                              {d.destination}
-                            </span>
-                            <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-                              {d.count}
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
-                {statistics.topFilieres?.length > 0 && (
-                  <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
-                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                      <BookOpen size={12} className="text-sky-500" />
-                      Top filières
-                    </h3>
-                    <div className="space-y-2">
-                      {(statistics.topFilieres || []).slice(0, 5).map((f) => (
-                        <div
-                          key={f.filiere}
-                          className="flex items-center justify-between"
-                        >
-                          <span className="text-sm text-slate-600 truncate max-w-[70%]">
-                            {f.filiere}
-                          </span>
-                          <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-                            {f.count}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Stats additionnelles */}
+          {/* ── Top destinations & filières & steps analytics ── */}
+          {statistics && (statistics.topDestinations?.length > 0 || statistics.topFilieres?.length > 0) && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {statistics.topDestinations?.length > 0 && (
                 <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
                   <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                    <AlertCircle size={12} className="text-slate-500" />
-                    Autres stats
+                    <Globe size={12} className="text-sky-500" />
+                    Top destinations
                   </h3>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-600">
-                        Procédures annulées
-                      </span>
-                      <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
-                        {statistics.byStatus?.CANCELLED ?? 0}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-600">
-                        Nouvelles aujourd'hui
-                      </span>
-                      <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-                        {statistics.newProcedures?.today ?? 0}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-600">
-                        Taux de réussite
-                      </span>
-                      <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                        {(statistics.completionRate ?? 0).toFixed(1)}%
-                      </span>
-                    </div>
+                    {(statistics.topDestinations || []).slice(0, 5).map((d) => (
+                      <div key={d.destination} className="flex items-center justify-between">
+                        <span className="text-sm text-slate-600 truncate max-w-[70%]">
+                          {d.destination}
+                        </span>
+                        <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                          {d.count}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {statistics.topFilieres?.length > 0 && (
+                <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                    <BookOpen size={12} className="text-sky-500" />
+                    Top filières
+                  </h3>
+                  <div className="space-y-2">
+                    {(statistics.topFilieres || []).slice(0, 5).map((f) => (
+                      <div key={f.filiere} className="flex items-center justify-between">
+                        <span className="text-sm text-slate-600 truncate max-w-[70%]">
+                          {f.filiere}
+                        </span>
+                        <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                          {f.count}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Steps Analytics */}
+              <StepsAnalytics statistics={statistics} />
+
+              {/* Stats additionnelles */}
+              <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <AlertCircle size={12} className="text-slate-500" />
+                  Autres stats
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Procédures annulées</span>
+                    <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+                      {statistics.byStatus?.CANCELLED ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Nouvelles aujourd'hui</span>
+                    <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                      {statistics.newProcedures?.today ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Nouvelles cette semaine</span>
+                    <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                      {statistics.newProcedures?.thisWeek ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Taux de réussite</span>
+                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                      {(statistics.completionRate ?? 0).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Temps moyen de complétion</span>
+                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                      {statistics.averageCompletionTime ?? 0} jours
+                    </span>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
         </div>
       </div>
     </>

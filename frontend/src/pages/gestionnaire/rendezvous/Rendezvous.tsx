@@ -459,7 +459,6 @@ const RendezvousAdmin = () => {
     [getRendezvousByDate, searchRendezvous, activeTab],
   );
 
-  // Gestionnaires de filtres
   const handleStatusFilter = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       const value = e.target.value;
@@ -469,9 +468,16 @@ const RendezvousAdmin = () => {
         page: 1,
       };
       setLocalFilters(newFilters);
-      if (activeTab === "list") applyFilters(newFilters);
+      
+      if (activeTab === "list") {
+        applyFilters(newFilters);
+      } else if (activeTab === "today") {
+        loadTodayPanel();
+      } else if (activeTab === "upcoming") {
+        loadUpcomingPanel();
+      }
     },
-    [localFilters, applyFilters, activeTab],
+    [localFilters, activeTab, applyFilters, loadTodayPanel, loadUpcomingPanel],
   );
 
   const handleDestinationFilter = useCallback(
@@ -483,9 +489,16 @@ const RendezvousAdmin = () => {
         page: 1,
       };
       setLocalFilters(newFilters);
-      if (activeTab === "list") applyFilters(newFilters);
+      
+      if (activeTab === "list") {
+        applyFilters(newFilters);
+      } else if (activeTab === "today") {
+        loadTodayPanel();
+      } else if (activeTab === "upcoming") {
+        loadUpcomingPanel();
+      }
     },
-    [localFilters, applyFilters, activeTab],
+    [localFilters, activeTab, applyFilters, loadTodayPanel, loadUpcomingPanel],
   );
 
   const handleStartDateFilter = useCallback(
@@ -497,9 +510,16 @@ const RendezvousAdmin = () => {
         page: 1,
       };
       setLocalFilters(newFilters);
-      if (activeTab === "list") applyFilters(newFilters);
+      
+      if (activeTab === "list") {
+        applyFilters(newFilters);
+      } else if (activeTab === "today") {
+        loadTodayPanel();
+      } else if (activeTab === "upcoming") {
+        loadUpcomingPanel();
+      }
     },
-    [localFilters, applyFilters, activeTab],
+    [localFilters, activeTab, applyFilters, loadTodayPanel, loadUpcomingPanel],
   );
 
   const handleEndDateFilter = useCallback(
@@ -511,9 +531,39 @@ const RendezvousAdmin = () => {
         page: 1,
       };
       setLocalFilters(newFilters);
-      if (activeTab === "list") applyFilters(newFilters);
+      
+      if (activeTab === "list") {
+        applyFilters(newFilters);
+      } else if (activeTab === "today") {
+        loadTodayPanel();
+      } else if (activeTab === "upcoming") {
+        loadUpcomingPanel();
+      }
     },
-    [localFilters, applyFilters, activeTab],
+    [localFilters, activeTab, applyFilters, loadTodayPanel, loadUpcomingPanel],
+  );
+
+  // Handler de recherche unifié pour tous les onglets
+  const handleSearch = useCallback(
+    (term: string) => {
+      setSearchTerm(term);
+      const newFilters = {
+        ...localFilters,
+        search: term || undefined,
+        page: 1,
+      };
+      setLocalFilters(newFilters);
+      
+      // ✅ Appliquer la recherche selon l'onglet actif
+      if (activeTab === "list") {
+        applyFilters(newFilters);
+      } else if (activeTab === "today") {
+        loadTodayPanel();
+      } else if (activeTab === "upcoming") {
+        loadUpcomingPanel();
+      }
+    },
+    [localFilters, activeTab, applyFilters, loadTodayPanel, loadUpcomingPanel],
   );
 
   const handleResetFilters = useCallback(() => {
@@ -527,8 +577,16 @@ const RendezvousAdmin = () => {
       endDate: undefined,
       search: undefined,
     });
-    if (activeTab === "list") resetFilters();
-  }, [resetFilters, activeTab]);
+    
+    // ✅ Réinitialiser selon l'onglet actif
+    if (activeTab === "list") {
+      resetFilters();
+    } else if (activeTab === "today") {
+      loadTodayPanel();
+    } else if (activeTab === "upcoming") {
+      loadUpcomingPanel();
+    }
+  }, [resetFilters, activeTab, loadTodayPanel, loadUpcomingPanel]);
 
   // Ouvrir modal
   const openModal = useCallback(
@@ -1030,7 +1088,12 @@ const RendezvousAdmin = () => {
                   type="text"
                   placeholder="Rechercher (nom, email, destination…)"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSearch(searchTerm);
+                    }
+                  }}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 text-sm"
                 />
               </div>

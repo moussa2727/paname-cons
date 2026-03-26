@@ -19,6 +19,7 @@ import type {
   ProcedureLoadingState,
   ProcedurePagination,
   StepName,
+  ExportFormat,
 } from "../types/procedures.types";
 
 // ─── Types du hook ────────────────────────────────────────────────────────────
@@ -79,6 +80,9 @@ export interface UseProceduresActions {
   ) => Promise<ProcedureResponseDto | null>;
   remove: (id: string, reason?: string) => Promise<boolean>;
   completeProcedure: (id: string) => Promise<ProcedureResponseDto | null>;
+
+  // Export
+  exportProcedures: (format: ExportFormat) => Promise<Blob | null>;
 
   // Actions utilisateur
   cancelProcedure: (
@@ -164,16 +168,15 @@ export function useProcedures(
   const [pagination, setPagination] =
     useState<ProcedurePagination>(DEFAULT_PAGINATION);
 
+  // Refs pour éviter les boucles
   const loadingRef = useRef(false);
   const isFirstRender = useRef(true);
+  const previousQueryRef = useRef<string>("");
 
-
-  // ── Helpers ───────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const setLoad = useCallback((k: keyof ProcedureLoadingState, v: boolean) => {
     setLoading((prev: ProcedureLoadingState) => ({ ...prev, [k]: v }));
   }, []);
-
-  // Debug pour suivre les changements de loading
 
   const syncPagination = useCallback((res: PaginatedProcedureResponseDto) => {
     if (!res) return;
@@ -198,9 +201,6 @@ export function useProcedures(
       setError(null);
 
       try {
-        // On fusionne query + override sans forcer includeCompleted côté hook.
-        // La page (Procedures.tsx) passe includeCompleted:true dans initialQuery si elle veut tout voir.
-        // Le backend par défaut renvoie PENDING+IN_PROGRESS pour l'admin — c'est intentionnel.
         const merged = { ...query, ...override };
         const res = await ProceduresService.findAll(merged);
 
@@ -221,7 +221,7 @@ export function useProcedures(
         setProcedures(res.data);
         syncPagination(res);
       } catch (err: unknown) {
-        console.log("🔍 Error in loadProcedures:", err);
+        console.error("Error in loadProcedures:", err);
         setError(
           err instanceof Error ? err.message : "Erreur lors du chargement",
         );
@@ -230,7 +230,7 @@ export function useProcedures(
         loadingRef.current = false;
       }
     },
-    [query, setLoad, syncPagination], // user?.role est déjà inclus dans query via le backend
+    [query, setLoad, syncPagination],
   );
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -243,7 +243,8 @@ export function useProcedures(
     try {
       const stats = await ProceduresService.getStatistics();
       setStatistics(stats);
-    } catch {
+    } catch (err) {
+      console.error("Error loading statistics:", err);
       // L'erreur est déjà notifiée via toast dans le service
     } finally {
       setLoad("statistics", false);
@@ -281,6 +282,28 @@ export function useProcedures(
   }, [loadProcedures, loadStatistics]);
 
   // ─────────────────────────────────────────────────────────────────────────
+  // exportProcedures — GET /admin/procedures/export
+  // ─────────────────────────────────────────────────────────────────────────
+  const exportProcedures = useCallback(
+    async (format: ExportFormat): Promise<Blob | null> => {
+      setLoad("export", true);
+      setError(null);
+      try {
+        const blob = await ProceduresService.exportProcedures(format, query);
+        return blob;
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error ? err.message : "Erreur lors de l'export",
+        );
+        return null;
+      } finally {
+        setLoad("export", false);
+      }
+    },
+    [query, setLoad],
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
   // create — POST /admin/procedures/create
   // ─────────────────────────────────────────────────────────────────────────
   const create = useCallback(
@@ -294,6 +317,7 @@ export function useProcedures(
           ...prev,
           total: prev.total + 1,
         }));
+        // Rafraîchir les stats après création
         await loadStatistics();
         return procedure;
       } catch (err: unknown) {
@@ -485,6 +509,50 @@ export function useProcedures(
   );
 
   // ─────────────────────────────────────────────────────────────────────────
+  // completeProcedure — Marque toutes les étapes comme COMPLETED
+  // ─────────────────────────────────────────────────────────────────────────
+  const completeProcedure = useCallback(
+    async (id: string): Promise<ProcedureResponseDto | null> => {
+      if (user?.role !== "ADMIN") return null;
+
+      const target = procedures.find((p) => p.id === id) ?? selectedProcedure;
+      if (!target) return null;
+
+      setLoad("update", true);
+      setError(null);
+      try {
+        const stepsToComplete = target.steps.filter(
+          (s) => s.statut === "IN_PROGRESS" || s.statut === "PENDING",
+        );
+
+        let last: ProcedureResponseDto | null = null;
+        for (const step of stepsToComplete) {
+          last = await ProceduresService.updateStep(id, step.nom, {
+            statut: "COMPLETED",
+          });
+        }
+
+        const result = last ?? target;
+        setProcedures((prev: ProcedureResponseDto[]) =>
+          prev.map((p) => (p.id === id ? result : p)),
+        );
+        if (selectedProcedure?.id === id) setSelectedProcedure(result);
+        return result;
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Erreur lors de la complétion de la procédure",
+        );
+        return null;
+      } finally {
+        setLoad("update", false);
+      }
+    },
+    [user?.role, setLoad, procedures, selectedProcedure],
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
   // findByEmail — GET /procedures/by-email/:email
   // ─────────────────────────────────────────────────────────────────────────
   const findByEmail = useCallback(
@@ -586,8 +654,7 @@ export function useProcedures(
     [],
   );
 
-  // Validation (utilise ProcedureValidation)
-  // ─────────────────────────────────────────────────────────────────────────
+  // Validation
   const validate = useCallback(
     (data: Partial<CreateProcedureDto>) => ProcedureValidation.validate(data),
     [],
@@ -599,56 +666,7 @@ export function useProcedures(
   );
 
   // ─────────────────────────────────────────────────────────────────────────
-  // completeProcedure — Le statut global est piloté uniquement par updateStep()
-  // via updateGlobalStatus côté backend. Il n'existe pas de route dédiée
-  // /admin/procedures/:id/complete. Pour marquer toutes les étapes COMPLETED,
-  // l'admin doit passer chaque étape à COMPLETED via updateStep().
-  // Cette fonction est conservée comme raccourci : elle passe toutes les étapes
-  // IN_PROGRESS ou PENDING à COMPLETED en séquence.
-  // ─────────────────────────────────────────────────────────────────────────
-  const completeProcedure = useCallback(
-    async (id: string): Promise<ProcedureResponseDto | null> => {
-      if (user?.role !== "ADMIN") return null;
-
-      const target = procedures.find((p) => p.id === id) ?? selectedProcedure;
-      if (!target) return null;
-
-      setLoad("update", true);
-      setError(null);
-      try {
-        const stepsToComplete = target.steps.filter(
-          (s) => s.statut === "IN_PROGRESS" || s.statut === "PENDING",
-        );
-
-        let last: ProcedureResponseDto | null = null;
-        for (const step of stepsToComplete) {
-          last = await ProceduresService.updateStep(id, step.nom, {
-            statut: "COMPLETED",
-          });
-        }
-
-        const result = last ?? target;
-        setProcedures((prev: ProcedureResponseDto[]) =>
-          prev.map((p) => (p.id === id ? result : p)),
-        );
-        if (selectedProcedure?.id === id) setSelectedProcedure(result);
-        return result;
-      } catch (err: unknown) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Erreur lors de la complétion de la procédure",
-        );
-        return null;
-      } finally {
-        setLoad("update", false);
-      }
-    },
-    [user?.role, setLoad, procedures, selectedProcedure],
-  );
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Chargement des procédures en retard
+  // loadOverdue — Charge les procédures en retard
   // ─────────────────────────────────────────────────────────────────────────
   const loadOverdue = useCallback(async () => {
     try {
@@ -664,12 +682,13 @@ export function useProcedures(
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Effets
+  // Effets - Optimisés pour éviter les boucles
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Chargement initial (évite les boucles avec useCallback stable)
+  // Chargement initial
   useEffect(() => {
     if (!autoLoad) return;
+
     const loadData = async () => {
       const promises: Promise<unknown>[] = [loadProcedures()];
       if (shouldLoadStatistics) promises.push(loadStatistics());
@@ -677,15 +696,35 @@ export function useProcedures(
     };
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoLoad, shouldLoadStatistics]); // loadProcedures et loadStatistics sont stables via useCallback
+  }, []); // Exécuté une seule fois au montage
 
-  // Rechargement quand le query change (évite les boucles)
+  // Rechargement quand le query change (avec comparaison pour éviter les boucles)
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
-    // Utiliser la fonction stable pour éviter les boucles
+
+    // Sérialiser le query pour comparer les changements profonds
+    const currentQueryKey = JSON.stringify({
+      page: query.page,
+      limit: query.limit,
+      status: query.status,
+      search: query.search,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+      startDate: query.startDate,
+      endDate: query.endDate,
+      includeDeleted: query.includeDeleted,
+      includeCompleted: query.includeCompleted,
+      destination: query.destination,
+      filiere: query.filiere,
+      email: query.email,
+    });
+
+    if (previousQueryRef.current === currentQueryKey) return;
+    previousQueryRef.current = currentQueryKey;
+
     loadProcedures();
   }, [
     query.page,
@@ -701,16 +740,16 @@ export function useProcedures(
     query.destination,
     query.filiere,
     query.email,
-    loadProcedures, // Ajouté pour corriger le warning ESLint
+    loadProcedures,
   ]);
 
-  // Rafraîchissement périodique des procédures en retard (évite les boucles)
+  // Rafraîchissement périodique des procédures en retard
   useEffect(() => {
     if (!autoLoad || !refreshInterval) return;
     loadOverdue();
     const id = setInterval(loadOverdue, refreshInterval);
     return () => clearInterval(id);
-  }, [autoLoad, refreshInterval, loadOverdue]); // Ajouté pour corriger le warning ESLint
+  }, [autoLoad, refreshInterval, loadOverdue]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Retour du hook
@@ -732,6 +771,9 @@ export function useProcedures(
     loadStatistics,
     loadById,
     refresh,
+
+    // Export
+    exportProcedures,
 
     // Navigation
     selectProcedure: setSelectedProcedure,

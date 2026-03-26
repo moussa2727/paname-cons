@@ -427,8 +427,13 @@ export default function ProcedureDetail() {
   return (
     <>
       <Helmet>
-        <title>{procedure.fullName} — Procédure | Paname Consulting</title>
-        <meta name="robots" content="noindex, nofollow" />
+      <title>
+        {procedure?.fullName 
+          ? `Procédure ${procedure.fullName} — Paname Consulting`
+          : "Procédure — Paname Consulting"}
+      </title>
+      <meta name="robots" content="noindex, nofollow" />
+      <meta name="googlebot" content="noindex, nofollow" />
       </Helmet>
 
       <div className="min-h-screen pb-16 bg-slate-50">
