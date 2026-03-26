@@ -325,7 +325,7 @@ const RendezvousAdmin = () => {
   // ✅ Panels - fonctions stables
   const loadTodayPanel = useCallback(async () => {
     if (loadingPanel) return; // ✅ Évite les appels multiples
-    
+
     setLoadingPanel(true);
     try {
       const today = new Date().toISOString().split("T")[0];
@@ -343,7 +343,7 @@ const RendezvousAdmin = () => {
   const loadUpcomingPanel = useCallback(
     async (limit = 10) => {
       if (loadingPanel) return; // ✅ Évite les appels multiples
-      
+
       setLoadingPanel(true);
       try {
         const data = await getUpcomingRendezvous(limit);
@@ -368,7 +368,11 @@ const RendezvousAdmin = () => {
   useEffect(() => {
     if (activeTab === "today" && !hasLoadedTodayRef.current && !loadingPanel) {
       loadTodayPanel();
-    } else if (activeTab === "upcoming" && !hasLoadedUpcomingRef.current && !loadingPanel) {
+    } else if (
+      activeTab === "upcoming" &&
+      !hasLoadedUpcomingRef.current &&
+      !loadingPanel
+    ) {
       loadUpcomingPanel();
     }
   }, [activeTab]); // Seulement quand l'onglet change
