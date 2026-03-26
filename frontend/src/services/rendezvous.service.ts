@@ -266,12 +266,22 @@ class AdminRendezvousService extends BaseRendezvousService {
   /**
    * GET /admin/rendezvous/statistics
    */
-  async getStatistics(): Promise<RendezvousStatisticsDto> {
-    const response = await apiFetch(
-      `${this.baseUrl}/admin/rendezvous/statistics`,
-    );
-    return this.handleResponse<RendezvousStatisticsDto>(response);
-  }
+async getStatistics(): Promise<RendezvousStatisticsDto> {
+  const response = await apiFetch(
+    `${this.baseUrl}/admin/rendezvous/statistics`,
+  );
+  const data = await this.handleResponse<Partial<RendezvousStatisticsDto>>(response);
+  
+  // ✅ S'assurer que topDestinations est toujours un tableau
+  return {
+    total: data.total ?? 0,
+    byStatus: data.byStatus ?? { pending: 0, confirmed: 0, completed: 0, cancelled: 0 },
+    completionRate: data.completionRate ?? 0,
+    cancellationRate: data.cancellationRate ?? 0,
+    upcoming: data.upcoming ?? { today: 0, tomorrow: 0, thisWeek: 0, thisMonth: 0 },
+    topDestinations: Array.isArray(data.topDestinations) ? data.topDestinations : [],
+  };
+}
 
   /**
    * GET /rendezvous/by-date/:date
@@ -407,6 +417,12 @@ class AdminRendezvousService extends BaseRendezvousService {
 
       const result = await this.searchRendezvous(params);
 
+      // ✅ Vérification que result.data existe et est un tableau
+      if (!result || !result.data || !Array.isArray(result.data)) {
+        console.warn("Aucune donnée à exporter");
+        return "";
+      }
+
       const headers = [
         "ID",
         "Prénom",
@@ -423,31 +439,31 @@ class AdminRendezvousService extends BaseRendezvousService {
         "Date création",
       ];
 
+      // ✅ Sécurisation du mapping avec fallback
       const rows = result.data.map((rdv) => [
-        rdv.id,
-        rdv.firstName,
-        rdv.lastName,
-        rdv.email,
-        rdv.telephone,
-        rdv.effectiveDestination,
-        rdv.effectiveNiveauEtude,
-        rdv.effectiveFiliere,
-        rdv.date,
-        rdv.time,
-        rdv.status,
-        rdv.avisAdmin || "",
-        new Date(rdv.createdAt).toLocaleDateString("fr-FR"),
+        rdv?.id || "",
+        rdv?.firstName || "",
+        rdv?.lastName || "",
+        rdv?.email || "",
+        rdv?.telephone || "",
+        rdv?.effectiveDestination || "",
+        rdv?.effectiveNiveauEtude || "",
+        rdv?.effectiveFiliere || "",
+        rdv?.date || "",
+        rdv?.time || "",
+        rdv?.status || "",
+        rdv?.avisAdmin || "",
+        rdv?.createdAt ? new Date(rdv.createdAt).toLocaleDateString("fr-FR") : "",
       ]);
 
-      const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join(
-        "\n",
-      );
+      const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
       toast.success("Export CSV généré avec succès !");
       return csv;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Erreur lors de l'export CSV";
       toast.error(errorMessage);
+      console.error("Erreur export CSV:", error);
       throw error;
     }
   }
