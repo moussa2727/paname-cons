@@ -170,14 +170,7 @@ const Statistiques: React.FC = () => {
     };
 
     loadAllStatistics();
-  }, [
-    isAdmin,
-    loadRendezvousStats,
-    fetchUserStats,
-    loadProcedureStats,
-    refreshMessages,
-    getDestinationsStatistics,
-  ]);
+  }, []); // Seulement au montage
 
   // ─── Données pour l'activité hebdomadaire ─────────────────────────────
   const weeklyActivity = useMemo(() => {
@@ -196,7 +189,7 @@ const Statistiques: React.FC = () => {
         ? Math.floor(messageStats.thisWeek / 7)
         : 0,
     }));
-  }, [rendezvousStats, procedureStats, messageStats]);
+  }, [rendezvousStats?.upcoming?.thisWeek, procedureStats?.newProcedures?.thisWeek, messageStats?.thisWeek]);
 
   // ─── Données pour les destinations (depuis les stats procédures) ──────
   const destinationData = useMemo(() => {

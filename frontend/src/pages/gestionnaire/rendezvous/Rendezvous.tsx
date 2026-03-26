@@ -715,7 +715,6 @@ const RendezvousAdmin = () => {
     try {
       await searchRendezvous();
       await getStatistics();
-      // Pas de resetPanelCache ici pour éviter la boucle
       if (activeTab === "today") await loadTodayPanel();
       if (activeTab === "upcoming") await loadUpcomingPanel();
     } catch (error) {
