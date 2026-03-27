@@ -54,7 +54,6 @@ const DEFAULT_LOADING: ProcedureLoadingState = {
 
 // ─── Types du hook ───────────────────────────────────────────────────────────
 export interface UseProceduresReturn {
-  // State
   procedures: ProcedureResponseDto[];
   selectedProcedure: ProcedureResponseDto | null;
   statistics: ProcedureStatisticsDto | null;
@@ -64,7 +63,6 @@ export interface UseProceduresReturn {
   filters: ProcedureFilters;
   pagination: ProcedurePagination;
 
-  // Dérivés pour la page de détail
   canBeModified: boolean;
   canBeCancelled: boolean;
   canBeCompleted: boolean;
@@ -72,13 +70,11 @@ export interface UseProceduresReturn {
   availableStepsToAdd: StepName[];
   sortedSteps: StepResponseDto[];
 
-  // Actions de chargement
   loadProcedures: (q?: ProcedureQueryDto) => Promise<void>;
   loadStatistics: () => Promise<void>;
   loadById: (id: string) => Promise<ProcedureResponseDto | null>;
   refresh: () => Promise<void>;
 
-  // Navigation et filtres
   selectProcedure: (procedure: ProcedureResponseDto | null) => void;
   setPage: (page: number) => void;
   setLimit: (limit: number) => void;
@@ -89,36 +85,16 @@ export interface UseProceduresReturn {
   applyFilters: () => Promise<void>;
   resetFilters: () => void;
 
-  // CRUD Admin
   create: (data: CreateProcedureDto) => Promise<ProcedureResponseDto | null>;
-  update: (
-    id: string,
-    data: UpdateProcedureDto,
-  ) => Promise<ProcedureResponseDto | null>;
-  updateStep: (
-    id: string,
-    stepName: StepName,
-    data: UpdateStepDto,
-  ) => Promise<ProcedureResponseDto | null>;
-  addStep: (
-    id: string,
-    stepName: StepName,
-  ) => Promise<ProcedureResponseDto | null>;
+  update: (id: string, data: UpdateProcedureDto) => Promise<ProcedureResponseDto | null>;
+  updateStep: (id: string, stepName: StepName, data: UpdateStepDto) => Promise<ProcedureResponseDto | null>;
+  addStep: (id: string, stepName: StepName) => Promise<ProcedureResponseDto | null>;
   remove: (id: string, reason?: string) => Promise<boolean>;
   completeProcedure: (id: string) => Promise<ProcedureResponseDto | null>;
   exportProcedures: (format: ExportFormat) => Promise<Blob | null>;
-
-  // Actions utilisateur
-  cancelProcedure: (
-    id: string,
-    reason?: string,
-  ) => Promise<ProcedureResponseDto | null>;
-
-  // Lecture
+  cancelProcedure: (id: string, reason?: string) => Promise<ProcedureResponseDto | null>;
   findByEmail: (email: string) => Promise<ProcedureResponseDto[]>;
-  findByRendezvousId: (
-    rendezVousId: string,
-  ) => Promise<ProcedureResponseDto | null>;
+  findByRendezvousId: (rendezVousId: string) => Promise<ProcedureResponseDto | null>;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -127,120 +103,111 @@ export function useProcedures(): UseProceduresReturn {
   const isAdmin = user?.role === "ADMIN";
   const isAuthenticated = !!user;
 
-  // ── State ─────────────────────────────────────────────────────────────────
   const [procedures, setProcedures] = useState<ProcedureResponseDto[]>([]);
-  const [selectedProcedure, setSelectedProcedure] =
-    useState<ProcedureResponseDto | null>(null);
-  const [statistics, setStatistics] = useState<ProcedureStatisticsDto | null>(
-    null,
-  );
-  const [loading, setLoading] =
-    useState<ProcedureLoadingState>(DEFAULT_LOADING);
+  const [selectedProcedure, setSelectedProcedure] = useState<ProcedureResponseDto | null>(null);
+  const [statistics, setStatistics] = useState<ProcedureStatisticsDto | null>(null);
+  const [loading, setLoading] = useState<ProcedureLoadingState>(DEFAULT_LOADING);
   const [error, setError] = useState<string | null>(null);
   const [query, setQueryState] = useState<ProcedureQueryDto>(DEFAULT_QUERY);
   const [filters, setFiltersState] = useState<ProcedureFilters>({});
-  const [pagination, setPagination] =
-    useState<ProcedurePagination>(DEFAULT_PAGINATION);
+  const [pagination, setPagination] = useState<ProcedurePagination>(DEFAULT_PAGINATION);
 
   // Refs
-  const listLoadingRef = useRef(false);  // garde séparé pour la liste seulement
-  const statsLoadedRef = useRef(false);  // stats chargées une fois au montage
+  const listLoadingRef = useRef(false);
   const isMountedRef = useRef(true);
-  // Ref vers query pour l'accéder dans loadProcedures sans en faire une dépendance
   const queryRef = useRef(query);
+  // Tracks dernière query sérialisée pour éviter les appels dupliqués
+  const lastQueryKeyRef = useRef<string>("");
 
-  useEffect(() => {
-    queryRef.current = query;
-  }, [query]);
-
-  // Nettoyage
+  useEffect(() => { queryRef.current = query; }, [query]);
   useEffect(() => {
     isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
+    return () => { isMountedRef.current = false; };
   }, []);
 
-  // ─── Dérivés pour la page de détail ───────────────────────────────────────
+  // ─── Dérivés ─────────────────────────────────────────────────────────────
   const canBeModified = selectedProcedure
     ? !["COMPLETED", "CANCELLED", "REJECTED"].includes(selectedProcedure.statut)
     : false;
-
   const canBeCancelled = selectedProcedure
     ? !["COMPLETED", "CANCELLED"].includes(selectedProcedure.statut)
     : false;
-
   const canBeCompleted = selectedProcedure?.statut === "IN_PROGRESS";
-
-  const hasRejectedStep =
-    selectedProcedure?.steps?.some((s) => s.statut === "REJECTED") ?? false;
-
-  const existingStepNames = new Set(
-    selectedProcedure?.steps?.map((s) => s.nom) ?? [],
-  );
-  const availableStepsToAdd = STEP_ORDER.filter(
-    (s) => !existingStepNames.has(s),
-  );
-
+  const hasRejectedStep = selectedProcedure?.steps?.some((s) => s.statut === "REJECTED") ?? false;
+  const existingStepNames = new Set(selectedProcedure?.steps?.map((s) => s.nom) ?? []);
+  const availableStepsToAdd = STEP_ORDER.filter((s) => !existingStepNames.has(s));
   const sortedSteps = [...(selectedProcedure?.steps ?? [])].sort(
     (a, b) => STEP_ORDER.indexOf(a.nom) - STEP_ORDER.indexOf(b.nom),
   );
 
-  // ─── Helpers ───────────────────────────────────────────────────────────────
-  const setLoad = useCallback(
-    (key: keyof ProcedureLoadingState, value: boolean) => {
-      if (isMountedRef.current) {
-        setLoading((prev) => ({ ...prev, [key]: value }));
-      }
-    },
-    [],
-  );
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+  const setLoad = useCallback((key: keyof ProcedureLoadingState, value: boolean) => {
+    if (isMountedRef.current) setLoading((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   const syncPagination = useCallback((res: PaginatedProcedureResponseDto) => {
     if (isMountedRef.current) {
       setPagination({
-        total: res.total,
-        page: res.page,
-        limit: res.limit,
-        totalPages: res.totalPages,
-        hasNext: res.hasNext,
-        hasPrevious: res.hasPrevious,
+        total: res.total ?? 0,
+        page: res.page ?? 1,
+        limit: res.limit ?? 10,
+        totalPages: res.totalPages ?? 0,
+        hasNext: res.hasNext ?? false,
+        hasPrevious: res.hasPrevious ?? false,
       });
     }
   }, []);
 
-  // Déwrappe l'enveloppe API { data: T } si présente, sinon retourne tel quel.
+  // Déwrappe l'enveloppe API { data: T } ou retourne directement si pas d'enveloppe
   const unwrapProcedure = useCallback((raw: unknown): ProcedureResponseDto => {
     if (raw && typeof raw === "object") {
       const obj = raw as Record<string, unknown>;
-      if (
-        "data" in obj &&
-        obj.data &&
-        typeof obj.data === "object" &&
-        "id" in (obj.data as object)
-      ) {
+      if ("data" in obj && obj.data && typeof obj.data === "object" && "id" in (obj.data as object)) {
         return obj.data as ProcedureResponseDto;
       }
-      if ("id" in obj) {
-        return raw as ProcedureResponseDto;
-      }
+      if ("id" in obj) return raw as ProcedureResponseDto;
     }
     throw new Error("Réponse invalide : structure inattendue");
   }, []);
 
+  // Déwrappe la réponse paginée — gère { data: { data:[...], total, ... } } ET { data:[...], total, ... }
+  const unwrapPaginated = useCallback((raw: unknown): PaginatedProcedureResponseDto => {
+    if (!raw || typeof raw !== "object") throw new Error("Réponse vide");
+    const obj = raw as Record<string, unknown>;
+
+    // Double enveloppe : { data: { data: [...], total, ... } }
+    if ("data" in obj && obj.data && typeof obj.data === "object") {
+      const inner = obj.data as Record<string, unknown>;
+      if (Array.isArray(inner.data)) {
+        return inner as unknown as PaginatedProcedureResponseDto;
+      }
+    }
+    // Enveloppe simple : { data: [...], total, ... }
+    if (Array.isArray(obj.data)) {
+      return obj as unknown as PaginatedProcedureResponseDto;
+    }
+    throw new Error("Réponse paginée invalide");
+  }, []);
+
   // ─── loadProcedures ───────────────────────────────────────────────────────
-  // Utilise queryRef pour lire query sans en faire une dépendance → pas de boucle.
-  // Un override optionnel permet de passer une query ponctuelle (pagination, filtres…).
   const loadProcedures = useCallback(
     async (override?: ProcedureQueryDto) => {
-      if (listLoadingRef.current || !isAdmin) return;
+      if (listLoadingRef.current) return;
+
+      const merged = { ...queryRef.current, ...override };
+      const key = JSON.stringify(merged);
+
+      // Évite de refaire exactement le même appel deux fois de suite
+      if (key === lastQueryKeyRef.current && !override) return;
+
       listLoadingRef.current = true;
+      lastQueryKeyRef.current = key;
       setLoad("list", true);
       setError(null);
 
       try {
-        const merged = { ...queryRef.current, ...override };
-        const res = await ProceduresService.findAll(merged);
+        const raw = await ProceduresService.findAll(merged);
+        const res = unwrapPaginated(raw);
         if (isMountedRef.current) {
           setProcedures(Array.isArray(res.data) ? res.data : []);
           syncPagination(res);
@@ -248,28 +215,30 @@ export function useProcedures(): UseProceduresReturn {
       } catch (err) {
         if (isMountedRef.current) {
           setError(err instanceof Error ? err.message : "Erreur de chargement");
+          setProcedures([]);
         }
+        // Reset key pour permettre un retry
+        lastQueryKeyRef.current = "";
       } finally {
         setLoad("list", false);
         listLoadingRef.current = false;
       }
     },
-    // isAdmin : si le rôle change (connexion/déconnexion), on doit recréer la fonction.
-    // setLoad et syncPagination sont stables (useCallback sans deps instables).
-    // queryRef n'est pas une dépendance : c'est un ref, toujours à jour via l'effet ci-dessus.
-    [isAdmin, setLoad, syncPagination],
+    // Stable : ne dépend PAS de query (lu via queryRef), ni de isAdmin (géré dans l'effet)
+    [setLoad, syncPagination, unwrapPaginated],
   );
 
   // ─── loadStatistics ───────────────────────────────────────────────────────
   const loadStatistics = useCallback(async () => {
     if (!isAdmin) return;
     setLoad("statistics", true);
-
     try {
-      const stats = await ProceduresService.getStatistics();
-      if (isMountedRef.current) {
-        setStatistics(stats);
-      }
+      const raw = await ProceduresService.getStatistics();
+      // Déwrappe aussi les stats si enveloppées
+      const stats = (raw && typeof raw === "object" && "data" in raw)
+        ? (raw as { data: ProcedureStatisticsDto }).data
+        : raw as ProcedureStatisticsDto;
+      if (isMountedRef.current) setStatistics(stats);
     } catch (err) {
       console.error("Error loading statistics:", err);
     } finally {
@@ -282,18 +251,14 @@ export function useProcedures(): UseProceduresReturn {
     async (id: string): Promise<ProcedureResponseDto | null> => {
       setLoad("details", true);
       setError(null);
-
       try {
         const raw = await ProceduresService.findById(id);
         const procedure = unwrapProcedure(raw);
-        if (isMountedRef.current) {
-          setSelectedProcedure(procedure);
-        }
+        if (isMountedRef.current) setSelectedProcedure(procedure);
         return procedure;
       } catch (err) {
-        if (isMountedRef.current) {
+        if (isMountedRef.current)
           setError(err instanceof Error ? err.message : "Erreur de chargement");
-        }
         return null;
       } finally {
         setLoad("details", false);
@@ -304,6 +269,7 @@ export function useProcedures(): UseProceduresReturn {
 
   // ─── refresh ──────────────────────────────────────────────────────────────
   const refresh = useCallback(async () => {
+    lastQueryKeyRef.current = ""; // force reload
     await Promise.all([loadProcedures(), loadStatistics()]);
   }, [loadProcedures, loadStatistics]);
 
@@ -313,7 +279,6 @@ export function useProcedures(): UseProceduresReturn {
       if (!isAdmin) return null;
       setLoad("create", true);
       setError(null);
-
       try {
         const procedure = unwrapProcedure(await ProceduresService.create(data));
         if (isMountedRef.current) {
@@ -334,15 +299,10 @@ export function useProcedures(): UseProceduresReturn {
 
   // ─── update ───────────────────────────────────────────────────────────────
   const update = useCallback(
-    async (
-      id: string,
-      data: UpdateProcedureDto,
-    ): Promise<ProcedureResponseDto | null> => {
+    async (id: string, data: UpdateProcedureDto): Promise<ProcedureResponseDto | null> => {
       setLoad("update", true);
       setError(null);
-
       const original = procedures.find((p) => p.id === id);
-
       try {
         const updated = unwrapProcedure(await ProceduresService.update(id, data));
         if (isMountedRef.current) {
@@ -351,11 +311,8 @@ export function useProcedures(): UseProceduresReturn {
         }
         return updated;
       } catch (err) {
-        if (original && isMountedRef.current) {
-          setProcedures((prev) =>
-            prev.map((p) => (p.id === id ? original : p)),
-          );
-        }
+        if (original && isMountedRef.current)
+          setProcedures((prev) => prev.map((p) => (p.id === id ? original : p)));
         setError(err instanceof Error ? err.message : "Erreur de mise à jour");
         return null;
       } finally {
@@ -367,37 +324,22 @@ export function useProcedures(): UseProceduresReturn {
 
   // ─── updateStep ───────────────────────────────────────────────────────────
   const updateStep = useCallback(
-    async (
-      id: string,
-      stepName: StepName,
-      data: UpdateStepDto,
-    ): Promise<ProcedureResponseDto | null> => {
+    async (id: string, stepName: StepName, data: UpdateStepDto): Promise<ProcedureResponseDto | null> => {
       if (!isAdmin) return null;
       setLoad("updateStep", true);
       setError(null);
-
       const original = procedures.find((p) => p.id === id);
-
       try {
-        const updated = unwrapProcedure(
-          await ProceduresService.updateStep(id, stepName, data),
-        );
+        const updated = unwrapProcedure(await ProceduresService.updateStep(id, stepName, data));
         if (isMountedRef.current) {
           setProcedures((prev) => prev.map((p) => (p.id === id ? updated : p)));
           if (selectedProcedure?.id === id) setSelectedProcedure(updated);
         }
         return updated;
       } catch (err) {
-        if (original && isMountedRef.current) {
-          setProcedures((prev) =>
-            prev.map((p) => (p.id === id ? original : p)),
-          );
-        }
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Erreur de mise à jour de l'étape",
-        );
+        if (original && isMountedRef.current)
+          setProcedures((prev) => prev.map((p) => (p.id === id ? original : p)));
+        setError(err instanceof Error ? err.message : "Erreur de mise à jour de l'étape");
         return null;
       } finally {
         setLoad("updateStep", false);
@@ -408,18 +350,12 @@ export function useProcedures(): UseProceduresReturn {
 
   // ─── addStep ──────────────────────────────────────────────────────────────
   const addStep = useCallback(
-    async (
-      id: string,
-      stepName: StepName,
-    ): Promise<ProcedureResponseDto | null> => {
+    async (id: string, stepName: StepName): Promise<ProcedureResponseDto | null> => {
       if (!isAdmin) return null;
       setLoad("updateStep", true);
       setError(null);
-
       try {
-        const updated = unwrapProcedure(
-          await ProceduresService.addStep(id, stepName),
-        );
+        const updated = unwrapProcedure(await ProceduresService.addStep(id, stepName));
         if (isMountedRef.current) {
           setProcedures((prev) => prev.map((p) => (p.id === id ? updated : p)));
           if (selectedProcedure?.id === id) setSelectedProcedure(updated);
@@ -439,27 +375,20 @@ export function useProcedures(): UseProceduresReturn {
   const completeProcedure = useCallback(
     async (id: string): Promise<ProcedureResponseDto | null> => {
       if (!isAdmin) return null;
-
       const target = procedures.find((p) => p.id === id) ?? selectedProcedure;
       if (!target) return null;
-
       setLoad("update", true);
       setError(null);
-
       try {
         const stepsToComplete = target.steps.filter(
           (s) => s.statut === "IN_PROGRESS" || s.statut === "PENDING",
         );
-
         let lastUpdated: ProcedureResponseDto | null = null;
         for (const step of stepsToComplete) {
           lastUpdated = unwrapProcedure(
-            await ProceduresService.updateStep(id, step.nom, {
-              statut: "COMPLETED",
-            }),
+            await ProceduresService.updateStep(id, step.nom, { statut: "COMPLETED" }),
           );
         }
-
         const result = lastUpdated ?? target;
         if (isMountedRef.current) {
           setProcedures((prev) => prev.map((p) => (p.id === id ? result : p)));
@@ -480,30 +409,19 @@ export function useProcedures(): UseProceduresReturn {
   const remove = useCallback(
     async (id: string, reason?: string): Promise<boolean> => {
       if (!isAdmin) return false;
-
       const original = procedures.find((p) => p.id === id);
-
-      // Optimistic update
       if (isMountedRef.current) {
         setProcedures((prev) => prev.filter((p) => p.id !== id));
-        setPagination((prev) => ({
-          ...prev,
-          total: Math.max(0, prev.total - 1),
-        }));
+        setPagination((prev) => ({ ...prev, total: Math.max(0, prev.total - 1) }));
       }
-
       setLoad("delete", true);
       setError(null);
-
       try {
         await ProceduresService.remove(id, reason);
-        if (selectedProcedure?.id === id && isMountedRef.current) {
-          setSelectedProcedure(null);
-        }
+        if (selectedProcedure?.id === id && isMountedRef.current) setSelectedProcedure(null);
         await loadStatistics();
         return true;
       } catch (err) {
-        // Rollback
         if (original && isMountedRef.current) {
           setProcedures((prev) => [...prev, original]);
           setPagination((prev) => ({ ...prev, total: prev.total + 1 }));
@@ -523,7 +441,6 @@ export function useProcedures(): UseProceduresReturn {
       if (!isAdmin) return null;
       setLoad("export", true);
       setError(null);
-
       try {
         return await ProceduresService.exportProcedures(format, queryRef.current);
       } catch (err) {
@@ -538,17 +455,11 @@ export function useProcedures(): UseProceduresReturn {
 
   // ─── cancelProcedure ──────────────────────────────────────────────────────
   const cancelProcedure = useCallback(
-    async (
-      id: string,
-      reason?: string,
-    ): Promise<ProcedureResponseDto | null> => {
+    async (id: string, reason?: string): Promise<ProcedureResponseDto | null> => {
       setLoad("update", true);
       setError(null);
-
       try {
-        const updated = unwrapProcedure(
-          await ProceduresService.cancel(id, reason),
-        );
+        const updated = unwrapProcedure(await ProceduresService.cancel(id, reason));
         if (isMountedRef.current) {
           setProcedures((prev) => prev.map((p) => (p.id === id ? updated : p)));
           if (selectedProcedure?.id === id) setSelectedProcedure(updated);
@@ -569,27 +480,14 @@ export function useProcedures(): UseProceduresReturn {
     async (email: string): Promise<ProcedureResponseDto[]> => {
       if (!isAuthenticated) return [];
       setLoad("list", true);
-
       try {
         const data = await ProceduresService.findByEmail(email);
         if (isMountedRef.current) {
           setProcedures(data);
-          syncPagination({
-            data,
-            total: data.length,
-            page: 1,
-            limit: data.length,
-            totalPages: 1,
-            hasNext: false,
-            hasPrevious: false,
-          });
+          syncPagination({ data, total: data.length, page: 1, limit: data.length, totalPages: 1, hasNext: false, hasPrevious: false });
         }
         return data;
-      } catch {
-        return [];
-      } finally {
-        setLoad("list", false);
-      }
+      } catch { return []; } finally { setLoad("list", false); }
     },
     [isAuthenticated, setLoad, syncPagination],
   );
@@ -597,39 +495,30 @@ export function useProcedures(): UseProceduresReturn {
   // ─── findByRendezvousId ───────────────────────────────────────────────────
   const findByRendezvousId = useCallback(
     async (rendezVousId: string): Promise<ProcedureResponseDto | null> => {
-      try {
-        return await ProceduresService.findByRendezvousId(rendezVousId);
-      } catch {
-        return null;
-      }
+      try { return await ProceduresService.findByRendezvousId(rendezVousId); }
+      catch { return null; }
     },
     [],
   );
 
-  // ─── Gestion des filtres ──────────────────────────────────────────────────
+  // ─── Filtres ─────────────────────────────────────────────────────────────
   const setQuery = useCallback((partial: Partial<ProcedureQueryDto>) => {
     setQueryState((prev) => ({ ...prev, ...partial, page: 1 }));
   }, []);
-
   const setPage = useCallback((page: number) => {
     setQueryState((prev) => ({ ...prev, page }));
   }, []);
-
   const setLimit = useCallback((limit: number) => {
     setQueryState((prev) => ({ ...prev, limit, page: 1 }));
   }, []);
-
   const setFilters = useCallback(
-    (f: ProcedureFilters | ((prev: ProcedureFilters) => ProcedureFilters)) => {
-      setFiltersState(f);
-    },
+    (f: ProcedureFilters | ((prev: ProcedureFilters) => ProcedureFilters)) => setFiltersState(f),
     [],
   );
-
   const applyFilters = useCallback(async () => {
     setLoad("list", true);
     try {
-      const res = await ProceduresService.findAll({
+      const raw = await ProceduresService.findAll({
         ...queryRef.current,
         status: filters.status,
         email: filters.email,
@@ -641,6 +530,7 @@ export function useProcedures(): UseProceduresReturn {
         startDate: filters.startDate?.toISOString().split("T")[0],
         endDate: filters.endDate?.toISOString().split("T")[0],
       });
+      const res = unwrapPaginated(raw);
       if (isMountedRef.current) {
         setProcedures(Array.isArray(res.data) ? res.data : []);
         syncPagination(res);
@@ -650,31 +540,39 @@ export function useProcedures(): UseProceduresReturn {
     } finally {
       setLoad("list", false);
     }
-  }, [filters, setLoad, syncPagination]);
+  }, [filters, setLoad, syncPagination, unwrapPaginated]);
 
   const resetFilters = useCallback(() => {
     setFiltersState({});
     setQueryState(DEFAULT_QUERY);
+    lastQueryKeyRef.current = "";
   }, []);
 
   // ─── Effets ───────────────────────────────────────────────────────────────
 
-  // Effet 1 : chargement initial des stats — une seule fois dès que isAdmin est confirmé.
-  // Séparé de la liste pour ne pas bloquer l'une par l'autre.
+  // Effet 1 — Stats : une seule fois, dès que isAdmin est confirmé
+  const statsLoadedRef = useRef(false);
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin) {
+      statsLoadedRef.current = false; // reset si déconnexion
+      return;
+    }
     if (statsLoadedRef.current) return;
     statsLoadedRef.current = true;
     loadStatistics();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]); // loadStatistics exclu volontairement : sa ref est stable, isAdmin suffit
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
 
+  // Effet 2 — Liste : déclenché par isAdmin ET par chaque champ de query qui change.
+  // loadProcedures est STABLE (ne dépend pas de query), donc pas de boucle.
+  // isAdmin est dans les deps pour relancer quand l'auth se résout.
   useEffect(() => {
     if (!isAdmin) return;
+    lastQueryKeyRef.current = ""; // force la liste à se recharger
     loadProcedures();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isAdmin,
-    loadProcedures,
     query.page,
     query.limit,
     query.status,
@@ -687,9 +585,10 @@ export function useProcedures(): UseProceduresReturn {
     query.filiere,
     query.email,
   ]);
+  // Note : loadProcedures volontairement absent des deps — elle est stable et
+  // lit query via queryRef. L'inclure créerait une boucle (elle changerait avec isAdmin).
 
   return {
-    // State
     procedures,
     selectedProcedure,
     statistics,
@@ -698,22 +597,16 @@ export function useProcedures(): UseProceduresReturn {
     query,
     filters,
     pagination,
-
-    // Dérivés
     canBeModified,
     canBeCancelled,
     canBeCompleted,
     hasRejectedStep,
     availableStepsToAdd,
     sortedSteps,
-
-    // Actions de chargement
     loadProcedures,
     loadStatistics,
     loadById,
     refresh,
-
-    // Navigation et filtres
     selectProcedure: setSelectedProcedure,
     setPage,
     setLimit,
@@ -721,8 +614,6 @@ export function useProcedures(): UseProceduresReturn {
     setFilters,
     applyFilters,
     resetFilters,
-
-    // CRUD Admin
     create,
     update,
     updateStep,
@@ -730,11 +621,7 @@ export function useProcedures(): UseProceduresReturn {
     remove,
     completeProcedure,
     exportProcedures,
-
-    // Actions utilisateur
     cancelProcedure,
-
-    // Lecture
     findByEmail,
     findByRendezvousId,
   };

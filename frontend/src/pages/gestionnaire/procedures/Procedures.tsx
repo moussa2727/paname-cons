@@ -26,11 +26,11 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useProcedures } from "../../../hooks/useProcedures";
-import {
-  type ProcedureResponseDto,
-  type ProcedureStatus,
-  type SortOrder,
-  type ExportFormat,
+import type {
+  ProcedureResponseDto,
+  ProcedureStatus,
+  SortOrder,
+  ExportFormat,
 } from "../../../types/procedures.types";
 
 // ─── Status config ────────────────────────────────────────────────────────────
@@ -94,9 +94,7 @@ const StatCard: React.FC<StatCardProps> = ({
         <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">
           {label}
         </p>
-        <p
-          className={`text-2xl sm:text-3xl font-bold text-${accent}-600 leading-none`}
-        >
+        <p className={`text-2xl sm:text-3xl font-bold text-${accent}-600 leading-none`}>
           {value}
         </p>
         {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
@@ -112,6 +110,7 @@ const StatCard: React.FC<StatCardProps> = ({
 
 const StatusBadge: React.FC<{ status: ProcedureStatus }> = ({ status }) => {
   const cfg = STATUS_CONFIG[status];
+  if (!cfg) return null;
   return (
     <span
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${cfg.bg} ${cfg.color}`}
@@ -129,7 +128,7 @@ const ProgressBar: React.FC<{ value: number }> = ({ value }) => (
     <div className="flex-1 h-1.5 bg-slate-100 rounded overflow-hidden">
       <div
         className="h-full bg-sky-500 rounded transition-all"
-        style={{ width: `${value}%` }}
+        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
       />
     </div>
     <span className="text-xs text-slate-500 w-8 text-right">{value}%</span>
@@ -144,11 +143,13 @@ interface ProcedureRowProps {
 }
 
 const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
-  const dateStr = new Date(procedure.createdAt).toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  const dateStr = procedure.createdAt
+    ? new Date(procedure.createdAt).toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
 
   return (
     <tr
@@ -157,9 +158,7 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
     >
       <td className="px-4 py-3">
         <div>
-          <p className="font-semibold text-slate-800 text-sm">
-            {procedure.fullName}
-          </p>
+          <p className="font-semibold text-slate-800 text-sm">{procedure.fullName}</p>
           <p className="text-xs text-slate-400 mt-0.5">{procedure.email}</p>
         </div>
       </td>
@@ -179,7 +178,7 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
         <StatusBadge status={procedure.statut} />
       </td>
       <td className="px-4 py-3 hidden md:table-cell min-w-[120px]">
-        <ProgressBar value={procedure.progress} />
+        <ProgressBar value={procedure.progress ?? 0} />
       </td>
       <td className="px-4 py-3 hidden lg:table-cell">
         <span className="inline-flex items-center gap-1 text-xs text-slate-500">
@@ -189,10 +188,7 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
       </td>
       <td className="px-4 py-3">
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onView(procedure.id);
-          }}
+          onClick={(e) => { e.stopPropagation(); onView(procedure.id); }}
           title="Voir les détails"
           className="p-1.5 rounded text-slate-300 group-hover:text-sky-600 group-hover:bg-sky-100 transition-colors"
         >
@@ -206,11 +202,13 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
 // ─── Mobile card ──────────────────────────────────────────────────────────────
 
 const ProcedureCard: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
-  const dateStr = new Date(procedure.createdAt).toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  const dateStr = procedure.createdAt
+    ? new Date(procedure.createdAt).toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
 
   return (
     <div
@@ -219,9 +217,7 @@ const ProcedureCard: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
     >
       <div className="flex items-start justify-between mb-3">
         <div>
-          <p className="font-semibold text-slate-800 text-sm">
-            {procedure.fullName}
-          </p>
+          <p className="font-semibold text-slate-800 text-sm">{procedure.fullName}</p>
           <p className="text-xs text-slate-400">{procedure.email}</p>
         </div>
         <StatusBadge status={procedure.statut} />
@@ -240,13 +236,10 @@ const ProcedureCard: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
           {dateStr}
         </span>
       </div>
-      <ProgressBar value={procedure.progress} />
+      <ProgressBar value={procedure.progress ?? 0} />
       <div className="flex justify-end mt-3 pt-3 border-t border-slate-100">
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onView(procedure.id);
-          }}
+          onClick={(e) => { e.stopPropagation(); onView(procedure.id); }}
           className="flex items-center gap-1.5 py-2 px-3 rounded bg-sky-50 text-sky-600 text-xs font-medium hover:bg-sky-100 transition-colors"
         >
           <Eye size={13} /> Voir le détail
@@ -264,7 +257,6 @@ export default function Procedures() {
   const [showStats, setShowStats] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  // ── Hook unique ── TOUTE la logique est ici
   const {
     procedures,
     statistics,
@@ -282,28 +274,19 @@ export default function Procedures() {
     exportProcedures,
   } = useProcedures();
 
-  // ── Navigation vers la page détail ──────────────────────────────────────
+  // ── Navigation ───────────────────────────────────────────────────────────
   const handleViewDetails = useCallback(
     (id: string) => navigate(`/gestionnaire/procedures/${id}`),
     [navigate],
   );
 
-  // ── Rafraîchissement manuel des stats ───────────────────────────────────
-  const handleRefreshStats = useCallback(() => {
-    loadStatistics();
-  }, [loadStatistics]);
-
-  // ── Export ──────────────────────────────────────────────────────────────
-  // ── Export ──────────────────────────────────────────────────────────────
+  // ── Export ───────────────────────────────────────────────────────────────
   const handleExport = useCallback(
     async (format: ExportFormat) => {
       setExporting(true);
       try {
         const blob = await exportProcedures(format);
-        if (!blob) {
-          console.error("Export failed: no data received");
-          return;
-        }
+        if (!blob) return;
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -319,13 +302,12 @@ export default function Procedures() {
     [exportProcedures],
   );
 
-  // ── Gestion des filtres via le hook ─────────────────────────────────────
+  // ── Filtres ───────────────────────────────────────────────────────────────
   const handleStatusFilter = useCallback(
     (status: ProcedureStatus | "") => {
       if (status) {
         setQuery({ status, page: 1 });
       } else {
-        // ✅ Créer un nouvel objet sans la propriété status
         const newQuery = { ...query };
         delete newQuery.status;
         setQuery({ ...newQuery, page: 1 });
@@ -336,9 +318,7 @@ export default function Procedures() {
   );
 
   const handleSearchFilter = useCallback(
-    (search: string) => {
-      setQuery({ search: search || undefined, page: 1 });
-    },
+    (search: string) => setQuery({ search: search || undefined, page: 1 }),
     [setQuery],
   );
 
@@ -355,7 +335,6 @@ export default function Procedures() {
   // ── Stats cards ──────────────────────────────────────────────────────────
   const statsCards = useMemo(() => {
     if (!statistics) return [];
-
     return [
       {
         label: "Total",
@@ -395,38 +374,18 @@ export default function Procedures() {
     ];
   }, [statistics]);
 
-  // ── Valeurs actuelles des filtres pour l'UI ─────────────────────────────
   const currentSearch = query.search ?? "";
   const currentStatus = query.status ?? "";
 
-  // ── Helper pour générer les numéros de page sans ESLint warning ─────────
   const getPageNumbers = useCallback(() => {
-    const totalPages = pagination.totalPages;
-    const currentPage = pagination.page;
+    const { totalPages, page: currentPage } = pagination;
     const maxVisible = 5;
-
-    if (totalPages <= maxVisible) {
+    if (totalPages <= maxVisible)
       return Array.from({ length: totalPages }, (_, i) => i + 1);
-    }
-
-    if (currentPage <= 3) {
-      return [1, 2, 3, 4, 5];
-    }
-
-    if (currentPage >= totalPages - 2) {
-      return Array.from(
-        { length: maxVisible },
-        (_, i) => totalPages - maxVisible + i + 1,
-      );
-    }
-
-    return [
-      currentPage - 2,
-      currentPage - 1,
-      currentPage,
-      currentPage + 1,
-      currentPage + 2,
-    ];
+    if (currentPage <= 3) return [1, 2, 3, 4, 5];
+    if (currentPage >= totalPages - 2)
+      return Array.from({ length: maxVisible }, (_, i) => totalPages - maxVisible + i + 1);
+    return [currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2];
   }, [pagination]);
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -435,10 +394,7 @@ export default function Procedures() {
     <>
       <Helmet>
         <title>Gestion Des Procédures - Paname Consulting</title>
-        <meta
-          name="description"
-          content="Gestion des procédures d'immigration"
-        />
+        <meta name="description" content="Gestion des procédures d'immigration" />
         <meta name="robots" content="noindex, nofollow" />
         <meta name="googlebot" content="noindex, nofollow" />
       </Helmet>
@@ -458,7 +414,6 @@ export default function Procedures() {
               </div>
 
               <div className="flex items-center gap-2">
-                {/* Rafraîchir tout */}
                 <button
                   onClick={() => refresh()}
                   disabled={loading.list || loading.statistics}
@@ -467,26 +422,19 @@ export default function Procedures() {
                 >
                   <RefreshCw
                     size={15}
-                    className={
-                      loading.list || loading.statistics ? "animate-spin" : ""
-                    }
+                    className={loading.list || loading.statistics ? "animate-spin" : ""}
                   />
                 </button>
 
-                {/* Rafraîchir uniquement les stats */}
                 <button
-                  onClick={handleRefreshStats}
+                  onClick={() => loadStatistics()}
                   disabled={loading.statistics}
                   title="Rafraîchir les stats"
                   className="hidden sm:flex p-2 rounded text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40"
                 >
-                  <BarChart3
-                    size={14}
-                    className={loading.statistics ? "animate-spin" : ""}
-                  />
+                  <BarChart3 size={14} className={loading.statistics ? "animate-spin" : ""} />
                 </button>
 
-                {/* Export dropdown */}
                 <div className="relative group">
                   <button
                     disabled={exporting}
@@ -513,6 +461,7 @@ export default function Procedures() {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-5">
+
           {/* ── Stats ── */}
           {statistics && (
             <section>
@@ -522,11 +471,7 @@ export default function Procedures() {
               >
                 <BarChart3 size={12} />
                 Statistiques
-                {showStats ? (
-                  <ChevronUp size={12} />
-                ) : (
-                  <ChevronDown size={12} />
-                )}
+                {showStats ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
               {showStats && (
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -541,7 +486,6 @@ export default function Procedures() {
           {/* ── Toolbar ── */}
           <div className="bg-white rounded border border-slate-100 shadow-sm p-3 sm:p-4">
             <div className="flex flex-col sm:flex-row gap-3">
-              {/* Search - utilise le hook directement */}
               <div className="relative flex-1">
                 <Search
                   size={14}
@@ -558,23 +502,17 @@ export default function Procedures() {
               </div>
 
               <div className="flex gap-2">
-                {/* Status quick filter - utilise le hook directement */}
                 <select
                   value={currentStatus}
-                  onChange={(e) =>
-                    handleStatusFilter(e.target.value as ProcedureStatus | "")
-                  }
+                  onChange={(e) => handleStatusFilter(e.target.value as ProcedureStatus | "")}
                   className="flex-1 sm:flex-none text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white text-slate-600"
                 >
                   <option value="">Tous les statuts</option>
                   {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v.label}
-                    </option>
+                    <option key={k} value={k}>{v.label}</option>
                   ))}
                 </select>
 
-                {/* More filters - utilise le hook pour applyFilters */}
                 <button
                   onClick={() => setShowFilters((v) => !v)}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded border text-sm font-medium transition-colors ${
@@ -597,19 +535,14 @@ export default function Procedures() {
               </div>
             </div>
 
-            {/* Extended filters - utilise setQuery directement */}
             {showFilters && (
               <div className="mt-3 pt-3 border-t border-slate-100">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="text-xs text-slate-500 block mb-1">
-                      Trier par
-                    </label>
+                    <label className="text-xs text-slate-500 block mb-1">Trier par</label>
                     <select
                       value={query.sortBy ?? "createdAt"}
-                      onChange={(e) =>
-                        setQuery({ sortBy: e.target.value, page: 1 })
-                      }
+                      onChange={(e) => setQuery({ sortBy: e.target.value, page: 1 })}
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
                       <option value="createdAt">Date de création</option>
@@ -619,17 +552,10 @@ export default function Procedures() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500 block mb-1">
-                      Ordre
-                    </label>
+                    <label className="text-xs text-slate-500 block mb-1">Ordre</label>
                     <select
                       value={query.sortOrder ?? "desc"}
-                      onChange={(e) =>
-                        setQuery({
-                          sortOrder: e.target.value as SortOrder,
-                          page: 1,
-                        })
-                      }
+                      onChange={(e) => setQuery({ sortOrder: e.target.value as SortOrder, page: 1 })}
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
                       <option value="desc">Décroissant</option>
@@ -637,33 +563,22 @@ export default function Procedures() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500 block mb-1">
-                      Par page
-                    </label>
+                    <label className="text-xs text-slate-500 block mb-1">Par page</label>
                     <select
                       value={query.limit ?? 10}
                       onChange={(e) => setLimit(Number(e.target.value))}
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
                       {[10, 25, 50, 100].map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
+                        <option key={n} value={n}>{n}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500 block mb-1">
-                      Inclure terminées
-                    </label>
+                    <label className="text-xs text-slate-500 block mb-1">Inclure terminées</label>
                     <select
                       value={query.includeCompleted ? "true" : "false"}
-                      onChange={(e) =>
-                        setQuery({
-                          includeCompleted: e.target.value === "true",
-                          page: 1,
-                        })
-                      }
+                      onChange={(e) => setQuery({ includeCompleted: e.target.value === "true", page: 1 })}
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
                       <option value="true">Oui</option>
@@ -691,23 +606,22 @@ export default function Procedures() {
             </div>
           )}
 
-          {/* ── Table desktop / Cards mobile ── */}
+          {/* ── Table ── */}
           <div className="bg-white rounded border border-slate-100 shadow-sm overflow-hidden">
-            {/* Header info */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
               <p className="text-xs text-slate-500">
                 {loading.list ? (
-                  "Chargement…"
+                  <span className="flex items-center gap-1.5">
+                    <RefreshCw size={11} className="animate-spin" /> Chargement…
+                  </span>
                 ) : (
                   <>
-                    <span className="font-semibold text-slate-700">
-                      {pagination?.total ?? 0}
-                    </span>{" "}
-                    procédure{(pagination?.total ?? 0) !== 1 ? "s" : ""}
+                    <span className="font-semibold text-slate-700">{pagination.total}</span>{" "}
+                    procédure{pagination.total !== 1 ? "s" : ""}
                   </>
                 )}
               </p>
-              {pagination && pagination.totalPages > 1 && (
+              {pagination.totalPages > 1 && (
                 <p className="text-xs text-slate-400">
                   Page {pagination.page}/{pagination.totalPages}
                 </p>
@@ -717,17 +631,14 @@ export default function Procedures() {
             {/* Loading skeleton */}
             {loading.list && (
               <div className="p-4 space-y-3">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="h-12 bg-slate-100 rounded animate-pulse"
-                  />
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-12 bg-slate-100 rounded animate-pulse" />
                 ))}
               </div>
             )}
 
             {/* Empty */}
-            {!loading.list && (!Array.isArray(procedures) || procedures.length === 0) && (
+            {!loading.list && procedures.length === 0 && (
               <div className="text-center py-16 text-slate-400">
                 <AlertCircle className="mx-auto mb-3 opacity-40" size={36} />
                 <p className="text-sm">Aucune procédure trouvée</p>
@@ -743,56 +654,42 @@ export default function Procedures() {
             )}
 
             {/* Desktop table */}
-            {!loading.list && Array.isArray(procedures) && procedures.length > 0 && (
+            {!loading.list && procedures.length > 0 && (
               <>
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="text-left border-b border-slate-100">
-                        {[
-                          "Candidat",
-                          "Destination / Filière",
-                          "Statut",
-                          "Progression",
-                          "Créée le",
-                          "",
-                        ].map((header) => (
-                          <th
-                            key={header}
-                            className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide"
-                          >
-                            {header}
-                          </th>
-                        ))}
+                        {["Candidat", "Destination / Filière", "Statut", "Progression", "Créée le", ""].map(
+                          (header) => (
+                            <th
+                              key={header}
+                              className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide"
+                            >
+                              {header}
+                            </th>
+                          ),
+                        )}
                       </tr>
                     </thead>
                     <tbody>
                       {procedures.map((p) => (
-                        <ProcedureRow
-                          key={p.id}
-                          procedure={p}
-                          onView={handleViewDetails}
-                        />
+                        <ProcedureRow key={p.id} procedure={p} onView={handleViewDetails} />
                       ))}
                     </tbody>
                   </table>
                 </div>
 
-                {/* Mobile cards */}
                 <div className="md:hidden p-3 space-y-3">
                   {procedures.map((p) => (
-                    <ProcedureCard
-                      key={p.id}
-                      procedure={p}
-                      onView={handleViewDetails}
-                    />
+                    <ProcedureCard key={p.id} procedure={p} onView={handleViewDetails} />
                   ))}
                 </div>
               </>
             )}
 
             {/* Pagination */}
-            {pagination && pagination.totalPages > 1 && (
+            {pagination.totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
                 <button
                   onClick={() => setPage(pagination.page - 1)}
@@ -829,36 +726,28 @@ export default function Procedures() {
             )}
           </div>
 
-          {/* ── Top destinations & filières & steps analytics ── */}
+          {/* ── Stats détaillées ── */}
           {statistics && !loading.statistics && (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Top destinations - only if exists and has data */}
-              {statistics.topDestinations &&
-                statistics.topDestinations.length > 0 && (
-                  <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
-                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                      <Globe size={12} className="text-sky-500" />
-                      Top destinations
-                    </h3>
-                    <div className="space-y-2">
-                      {statistics.topDestinations.slice(0, 5).map((d) => (
-                        <div
-                          key={d.destination}
-                          className="flex items-center justify-between"
-                        >
-                          <span className="text-sm text-slate-600 truncate max-w-[70%]">
-                            {d.destination}
-                          </span>
-                          <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-                            {d.count}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+              {statistics.topDestinations && statistics.topDestinations.length > 0 && (
+                <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                    <Globe size={12} className="text-sky-500" />
+                    Top destinations
+                  </h3>
+                  <div className="space-y-2">
+                    {statistics.topDestinations.slice(0, 5).map((d) => (
+                      <div key={d.destination} className="flex items-center justify-between">
+                        <span className="text-sm text-slate-600 truncate max-w-[70%]">{d.destination}</span>
+                        <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                          {d.count}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
+              )}
 
-              {/* Top filières - only if exists and has data */}
               {statistics.topFilieres && statistics.topFilieres.length > 0 && (
                 <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
                   <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
@@ -867,13 +756,8 @@ export default function Procedures() {
                   </h3>
                   <div className="space-y-2">
                     {statistics.topFilieres.slice(0, 5).map((f) => (
-                      <div
-                        key={f.filiere}
-                        className="flex items-center justify-between"
-                      >
-                        <span className="text-sm text-slate-600 truncate max-w-[70%]">
-                          {f.filiere}
-                        </span>
+                      <div key={f.filiere} className="flex items-center justify-between">
+                        <span className="text-sm text-slate-600 truncate max-w-[70%]">{f.filiere}</span>
                         <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
                           {f.count}
                         </span>
@@ -883,61 +767,25 @@ export default function Procedures() {
                 </div>
               )}
 
-              {/* Stats additionnelles - always show if statistics exists */}
               <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
                 <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                   <AlertCircle size={12} className="text-slate-500" />
                   Autres stats
                 </h3>
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">
-                      Procédures annulées
-                    </span>
-                    <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
-                      {statistics.byStatus?.CANCELLED ?? 0}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">
-                      Nouvelles aujourd'hui
-                    </span>
-                    <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-                      {statistics.newProcedures?.today ?? 0}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">
-                      Nouvelles cette semaine
-                    </span>
-                    <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-                      {statistics.newProcedures?.thisWeek ?? 0}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">
-                      Nouvelles ce mois
-                    </span>
-                    <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-                      {statistics.newProcedures?.thisMonth ?? 0}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">
-                      Taux de réussite
-                    </span>
-                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                      {(statistics.completionRate ?? 0).toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">
-                      Temps moyen de complétion
-                    </span>
-                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                      {statistics.averageCompletionTime ?? 0} jours
-                    </span>
-                  </div>
+                  {[
+                    { label: "Annulées", value: statistics.byStatus?.CANCELLED ?? 0, color: "text-orange-600 bg-orange-50" },
+                    { label: "Nouvelles aujourd'hui", value: statistics.newProcedures?.today ?? 0, color: "text-sky-600 bg-sky-50" },
+                    { label: "Cette semaine", value: statistics.newProcedures?.thisWeek ?? 0, color: "text-sky-600 bg-sky-50" },
+                    { label: "Ce mois", value: statistics.newProcedures?.thisMonth ?? 0, color: "text-sky-600 bg-sky-50" },
+                    { label: "Taux de réussite", value: `${(statistics.completionRate ?? 0).toFixed(1)}%`, color: "text-emerald-600 bg-emerald-50" },
+                    { label: "Temps moyen", value: `${statistics.averageCompletionTime ?? 0}j`, color: "text-emerald-600 bg-emerald-50" },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="flex items-center justify-between">
+                      <span className="text-sm text-slate-600">{label}</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${color}`}>{value}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
