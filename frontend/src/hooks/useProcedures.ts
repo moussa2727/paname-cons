@@ -58,7 +58,6 @@ export interface UseProceduresReturn {
   procedures: ProcedureResponseDto[];
   selectedProcedure: ProcedureResponseDto | null;
   statistics: ProcedureStatisticsDto | null;
-  overdue?: ProcedureResponseDto[];
   loading: ProcedureLoadingState;
   error: string | null;
   query: ProcedureQueryDto;
