@@ -207,6 +207,7 @@ export function useProcedures(): UseProceduresReturn {
 
       try {
         const raw = await ProceduresService.findAll(merged);
+        console.log(raw)
         const res = unwrapPaginated(raw);
         if (isMountedRef.current) {
           setProcedures(Array.isArray(res.data) ? res.data : []);
