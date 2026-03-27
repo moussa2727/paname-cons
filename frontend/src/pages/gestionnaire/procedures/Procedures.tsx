@@ -831,7 +831,7 @@ export default function Procedures() {
 
           {/* ── Top destinations & filières & steps analytics ── */}
           {statistics &&
-            (statistics.topDestinations?.length > 0 ||
+            ((statistics.topDestinations?.length || 0) > 0 ||
               statistics.topFilieres?.length > 0) && (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {statistics.topDestinations?.length > 0 && (
