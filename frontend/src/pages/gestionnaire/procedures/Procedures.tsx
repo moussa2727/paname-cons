@@ -427,7 +427,7 @@ export default function Procedures() {
       currentPage + 1,
       currentPage + 2,
     ];
-  }, [pagination.totalPages, pagination.page]);
+  }, [pagination]);
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -701,13 +701,13 @@ export default function Procedures() {
                 ) : (
                   <>
                     <span className="font-semibold text-slate-700">
-                      {pagination.total}
+                      {pagination?.total ?? 0}
                     </span>{" "}
-                    procédure{pagination.total !== 1 ? "s" : ""}
+                    procédure{(pagination?.total ?? 0) !== 1 ? "s" : ""}
                   </>
                 )}
               </p>
-              {pagination.totalPages > 1 && (
+              {pagination && pagination.totalPages > 1 && (
                 <p className="text-xs text-slate-400">
                   Page {pagination.page}/{pagination.totalPages}
                 </p>
@@ -727,7 +727,7 @@ export default function Procedures() {
             )}
 
             {/* Empty */}
-            {!loading.list && procedures.length === 0 && (
+            {!loading.list && (!procedures || procedures.length === 0) && (
               <div className="text-center py-16 text-slate-400">
                 <AlertCircle className="mx-auto mb-3 opacity-40" size={36} />
                 <p className="text-sm">Aucune procédure trouvée</p>
@@ -743,7 +743,7 @@ export default function Procedures() {
             )}
 
             {/* Desktop table */}
-            {!loading.list && procedures.length > 0 && (
+            {!loading.list && procedures && procedures.length > 0 && (
               <>
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full">
@@ -792,7 +792,7 @@ export default function Procedures() {
             )}
 
             {/* Pagination */}
-            {pagination.totalPages > 1 && (
+            {pagination && pagination.totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
                 <button
                   onClick={() => setPage(pagination.page - 1)}
