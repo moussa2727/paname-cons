@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import React from "react";
@@ -186,7 +186,7 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
           <Calendar size={10} />
           {dateStr}
         </span>
-      </td>
+       </td>
       <td className="px-4 py-3">
         <button
           onClick={(e) => {
@@ -198,8 +198,8 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
         >
           <ArrowRight size={15} />
         </button>
-      </td>
-    </tr>
+       </td>
+     </tr>
   );
 };
 
@@ -263,38 +263,100 @@ export default function Procedures() {
   const [showFilters, setShowFilters] = useState(false);
   const [showStats, setShowStats] = useState(true);
   const [exporting, setExporting] = useState(false);
+  
+  // État local pour la gestion des procédures (v1)
+  const [procedures, setProcedures] = useState<ProcedureResponseDto[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+    hasPrevious: false,
+    hasNext: false,
+  });
 
-  // ── Hook unique ── TOUTE la logique est ici
+  // Garder le hook v2 pour les statistiques et l'export
   const {
-    procedures,
     statistics,
-    loading,
-    error,
-    query,
-    pagination,
-    setQuery,
-    setPage,
-    setLimit,
-    refresh,
     loadStatistics,
-    applyFilters,
-    resetFilters,
     exportProcedures,
   } = useProcedures();
 
-  // ── Navigation vers la page détail ──────────────────────────────────────
+  // État pour les filtres (inspiré de la v1)
+  const [filters, setFilters] = useState({
+    search: "",
+    status: "",
+    sortBy: "createdAt" as string,
+    sortOrder: "desc" as SortOrder,
+    includeCompleted: false,
+  });
+
+  // Fonction pour charger les procédures (v1)
+  const loadProcedures = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Construction des paramètres de requête
+      const params = new URLSearchParams();
+      params.append("page", pagination.page.toString());
+      params.append("limit", pagination.limit.toString());
+      
+      if (filters.search) params.append("search", filters.search);
+      if (filters.status) params.append("status", filters.status);
+      if (filters.sortBy) params.append("sortBy", filters.sortBy);
+      if (filters.sortOrder) params.append("sortOrder", filters.sortOrder);
+      if (filters.includeCompleted) params.append("includeCompleted", "true");
+      
+      // Appel API
+      const response = await fetch(`/api/procedures?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error("Erreur lors du chargement des procédures");
+      }
+      
+      const data = await response.json();
+      setProcedures(data.data || []);
+      setPagination(data.pagination || {
+        page: 1,
+        limit: 10,
+        total: 0,
+        totalPages: 0,
+        hasPrevious: false,
+        hasNext: false,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Une erreur est survenue");
+      console.error("Error loading procedures:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [pagination.page, pagination.limit, filters]);
+
+  // Chargement initial et quand les filtres changent
+  useEffect(() => {
+    loadProcedures();
+  }, [loadProcedures]);
+
+  // Rafraîchissement manuel
+  const refresh = useCallback(() => {
+    loadProcedures();
+    loadStatistics(); // Rafraîchir aussi les stats
+  }, [loadProcedures, loadStatistics]);
+
+  // Navigation vers la page détail
   const handleViewDetails = useCallback(
     (id: string) => navigate(`/gestionnaire/procedures/${id}`),
     [navigate],
   );
 
-  // ── Rafraîchissement manuel des stats ───────────────────────────────────
+  // Rafraîchissement manuel des stats
   const handleRefreshStats = useCallback(() => {
     loadStatistics();
   }, [loadStatistics]);
 
-  // ── Export ──────────────────────────────────────────────────────────────
-  // ── Export ──────────────────────────────────────────────────────────────
+  // Export
   const handleExport = useCallback(
     async (format: ExportFormat) => {
       setExporting(true);
@@ -319,40 +381,42 @@ export default function Procedures() {
     [exportProcedures],
   );
 
-  // ── Gestion des filtres via le hook ─────────────────────────────────────
+  // Gestion des filtres
   const handleStatusFilter = useCallback(
     (status: ProcedureStatus | "") => {
-      if (status) {
-        setQuery({ status, page: 1 });
-      } else {
-        // ✅ Créer un nouvel objet sans la propriété status
-        const newQuery = { ...query };
-        delete newQuery.status;
-        setQuery({ ...newQuery, page: 1 });
-      }
+      setFilters(prev => ({ ...prev, status: status || "" }));
+      setPagination(prev => ({ ...prev, page: 1 }));
       setShowFilters(false);
     },
-    [query, setQuery],
+    [],
   );
 
   const handleSearchFilter = useCallback(
     (search: string) => {
-      setQuery({ search: search || undefined, page: 1 });
+      setFilters(prev => ({ ...prev, search }));
+      setPagination(prev => ({ ...prev, page: 1 }));
     },
-    [setQuery],
+    [],
   );
 
   const handleApplyFilters = useCallback(() => {
-    applyFilters();
+    setPagination(prev => ({ ...prev, page: 1 }));
     setShowFilters(false);
-  }, [applyFilters]);
+  }, []);
 
   const handleResetAllFilters = useCallback(() => {
-    resetFilters();
+    setFilters({
+      search: "",
+      status: "",
+      sortBy: "createdAt",
+      sortOrder: "desc",
+      includeCompleted: false,
+    });
+    setPagination(prev => ({ ...prev, page: 1 }));
     setShowFilters(false);
-  }, [resetFilters]);
+  }, []);
 
-  // ── Stats cards ──────────────────────────────────────────────────────────
+  // Stats cards (inchangé, utilise statistics du hook v2)
   const statsCards = useMemo(() => {
     if (!statistics) return [];
 
@@ -395,11 +459,11 @@ export default function Procedures() {
     ];
   }, [statistics]);
 
-  // ── Valeurs actuelles des filtres pour l'UI ─────────────────────────────
-  const currentSearch = query.search ?? "";
-  const currentStatus = query.status ?? "";
+  // Valeurs actuelles des filtres pour l'UI
+  const currentSearch = filters.search;
+  const currentStatus = filters.status;
 
-  // ── Helper pour générer les numéros de page sans ESLint warning ─────────
+  // Helper pour générer les numéros de page
   const getPageNumbers = useCallback(() => {
     const totalPages = pagination.totalPages;
     const currentPage = pagination.page;
@@ -460,30 +524,25 @@ export default function Procedures() {
               <div className="flex items-center gap-2">
                 {/* Rafraîchir tout */}
                 <button
-                  onClick={() => refresh()}
-                  disabled={loading.list || loading.statistics}
+                  onClick={refresh}
+                  disabled={loading}
                   title="Rafraîchir"
                   className="p-2 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors disabled:opacity-40"
                 >
                   <RefreshCw
                     size={15}
-                    className={
-                      loading.list || loading.statistics ? "animate-spin" : ""
-                    }
+                    className={loading ? "animate-spin" : ""}
                   />
                 </button>
 
                 {/* Rafraîchir uniquement les stats */}
                 <button
                   onClick={handleRefreshStats}
-                  disabled={loading.statistics}
+                  disabled={false} // Les stats ont leur propre état de chargement
                   title="Rafraîchir les stats"
                   className="hidden sm:flex p-2 rounded text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40"
                 >
-                  <BarChart3
-                    size={14}
-                    className={loading.statistics ? "animate-spin" : ""}
-                  />
+                  <BarChart3 size={14} />
                 </button>
 
                 {/* Export dropdown */}
@@ -541,7 +600,7 @@ export default function Procedures() {
           {/* ── Toolbar ── */}
           <div className="bg-white rounded border border-slate-100 shadow-sm p-3 sm:p-4">
             <div className="flex flex-col sm:flex-row gap-3">
-              {/* Search - utilise le hook directement */}
+              {/* Search */}
               <div className="relative flex-1">
                 <Search
                   size={14}
@@ -558,7 +617,7 @@ export default function Procedures() {
               </div>
 
               <div className="flex gap-2">
-                {/* Status quick filter - utilise le hook directement */}
+                {/* Status quick filter */}
                 <select
                   value={currentStatus}
                   onChange={(e) =>
@@ -574,7 +633,7 @@ export default function Procedures() {
                   ))}
                 </select>
 
-                {/* More filters - utilise le hook pour applyFilters */}
+                {/* More filters */}
                 <button
                   onClick={() => setShowFilters((v) => !v)}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded border text-sm font-medium transition-colors ${
@@ -597,7 +656,7 @@ export default function Procedures() {
               </div>
             </div>
 
-            {/* Extended filters - utilise setQuery directement */}
+            {/* Extended filters */}
             {showFilters && (
               <div className="mt-3 pt-3 border-t border-slate-100">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -606,15 +665,15 @@ export default function Procedures() {
                       Trier par
                     </label>
                     <select
-                      value={query.sortBy ?? "createdAt"}
+                      value={filters.sortBy}
                       onChange={(e) =>
-                        setQuery({ sortBy: e.target.value, page: 1 })
+                        setFilters(prev => ({ ...prev, sortBy: e.target.value, page: 1 }))
                       }
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
                       <option value="createdAt">Date de création</option>
                       <option value="updatedAt">Dernière maj</option>
-                      <option value="nom">Nom</option>
+                      <option value="fullName">Nom</option>
                       <option value="statut">Statut</option>
                     </select>
                   </div>
@@ -623,12 +682,13 @@ export default function Procedures() {
                       Ordre
                     </label>
                     <select
-                      value={query.sortOrder ?? "desc"}
+                      value={filters.sortOrder}
                       onChange={(e) =>
-                        setQuery({
+                        setFilters(prev => ({
+                          ...prev,
                           sortOrder: e.target.value as SortOrder,
-                          page: 1,
-                        })
+                          page: 1
+                        }))
                       }
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
@@ -641,8 +701,8 @@ export default function Procedures() {
                       Par page
                     </label>
                     <select
-                      value={query.limit ?? 10}
-                      onChange={(e) => setLimit(Number(e.target.value))}
+                      value={pagination.limit}
+                      onChange={(e) => setPagination(prev => ({ ...prev, limit: Number(e.target.value), page: 1 }))}
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
                       {[10, 25, 50, 100].map((n) => (
@@ -657,12 +717,13 @@ export default function Procedures() {
                       Inclure terminées
                     </label>
                     <select
-                      value={query.includeCompleted ? "true" : "false"}
+                      value={filters.includeCompleted ? "true" : "false"}
                       onChange={(e) =>
-                        setQuery({
+                        setFilters(prev => ({
+                          ...prev,
                           includeCompleted: e.target.value === "true",
-                          page: 1,
-                        })
+                          page: 1
+                        }))
                       }
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
@@ -696,18 +757,18 @@ export default function Procedures() {
             {/* Header info */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
               <p className="text-xs text-slate-500">
-                {loading.list ? (
+                {loading ? (
                   "Chargement…"
                 ) : (
                   <>
                     <span className="font-semibold text-slate-700">
-                      {pagination?.total ?? 0}
+                      {pagination.total}
                     </span>{" "}
-                    procédure{(pagination?.total ?? 0) !== 1 ? "s" : ""}
+                    procédure{pagination.total !== 1 ? "s" : ""}
                   </>
                 )}
               </p>
-              {pagination && pagination.totalPages > 1 && (
+              {pagination.totalPages > 1 && (
                 <p className="text-xs text-slate-400">
                   Page {pagination.page}/{pagination.totalPages}
                 </p>
@@ -715,7 +776,7 @@ export default function Procedures() {
             </div>
 
             {/* Loading skeleton */}
-            {loading.list && (
+            {loading && (
               <div className="p-4 space-y-3">
                 {Array.from({ length: 5 }).map((_, index) => (
                   <div
@@ -727,7 +788,7 @@ export default function Procedures() {
             )}
 
             {/* Empty */}
-            {!loading.list && (!procedures || procedures.length === 0) && (
+            {!loading && procedures.length === 0 && (
               <div className="text-center py-16 text-slate-400">
                 <AlertCircle className="mx-auto mb-3 opacity-40" size={36} />
                 <p className="text-sm">Aucune procédure trouvée</p>
@@ -743,17 +804,27 @@ export default function Procedures() {
             )}
 
             {/* Desktop table */}
-            {!loading.list && procedures && procedures.length > 0 && (
+            {!loading && procedures.length > 0 && (
               <>
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr>
-                        <th>Candidat</th>
-                        <th>Destination / Filière</th>
-                        <th>Statut</th>
-                        <th>Progression</th>
-                        <th>Créée le</th>
+                      <tr className="text-left border-b border-slate-100">
+                        {[
+                          "Candidat",
+                          "Destination / Filière",
+                          "Statut",
+                          "Progression",
+                          "Créée le",
+                          "",
+                        ].map((header) => (
+                          <th
+                            key={header}
+                            className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide"
+                          >
+                            {header}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
@@ -782,11 +853,11 @@ export default function Procedures() {
             )}
 
             {/* Pagination */}
-            {pagination && pagination.totalPages > 1 && (
+            {pagination.totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
                 <button
-                  onClick={() => setPage(pagination.page - 1)}
-                  disabled={!pagination.hasPrevious || loading.list}
+                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                  disabled={!pagination.hasPrevious || loading}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-200 text-xs text-slate-600 hover:border-sky-300 hover:text-sky-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <ChevronLeft size={13} /> Préc.
@@ -796,7 +867,7 @@ export default function Procedures() {
                   {getPageNumbers().map((page) => (
                     <button
                       key={page}
-                      onClick={() => setPage(page)}
+                      onClick={() => setPagination(prev => ({ ...prev, page }))}
                       className={`w-7 h-7 rounded text-xs font-medium transition-colors ${
                         page === pagination.page
                           ? "bg-sky-600 text-white"
@@ -809,8 +880,8 @@ export default function Procedures() {
                 </div>
 
                 <button
-                  onClick={() => setPage(pagination.page + 1)}
-                  disabled={!pagination.hasNext || loading.list}
+                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                  disabled={!pagination.hasNext || loading}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-200 text-xs text-slate-600 hover:border-sky-300 hover:text-sky-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Suiv. <ChevronRight size={13} />
@@ -820,35 +891,34 @@ export default function Procedures() {
           </div>
 
           {/* ── Top destinations & filières & steps analytics ── */}
-          {statistics && !loading.statistics && (
+          {statistics && (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Top destinations - only if exists and has data */}
-              {statistics.topDestinations &&
-                statistics.topDestinations.length > 0 && (
-                  <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
-                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                      <Globe size={12} className="text-sky-500" />
-                      Top destinations
-                    </h3>
-                    <div className="space-y-2">
-                      {statistics.topDestinations.slice(0, 5).map((d) => (
-                        <div
-                          key={d.destination}
-                          className="flex items-center justify-between"
-                        >
-                          <span className="text-sm text-slate-600 truncate max-w-[70%]">
-                            {d.destination}
-                          </span>
-                          <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-                            {d.count}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+              {/* Top destinations */}
+              {statistics.topDestinations && statistics.topDestinations.length > 0 && (
+                <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                    <Globe size={12} className="text-sky-500" />
+                    Top destinations
+                  </h3>
+                  <div className="space-y-2">
+                    {statistics.topDestinations.slice(0, 5).map((d) => (
+                      <div
+                        key={d.destination}
+                        className="flex items-center justify-between"
+                      >
+                        <span className="text-sm text-slate-600 truncate max-w-[70%]">
+                          {d.destination}
+                        </span>
+                        <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                          {d.count}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
+              )}
 
-              {/* Top filières - only if exists and has data */}
+              {/* Top filières */}
               {statistics.topFilieres && statistics.topFilieres.length > 0 && (
                 <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
                   <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
@@ -873,7 +943,7 @@ export default function Procedures() {
                 </div>
               )}
 
-              {/* Stats additionnelles - always show if statistics exists */}
+              {/* Stats additionnelles */}
               <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
                 <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                   <AlertCircle size={12} className="text-slate-500" />
