@@ -58,7 +58,7 @@ export interface UseProceduresReturn {
   procedures: ProcedureResponseDto[];
   selectedProcedure: ProcedureResponseDto | null;
   statistics: ProcedureStatisticsDto | null;
-  overdue: ProcedureResponseDto[];
+  overdue?: ProcedureResponseDto[];
   loading: ProcedureLoadingState;
   error: string | null;
   query: ProcedureQueryDto;
@@ -135,7 +135,6 @@ export function useProcedures(): UseProceduresReturn {
   const [statistics, setStatistics] = useState<ProcedureStatisticsDto | null>(
     null,
   );
-  const [overdue, setOverdue] = useState<ProcedureResponseDto[]>([]);
   const [loading, setLoading] =
     useState<ProcedureLoadingState>(DEFAULT_LOADING);
   const [error, setError] = useState<string | null>(null);
@@ -619,31 +618,13 @@ export function useProcedures(): UseProceduresReturn {
     setQueryState(DEFAULT_QUERY);
   }, []);
 
-  // ─── loadOverdue ──────────────────────────────────────────────────────────
-  const loadOverdue = useCallback(async () => {
-    if (!isAdmin) return;
-    try {
-      const result = await ProceduresService.findAll({
-        status: "IN_PROGRESS",
-        limit: 100,
-        includeCompleted: false,
-      });
-      if (isMountedRef.current) {
-        setOverdue(result.data.filter((p) => p.isOverdue));
-      }
-    } catch {
-      // Silently fail
-    }
-  }, [isAdmin]);
-
   // ─── Effets ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (isAdmin && isMountedRef.current) {
       loadProcedures();
       loadStatistics();
-      loadOverdue();
     }
-  }, [isAdmin, loadProcedures, loadStatistics, loadOverdue]);
+  }, [isAdmin, loadProcedures, loadStatistics]);
 
   // Rechargement quand query change
   useEffect(() => {
@@ -666,7 +647,6 @@ export function useProcedures(): UseProceduresReturn {
     procedures,
     selectedProcedure,
     statistics,
-    overdue,
     loading,
     error,
     query,
