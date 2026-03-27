@@ -1,13 +1,50 @@
 import {
-  Instagram as FaInstagram,
   Phone as FaPhoneAlt,
   Mail as FaEnvelope,
   MapPin as FaMapMarkerAlt,
 } from "lucide-react";
 
 const FaTiktok = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.33 6.33 0 0 0-1-.08A6.34 6.34 0 0 0 5 20.1a6.33 6.33 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+    <path
+      d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.33 6.33 0 0 0-1-.08A6.34 6.34 0 0 0 5 20.1a6.33 6.33 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"
+      fill="url(#tiktok-gradient)"
+    />
+    <defs>
+      <radialGradient id="tiktok-gradient" cx="50%" cy="50%" r="50%">
+        <stop stopColor="#00F2EA" />
+        <stop offset="0.5" stopColor="#FF0050" />
+        <stop offset="1" stopColor="#000000" />
+      </radialGradient>
+    </defs>
+  </svg>
+);
+
+const FaInstagram = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+    <path
+      d="M12 2.163c3.204 0 3.584.012 4.85.07 1.366.062 2.633.336 3.608 1.311.975.975 1.249 2.242 1.311 3.608.058 1.266.07 1.646.07 4.85s-.012 3.584-.07 4.85c-.062 1.366-.336 2.633-1.311 3.608-.975.975-2.242 1.249-3.608 1.311-1.266.058-1.646.07-4.85.07s-3.584-.012-4.85-.07c-1.366-.062-2.633-.336-3.608-1.311-.975-.975-1.249-2.242-1.311-3.608-.058-1.266-.07-1.646-.07-4.85s.012-3.584.07-4.85c.062-1.366.336-2.633 1.311-3.608.975-.975 2.242-1.249 3.608-1.311 1.266-.058 1.646-.07 4.85-.07z"
+      fill="url(#instagram-gradient)"
+    />
+    <path
+      d="M12 6.5c-3.038 0-5.5 2.462-5.5 5.5s2.462 5.5 5.5 5.5 5.5-2.462 5.5-5.5-2.462-5.5-5.5-5.5zm0 9c-1.931 0-3.5-1.569-3.5-3.5s1.569-3.5 3.5-3.5 3.5 1.569 3.5 3.5-1.569 3.5-3.5 3.5z"
+      fill="white"
+    />
+    <circle cx="17.5" cy="6.5" r="1.5" fill="white" />
+    <defs>
+      <linearGradient
+        id="instagram-gradient"
+        x1="2"
+        y1="2"
+        x2="22"
+        y2="22"
+        gradientUnits="userSpaceOnUse"
+      >
+        <stop stopColor="#F9CE34" />
+        <stop offset="0.3" stopColor="#EE2A7B" />
+        <stop offset="0.7" stopColor="#6228D7" />
+      </linearGradient>
+    </defs>
   </svg>
 );
 
@@ -125,17 +162,17 @@ export default function Footer() {
               </h3>
               <div className="flex gap-3">
                 {[
-                  {
-                    icon: <FaInstagram className="w-5 h-5" />,
-                    to: "https://www.instagram.com/paname_consulting/",
-                    bg: "hover:bg-sky-500 hover:text-white",
-                  },
-                  {
-                    icon: <FaTiktok />,
-                    to: "https://www.tiktok.com/@paname.consulting",
-                    bg: "hover:bg-sky-500 hover:text-white",
-                  },
-                ].map((social, index) => (
+  {
+    icon: <FaInstagram />,
+    to: "https://www.instagram.com/paname_consulting/",
+    bg: "hover:bg-gradient-to-r hover:from-yellow-400 hover:via-pink-500 hover:to-purple-600 hover:text-white",
+  },
+  {
+    icon: <FaTiktok />,
+    to: "https://www.tiktok.com/@paname.consulting",
+    bg: "hover:bg-gradient-to-r hover:from-cyan-400 hover:via-rose-500 hover:to-gray-900 hover:text-white",
+  },
+].map((social, index) => (
                   <Link
                     key={index}
                     to={social.to}
