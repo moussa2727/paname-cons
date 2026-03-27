@@ -830,114 +830,118 @@ export default function Procedures() {
           </div>
 
           {/* ── Top destinations & filières & steps analytics ── */}
-          {statistics &&
-            !loading.statistics &&
-            ((statistics.topDestinations?.length || 0) > 0 ||
-              (statistics.topFilieres?.length || 0) > 0) && (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Top destinations section */}
-                {statistics.topDestinations &&
-                  statistics.topDestinations.length > 0 && (
-                    <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
-                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                        <Globe size={12} className="text-sky-500" />
-                        Top destinations
-                      </h3>
-                      <div className="space-y-2">
-                        {statistics.topDestinations.slice(0, 5).map((d) => (
-                          <div
-                            key={d.destination}
-                            className="flex items-center justify-between"
-                          >
-                            <span className="text-sm text-slate-600 truncate max-w-[70%]">
-                              {d.destination}
-                            </span>
-                            <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-                              {d.count}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+          {statistics && !loading.statistics && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Top destinations - only if exists and has data */}
+              {statistics.topDestinations &&
+                statistics.topDestinations.length > 0 && (
+                  <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                      <Globe size={12} className="text-sky-500" />
+                      Top destinations
+                    </h3>
+                    <div className="space-y-2">
+                      {statistics.topDestinations.slice(0, 5).map((d) => (
+                        <div
+                          key={d.destination}
+                          className="flex items-center justify-between"
+                        >
+                          <span className="text-sm text-slate-600 truncate max-w-[70%]">
+                            {d.destination}
+                          </span>
+                          <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                            {d.count}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                )}
 
-                {/* Top filières section */}
-                {statistics.topFilieres &&
-                  statistics.topFilieres.length > 0 && (
-                    <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
-                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                        <BookOpen size={12} className="text-sky-500" />
-                        Top filières
-                      </h3>
-                      <div className="space-y-2">
-                        {statistics.topFilieres.slice(0, 5).map((f) => (
-                          <div
-                            key={f.filiere}
-                            className="flex items-center justify-between"
-                          >
-                            <span className="text-sm text-slate-600 truncate max-w-[70%]">
-                              {f.filiere}
-                            </span>
-                            <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-                              {f.count}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Stats additionnelles - always show if statistics exists */}
+              {/* Top filières - only if exists and has data */}
+              {statistics.topFilieres && statistics.topFilieres.length > 0 && (
                 <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
                   <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                    <AlertCircle size={12} className="text-slate-500" />
-                    Autres stats
+                    <BookOpen size={12} className="text-sky-500" />
+                    Top filières
                   </h3>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-600">
-                        Procédures annulées
-                      </span>
-                      <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
-                        {statistics.byStatus?.CANCELLED ?? 0}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-600">
-                        Nouvelles aujourd'hui
-                      </span>
-                      <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-                        {statistics.newProcedures?.today ?? 0}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-600">
-                        Nouvelles cette semaine
-                      </span>
-                      <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
-                        {statistics.newProcedures?.thisWeek ?? 0}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-600">
-                        Taux de réussite
-                      </span>
-                      <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                        {(statistics.completionRate ?? 0).toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-600">
-                        Temps moyen de complétion
-                      </span>
-                      <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                        {statistics.averageCompletionTime ?? 0} jours
-                      </span>
-                    </div>
+                    {statistics.topFilieres.slice(0, 5).map((f) => (
+                      <div
+                        key={f.filiere}
+                        className="flex items-center justify-between"
+                      >
+                        <span className="text-sm text-slate-600 truncate max-w-[70%]">
+                          {f.filiere}
+                        </span>
+                        <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                          {f.count}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Stats additionnelles - always show if statistics exists */}
+              <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <AlertCircle size={12} className="text-slate-500" />
+                  Autres stats
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">
+                      Procédures annulées
+                    </span>
+                    <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+                      {statistics.byStatus?.CANCELLED ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">
+                      Nouvelles aujourd'hui
+                    </span>
+                    <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                      {statistics.newProcedures?.today ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">
+                      Nouvelles cette semaine
+                    </span>
+                    <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                      {statistics.newProcedures?.thisWeek ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">
+                      Nouvelles ce mois
+                    </span>
+                    <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded">
+                      {statistics.newProcedures?.thisMonth ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">
+                      Taux de réussite
+                    </span>
+                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                      {(statistics.completionRate ?? 0).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">
+                      Temps moyen de complétion
+                    </span>
+                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                      {statistics.averageCompletionTime ?? 0} jours
+                    </span>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
         </div>
       </div>
     </>
