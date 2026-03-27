@@ -308,7 +308,6 @@ export default function ProcedureDetail() {
 
   // Chargement initial
   useEffect(() => {
-    console.log("ProcedureDetail useEffect - id:", id, "isAdmin:", isAdmin);
     if (!id || !isAdmin) return;
     loadByIdRef.current(id).catch((err) => {
       console.error("Failed to load procedure:", err);
@@ -452,9 +451,7 @@ export default function ProcedureDetail() {
     );
   }
 
-  // Debug: log the procedure data
-  console.log("Rendering procedure:", procedure);
-
+  
   // ─────────────────────────────────────────────────────────────────────────
 
   return (

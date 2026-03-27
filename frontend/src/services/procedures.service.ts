@@ -55,6 +55,11 @@ async function handleResponse<T>(res: Response): Promise<T> {
     throw new Error(error.message || `Erreur ${res.status}`);
   }
 
+  // Extract data from wrapped response if it exists
+  if (responseBody && typeof responseBody === 'object' && 'data' in responseBody) {
+    return (responseBody as { data: T }).data;
+  }
+
   return responseBody as T;
 }
 
@@ -211,10 +216,7 @@ export const ProceduresService = {
    * Détails d'une procédure
    */
   async findById(id: string): Promise<ProcedureResponseDto> {
-    const url = `${BASE_URL}${API.PROCEDURE_DETAILS(id)}`;
-    console.log("findById - URL:", url);
-    const res = await apiFetch(url);
-    console.log("findById - response status:", res.status);
+    const res = await apiFetch(`${BASE_URL}${API.PROCEDURE_DETAILS(id)}`);
     return handleResponse<ProcedureResponseDto>(res);
   },
 

@@ -251,19 +251,16 @@ export function useProcedures(): UseProceduresReturn {
   // ─── loadById (User + Admin) ──────────────────────────────────────────────
   const loadById = useCallback(
     async (id: string): Promise<ProcedureResponseDto | null> => {
-      console.log("loadById called with id:", id);
       setLoad("details", true);
       setError(null);
 
       try {
         const procedure = await ProceduresService.findById(id);
-        console.log("loadById - procedure received:", procedure);
         if (isMountedRef.current) {
           setSelectedProcedure(procedure);
         }
         return procedure;
       } catch (err) {
-        console.log("loadById - error:", err);
         if (isMountedRef.current) {
           setError(err instanceof Error ? err.message : "Erreur de chargement");
         }
