@@ -172,22 +172,30 @@ export function useProcedures(): UseProceduresReturn {
 
   // Déwrappe la réponse paginée — gère { data: { data:[...], total, ... } } ET { data:[...], total, ... }
   const unwrapPaginated = useCallback((raw: unknown): PaginatedProcedureResponseDto => {
-    if (!raw || typeof raw !== "object") throw new Error("Réponse vide");
+  // Tableau direct : le service retourne ProcedureResponseDto[] sans pagination
+  if (Array.isArray(raw)) {
+    return {
+      data: raw as ProcedureResponseDto[],
+      total: raw.length,
+      page: 1,
+      limit: raw.length,
+      totalPages: 1,
+      hasNext: false,
+      hasPrevious: false,
+    };
+  }
+  // Objet paginé normal : { data: [...], total, ... }
+  if (raw && typeof raw === "object") {
     const obj = raw as Record<string, unknown>;
-
+    if (Array.isArray(obj.data)) return obj as unknown as PaginatedProcedureResponseDto;
     // Double enveloppe : { data: { data: [...], total, ... } }
-    if ("data" in obj && obj.data && typeof obj.data === "object") {
+    if (obj.data && typeof obj.data === "object") {
       const inner = obj.data as Record<string, unknown>;
-      if (Array.isArray(inner.data)) {
-        return inner as unknown as PaginatedProcedureResponseDto;
-      }
+      if (Array.isArray(inner.data)) return inner as unknown as PaginatedProcedureResponseDto;
     }
-    // Enveloppe simple : { data: [...], total, ... }
-    if (Array.isArray(obj.data)) {
-      return obj as unknown as PaginatedProcedureResponseDto;
-    }
-    throw new Error("Réponse paginée invalide");
-  }, []);
+  }
+  throw new Error("Réponse paginée invalide");
+}, []);
 
   // ─── loadProcedures ───────────────────────────────────────────────────────
   const loadProcedures = useCallback(
