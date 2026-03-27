@@ -715,7 +715,11 @@ export default function MaProcedures() {
           <div className="grid grid-cols-3 gap-2">
             <StatPill
               label="En retard"
-              value={procedures?.filter(p => p.isOverdue && p.statut === "IN_PROGRESS").length ?? 0}
+              value={
+                procedures?.filter(
+                  (p) => p.isOverdue && p.statut === "IN_PROGRESS",
+                ).length ?? 0
+              }
               accent="bg-amber-500/20"
             />
             <StatPill
