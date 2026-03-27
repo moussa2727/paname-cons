@@ -162,7 +162,7 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
           </p>
           <p className="text-xs text-slate-400 mt-0.5">{procedure.email}</p>
         </div>
-       </td>
+      </td>
       <td className="px-4 py-3 hidden sm:table-cell">
         <div className="flex flex-col gap-0.5">
           <span className="inline-flex items-center gap-1 text-xs text-slate-600">
@@ -174,19 +174,19 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
             {procedure.effectiveFiliere}
           </span>
         </div>
-       </td>
+      </td>
       <td className="px-4 py-3">
         <StatusBadge status={procedure.statut} />
-       </td>
+      </td>
       <td className="px-4 py-3 hidden md:table-cell min-w-[120px]">
         <ProgressBar value={procedure.progress} />
-       </td>
+      </td>
       <td className="px-4 py-3 hidden lg:table-cell">
         <span className="inline-flex items-center gap-1 text-xs text-slate-500">
           <Calendar size={10} />
           {dateStr}
         </span>
-       </td>
+      </td>
       <td className="px-4 py-3">
         <button
           onClick={(e) => {
@@ -198,8 +198,8 @@ const ProcedureRow: React.FC<ProcedureRowProps> = ({ procedure, onView }) => {
         >
           <ArrowRight size={15} />
         </button>
-       </td>
-     </tr>
+      </td>
+    </tr>
   );
 };
 
@@ -264,7 +264,7 @@ export default function Procedures() {
   const [showStats, setShowStats] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  // Utiliser exclusivement le hook useProcedures
+  // ── Hook unique ── TOUTE la logique est ici
   const {
     procedures,
     statistics,
@@ -274,6 +274,7 @@ export default function Procedures() {
     pagination,
     setQuery,
     setPage,
+    setLimit,
     refresh,
     loadStatistics,
     applyFilters,
@@ -281,18 +282,19 @@ export default function Procedures() {
     exportProcedures,
   } = useProcedures();
 
-  // Navigation vers la page détail
+  // ── Navigation vers la page détail ──────────────────────────────────────
   const handleViewDetails = useCallback(
     (id: string) => navigate(`/gestionnaire/procedures/${id}`),
     [navigate],
   );
 
-  // Rafraîchissement manuel des stats
+  // ── Rafraîchissement manuel des stats ───────────────────────────────────
   const handleRefreshStats = useCallback(() => {
     loadStatistics();
   }, [loadStatistics]);
 
-  // Export
+  // ── Export ──────────────────────────────────────────────────────────────
+  // ── Export ──────────────────────────────────────────────────────────────
   const handleExport = useCallback(
     async (format: ExportFormat) => {
       setExporting(true);
@@ -317,17 +319,20 @@ export default function Procedures() {
     [exportProcedures],
   );
 
-  // Gestion des filtres via le hook
+  // ── Gestion des filtres via le hook ─────────────────────────────────────
   const handleStatusFilter = useCallback(
     (status: ProcedureStatus | "") => {
-      if (status === "") {
-        setQuery({ status: undefined, page: 1 });
-      } else {
+      if (status) {
         setQuery({ status, page: 1 });
+      } else {
+        // ✅ Créer un nouvel objet sans la propriété status
+        const newQuery = { ...query };
+        delete newQuery.status;
+        setQuery({ ...newQuery, page: 1 });
       }
       setShowFilters(false);
     },
-    [setQuery],
+    [query, setQuery],
   );
 
   const handleSearchFilter = useCallback(
@@ -347,7 +352,7 @@ export default function Procedures() {
     setShowFilters(false);
   }, [resetFilters]);
 
-  // Stats cards (inchangé, utilise statistics du hook v2)
+  // ── Stats cards ──────────────────────────────────────────────────────────
   const statsCards = useMemo(() => {
     if (!statistics) return [];
 
@@ -390,11 +395,11 @@ export default function Procedures() {
     ];
   }, [statistics]);
 
-  // Valeurs actuelles des filtres pour l'UI
+  // ── Valeurs actuelles des filtres pour l'UI ─────────────────────────────
   const currentSearch = query.search ?? "";
   const currentStatus = query.status ?? "";
 
-  // Helper pour générer les numéros de page
+  // ── Helper pour générer les numéros de page sans ESLint warning ─────────
   const getPageNumbers = useCallback(() => {
     const totalPages = pagination.totalPages;
     const currentPage = pagination.page;
@@ -455,14 +460,16 @@ export default function Procedures() {
               <div className="flex items-center gap-2">
                 {/* Rafraîchir tout */}
                 <button
-                  onClick={refresh}
-                  disabled={loading.list}
+                  onClick={() => refresh()}
+                  disabled={loading.list || loading.statistics}
                   title="Rafraîchir"
                   className="p-2 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors disabled:opacity-40"
                 >
                   <RefreshCw
                     size={15}
-                    className={loading.list ? "animate-spin" : ""}
+                    className={
+                      loading.list || loading.statistics ? "animate-spin" : ""
+                    }
                   />
                 </button>
 
@@ -473,7 +480,10 @@ export default function Procedures() {
                   title="Rafraîchir les stats"
                   className="hidden sm:flex p-2 rounded text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40"
                 >
-                  <BarChart3 size={14} />
+                  <BarChart3
+                    size={14}
+                    className={loading.statistics ? "animate-spin" : ""}
+                  />
                 </button>
 
                 {/* Export dropdown */}
@@ -531,7 +541,7 @@ export default function Procedures() {
           {/* ── Toolbar ── */}
           <div className="bg-white rounded border border-slate-100 shadow-sm p-3 sm:p-4">
             <div className="flex flex-col sm:flex-row gap-3">
-              {/* Search */}
+              {/* Search - utilise le hook directement */}
               <div className="relative flex-1">
                 <Search
                   size={14}
@@ -548,7 +558,7 @@ export default function Procedures() {
               </div>
 
               <div className="flex gap-2">
-                {/* Status quick filter */}
+                {/* Status quick filter - utilise le hook directement */}
                 <select
                   value={currentStatus}
                   onChange={(e) =>
@@ -564,7 +574,7 @@ export default function Procedures() {
                   ))}
                 </select>
 
-                {/* More filters */}
+                {/* More filters - utilise le hook pour applyFilters */}
                 <button
                   onClick={() => setShowFilters((v) => !v)}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded border text-sm font-medium transition-colors ${
@@ -587,7 +597,7 @@ export default function Procedures() {
               </div>
             </div>
 
-            {/* Extended filters */}
+            {/* Extended filters - utilise setQuery directement */}
             {showFilters && (
               <div className="mt-3 pt-3 border-t border-slate-100">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -598,17 +608,13 @@ export default function Procedures() {
                     <select
                       value={query.sortBy ?? "createdAt"}
                       onChange={(e) =>
-                        setQuery({
-                          ...query,
-                          sortBy: e.target.value,
-                          page: 1,
-                        })
+                        setQuery({ sortBy: e.target.value, page: 1 })
                       }
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
                       <option value="createdAt">Date de création</option>
                       <option value="updatedAt">Dernière maj</option>
-                      <option value="fullName">Nom</option>
+                      <option value="nom">Nom</option>
                       <option value="statut">Statut</option>
                     </select>
                   </div>
@@ -620,7 +626,6 @@ export default function Procedures() {
                       value={query.sortOrder ?? "desc"}
                       onChange={(e) =>
                         setQuery({
-                          ...query,
                           sortOrder: e.target.value as SortOrder,
                           page: 1,
                         })
@@ -636,8 +641,8 @@ export default function Procedures() {
                       Par page
                     </label>
                     <select
-                      value={pagination.limit}
-                      onChange={(e) => setQuery({ limit: Number(e.target.value), page: 1 })}
+                      value={query.limit ?? 10}
+                      onChange={(e) => setLimit(Number(e.target.value))}
                       className="w-full text-sm rounded border border-slate-200 px-3 py-2 focus:outline-none focus:border-sky-400 bg-white"
                     >
                       {[10, 25, 50, 100].map((n) => (
@@ -655,7 +660,6 @@ export default function Procedures() {
                       value={query.includeCompleted ? "true" : "false"}
                       onChange={(e) =>
                         setQuery({
-                          ...query,
                           includeCompleted: e.target.value === "true",
                           page: 1,
                         })
@@ -697,13 +701,13 @@ export default function Procedures() {
                 ) : (
                   <>
                     <span className="font-semibold text-slate-700">
-                      {pagination.total}
+                      {pagination?.total ?? 0}
                     </span>{" "}
-                    procédure{pagination.total !== 1 ? "s" : ""}
+                    procédure{(pagination?.total ?? 0) !== 1 ? "s" : ""}
                   </>
                 )}
               </p>
-              {pagination.totalPages > 1 && (
+              {pagination && pagination.totalPages > 1 && (
                 <p className="text-xs text-slate-400">
                   Page {pagination.page}/{pagination.totalPages}
                 </p>
@@ -723,7 +727,7 @@ export default function Procedures() {
             )}
 
             {/* Empty */}
-            {!loading.list && procedures.length === 0 && (
+            {!loading.list && (!procedures || procedures.length === 0) && (
               <div className="text-center py-16 text-slate-400">
                 <AlertCircle className="mx-auto mb-3 opacity-40" size={36} />
                 <p className="text-sm">Aucune procédure trouvée</p>
@@ -739,7 +743,7 @@ export default function Procedures() {
             )}
 
             {/* Desktop table */}
-            {!loading.list && procedures.length > 0 && (
+            {!loading.list && procedures && procedures.length > 0 && (
               <>
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full">
@@ -788,7 +792,7 @@ export default function Procedures() {
             )}
 
             {/* Pagination */}
-            {pagination.totalPages > 1 && (
+            {pagination && pagination.totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
                 <button
                   onClick={() => setPage(pagination.page - 1)}
@@ -826,9 +830,9 @@ export default function Procedures() {
           </div>
 
           {/* ── Top destinations & filières & steps analytics ── */}
-          {statistics && (
+          {statistics && !loading.statistics && (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Top destinations */}
+              {/* Top destinations - only if exists and has data */}
               {statistics.topDestinations &&
                 statistics.topDestinations.length > 0 && (
                   <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
@@ -854,7 +858,7 @@ export default function Procedures() {
                   </div>
                 )}
 
-              {/* Top filières */}
+              {/* Top filières - only if exists and has data */}
               {statistics.topFilieres && statistics.topFilieres.length > 0 && (
                 <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
                   <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
@@ -879,7 +883,7 @@ export default function Procedures() {
                 </div>
               )}
 
-              {/* Stats additionnelles */}
+              {/* Stats additionnelles - always show if statistics exists */}
               <div className="bg-white rounded border border-slate-100 shadow-sm p-4">
                 <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                   <AlertCircle size={12} className="text-slate-500" />
