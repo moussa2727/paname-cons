@@ -308,6 +308,7 @@ export default function ProcedureDetail() {
 
   // Chargement initial
   useEffect(() => {
+    console.log("ProcedureDetail useEffect - id:", id, "isAdmin:", isAdmin);
     if (!id || !isAdmin) return;
     loadByIdRef.current(id).catch((err) => {
       console.error("Failed to load procedure:", err);
@@ -435,6 +436,14 @@ export default function ProcedureDetail() {
     );
   }
 
+  if (loading.details) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-slate-400 text-sm">Chargement...</p>
+      </div>
+    );
+  }
+
   if (!procedure) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -442,6 +451,9 @@ export default function ProcedureDetail() {
       </div>
     );
   }
+
+  // Debug: log the procedure data
+  console.log("Rendering procedure:", procedure);
 
   // ─────────────────────────────────────────────────────────────────────────
 

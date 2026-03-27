@@ -211,7 +211,10 @@ export const ProceduresService = {
    * Détails d'une procédure
    */
   async findById(id: string): Promise<ProcedureResponseDto> {
-    const res = await apiFetch(`${BASE_URL}${API.PROCEDURE_DETAILS(id)}`);
+    const url = `${BASE_URL}${API.PROCEDURE_DETAILS(id)}`;
+    console.log("findById - URL:", url);
+    const res = await apiFetch(url);
+    console.log("findById - response status:", res.status);
     return handleResponse<ProcedureResponseDto>(res);
   },
 
