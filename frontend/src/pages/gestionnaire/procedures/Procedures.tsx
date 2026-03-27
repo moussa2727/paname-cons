@@ -748,22 +748,12 @@ export default function Procedures() {
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="text-left border-b border-slate-100">
-                        {[
-                          "Candidat",
-                          "Destination / Filière",
-                          "Statut",
-                          "Progression",
-                          "Créée le",
-                          "",
-                        ].map((header) => (
-                          <th
-                            key={header}
-                            className="px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wide"
-                          >
-                            {header}
-                          </th>
-                        ))}
+                      <tr>
+                        <th>Candidat</th>
+                        <th>Destination / Filière</th>
+                        <th>Statut</th>
+                        <th>Progression</th>
+                        <th>Créée le</th>
                       </tr>
                     </thead>
                     <tbody>
