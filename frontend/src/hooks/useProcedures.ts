@@ -143,8 +143,15 @@ export function useProcedures(): UseProceduresReturn {
     useState<ProcedurePagination>(DEFAULT_PAGINATION);
 
   // Refs
-  const loadingRef = useRef(false);
+  const listLoadingRef = useRef(false);  // garde séparé pour la liste seulement
+  const statsLoadedRef = useRef(false);  // stats chargées une fois au montage
   const isMountedRef = useRef(true);
+  // Ref vers query pour l'accéder dans loadProcedures sans en faire une dépendance
+  const queryRef = useRef(query);
+
+  useEffect(() => {
+    queryRef.current = query;
+  }, [query]);
 
   // Nettoyage
   useEffect(() => {
@@ -202,19 +209,40 @@ export function useProcedures(): UseProceduresReturn {
     }
   }, []);
 
-  // ─── loadProcedures (Admin) ───────────────────────────────────────────────
+  // Déwrappe l'enveloppe API { data: T } si présente, sinon retourne tel quel.
+  const unwrapProcedure = useCallback((raw: unknown): ProcedureResponseDto => {
+    if (raw && typeof raw === "object") {
+      const obj = raw as Record<string, unknown>;
+      if (
+        "data" in obj &&
+        obj.data &&
+        typeof obj.data === "object" &&
+        "id" in (obj.data as object)
+      ) {
+        return obj.data as ProcedureResponseDto;
+      }
+      if ("id" in obj) {
+        return raw as ProcedureResponseDto;
+      }
+    }
+    throw new Error("Réponse invalide : structure inattendue");
+  }, []);
+
+  // ─── loadProcedures ───────────────────────────────────────────────────────
+  // Utilise queryRef pour lire query sans en faire une dépendance → pas de boucle.
+  // Un override optionnel permet de passer une query ponctuelle (pagination, filtres…).
   const loadProcedures = useCallback(
     async (override?: ProcedureQueryDto) => {
-      if (loadingRef.current || !isAdmin) return;
-      loadingRef.current = true;
+      if (listLoadingRef.current || !isAdmin) return;
+      listLoadingRef.current = true;
       setLoad("list", true);
       setError(null);
 
       try {
-        const merged = { ...query, ...override };
+        const merged = { ...queryRef.current, ...override };
         const res = await ProceduresService.findAll(merged);
         if (isMountedRef.current) {
-          setProcedures(res.data);
+          setProcedures(Array.isArray(res.data) ? res.data : []);
           syncPagination(res);
         }
       } catch (err) {
@@ -223,13 +251,16 @@ export function useProcedures(): UseProceduresReturn {
         }
       } finally {
         setLoad("list", false);
-        loadingRef.current = false;
+        listLoadingRef.current = false;
       }
     },
-    [isAdmin, query, setLoad, syncPagination],
+    // isAdmin : si le rôle change (connexion/déconnexion), on doit recréer la fonction.
+    // setLoad et syncPagination sont stables (useCallback sans deps instables).
+    // queryRef n'est pas une dépendance : c'est un ref, toujours à jour via l'effet ci-dessus.
+    [isAdmin, setLoad, syncPagination],
   );
 
-  // ─── loadStatistics (Admin) ───────────────────────────────────────────────
+  // ─── loadStatistics ───────────────────────────────────────────────────────
   const loadStatistics = useCallback(async () => {
     if (!isAdmin) return;
     setLoad("statistics", true);
@@ -246,14 +277,15 @@ export function useProcedures(): UseProceduresReturn {
     }
   }, [isAdmin, setLoad]);
 
-  // ─── loadById (User + Admin) ──────────────────────────────────────────────
+  // ─── loadById ─────────────────────────────────────────────────────────────
   const loadById = useCallback(
     async (id: string): Promise<ProcedureResponseDto | null> => {
       setLoad("details", true);
       setError(null);
 
       try {
-        const procedure = await ProceduresService.findById(id);
+        const raw = await ProceduresService.findById(id);
+        const procedure = unwrapProcedure(raw);
         if (isMountedRef.current) {
           setSelectedProcedure(procedure);
         }
@@ -267,7 +299,7 @@ export function useProcedures(): UseProceduresReturn {
         setLoad("details", false);
       }
     },
-    [setLoad],
+    [setLoad, unwrapProcedure],
   );
 
   // ─── refresh ──────────────────────────────────────────────────────────────
@@ -275,7 +307,7 @@ export function useProcedures(): UseProceduresReturn {
     await Promise.all([loadProcedures(), loadStatistics()]);
   }, [loadProcedures, loadStatistics]);
 
-  // ─── create (Admin) ───────────────────────────────────────────────────────
+  // ─── create ───────────────────────────────────────────────────────────────
   const create = useCallback(
     async (data: CreateProcedureDto): Promise<ProcedureResponseDto | null> => {
       if (!isAdmin) return null;
@@ -283,7 +315,7 @@ export function useProcedures(): UseProceduresReturn {
       setError(null);
 
       try {
-        const procedure = await ProceduresService.create(data);
+        const procedure = unwrapProcedure(await ProceduresService.create(data));
         if (isMountedRef.current) {
           setProcedures((prev) => [procedure, ...prev]);
           setPagination((prev) => ({ ...prev, total: prev.total + 1 }));
@@ -297,10 +329,10 @@ export function useProcedures(): UseProceduresReturn {
         setLoad("create", false);
       }
     },
-    [isAdmin, loadStatistics, setLoad],
+    [isAdmin, loadStatistics, setLoad, unwrapProcedure],
   );
 
-  // ─── update (User + Admin) ────────────────────────────────────────────────
+  // ─── update ───────────────────────────────────────────────────────────────
   const update = useCallback(
     async (
       id: string,
@@ -312,7 +344,7 @@ export function useProcedures(): UseProceduresReturn {
       const original = procedures.find((p) => p.id === id);
 
       try {
-        const updated = await ProceduresService.update(id, data);
+        const updated = unwrapProcedure(await ProceduresService.update(id, data));
         if (isMountedRef.current) {
           setProcedures((prev) => prev.map((p) => (p.id === id ? updated : p)));
           if (selectedProcedure?.id === id) setSelectedProcedure(updated);
@@ -330,10 +362,10 @@ export function useProcedures(): UseProceduresReturn {
         setLoad("update", false);
       }
     },
-    [procedures, selectedProcedure, setLoad],
+    [procedures, selectedProcedure, setLoad, unwrapProcedure],
   );
 
-  // ─── updateStep (Admin) ───────────────────────────────────────────────────
+  // ─── updateStep ───────────────────────────────────────────────────────────
   const updateStep = useCallback(
     async (
       id: string,
@@ -347,7 +379,9 @@ export function useProcedures(): UseProceduresReturn {
       const original = procedures.find((p) => p.id === id);
 
       try {
-        const updated = await ProceduresService.updateStep(id, stepName, data);
+        const updated = unwrapProcedure(
+          await ProceduresService.updateStep(id, stepName, data),
+        );
         if (isMountedRef.current) {
           setProcedures((prev) => prev.map((p) => (p.id === id ? updated : p)));
           if (selectedProcedure?.id === id) setSelectedProcedure(updated);
@@ -369,10 +403,10 @@ export function useProcedures(): UseProceduresReturn {
         setLoad("updateStep", false);
       }
     },
-    [isAdmin, procedures, selectedProcedure, setLoad],
+    [isAdmin, procedures, selectedProcedure, setLoad, unwrapProcedure],
   );
 
-  // ─── addStep (Admin) ──────────────────────────────────────────────────────
+  // ─── addStep ──────────────────────────────────────────────────────────────
   const addStep = useCallback(
     async (
       id: string,
@@ -383,7 +417,9 @@ export function useProcedures(): UseProceduresReturn {
       setError(null);
 
       try {
-        const updated = await ProceduresService.addStep(id, stepName);
+        const updated = unwrapProcedure(
+          await ProceduresService.addStep(id, stepName),
+        );
         if (isMountedRef.current) {
           setProcedures((prev) => prev.map((p) => (p.id === id ? updated : p)));
           if (selectedProcedure?.id === id) setSelectedProcedure(updated);
@@ -396,10 +432,10 @@ export function useProcedures(): UseProceduresReturn {
         setLoad("updateStep", false);
       }
     },
-    [isAdmin, selectedProcedure, setLoad],
+    [isAdmin, selectedProcedure, setLoad, unwrapProcedure],
   );
 
-  // ─── completeProcedure (Admin) ────────────────────────────────────────────
+  // ─── completeProcedure ────────────────────────────────────────────────────
   const completeProcedure = useCallback(
     async (id: string): Promise<ProcedureResponseDto | null> => {
       if (!isAdmin) return null;
@@ -417,9 +453,11 @@ export function useProcedures(): UseProceduresReturn {
 
         let lastUpdated: ProcedureResponseDto | null = null;
         for (const step of stepsToComplete) {
-          lastUpdated = await ProceduresService.updateStep(id, step.nom, {
-            statut: "COMPLETED",
-          });
+          lastUpdated = unwrapProcedure(
+            await ProceduresService.updateStep(id, step.nom, {
+              statut: "COMPLETED",
+            }),
+          );
         }
 
         const result = lastUpdated ?? target;
@@ -435,10 +473,10 @@ export function useProcedures(): UseProceduresReturn {
         setLoad("update", false);
       }
     },
-    [isAdmin, procedures, selectedProcedure, setLoad],
+    [isAdmin, procedures, selectedProcedure, setLoad, unwrapProcedure],
   );
 
-  // ─── remove (Admin) ───────────────────────────────────────────────────────
+  // ─── remove ───────────────────────────────────────────────────────────────
   const remove = useCallback(
     async (id: string, reason?: string): Promise<boolean> => {
       if (!isAdmin) return false;
@@ -479,7 +517,7 @@ export function useProcedures(): UseProceduresReturn {
     [isAdmin, procedures, selectedProcedure, loadStatistics, setLoad],
   );
 
-  // ─── exportProcedures (Admin) ─────────────────────────────────────────────
+  // ─── exportProcedures ─────────────────────────────────────────────────────
   const exportProcedures = useCallback(
     async (format: ExportFormat): Promise<Blob | null> => {
       if (!isAdmin) return null;
@@ -487,7 +525,7 @@ export function useProcedures(): UseProceduresReturn {
       setError(null);
 
       try {
-        return await ProceduresService.exportProcedures(format, query);
+        return await ProceduresService.exportProcedures(format, queryRef.current);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Erreur d'export");
         return null;
@@ -495,10 +533,10 @@ export function useProcedures(): UseProceduresReturn {
         setLoad("export", false);
       }
     },
-    [isAdmin, query, setLoad],
+    [isAdmin, setLoad],
   );
 
-  // ─── cancelProcedure (User + Admin) ───────────────────────────────────────
+  // ─── cancelProcedure ──────────────────────────────────────────────────────
   const cancelProcedure = useCallback(
     async (
       id: string,
@@ -508,7 +546,9 @@ export function useProcedures(): UseProceduresReturn {
       setError(null);
 
       try {
-        const updated = await ProceduresService.cancel(id, reason);
+        const updated = unwrapProcedure(
+          await ProceduresService.cancel(id, reason),
+        );
         if (isMountedRef.current) {
           setProcedures((prev) => prev.map((p) => (p.id === id ? updated : p)));
           if (selectedProcedure?.id === id) setSelectedProcedure(updated);
@@ -521,10 +561,10 @@ export function useProcedures(): UseProceduresReturn {
         setLoad("update", false);
       }
     },
-    [selectedProcedure, setLoad],
+    [selectedProcedure, setLoad, unwrapProcedure],
   );
 
-  // ─── findByEmail (User + Admin) ───────────────────────────────────────────
+  // ─── findByEmail ──────────────────────────────────────────────────────────
   const findByEmail = useCallback(
     async (email: string): Promise<ProcedureResponseDto[]> => {
       if (!isAuthenticated) return [];
@@ -554,7 +594,7 @@ export function useProcedures(): UseProceduresReturn {
     [isAuthenticated, setLoad, syncPagination],
   );
 
-  // ─── findByRendezvousId (User + Admin) ────────────────────────────────────
+  // ─── findByRendezvousId ───────────────────────────────────────────────────
   const findByRendezvousId = useCallback(
     async (rendezVousId: string): Promise<ProcedureResponseDto | null> => {
       try {
@@ -590,7 +630,7 @@ export function useProcedures(): UseProceduresReturn {
     setLoad("list", true);
     try {
       const res = await ProceduresService.findAll({
-        ...query,
+        ...queryRef.current,
         status: filters.status,
         email: filters.email,
         destination: filters.destination,
@@ -602,7 +642,7 @@ export function useProcedures(): UseProceduresReturn {
         endDate: filters.endDate?.toISOString().split("T")[0],
       });
       if (isMountedRef.current) {
-        setProcedures(res.data);
+        setProcedures(Array.isArray(res.data) ? res.data : []);
         syncPagination(res);
       }
     } catch (err) {
@@ -610,7 +650,7 @@ export function useProcedures(): UseProceduresReturn {
     } finally {
       setLoad("list", false);
     }
-  }, [filters, query, setLoad, syncPagination]);
+  }, [filters, setLoad, syncPagination]);
 
   const resetFilters = useCallback(() => {
     setFiltersState({});
@@ -618,18 +658,23 @@ export function useProcedures(): UseProceduresReturn {
   }, []);
 
   // ─── Effets ───────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (isAdmin && isMountedRef.current) {
-      loadProcedures();
-      loadStatistics();
-    }
-  }, [isAdmin, loadProcedures, loadStatistics]);
 
-  // Rechargement quand query change
+  // Effet 1 : chargement initial des stats — une seule fois dès que isAdmin est confirmé.
+  // Séparé de la liste pour ne pas bloquer l'une par l'autre.
   useEffect(() => {
-    if (isAdmin && isMountedRef.current) {
-      loadProcedures();
-    }
+    if (!isAdmin) return;
+    if (statsLoadedRef.current) return;
+    statsLoadedRef.current = true;
+    loadStatistics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]); // loadStatistics exclu volontairement : sa ref est stable, isAdmin suffit
+
+  // Effet 2 : rechargement de la liste quand query change (ou au montage si isAdmin prêt).
+  // loadProcedures est dans les deps MAIS sa définition ne dépend que de [isAdmin, setLoad, syncPagination]
+  // qui sont toutes stables → pas de boucle. Elle lit query via queryRef (ref, pas state).
+  useEffect(() => {
+    if (!isAdmin) return;
+    loadProcedures();
   }, [
     isAdmin,
     loadProcedures,
@@ -639,6 +684,11 @@ export function useProcedures(): UseProceduresReturn {
     query.search,
     query.sortBy,
     query.sortOrder,
+    query.includeCompleted,
+    query.includeDeleted,
+    query.destination,
+    query.filiere,
+    query.email,
   ]);
 
   return {
