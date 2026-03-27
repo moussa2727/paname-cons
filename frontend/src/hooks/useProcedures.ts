@@ -86,15 +86,30 @@ export interface UseProceduresReturn {
   resetFilters: () => void;
 
   create: (data: CreateProcedureDto) => Promise<ProcedureResponseDto | null>;
-  update: (id: string, data: UpdateProcedureDto) => Promise<ProcedureResponseDto | null>;
-  updateStep: (id: string, stepName: StepName, data: UpdateStepDto) => Promise<ProcedureResponseDto | null>;
-  addStep: (id: string, stepName: StepName) => Promise<ProcedureResponseDto | null>;
+  update: (
+    id: string,
+    data: UpdateProcedureDto,
+  ) => Promise<ProcedureResponseDto | null>;
+  updateStep: (
+    id: string,
+    stepName: StepName,
+    data: UpdateStepDto,
+  ) => Promise<ProcedureResponseDto | null>;
+  addStep: (
+    id: string,
+    stepName: StepName,
+  ) => Promise<ProcedureResponseDto | null>;
   remove: (id: string, reason?: string) => Promise<boolean>;
   completeProcedure: (id: string) => Promise<ProcedureResponseDto | null>;
   exportProcedures: (format: ExportFormat) => Promise<Blob | null>;
-  cancelProcedure: (id: string, reason?: string) => Promise<ProcedureResponseDto | null>;
+  cancelProcedure: (
+    id: string,
+    reason?: string,
+  ) => Promise<ProcedureResponseDto | null>;
   findByEmail: (email: string) => Promise<ProcedureResponseDto[]>;
-  findByRendezvousId: (rendezVousId: string) => Promise<ProcedureResponseDto | null>;
+  findByRendezvousId: (
+    rendezVousId: string,
+  ) => Promise<ProcedureResponseDto | null>;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -104,13 +119,18 @@ export function useProcedures(): UseProceduresReturn {
   const isAuthenticated = !!user;
 
   const [procedures, setProcedures] = useState<ProcedureResponseDto[]>([]);
-  const [selectedProcedure, setSelectedProcedure] = useState<ProcedureResponseDto | null>(null);
-  const [statistics, setStatistics] = useState<ProcedureStatisticsDto | null>(null);
-  const [loading, setLoading] = useState<ProcedureLoadingState>(DEFAULT_LOADING);
+  const [selectedProcedure, setSelectedProcedure] =
+    useState<ProcedureResponseDto | null>(null);
+  const [statistics, setStatistics] = useState<ProcedureStatisticsDto | null>(
+    null,
+  );
+  const [loading, setLoading] =
+    useState<ProcedureLoadingState>(DEFAULT_LOADING);
   const [error, setError] = useState<string | null>(null);
   const [query, setQueryState] = useState<ProcedureQueryDto>(DEFAULT_QUERY);
   const [filters, setFiltersState] = useState<ProcedureFilters>({});
-  const [pagination, setPagination] = useState<ProcedurePagination>(DEFAULT_PAGINATION);
+  const [pagination, setPagination] =
+    useState<ProcedurePagination>(DEFAULT_PAGINATION);
 
   // Refs
   const listLoadingRef = useRef(false);
@@ -119,10 +139,14 @@ export function useProcedures(): UseProceduresReturn {
   // Tracks dernière query sérialisée pour éviter les appels dupliqués
   const lastQueryKeyRef = useRef<string>("");
 
-  useEffect(() => { queryRef.current = query; }, [query]);
+  useEffect(() => {
+    queryRef.current = query;
+  }, [query]);
   useEffect(() => {
     isMountedRef.current = true;
-    return () => { isMountedRef.current = false; };
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   // ─── Dérivés ─────────────────────────────────────────────────────────────
@@ -133,17 +157,26 @@ export function useProcedures(): UseProceduresReturn {
     ? !["COMPLETED", "CANCELLED"].includes(selectedProcedure.statut)
     : false;
   const canBeCompleted = selectedProcedure?.statut === "IN_PROGRESS";
-  const hasRejectedStep = selectedProcedure?.steps?.some((s) => s.statut === "REJECTED") ?? false;
-  const existingStepNames = new Set(selectedProcedure?.steps?.map((s) => s.nom) ?? []);
-  const availableStepsToAdd = STEP_ORDER.filter((s) => !existingStepNames.has(s));
+  const hasRejectedStep =
+    selectedProcedure?.steps?.some((s) => s.statut === "REJECTED") ?? false;
+  const existingStepNames = new Set(
+    selectedProcedure?.steps?.map((s) => s.nom) ?? [],
+  );
+  const availableStepsToAdd = STEP_ORDER.filter(
+    (s) => !existingStepNames.has(s),
+  );
   const sortedSteps = [...(selectedProcedure?.steps ?? [])].sort(
     (a, b) => STEP_ORDER.indexOf(a.nom) - STEP_ORDER.indexOf(b.nom),
   );
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
-  const setLoad = useCallback((key: keyof ProcedureLoadingState, value: boolean) => {
-    if (isMountedRef.current) setLoading((prev) => ({ ...prev, [key]: value }));
-  }, []);
+  const setLoad = useCallback(
+    (key: keyof ProcedureLoadingState, value: boolean) => {
+      if (isMountedRef.current)
+        setLoading((prev) => ({ ...prev, [key]: value }));
+    },
+    [],
+  );
 
   const syncPagination = useCallback((res: PaginatedProcedureResponseDto) => {
     if (isMountedRef.current) {
@@ -162,7 +195,12 @@ export function useProcedures(): UseProceduresReturn {
   const unwrapProcedure = useCallback((raw: unknown): ProcedureResponseDto => {
     if (raw && typeof raw === "object") {
       const obj = raw as Record<string, unknown>;
-      if ("data" in obj && obj.data && typeof obj.data === "object" && "id" in (obj.data as object)) {
+      if (
+        "data" in obj &&
+        obj.data &&
+        typeof obj.data === "object" &&
+        "id" in (obj.data as object)
+      ) {
         return obj.data as ProcedureResponseDto;
       }
       if ("id" in obj) return raw as ProcedureResponseDto;
@@ -171,31 +209,36 @@ export function useProcedures(): UseProceduresReturn {
   }, []);
 
   // Déwrappe la réponse paginée — gère { data: { data:[...], total, ... } } ET { data:[...], total, ... }
-  const unwrapPaginated = useCallback((raw: unknown): PaginatedProcedureResponseDto => {
-  // Tableau direct : le service retourne ProcedureResponseDto[] sans pagination
-  if (Array.isArray(raw)) {
-    return {
-      data: raw as ProcedureResponseDto[],
-      total: raw.length,
-      page: 1,
-      limit: raw.length,
-      totalPages: 1,
-      hasNext: false,
-      hasPrevious: false,
-    };
-  }
-  // Objet paginé normal : { data: [...], total, ... }
-  if (raw && typeof raw === "object") {
-    const obj = raw as Record<string, unknown>;
-    if (Array.isArray(obj.data)) return obj as unknown as PaginatedProcedureResponseDto;
-    // Double enveloppe : { data: { data: [...], total, ... } }
-    if (obj.data && typeof obj.data === "object") {
-      const inner = obj.data as Record<string, unknown>;
-      if (Array.isArray(inner.data)) return inner as unknown as PaginatedProcedureResponseDto;
-    }
-  }
-  throw new Error("Réponse paginée invalide");
-}, []);
+  const unwrapPaginated = useCallback(
+    (raw: unknown): PaginatedProcedureResponseDto => {
+      // Tableau direct : le service retourne ProcedureResponseDto[] sans pagination
+      if (Array.isArray(raw)) {
+        return {
+          data: raw as ProcedureResponseDto[],
+          total: raw.length,
+          page: 1,
+          limit: raw.length,
+          totalPages: 1,
+          hasNext: false,
+          hasPrevious: false,
+        };
+      }
+      // Objet paginé normal : { data: [...], total, ... }
+      if (raw && typeof raw === "object") {
+        const obj = raw as Record<string, unknown>;
+        if (Array.isArray(obj.data))
+          return obj as unknown as PaginatedProcedureResponseDto;
+        // Double enveloppe : { data: { data: [...], total, ... } }
+        if (obj.data && typeof obj.data === "object") {
+          const inner = obj.data as Record<string, unknown>;
+          if (Array.isArray(inner.data))
+            return inner as unknown as PaginatedProcedureResponseDto;
+        }
+      }
+      throw new Error("Réponse paginée invalide");
+    },
+    [],
+  );
 
   // ─── loadProcedures ───────────────────────────────────────────────────────
   const loadProcedures = useCallback(
@@ -243,9 +286,10 @@ export function useProcedures(): UseProceduresReturn {
     try {
       const raw = await ProceduresService.getStatistics();
       // Déwrappe aussi les stats si enveloppées
-      const stats = (raw && typeof raw === "object" && "data" in raw)
-        ? (raw as { data: ProcedureStatisticsDto }).data
-        : raw as ProcedureStatisticsDto;
+      const stats =
+        raw && typeof raw === "object" && "data" in raw
+          ? (raw as { data: ProcedureStatisticsDto }).data
+          : (raw as ProcedureStatisticsDto);
       if (isMountedRef.current) setStatistics(stats);
     } catch (err) {
       console.error("Error loading statistics:", err);
@@ -307,12 +351,17 @@ export function useProcedures(): UseProceduresReturn {
 
   // ─── update ───────────────────────────────────────────────────────────────
   const update = useCallback(
-    async (id: string, data: UpdateProcedureDto): Promise<ProcedureResponseDto | null> => {
+    async (
+      id: string,
+      data: UpdateProcedureDto,
+    ): Promise<ProcedureResponseDto | null> => {
       setLoad("update", true);
       setError(null);
       const original = procedures.find((p) => p.id === id);
       try {
-        const updated = unwrapProcedure(await ProceduresService.update(id, data));
+        const updated = unwrapProcedure(
+          await ProceduresService.update(id, data),
+        );
         if (isMountedRef.current) {
           setProcedures((prev) => prev.map((p) => (p.id === id ? updated : p)));
           if (selectedProcedure?.id === id) setSelectedProcedure(updated);
@@ -320,7 +369,9 @@ export function useProcedures(): UseProceduresReturn {
         return updated;
       } catch (err) {
         if (original && isMountedRef.current)
-          setProcedures((prev) => prev.map((p) => (p.id === id ? original : p)));
+          setProcedures((prev) =>
+            prev.map((p) => (p.id === id ? original : p)),
+          );
         setError(err instanceof Error ? err.message : "Erreur de mise à jour");
         return null;
       } finally {
@@ -332,13 +383,19 @@ export function useProcedures(): UseProceduresReturn {
 
   // ─── updateStep ───────────────────────────────────────────────────────────
   const updateStep = useCallback(
-    async (id: string, stepName: StepName, data: UpdateStepDto): Promise<ProcedureResponseDto | null> => {
+    async (
+      id: string,
+      stepName: StepName,
+      data: UpdateStepDto,
+    ): Promise<ProcedureResponseDto | null> => {
       if (!isAdmin) return null;
       setLoad("updateStep", true);
       setError(null);
       const original = procedures.find((p) => p.id === id);
       try {
-        const updated = unwrapProcedure(await ProceduresService.updateStep(id, stepName, data));
+        const updated = unwrapProcedure(
+          await ProceduresService.updateStep(id, stepName, data),
+        );
         if (isMountedRef.current) {
           setProcedures((prev) => prev.map((p) => (p.id === id ? updated : p)));
           if (selectedProcedure?.id === id) setSelectedProcedure(updated);
@@ -346,8 +403,14 @@ export function useProcedures(): UseProceduresReturn {
         return updated;
       } catch (err) {
         if (original && isMountedRef.current)
-          setProcedures((prev) => prev.map((p) => (p.id === id ? original : p)));
-        setError(err instanceof Error ? err.message : "Erreur de mise à jour de l'étape");
+          setProcedures((prev) =>
+            prev.map((p) => (p.id === id ? original : p)),
+          );
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Erreur de mise à jour de l'étape",
+        );
         return null;
       } finally {
         setLoad("updateStep", false);
@@ -358,12 +421,17 @@ export function useProcedures(): UseProceduresReturn {
 
   // ─── addStep ──────────────────────────────────────────────────────────────
   const addStep = useCallback(
-    async (id: string, stepName: StepName): Promise<ProcedureResponseDto | null> => {
+    async (
+      id: string,
+      stepName: StepName,
+    ): Promise<ProcedureResponseDto | null> => {
       if (!isAdmin) return null;
       setLoad("updateStep", true);
       setError(null);
       try {
-        const updated = unwrapProcedure(await ProceduresService.addStep(id, stepName));
+        const updated = unwrapProcedure(
+          await ProceduresService.addStep(id, stepName),
+        );
         if (isMountedRef.current) {
           setProcedures((prev) => prev.map((p) => (p.id === id ? updated : p)));
           if (selectedProcedure?.id === id) setSelectedProcedure(updated);
@@ -394,7 +462,9 @@ export function useProcedures(): UseProceduresReturn {
         let lastUpdated: ProcedureResponseDto | null = null;
         for (const step of stepsToComplete) {
           lastUpdated = unwrapProcedure(
-            await ProceduresService.updateStep(id, step.nom, { statut: "COMPLETED" }),
+            await ProceduresService.updateStep(id, step.nom, {
+              statut: "COMPLETED",
+            }),
           );
         }
         const result = lastUpdated ?? target;
@@ -420,13 +490,17 @@ export function useProcedures(): UseProceduresReturn {
       const original = procedures.find((p) => p.id === id);
       if (isMountedRef.current) {
         setProcedures((prev) => prev.filter((p) => p.id !== id));
-        setPagination((prev) => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+        setPagination((prev) => ({
+          ...prev,
+          total: Math.max(0, prev.total - 1),
+        }));
       }
       setLoad("delete", true);
       setError(null);
       try {
         await ProceduresService.remove(id, reason);
-        if (selectedProcedure?.id === id && isMountedRef.current) setSelectedProcedure(null);
+        if (selectedProcedure?.id === id && isMountedRef.current)
+          setSelectedProcedure(null);
         await loadStatistics();
         return true;
       } catch (err) {
@@ -450,7 +524,10 @@ export function useProcedures(): UseProceduresReturn {
       setLoad("export", true);
       setError(null);
       try {
-        return await ProceduresService.exportProcedures(format, queryRef.current);
+        return await ProceduresService.exportProcedures(
+          format,
+          queryRef.current,
+        );
       } catch (err) {
         setError(err instanceof Error ? err.message : "Erreur d'export");
         return null;
@@ -463,11 +540,16 @@ export function useProcedures(): UseProceduresReturn {
 
   // ─── cancelProcedure ──────────────────────────────────────────────────────
   const cancelProcedure = useCallback(
-    async (id: string, reason?: string): Promise<ProcedureResponseDto | null> => {
+    async (
+      id: string,
+      reason?: string,
+    ): Promise<ProcedureResponseDto | null> => {
       setLoad("update", true);
       setError(null);
       try {
-        const updated = unwrapProcedure(await ProceduresService.cancel(id, reason));
+        const updated = unwrapProcedure(
+          await ProceduresService.cancel(id, reason),
+        );
         if (isMountedRef.current) {
           setProcedures((prev) => prev.map((p) => (p.id === id ? updated : p)));
           if (selectedProcedure?.id === id) setSelectedProcedure(updated);
@@ -492,10 +574,22 @@ export function useProcedures(): UseProceduresReturn {
         const data = await ProceduresService.findByEmail(email);
         if (isMountedRef.current) {
           setProcedures(data);
-          syncPagination({ data, total: data.length, page: 1, limit: data.length, totalPages: 1, hasNext: false, hasPrevious: false });
+          syncPagination({
+            data,
+            total: data.length,
+            page: 1,
+            limit: data.length,
+            totalPages: 1,
+            hasNext: false,
+            hasPrevious: false,
+          });
         }
         return data;
-      } catch { return []; } finally { setLoad("list", false); }
+      } catch {
+        return [];
+      } finally {
+        setLoad("list", false);
+      }
     },
     [isAuthenticated, setLoad, syncPagination],
   );
@@ -503,8 +597,11 @@ export function useProcedures(): UseProceduresReturn {
   // ─── findByRendezvousId ───────────────────────────────────────────────────
   const findByRendezvousId = useCallback(
     async (rendezVousId: string): Promise<ProcedureResponseDto | null> => {
-      try { return await ProceduresService.findByRendezvousId(rendezVousId); }
-      catch { return null; }
+      try {
+        return await ProceduresService.findByRendezvousId(rendezVousId);
+      } catch {
+        return null;
+      }
     },
     [],
   );
@@ -520,7 +617,8 @@ export function useProcedures(): UseProceduresReturn {
     setQueryState((prev) => ({ ...prev, limit, page: 1 }));
   }, []);
   const setFilters = useCallback(
-    (f: ProcedureFilters | ((prev: ProcedureFilters) => ProcedureFilters)) => setFiltersState(f),
+    (f: ProcedureFilters | ((prev: ProcedureFilters) => ProcedureFilters)) =>
+      setFiltersState(f),
     [],
   );
   const applyFilters = useCallback(async () => {
@@ -568,7 +666,7 @@ export function useProcedures(): UseProceduresReturn {
     if (statsLoadedRef.current) return;
     statsLoadedRef.current = true;
     loadStatistics();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   // Effet 2 — Liste : déclenché par isAdmin ET par chaque champ de query qui change.
@@ -578,7 +676,7 @@ export function useProcedures(): UseProceduresReturn {
     if (!isAdmin) return;
     lastQueryKeyRef.current = ""; // force la liste à se recharger
     loadProcedures();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isAdmin,
     query.page,

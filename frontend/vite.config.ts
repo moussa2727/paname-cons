@@ -22,7 +22,7 @@ export default defineConfig({
   },
 
   build: {
-    chunkSizeWarningLimit: 708, // Ajusté pour les vendors lourdes (antd, charts)
+    chunkSizeWarningLimit: 710, // Ajusté pour les vendors lourdes (antd, charts)
     minify: "oxc", // natif Vite 8, pas besoin d'installation
     cssMinify: "lightningcss", // Faster CSS minification
     sourcemap: false, // Disable sourcemaps in production for faster builds
