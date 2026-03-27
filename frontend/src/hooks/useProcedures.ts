@@ -652,6 +652,7 @@ export function useProcedures(): UseProceduresReturn {
     }
   }, [
     isAdmin,
+    loadProcedures,
     query.page,
     query.limit,
     query.status,
