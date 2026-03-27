@@ -56,7 +56,11 @@ async function handleResponse<T>(res: Response): Promise<T> {
   }
 
   // Extract data from wrapped response if it exists
-  if (responseBody && typeof responseBody === 'object' && 'data' in responseBody) {
+  if (
+    responseBody &&
+    typeof responseBody === "object" &&
+    "data" in responseBody
+  ) {
     return (responseBody as { data: T }).data;
   }
 

@@ -451,7 +451,6 @@ export default function ProcedureDetail() {
     );
   }
 
-  
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
@@ -680,7 +679,7 @@ export default function ProcedureDetail() {
                     Étapes de la procédure
                   </h2>
 
-                  {canBeModified && availableStepsToAdd.length > 0 && (
+                  {canBeModified && availableStepsToAdd?.length > 0 && (
                     <div
                       className="relative"
                       onClick={(e) => e.stopPropagation()}
@@ -712,7 +711,7 @@ export default function ProcedureDetail() {
                   )}
                 </div>
 
-                {sortedSteps.length === 0 ? (
+                {sortedSteps?.length === 0 ? (
                   <div className="text-center py-8 text-slate-400">
                     <FileText className="mx-auto mb-2 opacity-30" size={28} />
                     <p className="text-sm">Aucune étape enregistrée</p>
