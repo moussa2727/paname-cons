@@ -727,7 +727,7 @@ export default function Procedures() {
             )}
 
             {/* Empty */}
-            {!loading.list && (!procedures || procedures.length === 0) && (
+            {!loading.list && (!Array.isArray(procedures) || procedures.length === 0) && (
               <div className="text-center py-16 text-slate-400">
                 <AlertCircle className="mx-auto mb-3 opacity-40" size={36} />
                 <p className="text-sm">Aucune procédure trouvée</p>
@@ -743,7 +743,7 @@ export default function Procedures() {
             )}
 
             {/* Desktop table */}
-            {!loading.list && procedures && procedures.length > 0 && (
+            {!loading.list && Array.isArray(procedures) && procedures.length > 0 && (
               <>
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full">
