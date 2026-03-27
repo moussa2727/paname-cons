@@ -669,9 +669,6 @@ export function useProcedures(): UseProceduresReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]); // loadStatistics exclu volontairement : sa ref est stable, isAdmin suffit
 
-  // Effet 2 : rechargement de la liste quand query change (ou au montage si isAdmin prêt).
-  // loadProcedures est dans les deps MAIS sa définition ne dépend que de [isAdmin, setLoad, syncPagination]
-  // qui sont toutes stables → pas de boucle. Elle lit query via queryRef (ref, pas state).
   useEffect(() => {
     if (!isAdmin) return;
     loadProcedures();
