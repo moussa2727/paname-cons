@@ -1,8 +1,11 @@
-import { Controller, Get, Post, Body, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Param, Delete, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../enums/user-role.enum';
 import { QueueService, QueueStatistics } from './queue.service';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { UseGuards } from '@nestjs/common';
 
 @ApiTags('Queue Management')
 @Controller('admin/queues')
@@ -10,7 +13,10 @@ import { QueueService, QueueStatistics } from './queue.service';
 export class QueueController {
   constructor(private readonly queueService: QueueService) {}
 
-  @Get()
+  @Get('/all')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Obtenir les statistiques de toutes les queues' })
   @ApiResponse({
     status: 200,
@@ -21,6 +27,9 @@ export class QueueController {
   }
 
   @Get(':name')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: "Obtenir les statistiques d'une queue spécifique" })
   @ApiResponse({
     status: 200,
@@ -35,6 +44,8 @@ export class QueueController {
   }
 
   @Post(':name/pause')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Mettre en pause une queue' })
   @ApiResponse({ status: 200, description: 'Queue mise en pause avec succès' })
   async pauseQueue(@Param('name') name: string) {
@@ -43,6 +54,8 @@ export class QueueController {
   }
 
   @Post(':name/resume')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Reprendre une queue' })
   @ApiResponse({ status: 200, description: 'Queue reprise avec succès' })
   async resumeQueue(@Param('name') name: string) {
@@ -51,6 +64,8 @@ export class QueueController {
   }
 
   @Delete(':name/clean')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Nettoyer une queue' })
   @ApiResponse({ status: 200, description: 'Queue nettoyée avec succès' })
   async cleanQueue(@Param('name') name: string) {

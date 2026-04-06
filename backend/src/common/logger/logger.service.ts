@@ -23,13 +23,41 @@ export class LoggerService implements NestLoggerService {
       'LOG_FILE_PATH',
       '/app/backend/logs',
     );
+
+    // Ajouter les couleurs à winston
+    winston.format.colorize({ level: true });
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
-    const transport = new DailyRotateFile({
+    const fileTransport = new DailyRotateFile({
       filename: `${logPath}/application-%DATE%.log`,
       datePattern: 'YYYY-MM-DD',
       zippedArchive: true,
       maxSize: this.configService.get<string>('LOG_MAX_SIZE', '10m'),
       maxFiles: this.configService.get<string>('LOG_MAX_FILES', '30'),
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.errors({ stack: true }),
+        winston.format.splat(),
+        winston.format.printf(
+          ({
+            timestamp,
+            message,
+            context,
+            ...meta
+          }: {
+            timestamp: string;
+            level: string;
+            message: string;
+            context?: string;
+            [key: string]: unknown;
+          }) => {
+            const contextStr = context ? `[${context}] ` : '';
+            const metaStr = Object.keys(meta).length
+              ? ` ${JSON.stringify(meta)}`
+              : '';
+            return `${timestamp} ${contextStr}${message}${metaStr}`;
+          },
+        ),
+      ),
     });
 
     this.logger = winston.createLogger({
@@ -38,15 +66,38 @@ export class LoggerService implements NestLoggerService {
         winston.format.timestamp(),
         winston.format.errors({ stack: true }),
         winston.format.splat(),
-        winston.format.json(),
       ),
-      defaultMeta: { service: 'panameconsulting' } as Record<string, unknown>,
+      defaultMeta: {
+        service: 'ambassade-mali-maroc',
+      } as Record<string, unknown>,
       transports: [
-        transport,
+        fileTransport,
         new winston.transports.Console({
           format: winston.format.combine(
-            winston.format.colorize(),
-            winston.format.simple(),
+            winston.format.timestamp({ format: 'HH:mm:ss' }),
+            winston.format.ms(),
+            winston.format.colorize({ level: true }),
+            winston.format.printf(
+              ({
+                timestamp,
+                level,
+                message,
+                context,
+                ms,
+              }: {
+                timestamp: string;
+                level: string;
+                message: string;
+                context?: string;
+                ms?: string;
+              }) => {
+                const pid = process.pid;
+                const contextStr = context ? `[${context}] ` : '';
+                const upperLevel = level.toUpperCase();
+
+                return `[Nest] ${pid}  - ${timestamp}   ${upperLevel} ${contextStr}${message} ${ms || ''}`;
+              },
+            ),
           ),
         }),
       ],
@@ -61,8 +112,15 @@ export class LoggerService implements NestLoggerService {
     this.logger.info(message, { context: context || this.context });
   }
 
-  error(message: string, context?: string) {
-    this.logger.error(message, { context: context || this.context });
+  error(message: string, trace?: string, context?: string) {
+    // NestJS error method peut recevoir un trace optionnel
+    if (trace) {
+      this.logger.error(`${message}\n${trace}`, {
+        context: context || this.context,
+      });
+    } else {
+      this.logger.error(message, { context: context || this.context });
+    }
   }
 
   warn(message: string, context?: string) {

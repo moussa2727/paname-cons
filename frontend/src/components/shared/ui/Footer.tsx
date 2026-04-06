@@ -162,17 +162,17 @@ export default function Footer() {
               </h3>
               <div className="flex gap-3">
                 {[
-  {
-    icon: <FaInstagram />,
-    to: "https://www.instagram.com/paname_consulting/",
-    bg: "hover:bg-gradient-to-r hover:from-yellow-400 hover:via-pink-500 hover:to-purple-600 hover:text-white",
-  },
-  {
-    icon: <FaTiktok />,
-    to: "https://www.tiktok.com/@paname.consulting",
-    bg: "hover:bg-gradient-to-r hover:from-cyan-400 hover:via-rose-500 hover:to-gray-900 hover:text-white",
-  },
-].map((social, index) => (
+                  {
+                    icon: <FaInstagram />,
+                    to: "https://www.instagram.com/paname_consulting/",
+                    bg: "hover:bg-gradient-to-r hover:from-yellow-400 hover:via-pink-500 hover:to-purple-600 hover:text-white",
+                  },
+                  {
+                    icon: <FaTiktok />,
+                    to: "https://www.tiktok.com/@paname.consulting",
+                    bg: "hover:bg-gradient-to-r hover:from-cyan-400 hover:via-rose-500 hover:to-gray-900 hover:text-white",
+                  },
+                ].map((social, index) => (
                   <Link
                     key={index}
                     to={social.to}

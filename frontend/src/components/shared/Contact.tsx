@@ -13,26 +13,21 @@ import {
 import { MessagesService } from "../../services/message.service";
 import type { CreateContactDto } from "../../types/message.types";
 
-interface ContactFormData extends CreateContactDto {
-  consent: boolean;
-}
-
 const Contact: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
-  const [formData, setFormData] = useState<ContactFormData>({
+  const [formData, setFormData] = useState<CreateContactDto>({
     firstName: "",
     lastName: "",
     email: "",
     message: "",
-    consent: false,
   });
 
   const [errors, setErrors] = useState<
-    Partial<Record<keyof ContactFormData, string>>
+    Partial<Record<keyof CreateContactDto, string>>
   >({});
   const [touched, setTouched] = useState<
-    Partial<Record<keyof ContactFormData, boolean>>
+    Partial<Record<keyof CreateContactDto, boolean>>
   >({});
   const [submitStatus, setSubmitStatus] = useState<{
     type: "success" | "error" | null;
@@ -60,20 +55,14 @@ const Contact: React.FC = () => {
     },
   ];
 
-  // Validation des champs (basée sur les règles du backend et CreateMessageData)
+  // Validation des champs
   const validateField = (
-    name: keyof ContactFormData,
-    value: string | boolean | undefined,
+    name: keyof CreateContactDto,
+    value: string | undefined,
   ): string => {
-    if (name === "consent") {
-      return value === true
-        ? ""
-        : "Vous devez accepter le traitement de vos données";
-    }
-
     const strValue = String(value || "").trim();
 
-    // Email - obligatoire selon CreateMessageData
+    // Email - obligatoire
     if (name === "email") {
       if (!strValue) return "L'email est requis";
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(strValue)) {
@@ -82,7 +71,7 @@ const Contact: React.FC = () => {
       return "";
     }
 
-    // Message - obligatoire selon CreateMessageData
+    // Message - obligatoire
     if (name === "message") {
       if (!strValue) return "Le message est requis";
       if (strValue.length < 10) {
@@ -94,7 +83,7 @@ const Contact: React.FC = () => {
       return "";
     }
 
-    // Prénom - optionnel selon CreateMessageData, mais validation si fourni
+    // Prénom - optionnel
     if (name === "firstName" && strValue) {
       if (strValue.length < 2) {
         return "Le prénom doit contenir au moins 2 caractères";
@@ -107,7 +96,7 @@ const Contact: React.FC = () => {
       }
     }
 
-    // Nom - optionnel selon CreateMessageData, mais validation si fourni
+    // Nom - optionnel
     if (name === "lastName" && strValue) {
       if (strValue.length < 2) {
         return "Le nom doit contenir au moins 2 caractères";
@@ -125,10 +114,10 @@ const Contact: React.FC = () => {
 
   // Validation complète du formulaire
   const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof ContactFormData, string>> = {};
+    const newErrors: Partial<Record<keyof CreateContactDto, string>> = {};
     let isValid = true;
 
-    (Object.keys(formData) as Array<keyof ContactFormData>).forEach((key) => {
+    (Object.keys(formData) as Array<keyof CreateContactDto>).forEach((key) => {
       const error = validateField(key, formData[key]);
       if (error) {
         newErrors[key] = error;
@@ -142,14 +131,13 @@ const Contact: React.FC = () => {
       lastName: true,
       email: true,
       message: true,
-      consent: true,
     });
 
     return isValid;
   };
 
   // Gestion du blur
-  const handleBlur = (field: keyof ContactFormData) => {
+  const handleBlur = (field: keyof CreateContactDto) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
     const error = validateField(field, formData[field]);
     setErrors((prev) => ({ ...prev, [field]: error }));
@@ -159,15 +147,13 @@ const Contact: React.FC = () => {
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
-    const { name, value, type } = e.target;
-    const newValue =
-      type === "checkbox" ? (e.target as HTMLInputElement).checked : value;
+    const { name, value } = e.target;
 
-    setFormData((prev) => ({ ...prev, [name]: newValue }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
 
     // Valider en temps réel si le champ a déjà été touché
-    if (touched[name as keyof ContactFormData]) {
-      const error = validateField(name as keyof ContactFormData, newValue);
+    if (touched[name as keyof CreateContactDto]) {
+      const error = validateField(name as keyof CreateContactDto, value);
       setErrors((prev) => ({ ...prev, [name]: error }));
     }
   };
@@ -185,34 +171,11 @@ const Contact: React.FC = () => {
       return;
     }
 
-    // Préparer les données selon CreateMessageData attendu par le backend
-    // consent est utilisé pour la validation RGPD mais n'est pas envoyé au backend
-    const { consent, ...messageData } = formData;
-
-    // Vérification explicite du consentement (sécurité supplémentaire)
-    if (!consent) {
-      setSubmitStatus({
-        type: "error",
-        message:
-          "Vous devez accepter le traitement de vos données pour envoyer le message.",
-      });
-      return;
-    }
-
-    // S'assurer que les données correspondent à CreateContactDto
-    const createContactData: CreateContactDto = {
-      email: messageData.email,
-      message: messageData.message,
-      // firstName et lastName sont optionnels selon l'interface
-      ...(messageData.firstName && { firstName: messageData.firstName }),
-      ...(messageData.lastName && { lastName: messageData.lastName }),
-    };
-
     setIsLoading(true);
     setSubmitStatus({ type: null, message: "" });
 
     try {
-      await MessagesService.create(createContactData);
+      await MessagesService.create(formData);
 
       setSubmitStatus({
         type: "success",
@@ -226,7 +189,6 @@ const Contact: React.FC = () => {
         lastName: "",
         email: "",
         message: "",
-        consent: false,
       });
       setErrors({});
       setTouched({});
@@ -369,7 +331,7 @@ const Contact: React.FC = () => {
                           touched.firstName && errors.firstName
                             ? "border-red-300 bg-red-50"
                             : "border-gray-300 bg-gray-50"
-                        } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                        } hover:border-sky-500 focus:ring-none focus:border-blue-500 focus:outline-none transition-all`}
                         placeholder="Votre prénom"
                       />
                     </div>
@@ -404,7 +366,7 @@ const Contact: React.FC = () => {
                           touched.lastName && errors.lastName
                             ? "border-red-300 bg-red-50"
                             : "border-gray-300 bg-gray-50"
-                        } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                        }  hover:border-sky-500 focus:ring-none focus:border-blue-500 focus:outline-none transition-all`}
                         placeholder="Votre nom"
                       />
                     </div>
@@ -440,7 +402,7 @@ const Contact: React.FC = () => {
                         touched.email && errors.email
                           ? "border-red-300 bg-red-50"
                           : "border-gray-300 bg-gray-50"
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                      }  hover:border-sky-500 focus:ring-none focus:border-blue-500 focus:outline-none transition-all`}
                       placeholder="exemple@entreprise.com"
                       required
                     />
@@ -474,7 +436,7 @@ const Contact: React.FC = () => {
                         touched.message && errors.message
                           ? "border-red-300 bg-red-50"
                           : "border-gray-300 bg-gray-50"
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none`}
+                      }  hover:border-sky-500 focus:ring-none focus:border-blue-500 focus:outline-none transition-all resize-none`}
                       placeholder="Votre message..."
                       required
                     />
@@ -489,31 +451,6 @@ const Contact: React.FC = () => {
                     )}
                   </div>
                 </div>
-
-                {/* Consentement RGPD */}
-                <div className="flex items-start">
-                  <input
-                    type="checkbox"
-                    id="consent"
-                    name="consent"
-                    checked={formData.consent}
-                    onChange={handleChange}
-                    onBlur={() => handleBlur("consent")}
-                    disabled={isLoading}
-                    className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <label
-                    htmlFor="consent"
-                    className="ml-3 text-sm text-gray-600"
-                  >
-                    J'accepte que mes données soient traitées pour répondre à ma
-                    demande.
-                    <span className="text-red-500 ml-1">*</span>
-                  </label>
-                </div>
-                {touched.consent && errors.consent && (
-                  <p className="text-sm text-red-600 -mt-4">{errors.consent}</p>
-                )}
 
                 {/* Bouton de soumission */}
                 <button
@@ -535,11 +472,10 @@ const Contact: React.FC = () => {
                 </button>
 
                 <p className="text-xs text-gray-500 text-center">
-                  * Champs obligatoires. Les champs prénom et nom sont
-                  optionnels.
+                  * Champs obligatoires. Les champs prénom et nom sont optionnels.
                   <br />
-                  Votre message sera traité dans les plus brefs délais selon les
-                  normes RGPD.
+                  En envoyant ce message, vous acceptez le stockage et le traitement
+                  de vos données selon les normes RGPD.
                 </p>
               </form>
             </div>

@@ -10,6 +10,7 @@ import * as helmet from 'helmet';
 import { PrismaService } from './prisma/prisma.service';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { JsonExceptionFilter } from './common/filters/json-exception.filter';
+import { LoggerService } from './common/logger/logger.service';
 
 const corsOrigins =
   process.env.NODE_ENV === 'production'
@@ -29,7 +30,7 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
   const prismaService = app.get(PrismaService);
-  const logger = new Logger('Bootstrap');
+  const logger = app.get(LoggerService);
   app.useLogger(logger);
 
   // ==================== SÉCURITÉ ====================
