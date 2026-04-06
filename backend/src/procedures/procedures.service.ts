@@ -32,7 +32,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser } from '../interfaces/current-user.interface';
 import { Response } from 'express';
 import * as ExcelJS from 'exceljs';
-import * as PDFKit from 'pdfkit';
+import PDFDocument from 'pdfkit';
 import { MailService } from '../mail/mail.service';
 
 @Injectable()
@@ -1265,7 +1265,7 @@ export class ProceduresService {
   ): Promise<Buffer> {
     return new Promise((resolve) => {
       const chunks: Buffer[] = [];
-      const doc = new PDFKit({ margin: 50, size: 'A4', layout: 'landscape' });
+      const doc = new PDFDocument({ margin: 50, size: 'A4', layout: 'landscape' });
 
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));

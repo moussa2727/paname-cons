@@ -13,7 +13,6 @@ import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UpdateProfileDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { UsersRepository } from './users.repository';
-import { QueueService } from '../queue/queue.service';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../common/logger/audit.service';
@@ -24,7 +23,6 @@ import { MailService } from '../mail/mail.service';
 export class UsersService {
   constructor(
     private readonly usersRepository: UsersRepository,
-    private readonly queueService: QueueService,
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
     private readonly prisma: PrismaService,

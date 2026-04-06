@@ -34,7 +34,7 @@ import {
 import { profileUpdatedTemplate } from './templates/user';
 
 import { EmailData } from '../interfaces';
-import { SendEmailResult } from 'src/interfaces/queue.interface';
+import { SendEmailResult } from '../interfaces/queue.interface';
 import { adminAlertTemplate } from './templates/admin/alert.template';
 
 @Injectable()

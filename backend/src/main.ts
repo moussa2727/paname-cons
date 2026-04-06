@@ -1,11 +1,9 @@
 import { NestFactory } from '@nestjs/core';
-import { Request, Response } from 'express';
-
 import { AppModule } from './app.module';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as cookieParser from 'cookie-parser';
-import * as compression from 'compression';
+import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import * as helmet from 'helmet';
 import { PrismaService } from './prisma/prisma.service';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
