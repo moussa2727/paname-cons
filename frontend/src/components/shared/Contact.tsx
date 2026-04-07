@@ -472,10 +472,11 @@ const Contact: React.FC = () => {
                 </button>
 
                 <p className="text-xs text-gray-500 text-center">
-                  * Champs obligatoires. Les champs prénom et nom sont optionnels.
+                  * Champs obligatoires. Les champs prénom et nom sont
+                  optionnels.
                   <br />
-                  En envoyant ce message, vous acceptez le stockage et le traitement
-                  de vos données selon les normes RGPD.
+                  En envoyant ce message, vous acceptez le stockage et le
+                  traitement de vos données selon les normes RGPD.
                 </p>
               </form>
             </div>

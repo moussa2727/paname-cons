@@ -21,17 +21,16 @@ const PDFViewer: React.FC = () => {
     }
   };
 
-  // Liste des documents disponibles (fallback si la vérification échoue)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const availableDocuments = [
-    "russie",
-    "turquie",
-    "chine",
-    "chypre",
-    "algerie",
-    "maroc",
-    "france",
-  ];
+// Liste des documents disponibles (en dehors du composant pour stabilité)
+const AVAILABLE_DOCUMENTS = [
+  "russie",
+  "turquie",
+  "chine",
+  "chypre",
+  "algerie",
+  "maroc",
+  "france",
+];
 
   useEffect(() => {
     const verifyDocument = async () => {
@@ -48,7 +47,7 @@ const PDFViewer: React.FC = () => {
 
       // Si la vérification échoue, utiliser la liste statique comme fallback
       if (!exists) {
-        const fallbackExists = availableDocuments.includes(
+        const fallbackExists = AVAILABLE_DOCUMENTS.includes(
           documentName.toLowerCase(),
         );
         setDocumentExists(fallbackExists);
@@ -60,17 +59,16 @@ const PDFViewer: React.FC = () => {
     };
 
     verifyDocument();
-  }, [availableDocuments, documentName]);
+  }, [documentName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    // Si le document existe, l'ouvrir automatiquement
+    // Si le document existe, l'ouvrir automatiquement dans un nouvel onglet
+    // mais ne pas rediriger - laisser l'utilisateur sur la page
     if (documentExists && documentName) {
       const pdfUrl = `/documents/${documentName}.pdf`;
       window.open(pdfUrl, "_blank", "noopener,noreferrer");
-      // Rediriger vers la page précédente
-      navigate(-1);
     }
-  }, [documentExists, documentName, navigate]);
+  }, [documentExists, documentName]);
 
   // Si le document n'existe pas, afficher le message d'erreur
   if (isLoading || documentExists === null) {
@@ -148,8 +146,42 @@ const PDFViewer: React.FC = () => {
     );
   }
 
-  // Si le document existe, on ne retourne rien car l'ouverture se fait dans l'effet
-  return null;
+  // Si le document existe, afficher le viewer PDF
+  if (documentExists) {
+    return (
+      <MinimalLayout>
+        <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-lg p-6 max-w-4xl w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800">
+                Document : {documentName}
+              </h2>
+              <div className="flex gap-3">
+                <a
+                  href={`/documents/${documentName}.pdf`}
+                  download
+                  className="bg-sky-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-sky-700 transition-colors"
+                >
+                  Télécharger
+                </a>
+                <button
+                  onClick={() => navigate(-1)}
+                  className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                >
+                  Retour
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={`/documents/${documentName}.pdf`}
+              className="w-full h-[70vh] border rounded-lg"
+              title={`Document ${documentName}`}
+            />
+          </div>
+        </div>
+      </MinimalLayout>
+    );
+  }
 };
 
 export default PDFViewer;
