@@ -4,7 +4,9 @@ import MinimalLayout from "../../components/shared/Layouts/MiniLayout";
 import { Helmet } from "react-helmet-async";
 
 const PDFViewer: React.FC = () => {
-  const { documentName } = useParams<{ documentName: string }>();
+  const { documentName: rawDocumentName } = useParams<{ documentName: string }>();
+  // Extraire le nom sans l'extension .pdf
+  const documentName = rawDocumentName?.replace(/\.pdf$/i, '') || undefined;
   const navigate = useNavigate();
   const [documentExists, setDocumentExists] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
