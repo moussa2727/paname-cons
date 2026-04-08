@@ -148,41 +148,10 @@ const AVAILABLE_DOCUMENTS = [
     );
   }
 
-  // Si le document existe, afficher le viewer PDF
+  // Si le document existe, ouvrir dans nouvel onglet et retourner à l'accueil
   if (documentExists) {
-    return (
-      <MinimalLayout>
-        <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-lg p-6 max-w-4xl w-full">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-800">
-                Document : {documentName}
-              </h2>
-              <div className="flex gap-3">
-                <a
-                  href={`/documents/${documentName}.pdf`}
-                  download
-                  className="bg-sky-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-sky-700 transition-colors"
-                >
-                  Télécharger
-                </a>
-                <button
-                  onClick={() => navigate(-1)}
-                  className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors"
-                >
-                  Retour
-                </button>
-              </div>
-            </div>
-            <iframe
-              src={`/documents/${documentName}.pdf`}
-              className="w-full h-[70vh] border rounded-lg"
-              title={`Document ${documentName}`}
-            />
-          </div>
-        </div>
-      </MinimalLayout>
-    );
+    navigate("/");
+    return null;
   }
 };
 
