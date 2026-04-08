@@ -22,7 +22,6 @@ const Home = lazy(() => import("./pages/(main)/Home"));
 const Services = lazy(() => import("./pages/(main)/Services"));
 const Contact = lazy(() => import("./pages/(main)/Contact"));
 const About = lazy(() => import("./pages/(main)/About"));
-const PDFViewer = lazy(() => import("./pages/(main)/PDFViewer"));
 
 // Pages auth
 const Login = lazy(() => import("./pages/auth/Login"));
@@ -107,16 +106,6 @@ function App() {
                 <AuthLayout>
                   <ResetPassword />
                 </AuthLayout>
-              }
-            />
-
-            {/* PDF */}
-            <Route
-              path="/documents/:documentName.pdf"
-              element={
-                <ErrorBoundary>
-                  <PDFViewer />
-                </ErrorBoundary>
               }
             />
 

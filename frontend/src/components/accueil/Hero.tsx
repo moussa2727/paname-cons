@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 
 const Hero = () => {
-
   const countries = [
     { name: "Chine", slug: "chine" },
     { name: "France", slug: "france" },
@@ -143,10 +142,12 @@ const Hero = () => {
 
           <div className="flex flex-wrap justify-center gap-2 sm:gap-2.5 md:gap-3">
             {countries.map((country, index) => (
-              <Link
+              <a
                 key={index}
-                to={`/documents/${country.slug}.pdf`}
-                className="bg-white/20 text-white px-3 sm:px-4 md:px-5 py-1.5 sm:py-2 md:py-2.5 rounded-full text-xs sm:text-sm md:text-base font-medium backdrop-blur-sm hover:bg-white/30 transition-all duration-300 hover:scale-105 cursor-pointer border border-white/30 group"
+                href={`/documents/${country.slug}.pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white/20 text-white px-3 sm:px-4 md:px-5 py-1.5 sm:py-2 md:py-2.5 rounded-full text-xs sm:text-sm md:text-base font-medium backdrop-blur-sm hover:bg-white/30 transition-all duration-300 hover:scale-105 cursor-pointer border border-white/30 group inline-block"
               >
                 <span className="flex items-center gap-1.5">
                   {country.name}
@@ -164,7 +165,7 @@ const Hero = () => {
                     />
                   </svg>
                 </span>
-              </Link>
+              </a>
             ))}
           </div>
         </div>
