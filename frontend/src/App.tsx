@@ -112,7 +112,7 @@ function App() {
 
             {/* PDF */}
             <Route
-              path="/documents/:documentName"
+              path="/documents/:documentName.pdf"
               element={
                 <ErrorBoundary>
                   <PDFViewer />
