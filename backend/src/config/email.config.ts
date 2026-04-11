@@ -119,7 +119,7 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
         connectionTimeout: 10000,
         greetingTimeout: 10000,
         socketTimeout: 20000,
-      } as nodemailer.SMTPPool.Options);
+      } as any);
 
       // Vérification de la connexion
       await this.transporter.verify();
