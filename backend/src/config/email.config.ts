@@ -5,7 +5,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
 // Interface pour le résultat de sendMail
@@ -34,6 +34,7 @@ export interface EmailOptions {
     content?: Buffer | string;
     path?: string;
   }>;
+  family?: string | string[];
 }
 
 export interface Status {
@@ -103,9 +104,7 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     try {
       // Création du transporteur SMTP avec config Railway-compatible
       this.transporter = nodemailer.createTransport({
-        host: this.smtpHost,
-        port: this.smtpPort,
-        secure: this.smtpPort === 465, // true pour 465, false pour 587
+        service: 'gmail',
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS,
@@ -114,11 +113,13 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
           rejectUnauthorized: false, // Nécessaire pour Railway/conteneurs
           minVersion: 'TLSv1.2',
         },
+        family: 4,
+
         // Timeout et retries
         connectionTimeout: 10000,
         greetingTimeout: 10000,
         socketTimeout: 20000,
-      });
+      } as nodemailer.SMTPPool.Options);
 
       // Vérification de la connexion
       await this.transporter.verify();
