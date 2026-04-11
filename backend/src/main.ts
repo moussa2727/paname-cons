@@ -21,7 +21,7 @@ const corsOrigins =
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    bufferLogs: process.env.NODE_ENV === 'production',
+    bufferLogs: true,
     cors: false,
     abortOnError: false,
   });
@@ -30,6 +30,7 @@ async function bootstrap() {
   const prismaService = app.get(PrismaService);
   const logger = app.get(LoggerService);
   app.useLogger(logger);
+  app.flushLogs();
 
   // ==================== SÉCURITÉ ====================
   interface HttpAdapterWithSet {

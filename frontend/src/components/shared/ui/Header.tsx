@@ -422,7 +422,7 @@ function Header(): React.JSX.Element {
                 <div className="flex items-center space-x-2 md:space-x-4 ml-4 md:ml-8">
                   <Link
                     to="/connexion"
-                    className="flex items-center w-full sm:w-auto px-5 py-2.5 text-sm font-medium bg-sky-400 hover:bg-sky-500 rounded shadow"
+                    className="flex items-center w-full sm:w-auto px-5 py-2.5 text-sm font-medium bg-sky-400 hover:bg-sky-500 rounded shadow text-white"
                     aria-label="Se connecter"
                     state={{ from: location.pathname }}
                   >
@@ -432,7 +432,7 @@ function Header(): React.JSX.Element {
                   </Link>
                   <Link
                     to="/inscription"
-                    className="flex items-center w-full sm:w-auto px-5 py-2.5 text-sm font-medium bg-sky-500 hover:bg-sky-600 rounded shadow"
+                    className="flex items-center w-full sm:w-auto px-5 py-2.5 text-sm font-medium bg-sky-500 hover:bg-sky-600 rounded shadow text-white"
                     aria-label="Créer un compte"
                   >
                     <UserPlus className="w-4 h-4 mr-2" />

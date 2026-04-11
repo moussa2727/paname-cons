@@ -5,8 +5,18 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { google, gmail_v1 } from 'googleapis';
-import { LoggerSanitizer } from '../common/utils/logger-sanitizer.util';
+import * as nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
+
+// Interface pour le résultat de sendMail
+interface SentMessageInfo {
+  messageId?: string;
+  envelope?: unknown;
+  accepted?: string[];
+  rejected?: string[];
+  pending?: string[];
+  response?: string;
+}
 
 export interface EmailOptions {
   to: string | string[];
@@ -19,6 +29,11 @@ export interface EmailOptions {
   cc?: string | string[];
   bcc?: string | string[];
   priority?: 'high' | 'normal' | 'low';
+  attachments?: Array<{
+    filename: string;
+    content?: Buffer | string;
+    path?: string;
+  }>;
 }
 
 export interface Status {
@@ -39,18 +54,34 @@ export interface EmailStats {
 
 @Injectable()
 export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
-  private gmail!: gmail_v1.Gmail;
+  private transporter!: Transporter;
   private readonly logger = new Logger(EmailConfig.name);
   private isAvailable: boolean = false;
   readonly fromEmail: string;
   readonly fromName: string = 'Paname Consulting';
   private emailSentTimestamps: Date[] = [];
 
+  // Configuration SMTP
+  private readonly smtpHost: string;
+  private readonly smtpPort: number;
+  private readonly smtpSecure: boolean;
+  private readonly smtpUser: string;
+  private readonly smtpPass: string;
+
   constructor(private configService: ConfigService) {
-    this.fromEmail =
-      process.env.EMAIL_USER ||
-      this.configService.get<string>('EMAIL_USER') ||
-      '';
+    // Email expéditeur
+    this.fromEmail = this.getEnv('EMAIL_USER') || '';
+
+    // Configuration SMTP
+    this.smtpHost = this.getEnv('EMAIL_HOST') || 'smtp.gmail.com';
+    this.smtpPort = parseInt(this.getEnv('EMAIL_PORT') || '587', 10);
+    this.smtpSecure = this.getEnv('EMAIL_SECURE') === 'true';
+    this.smtpUser = this.getEnv('EMAIL_USER') || '';
+    this.smtpPass = this.getEnv('EMAIL_PASS') || '';
+  }
+
+  private getEnv(key: string): string {
+    return process.env[key] || this.configService.get<string>(key) || '';
   }
 
   async onApplicationBootstrap() {
@@ -61,48 +92,44 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     this.close();
   }
 
-  private getEnv(key: string): string {
-    return process.env[key] || this.configService.get<string>(key) || '';
-  }
-
   private async initialize(): Promise<void> {
-    const clientId = this.getEnv('GMAIL_CLIENT_ID');
-    const clientSecret = this.getEnv('GMAIL_CLIENT_SECRET');
-    const refreshToken = this.getEnv('GMAIL_REFRESH_TOKEN');
-    const emailUser = this.getEnv('EMAIL_USER');
-
-    if (!clientId || !clientSecret || !refreshToken || !emailUser) {
+    if (!this.smtpUser || !this.smtpPass) {
       this.logger.error(
-        'Variables OAuth2 manquantes : GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, EMAIL_USER',
+        'Variables SMTP manquantes : EMAIL_USER, EMAIL_PASS (et optionnellement EMAIL_HOST, EMAIL_PORT, EMAIL_SECURE)',
       );
       return;
     }
 
     try {
-      const oauth2Client = new google.auth.OAuth2(
-        clientId,
-        clientSecret,
-        'https://developers.google.com/oauthplayground',
-      );
+      // Création du transporteur SMTP avec config Railway-compatible
+      this.transporter = nodemailer.createTransport({
+        host: this.smtpHost,
+        port: this.smtpPort,
+        secure: this.smtpPort === 465, // true pour 465, false pour 587
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+        tls: {
+          rejectUnauthorized: false, // Nécessaire pour Railway/conteneurs
+          minVersion: 'TLSv1.2',
+        },
+        // Timeout et retries
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 20000,
+      });
 
-      oauth2Client.setCredentials({ refresh_token: refreshToken });
+      // Vérification de la connexion
+      await this.transporter.verify();
 
-      // Vérification via HTTPS (pas SMTP) — jamais bloqué sur Railway
-      const { token } = await oauth2Client.getAccessToken();
-
-      if (!token) {
-        this.logger.error('Impossible de récupérer un access token OAuth2');
-        return;
-      }
-
-      this.gmail = google.gmail({ version: 'v1', auth: oauth2Client });
       this.isAvailable = true;
       this.logger.log(
-        `Service Gmail API opérationnel (${LoggerSanitizer.maskEmail(emailUser)})`,
+        `Service SMTP opérationnel (${this.smtpHost}:${this.smtpPort}) - ${this.maskEmail(this.smtpUser)}`,
       );
     } catch (error) {
       const msg = (error as Error).message;
-      this.logger.error(`Échec initialisation Gmail API: ${msg}`);
+      this.logger.error(`Échec initialisation SMTP: ${msg}`);
       this.isAvailable = false;
     }
   }
@@ -114,39 +141,46 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       await this.initialize();
     }
 
-    if (!this.isAvailable) {
-      return { success: false, error: 'Service Gmail API indisponible' };
+    if (!this.isAvailable || !this.transporter) {
+      return { success: false, error: 'Service SMTP indisponible' };
     }
 
     try {
-      const message = [
-        `From: ${options.fromName || this.fromName} <${options.from || this.fromEmail}>`,
-        `To: ${Array.isArray(options.to) ? options.to.join(', ') : options.to}`,
-        `Subject: =?UTF-8?B?${Buffer.from(options.subject, 'utf8').toString('base64')}?=`,
-        `MIME-Version: 1.0`,
-        `Content-Type: text/html; charset=UTF-8`,
-        `Content-Transfer-Encoding: 8bit`,
-        '',
-        options.html,
-      ].join('\r\n');
+      const mailOptions = {
+        from: options.from
+          ? `"${options.fromName || this.fromName}" <${options.from}>`
+          : `"${this.fromName}" <${this.fromEmail}>`,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+        replyTo: options.replyTo,
+        cc: options.cc,
+        bcc: options.bcc,
+        priority: options.priority,
+        attachments: options.attachments,
+      };
 
-      const raw = Buffer.from(message, 'utf8').toString('base64url');
-
-      const response = await this.gmail.users.messages.send({
-        userId: 'me',
-        requestBody: { raw },
-      });
+      const info = (await this.transporter.sendMail(
+        mailOptions,
+      )) as SentMessageInfo;
 
       this.emailSentTimestamps.push(new Date());
-      this.logger.log(`Email envoyé avec succès`);
+      const recipients = Array.isArray(options.to)
+        ? options.to.map((email) => this.maskEmail(email))
+        : [this.maskEmail(options.to)];
+      this.logger.log(
+        `Email envoyé avec succès à ${this.formatRecipients(recipients)}`,
+      );
 
-      return { success: true, messageId: response.data.id ?? undefined };
+      return { success: true, messageId: info.messageId };
     } catch (error) {
       const msg = (error as Error).message;
       this.logger.error(`Échec envoi email: ${msg}`);
       return { success: false, error: msg };
     }
   }
+
   isServiceAvailable(): boolean {
     return this.isAvailable;
   }
@@ -155,11 +189,11 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     return {
       available: this.isAvailable,
       message: this.isAvailable
-        ? 'Service Gmail API disponible'
-        : 'Service non configuré',
-      host: 'gmail.googleapis.com',
-      port: 443,
-      secure: true,
+        ? `Service SMTP disponible (${this.smtpHost}:${this.smtpPort})`
+        : 'Service non configuré ou indisponible',
+      host: this.smtpHost,
+      port: this.smtpPort,
+      secure: this.smtpSecure,
       fromEmail: this.fromEmail || 'Non configuré',
     };
   }
@@ -169,9 +203,13 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       if (!this.isAvailable) {
         await this.initialize();
       }
-      // Test via API HTTP — pas de SMTP
-      await this.gmail.users.getProfile({ userId: 'me' });
-      return { success: true, message: 'Connexion Gmail API réussie' };
+
+      if (!this.isAvailable || !this.transporter) {
+        return { success: false, message: 'Service SMTP non disponible' };
+      }
+
+      await this.transporter.verify();
+      return { success: true, message: 'Connexion SMTP réussie' };
     } catch (error) {
       return {
         success: false,
@@ -182,20 +220,23 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
 
   async verifyConnection(): Promise<boolean> {
     try {
-      await this.gmail.users.getProfile({ userId: 'me' });
-      this.logger.log('Connexion Gmail API vérifiée avec succès');
+      if (!this.transporter) {
+        await this.initialize();
+      }
+      await this.transporter?.verify();
+      this.logger.log('Connexion SMTP vérifiée avec succès');
       return true;
     } catch (error) {
-      this.logger.error(
-        `Échec vérification Gmail API: ${(error as Error).message}`,
-      );
+      this.logger.error(`Échec vérification SMTP: ${(error as Error).message}`);
       return false;
     }
   }
 
   close(): void {
-    // Rien à fermer avec Gmail API HTTP
-    this.logger.log('Gmail API client fermé');
+    if (this.transporter) {
+      this.transporter.close();
+      this.logger.log('Connexion SMTP fermée');
+    }
   }
 
   getFromEmail(): string {
@@ -209,11 +250,30 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       (t) => t > oneDayAgo,
     ).length;
 
+    // Limite dépend du provider (Gmail: 500, autre: configurable)
+    const limit = this.smtpHost.includes('gmail') ? 500 : 1000;
+
     return {
       totalToday: todayCount,
-      limit: 500,
-      available: Math.max(0, 500 - todayCount),
+      limit,
+      available: Math.max(0, limit - todayCount),
       isAvailable: this.isAvailable,
     };
+  }
+
+  // Utilitaires privés
+  private maskEmail(email: string): string {
+    if (!email) return '';
+    const [local, domain] = email.split('@');
+    if (local.length <= 3) return `${local.charAt(0)}***@${domain}`;
+    return `${local.slice(0, 3)}***@${domain}`;
+  }
+
+  private formatRecipients(recipients: string | string[]): string {
+    if (Array.isArray(recipients)) {
+      if (recipients.length <= 2) return recipients.join(', ');
+      return `${recipients.slice(0, 2).join(', ')} +${recipients.length - 2} autres`;
+    }
+    return recipients;
   }
 }

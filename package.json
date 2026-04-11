@@ -1,0 +1,8 @@
+{
+	"dependencies": {
+		"@nestjs-modules/mailer": "2.3.4"
+	},
+	"devDependencies": {
+		"@types/nodemailer": "8.0.0"
+	}
+}

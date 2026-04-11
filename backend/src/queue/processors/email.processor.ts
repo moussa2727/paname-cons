@@ -43,7 +43,6 @@ export class EmailProcessor {
         to: toAddress,
         subject: data.subject || '',
         html: data.html || '',
-        priority: data.priority,
       });
 
       const result = (await Promise.race([emailPromise, timeoutPromise])) as {
@@ -114,7 +113,6 @@ export class EmailProcessor {
           to: toAddress,
           subject: email.subject,
           html: email.html,
-          priority: email.priority,
         });
 
         results.push({
