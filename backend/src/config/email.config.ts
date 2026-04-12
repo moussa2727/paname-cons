@@ -106,14 +106,13 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       this.transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
+          user: this.getEnv('EMAIL_USER'),
+          pass: this.getEnv('EMAIL_PASS'),
         },
         tls: {
           rejectUnauthorized: false, // Nécessaire pour Railway/conteneurs
           minVersion: 'TLSv1.2',
         },
-        family: 4,
 
         // Timeout et retries
         connectionTimeout: 10000,
