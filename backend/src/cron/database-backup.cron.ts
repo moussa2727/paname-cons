@@ -14,7 +14,9 @@ export class DatabaseBackupCron {
   private readonly backupPath: string;
 
   constructor(private configService: ConfigService) {
-    this.backupPath = '/data/backups';
+    // Utiliser /data/backups pour Railway (volume persistant)
+    // Ou fallback sur ./backups pour le développement local
+    this.backupPath = process.env.NODE_ENV ? '/data/backups' : './backups';
 
     this.createBackupDirectory();
   }
@@ -23,6 +25,20 @@ export class DatabaseBackupCron {
     if (!fs.existsSync(this.backupPath)) {
       fs.mkdirSync(this.backupPath, { recursive: true });
       this.logger.log(`Dossier backups créé: ${this.backupPath}`);
+    }
+
+    // Vérifier l'espace disponible sur Railway
+    if (process.env.NODE_ENV) {
+      try {
+        fs.statSync(this.backupPath);
+        this.logger.log(
+          `Volume backups: ${this.backupPath} (Railway persistant)`,
+        );
+      } catch {
+        this.logger.warn(
+          `Impossible d'accéder au volume de backups: ${this.backupPath}`,
+        );
+      }
     }
   }
 
