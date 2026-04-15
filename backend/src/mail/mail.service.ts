@@ -388,7 +388,7 @@ export class MailService {
   ): Promise<void> {
     const html = contactNotificationTemplate({
       ...contact,
-      adminUrl: `${this.adminUrl}/gestionnaire/messages`,
+      adminUrl: `${this.adminUrl}`,
     });
 
     await this.sendEmail({

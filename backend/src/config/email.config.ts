@@ -1,3 +1,4 @@
+// sendgrid-email.config.ts
 import {
   Injectable,
   Logger,
@@ -5,18 +6,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import nodemailer from 'nodemailer';
-import type { Transporter } from 'nodemailer';
-
-// Interface pour le résultat de sendMail
-interface SentMessageInfo {
-  messageId?: string;
-  envelope?: unknown;
-  accepted?: string[];
-  rejected?: string[];
-  pending?: string[];
-  response?: string;
-}
+import sgMail from '@sendgrid/mail';
 
 export interface EmailOptions {
   to: string | string[];
@@ -40,9 +30,7 @@ export interface EmailOptions {
 export interface Status {
   available: boolean;
   message: string;
-  host: string;
-  port: number;
-  secure: boolean;
+  apiKeyConfigured: boolean;
   fromEmail: string;
 }
 
@@ -53,85 +41,32 @@ export interface EmailStats {
   isAvailable: boolean;
 }
 
+interface SendGridResponse {
+  headers: { [key: string]: string };
+  statusCode: number;
+}
+
+interface SendGridClientWithRequest {
+  send(mailData: sgMail.MailDataRequired): Promise<[SendGridResponse, any]>;
+  setApiKey(apiKey: string): void;
+}
+
 @Injectable()
 export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
-  private transporter!: Transporter;
+  private sgMail: SendGridClientWithRequest | null = null;
   private readonly logger = new Logger(EmailConfig.name);
   private isAvailable: boolean = false;
   readonly fromEmail: string;
   readonly fromName: string = 'Paname Consulting';
+  readonly host: string = 'smtp.sendgrid.net';
+  readonly port: number = 587;
+  private apiKey: string;
+  private defaultFromEmail: string = process.env.SENDGRID_FROM;
   private emailSentTimestamps: Date[] = [];
 
-  // Configuration SMTP
-  private readonly smtpHost: string;
-  private readonly smtpPort: number;
-  private readonly smtpSecure: boolean;
-  private readonly smtpUser: string;
-  private readonly smtpPass: string;
-
   constructor(private configService: ConfigService) {
-    // Email expéditeur
-    this.fromEmail = this.getEnv('EMAIL_USER') || '';
-
-    // Configuration SMTP
-    this.smtpHost = this.getEnv('EMAIL_HOST') || 'smtp.gmail.com';
-    this.smtpPort = parseInt(this.getEnv('EMAIL_PORT') || '587', 10);
-    this.smtpSecure = this.getEnv('EMAIL_SECURE') === 'true';
-    this.smtpUser = this.getEnv('EMAIL_USER') || '';
-    this.smtpPass = this.getEnv('EMAIL_PASS') || '';
-  }
-
-  private getEnv(key: string): string {
-    return process.env[key] || this.configService.get<string>(key) || '';
-  }
-
-  async onApplicationBootstrap() {
-    await this.initialize();
-  }
-
-  onModuleDestroy() {
-    this.close();
-  }
-
-  private async initialize(): Promise<void> {
-    if (!this.smtpUser || !this.smtpPass) {
-      this.logger.error(
-        'Variables SMTP manquantes : EMAIL_USER, EMAIL_PASS (et optionnellement EMAIL_HOST, EMAIL_PORT, EMAIL_SECURE)',
-      );
-      return;
-    }
-
-    try {
-      // Création du transporteur SMTP avec config Railway-compatible
-      this.transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: this.getEnv('EMAIL_USER'),
-          pass: this.getEnv('EMAIL_PASS'),
-        },
-        tls: {
-          rejectUnauthorized: false, // Nécessaire pour Railway/conteneurs
-          minVersion: 'TLSv1.2',
-        },
-
-        // Timeout et retries
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 20000,
-      } as any);
-
-      // Vérification de la connexion
-      await this.transporter.verify();
-
-      this.isAvailable = true;
-      this.logger.log(
-        `Service SMTP opérationnel (${this.smtpHost}:${this.smtpPort}) - ${this.maskEmail(this.smtpUser)}`,
-      );
-    } catch (error) {
-      const msg = (error as Error).message;
-      this.logger.error(`Échec initialisation SMTP: ${msg}`);
-      this.isAvailable = false;
-    }
+    this.apiKey = this.getEnv('SENDGRID_API_KEY');
+    this.fromEmail = this.getEnv('SENDGRID_FROM') || this.defaultFromEmail;
   }
 
   async sendEmail(
@@ -141,39 +76,67 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       await this.initialize();
     }
 
-    if (!this.isAvailable || !this.transporter) {
-      return { success: false, error: 'Service SMTP indisponible' };
+    if (!this.isAvailable || !this.sgMail) {
+      return { success: false, error: 'Service SendGrid indisponible' };
     }
 
     try {
-      const mailOptions = {
-        from: options.from
-          ? `"${options.fromName || this.fromName}" <${options.from}>`
-          : `"${this.fromName}" <${this.fromEmail}>`,
-        to: options.to,
+      // Déterminer l'expéditeur
+      const from = options.from
+        ? `"${options.fromName || this.fromName}" <${options.from}>`
+        : `"${this.fromName}" <${this.fromEmail}>`;
+
+      // Gérer les destinataires multiples
+      const to = Array.isArray(options.to) ? options.to : [options.to];
+
+      // Construire les options d'envoi SendGrid
+      const emailOptions: sgMail.MailDataRequired = {
+        from,
+        to,
         subject: options.subject,
         html: options.html,
-        text: options.text,
         replyTo: options.replyTo,
-        cc: options.cc,
-        bcc: options.bcc,
-        priority: options.priority,
-        attachments: options.attachments,
       };
 
-      const info = (await this.transporter.sendMail(
-        mailOptions,
-      )) as SentMessageInfo;
+      // Ajouter le texte brut si fourni
+      if (options.text) {
+        emailOptions.text = options.text;
+      }
+
+      // Ajouter les CC et BCC
+      if (options.cc) {
+        emailOptions.cc = Array.isArray(options.cc) ? options.cc : [options.cc];
+      }
+      if (options.bcc) {
+        emailOptions.bcc = Array.isArray(options.bcc)
+          ? options.bcc
+          : [options.bcc];
+      }
+
+      // Ajouter les pièces jointes (format SendGrid)
+      if (options.attachments && options.attachments.length > 0) {
+        emailOptions.attachments = options.attachments.map((att) => ({
+          filename: att.filename,
+          content: att.content
+            ? Buffer.from(att.content).toString('base64')
+            : undefined,
+          path: att.path,
+        }));
+      }
+
+      // Envoi via SendGrid
+      const sendResult = await this.sgMail.send(emailOptions);
+      const response = sendResult[0];
 
       this.emailSentTimestamps.push(new Date());
       const recipients = Array.isArray(options.to)
         ? options.to.map((email) => this.maskEmail(email))
         : [this.maskEmail(options.to)];
       this.logger.log(
-        `Email envoyé avec succès à ${this.formatRecipients(recipients)}`,
+        `Email envoyé avec succès à ${this.formatRecipients(recipients)}}`,
       );
 
-      return { success: true, messageId: info.messageId };
+      return { success: true, messageId: response.headers['x-message-id'] };
     } catch (error) {
       const msg = (error as Error).message;
       this.logger.error(`Échec envoi email: ${msg}`);
@@ -189,11 +152,9 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     return {
       available: this.isAvailable,
       message: this.isAvailable
-        ? `Service SMTP disponible (${this.smtpHost}:${this.smtpPort})`
+        ? `Service SendGrid disponible - Email: ${this.maskEmail(this.fromEmail)} - Host: ${this.host}:${this.port}`
         : 'Service non configuré ou indisponible',
-      host: this.smtpHost,
-      port: this.smtpPort,
-      secure: this.smtpSecure,
+      apiKeyConfigured: !!this.apiKey,
       fromEmail: this.fromEmail || 'Non configuré',
     };
   }
@@ -204,12 +165,35 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
         await this.initialize();
       }
 
-      if (!this.isAvailable || !this.transporter) {
-        return { success: false, message: 'Service SMTP non disponible' };
+      if (!this.isAvailable || !this.sgMail) {
+        return { success: false, message: 'Service SendGrid non disponible' };
       }
 
-      await this.transporter.verify();
-      return { success: true, message: 'Connexion SMTP réussie' };
+      // Test en envoyant un email de test (SendGrid valide la clé API à chaque envoi)
+      const testEmailOptions: sgMail.MailDataRequired = {
+        to: 'test@example.com',
+        from: `"${this.fromName}" <${this.fromEmail}>`,
+        subject: 'Test Connection',
+        text: 'This is a test email to verify SendGrid connection',
+      };
+
+      try {
+        await this.sgMail.send(testEmailOptions);
+        return { success: true, message: 'Connexion SendGrid réussie' };
+      } catch (sendError: unknown) {
+        // Si l'erreur est "from address not verified", la connexion API est bonne
+        const error = sendError as Error;
+        if (
+          error.message?.includes('from address') ||
+          error.message?.includes('verified')
+        ) {
+          return {
+            success: true,
+            message: 'Connexion API réussie (expéditeur à vérifier)',
+          };
+        }
+        throw sendError;
+      }
     } catch (error) {
       return {
         success: false,
@@ -220,27 +204,51 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
 
   async verifyConnection(): Promise<boolean> {
     try {
-      if (!this.transporter) {
+      if (!this.sgMail) {
         await this.initialize();
       }
-      await this.transporter?.verify();
-      this.logger.log('Connexion SMTP vérifiée avec succès');
+
+      // Vérification en envoyant un email de test
+      const testEmailOptions: sgMail.MailDataRequired = {
+        to: 'verify@example.com',
+        from: `"${this.fromName}" <${this.fromEmail}>`,
+        subject: 'Verify Connection',
+        text: 'Verification email',
+      };
+
+      await this.sgMail.send(testEmailOptions);
+      this.logger.log('Connexion SendGrid vérifiée avec succès');
       return true;
-    } catch (error) {
-      this.logger.error(`Échec vérification SMTP: ${(error as Error).message}`);
+    } catch (error: unknown) {
+      // Si l'erreur est liée à l'expéditeur non vérifié, la connexion API est bonne
+      const err = error as Error;
+      if (
+        err.message?.includes('from address') ||
+        err.message?.includes('verified')
+      ) {
+        this.logger.warn('Connexion API OK mais expéditeur non vérifié');
+        return true;
+      }
+      this.logger.error(`Échec vérification SendGrid: ${err.message}`);
       return false;
     }
   }
 
   close(): void {
-    if (this.transporter) {
-      this.transporter.close();
-      this.logger.log('Connexion SMTP fermée');
-    }
+    this.sgMail = null;
+    this.logger.log('Service SendGrid fermé');
   }
 
   getFromEmail(): string {
     return this.fromEmail;
+  }
+
+  getPort(): number {
+    return this.port;
+  }
+
+  getHost(): string {
+    return this.host;
   }
 
   getEmailStats(): EmailStats {
@@ -250,8 +258,8 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       (t) => t > oneDayAgo,
     ).length;
 
-    // Limite dépend du provider (Gmail: 500, autre: configurable)
-    const limit = this.smtpHost.includes('gmail') ? 500 : 1000;
+    // Limite SendGrid selon le plan (plan gratuit: 100/jour)
+    const limit = 100;
 
     return {
       totalToday: todayCount,
@@ -275,5 +283,49 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       return `${recipients.slice(0, 2).join(', ')} +${recipients.length - 2} autres`;
     }
     return recipients;
+  }
+
+  private getEnv(key: string): string {
+    return process.env[key] || this.configService.get<string>(key) || '';
+  }
+
+  async onApplicationBootstrap() {
+    await this.initialize();
+  }
+
+  onModuleDestroy() {
+    this.close();
+  }
+
+  private async initialize(): Promise<void> {
+    try {
+      if (!this.apiKey) {
+        this.logger.warn('SendGrid: Clé API manquante');
+        this.isAvailable = false;
+        return;
+      }
+
+      // SendGrid automatically uses the set API key for subsequent calls
+      sgMail.setApiKey(this.apiKey);
+      this.sgMail = sgMail as unknown as SendGridClientWithRequest;
+
+      // Vérifier la connexion
+      const isVerified = await this.verifyConnection();
+      this.isAvailable = isVerified;
+
+      if (isVerified) {
+        this.logger.log(
+          `SendGrid initialisé avec succès - Email: ${this.maskEmail(this.fromEmail)}`,
+        );
+      } else {
+        this.logger.error("SendGrid: Échec de l'initialisation");
+        this.isAvailable = false;
+      }
+    } catch (error) {
+      this.logger.error(
+        `SendGrid: Erreur d'initialisation: ${(error as Error).message}`,
+      );
+      this.isAvailable = false;
+    }
   }
 }

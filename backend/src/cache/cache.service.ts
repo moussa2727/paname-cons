@@ -43,12 +43,23 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
    */
   async onModuleDestroy(): Promise<void> {
     try {
-      if (this.redis.status === 'ready') {
+      // Check if Redis is connected in any state (ready, connect, reconnecting)
+      if (this.redis.status !== 'end') {
         await this.redis.quit();
         this.logger.log('Connexion Redis fermée avec succès');
+      } else {
+        this.logger.log('Redis déjà déconnecté');
       }
-    } catch (error) {
-      this.logger.error('Erreur lors de la fermeture Redis:', error);
+    } catch (error: unknown) {
+      // Ignore "Connection is closed" errors during shutdown
+      if (
+        error instanceof Error &&
+        error.message.includes('Connection is closed')
+      ) {
+        this.logger.log('Redis déjà fermé');
+      } else {
+        this.logger.error('Erreur lors de la fermeture Redis:', error);
+      }
     }
   }
 

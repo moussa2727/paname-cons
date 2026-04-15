@@ -49,6 +49,7 @@
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "@prisma/config": "^7.7.0",
+    "@sendgrid/mail": "^8.1.6",
     "@types/pdfkit": "^0.17.5",
     "@types/pg": "^8.20.0",
     "axios": "^1.15.0",

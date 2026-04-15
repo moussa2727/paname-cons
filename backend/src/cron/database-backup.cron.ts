@@ -51,14 +51,45 @@ export class DatabaseBackupCron {
 
       const [, user, password, host, port, database] = matches;
 
-      // Commande pg_dump
-      const command = `PGPASSWORD="${password}" pg_dump -U ${user} -h ${host} -p ${port} ${database} > ${filepath}`;
+      // Commande pg_dump adaptée à la plateforme
+      const isWindows = process.platform === 'win32';
+      let command: string;
 
-      this.logger.log(`Exécution de la sauvegarde vers ${filepath}`);
-      await execAsync(command, { timeout: 300000 });
+      if (isWindows) {
+        // Windows: utiliser le chemin complet de pg_dump
+        const pgDumpPath =
+          '"c:\\Program Files\\PostgreSQL\\18\\bin\\pg_dump.exe"';
+        command = `set "PGPASSWORD=${password}" && ${pgDumpPath} -U ${user} -h ${host} -p ${port} -d ${database} -f "${filepath}"`;
+      } else {
+        // Unix/Linux/Mac/Railway: syntaxe standard
+        // Sur Railway, pg_dump est généralement disponible dans le PATH
+        command = `PGPASSWORD="${password}" pg_dump -U ${user} -h ${host} -p ${port} ${database} > ${filepath}`;
+      }
+
+      const platform = isWindows ? 'Windows' : 'Unix/Railway';
+      this.logger.log(
+        `Exécution de la sauvegarde vers ${filepath} (${platform})`,
+      );
+
+      try {
+        await execAsync(command, { timeout: 300000 });
+      } catch (error) {
+        // En cas d'échec, essayer une alternative pour Railway
+        if (!isWindows) {
+          this.logger.warn(
+            'Tentative avec commande alternative pour Railway...',
+          );
+          const altCommand = `pg_dump ${database} -U ${user} -h ${host} -p ${port} > ${filepath}`;
+          await execAsync(`PGPASSWORD="${password}" ${altCommand}`, {
+            timeout: 300000,
+          });
+        } else {
+          throw error;
+        }
+      }
 
       this.logger.log(
-        `✅ Sauvegarde réussie: ${filename} (${fs.statSync(filepath).size} bytes)`,
+        `Sauvegarde réussie: ${filename} (${fs.statSync(filepath).size} bytes)`,
       );
 
       this.cleanupOldBackups();
