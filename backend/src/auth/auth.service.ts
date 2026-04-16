@@ -16,7 +16,6 @@ import { UsersService } from '../users/users.service';
 import { UsersRepository } from '../users/users.repository';
 import { RefreshTokenRepository } from '../tokens/refresh-token.repository';
 import { ResetTokenRepository } from '../tokens/reset-token.repository';
-import { QueueService } from '../queue/queue.service';
 import { AuditService } from '../common/logger/audit.service';
 import { CurrentUser } from '../interfaces/current-user.interface';
 import { RegisterDto } from './dto';
@@ -65,7 +64,6 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly refreshTokenRepository: RefreshTokenRepository,
     private readonly resetTokenRepository: ResetTokenRepository,
-    private readonly queueService: QueueService,
     private readonly auditService: AuditService,
     private readonly mailService: MailService,
   ) {}

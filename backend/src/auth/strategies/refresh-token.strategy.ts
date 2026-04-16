@@ -15,7 +15,7 @@ export class RefreshTokenStrategy extends PassportStrategy(
   private readonly logger = new Logger(RefreshTokenStrategy.name);
 
   constructor(
-    private configService: ConfigService,
+    configService: ConfigService,
     private refreshTokenRepository: RefreshTokenRepository,
   ) {
     super({

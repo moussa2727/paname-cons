@@ -1265,7 +1265,11 @@ export class ProceduresService {
   ): Promise<Buffer> {
     return new Promise((resolve) => {
       const chunks: Buffer[] = [];
-      const doc = new PDFDocument({ margin: 50, size: 'A4', layout: 'landscape' });
+      const doc = new PDFDocument({
+        margin: 50,
+        size: 'A4',
+        layout: 'landscape',
+      });
 
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));

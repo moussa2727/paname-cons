@@ -50,7 +50,7 @@ export class MailService {
     this.frontendUrl =
       this.configService.get<string>('FRONTEND_URL') ||
       'https://panameconsulting.com';
-    this.adminUrl = `${this.frontendUrl}/gestionnaire/messages`;
+    this.adminUrl = `${this.frontendUrl}`;
   }
 
   public async sendEmail(data: EmailData): Promise<void> {
@@ -445,9 +445,9 @@ export class MailService {
     fromEmail?: string, // Email dynamique optionnel
     fromName?: string, // Nom dynamique optionnel
   ): Promise<SendEmailResult> {
-    if (!process.env.EMAIL_USER) {
+    if (!process.env.GMAIL_FROM) {
       this.logger.warn('EMAIL_USER not configured, cannot send admin alert');
-      return { success: false, error: 'EMAIL_USER not configured' };
+      return { success: false, error: 'GMAIL_USER not configured' };
     }
 
     const html = adminAlertTemplate({
@@ -460,7 +460,7 @@ export class MailService {
     });
 
     await this.sendEmail({
-      to: process.env.EMAIL_USER,
+      to: process.env.GMAIL_FROM,
       from: fromEmail, // Email dynamique ou défaut
       fromName: fromName || 'Système Paname Consulting', // Nom dynamique ou défaut
       subject: `[Paname Consulting] ${title}`,

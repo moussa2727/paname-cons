@@ -16,7 +16,6 @@ import {
   Logger,
   ForbiddenException,
 } from '@nestjs/common';
-import { MailService } from '../mail/mail.service';
 import { RendezvousService } from './rendezvous.service';
 import { Rendezvous } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -53,7 +52,6 @@ export class RendezvousController {
 
   constructor(
     private readonly rendezvousService: RendezvousService,
-    private readonly mailService: MailService,
     private readonly queueService: QueueService,
     private readonly prisma: PrismaService,
   ) {}

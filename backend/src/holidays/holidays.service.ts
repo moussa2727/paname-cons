@@ -77,7 +77,6 @@ export class HolidaysService {
   private cachedHolidays = new Map<string, HolidayInfo[]>();
 
   private readonly MAX_SLOTS_PER_DAY = 24;
-  private readonly LUNCH_BREAK = { start: 12, end: 14 };
 
   private readonly FIXED_HOLIDAYS = [
     { date: '01-01', name: 'Nouvel An' },
