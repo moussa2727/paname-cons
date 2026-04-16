@@ -1,4 +1,4 @@
-// sendgrid-email.config.ts
+// gmail-email.config.ts
 import {
   Injectable,
   Logger,
@@ -6,8 +6,17 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import sgMail from '@sendgrid/mail';
+import { google, gmail_v1, Auth } from 'googleapis';
 
+// Type pour les credentials (défini localement pour éviter l'import)
+interface Credentials {
+  access_token?: string | null;
+  refresh_token?: string | null;
+  expiry_date?: number | null;
+  scope?: string;
+  token_type?: string;
+  id_token?: string | null;
+}
 export interface EmailOptions {
   to: string | string[];
   subject: string;
@@ -24,13 +33,14 @@ export interface EmailOptions {
     content?: Buffer | string;
     path?: string;
   }>;
-  family?: string | string[];
 }
 
 export interface Status {
   available: boolean;
   message: string;
-  apiKeyConfigured: boolean;
+  clientIdConfigured: boolean;
+  clientSecretConfigured: boolean;
+  refreshTokenConfigured: boolean;
   fromEmail: string;
 }
 
@@ -41,32 +51,26 @@ export interface EmailStats {
   isAvailable: boolean;
 }
 
-interface SendGridResponse {
-  headers: { [key: string]: string };
-  statusCode: number;
-}
-
-interface SendGridClientWithRequest {
-  send(mailData: sgMail.MailDataRequired): Promise<[SendGridResponse, any]>;
-  setApiKey(apiKey: string): void;
-}
-
 @Injectable()
 export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
-  private sgMail: SendGridClientWithRequest | null = null;
+  private oAuth2Client: Auth.OAuth2Client | null = null;
+  private gmail: gmail_v1.Gmail | null = null;
   private readonly logger = new Logger(EmailConfig.name);
   private isAvailable: boolean = false;
   readonly fromEmail: string;
   readonly fromName: string = 'Paname Consulting';
-  readonly host: string = 'smtp.sendgrid.net';
-  readonly port: number = 587;
-  private apiKey: string;
-  private defaultFromEmail: string = process.env.SENDGRID_FROM;
+  private adminEmail: string;
+  private clientId: string;
+  private clientSecret: string;
+  private refreshToken: string;
   private emailSentTimestamps: Date[] = [];
 
   constructor(private configService: ConfigService) {
-    this.apiKey = this.getEnv('SENDGRID_API_KEY');
-    this.fromEmail = this.getEnv('SENDGRID_FROM') || this.defaultFromEmail;
+    this.clientId = this.getEnv('GMAIL_CLIENT_ID');
+    this.clientSecret = this.getEnv('GMAIL_CLIENT_SECRET');
+    this.refreshToken = this.getEnv('GMAIL_REFRESH_TOKEN');
+    this.fromEmail = this.getEnv('GMAIL_FROM') || '';
+    this.adminEmail = this.getEnv('GMAIL_USER');
   }
 
   async sendEmail(
@@ -76,70 +80,52 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       await this.initialize();
     }
 
-    if (!this.isAvailable || !this.sgMail) {
-      return { success: false, error: 'Service SendGrid indisponible' };
+    if (!this.isAvailable || !this.gmail) {
+      return { success: false, error: 'Service Gmail API indisponible' };
     }
 
     try {
-      // Déterminer l'expéditeur
-      const from = options.from
-        ? `"${options.fromName || this.fromName}" <${options.from}>`
-        : `"${this.fromName}" <${this.fromEmail}>`;
+      await this.ensureValidToken();
 
-      // Gérer les destinataires multiples
-      const to = Array.isArray(options.to) ? options.to : [options.to];
+      const rawEmail = this.createRawEmail(options);
 
-      // Construire les options d'envoi SendGrid
-      const emailOptions: sgMail.MailDataRequired = {
-        from,
-        to,
-        subject: options.subject,
-        html: options.html,
-        replyTo: options.replyTo,
-      };
-
-      // Ajouter le texte brut si fourni
-      if (options.text) {
-        emailOptions.text = options.text;
-      }
-
-      // Ajouter les CC et BCC
-      if (options.cc) {
-        emailOptions.cc = Array.isArray(options.cc) ? options.cc : [options.cc];
-      }
-      if (options.bcc) {
-        emailOptions.bcc = Array.isArray(options.bcc)
-          ? options.bcc
-          : [options.bcc];
-      }
-
-      // Ajouter les pièces jointes (format SendGrid)
-      if (options.attachments && options.attachments.length > 0) {
-        emailOptions.attachments = options.attachments.map((att) => ({
-          filename: att.filename,
-          content: att.content
-            ? Buffer.from(att.content).toString('base64')
-            : undefined,
-          path: att.path,
-        }));
-      }
-
-      // Envoi via SendGrid
-      const sendResult = await this.sgMail.send(emailOptions);
-      const response = sendResult[0];
+      const response = await this.gmail.users.messages.send({
+        userId: 'me',
+        requestBody: {
+          raw: rawEmail,
+        },
+      });
 
       this.emailSentTimestamps.push(new Date());
       const recipients = Array.isArray(options.to)
         ? options.to.map((email) => this.maskEmail(email))
         : [this.maskEmail(options.to)];
       this.logger.log(
-        `Email envoyé avec succès à ${this.formatRecipients(recipients)}}`,
+        `Email envoyé avec succès à ${this.formatRecipients(recipients)} - Message ID: ${response.data.id}`,
       );
 
-      return { success: true, messageId: response.headers['x-message-id'] };
+      return { success: true, messageId: response.data.id || undefined };
     } catch (error) {
       const msg = (error as Error).message;
       this.logger.error(`Échec envoi email: ${msg}`);
+
+      if (msg.includes('invalid_grant') || msg.includes('401')) {
+        this.logger.log('Token expiré, tentative de rafraîchissement...');
+        await this.refreshAccessToken();
+
+        try {
+          const rawEmail = this.createRawEmail(options);
+          const response = await this.gmail.users.messages.send({
+            userId: 'me',
+            requestBody: { raw: rawEmail },
+          });
+          this.emailSentTimestamps.push(new Date());
+          return { success: true, messageId: response.data.id || undefined };
+        } catch (retryError) {
+          return { success: false, error: (retryError as Error).message };
+        }
+      }
+
       return { success: false, error: msg };
     }
   }
@@ -152,9 +138,11 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     return {
       available: this.isAvailable,
       message: this.isAvailable
-        ? `Service SendGrid disponible - Email: ${this.maskEmail(this.fromEmail)} - Host: ${this.host}:${this.port}`
+        ? `Service Gmail API disponible - Email: ${this.maskEmail(this.fromEmail)}`
         : 'Service non configuré ou indisponible',
-      apiKeyConfigured: !!this.apiKey,
+      clientIdConfigured: !!this.clientId,
+      clientSecretConfigured: !!this.clientSecret,
+      refreshTokenConfigured: !!this.refreshToken,
       fromEmail: this.fromEmail || 'Non configuré',
     };
   }
@@ -165,35 +153,16 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
         await this.initialize();
       }
 
-      if (!this.isAvailable || !this.sgMail) {
-        return { success: false, message: 'Service SendGrid non disponible' };
+      if (!this.isAvailable || !this.gmail) {
+        return { success: false, message: 'Service Gmail API non disponible' };
       }
 
-      // Test en envoyant un email de test (SendGrid valide la clé API à chaque envoi)
-      const testEmailOptions: sgMail.MailDataRequired = {
-        to: 'test@example.com',
-        from: `"${this.fromName}" <${this.fromEmail}>`,
-        subject: 'Test Connection',
-        text: 'This is a test email to verify SendGrid connection',
+      const profile = await this.gmail.users.getProfile({ userId: 'me' });
+
+      return {
+        success: true,
+        message: `Connexion Gmail API réussie - Compte: ${profile.data.emailAddress}`,
       };
-
-      try {
-        await this.sgMail.send(testEmailOptions);
-        return { success: true, message: 'Connexion SendGrid réussie' };
-      } catch (sendError: unknown) {
-        // Si l'erreur est "from address not verified", la connexion API est bonne
-        const error = sendError as Error;
-        if (
-          error.message?.includes('from address') ||
-          error.message?.includes('verified')
-        ) {
-          return {
-            success: true,
-            message: 'Connexion API réussie (expéditeur à vérifier)',
-          };
-        }
-        throw sendError;
-      }
     } catch (error) {
       return {
         success: false,
@@ -204,51 +173,33 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
 
   async verifyConnection(): Promise<boolean> {
     try {
-      if (!this.sgMail) {
+      if (!this.gmail) {
         await this.initialize();
       }
 
-      // Vérification en envoyant un email de test
-      const testEmailOptions: sgMail.MailDataRequired = {
-        to: 'verify@example.com',
-        from: `"${this.fromName}" <${this.fromEmail}>`,
-        subject: 'Verify Connection',
-        text: 'Verification email',
-      };
-
-      await this.sgMail.send(testEmailOptions);
-      this.logger.log('Connexion SendGrid vérifiée avec succès');
-      return true;
-    } catch (error: unknown) {
-      // Si l'erreur est liée à l'expéditeur non vérifié, la connexion API est bonne
-      const err = error as Error;
-      if (
-        err.message?.includes('from address') ||
-        err.message?.includes('verified')
-      ) {
-        this.logger.warn('Connexion API OK mais expéditeur non vérifié');
-        return true;
+      if (!this.gmail) {
+        return false;
       }
-      this.logger.error(`Échec vérification SendGrid: ${err.message}`);
+
+      this.logger.log(
+        `Connexion Gmail API vérifiée - Compte: ${this.maskEmail(this.fromEmail)}`,
+      );
+      return true;
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(`Échec vérification Gmail API: ${err.message}`);
       return false;
     }
   }
 
   close(): void {
-    this.sgMail = null;
-    this.logger.log('Service SendGrid fermé');
+    this.gmail = null;
+    this.oAuth2Client = null;
+    this.logger.log('Service Gmail API fermé');
   }
 
   getFromEmail(): string {
     return this.fromEmail;
-  }
-
-  getPort(): number {
-    return this.port;
-  }
-
-  getHost(): string {
-    return this.host;
   }
 
   getEmailStats(): EmailStats {
@@ -258,8 +209,7 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
       (t) => t > oneDayAgo,
     ).length;
 
-    // Limite SendGrid selon le plan (plan gratuit: 100/jour)
-    const limit = 100;
+    const limit = 500;
 
     return {
       totalToday: todayCount,
@@ -269,7 +219,31 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
     };
   }
 
-  // Utilitaires privés
+  async getAccountInfo(): Promise<{
+    email: string;
+    messagesTotal: number;
+    threadsTotal: number;
+  } | null> {
+    if (!this.isAvailable || !this.gmail) {
+      return null;
+    }
+
+    try {
+      await this.ensureValidToken();
+      const profile = await this.gmail.users.getProfile({ userId: 'me' });
+      return {
+        email: profile.data.emailAddress || '',
+        messagesTotal: profile.data.messagesTotal || 0,
+        threadsTotal: profile.data.threadsTotal || 0,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Erreur récupération compte: ${(error as Error).message}`,
+      );
+      return null;
+    }
+  }
+
   private maskEmail(email: string): string {
     if (!email) return '';
     const [local, domain] = email.split('@');
@@ -299,33 +273,182 @@ export class EmailConfig implements OnApplicationBootstrap, OnModuleDestroy {
 
   private async initialize(): Promise<void> {
     try {
-      if (!this.apiKey) {
-        this.logger.warn('SendGrid: Clé API manquante');
+      if (!this.clientId || !this.clientSecret || !this.refreshToken) {
+        this.logger.warn(
+          'Gmail API: Identifiants manquants (clientId, clientSecret, refreshToken)',
+        );
         this.isAvailable = false;
         return;
       }
 
-      // SendGrid automatically uses the set API key for subsequent calls
-      sgMail.setApiKey(this.apiKey);
-      this.sgMail = sgMail as unknown as SendGridClientWithRequest;
+      if (!this.fromEmail) {
+        this.logger.warn(
+          'Gmail API: Email expéditeur non configuré (GMAIL_FROM)',
+        );
+        this.isAvailable = false;
+        return;
+      }
 
-      // Vérifier la connexion
+      // Initialiser le client OAuth2 via googleapis
+      this.oAuth2Client = new google.auth.OAuth2(
+        this.clientId,
+        this.clientSecret,
+      );
+
+      this.oAuth2Client.setCredentials({
+        refresh_token: this.refreshToken,
+      });
+
+      // Gérer le rafraîchissement automatique
+      this.oAuth2Client.on('tokens', (tokens: Credentials) => {
+        if (tokens.refresh_token) {
+          this.logger.warn(
+            'Nouveau refresh token reçu - Mettez à jour votre .env',
+          );
+        }
+        this.logger.log("Token d'accès rafraîchi automatiquement");
+      });
+
+      this.gmail = google.gmail({
+        version: 'v1',
+        auth: this.oAuth2Client,
+      });
+
       const isVerified = await this.verifyConnection();
       this.isAvailable = isVerified;
 
       if (isVerified) {
         this.logger.log(
-          `SendGrid initialisé avec succès - Email: ${this.maskEmail(this.fromEmail)}`,
+          `Gmail API initialisée avec succès - Email: ${this.maskEmail(this.fromEmail)}`,
         );
       } else {
-        this.logger.error("SendGrid: Échec de l'initialisation");
+        this.logger.error("Gmail API: Échec de l'initialisation");
         this.isAvailable = false;
       }
     } catch (error) {
       this.logger.error(
-        `SendGrid: Erreur d'initialisation: ${(error as Error).message}`,
+        `Gmail API: Erreur d'initialisation: ${(error as Error).message}`,
       );
       this.isAvailable = false;
     }
+  }
+
+  private async ensureValidToken(): Promise<void> {
+    if (!this.oAuth2Client) {
+      throw new Error('Client OAuth2 non initialisé');
+    }
+
+    const credentials = this.oAuth2Client.credentials;
+
+    if (!credentials.access_token || !credentials.expiry_date) {
+      await this.refreshAccessToken();
+      return;
+    }
+
+    const now = Date.now();
+    if (credentials.expiry_date <= now + 5 * 60 * 1000) {
+      this.logger.log("Token proche de l'expiration, rafraîchissement...");
+      await this.refreshAccessToken();
+    }
+  }
+
+  private async refreshAccessToken(): Promise<void> {
+    if (!this.oAuth2Client) {
+      throw new Error('Client OAuth2 non initialisé');
+    }
+
+    try {
+      const { credentials } = await this.oAuth2Client.refreshAccessToken();
+      this.oAuth2Client.setCredentials({
+        refresh_token: credentials.refresh_token || this.refreshToken,
+      });
+      this.logger.log("Token d'accès rafraîchi avec succès");
+    } catch (error) {
+      this.logger.error(
+        `Échec du rafraîchissement du token: ${(error as Error).message}`,
+      );
+      throw error;
+    }
+  }
+
+  private createRawEmail(options: EmailOptions): string {
+    const to = Array.isArray(options.to) ? options.to.join(', ') : options.to;
+    const from = options.from || this.fromEmail;
+    const fromName = options.fromName || this.fromName;
+
+    let email = '';
+
+    email += `MIME-Version: 1.0\r\n`;
+    email += `To: ${to}\r\n`;
+    email += `From: "${fromName}" <${from}>\r\n`;
+    email += `Subject: =?UTF-8?B?${Buffer.from(options.subject).toString('base64')}?=\r\n`;
+
+    if (options.replyTo) {
+      email += `Reply-To: ${options.replyTo}\r\n`;
+    }
+
+    if (options.cc) {
+      const cc = Array.isArray(options.cc) ? options.cc.join(', ') : options.cc;
+      email += `Cc: ${cc}\r\n`;
+    }
+    if (options.bcc) {
+      const bcc = Array.isArray(options.bcc)
+        ? options.bcc.join(', ')
+        : options.bcc;
+      email += `Bcc: ${bcc}\r\n`;
+    }
+
+    if (options.priority === 'high') {
+      email += `Priority: urgent\r\n`;
+      email += `X-Priority: 1\r\n`;
+    } else if (options.priority === 'low') {
+      email += `Priority: non-urgent\r\n`;
+      email += `X-Priority: 5\r\n`;
+    }
+
+    const boundary =
+      '----=_Part_' + Date.now() + '_' + Math.random().toString(36);
+    email += `Content-Type: multipart/mixed; boundary=${boundary}\r\n\r\n`;
+
+    email += `--${boundary}\r\n`;
+    email += `Content-Type: text/html; charset=UTF-8\r\n`;
+    email += `Content-Transfer-Encoding: base64\r\n\r\n`;
+    email += `${Buffer.from(options.html).toString('base64')}\r\n\r\n`;
+
+    if (options.text) {
+      email += `--${boundary}\r\n`;
+      email += `Content-Type: text/plain; charset=UTF-8\r\n`;
+      email += `Content-Transfer-Encoding: base64\r\n\r\n`;
+      email += `${Buffer.from(options.text).toString('base64')}\r\n\r\n`;
+    }
+
+    if (options.attachments && options.attachments.length > 0) {
+      for (const attachment of options.attachments) {
+        email += `--${boundary}\r\n`;
+        email += `Content-Type: application/octet-stream; name="${attachment.filename}"\r\n`;
+        email += `Content-Transfer-Encoding: base64\r\n`;
+        email += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n\r\n`;
+
+        let content: Buffer;
+        if (attachment.content) {
+          content = Buffer.isBuffer(attachment.content)
+            ? attachment.content
+            : Buffer.from(attachment.content);
+        } else {
+          content = Buffer.from('');
+        }
+
+        email += content.toString('base64');
+        email += `\r\n\r\n`;
+      }
+    }
+
+    email += `--${boundary}--`;
+
+    return Buffer.from(email)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
   }
 }
